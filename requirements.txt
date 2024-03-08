@@ -1,3 +1,5 @@
 streamlit
 langchain
 langchain-openai
+beautifulsoup4
+python-dotenv
