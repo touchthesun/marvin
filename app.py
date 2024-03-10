@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+import openai
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_core.messages import AIMessage, HumanMessage
@@ -68,6 +70,40 @@ def get_response(user_input):
     return response['answer']
 
 
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+def preprocess_content_for_openai(document_content):
+    # Placeholder for preprocessing logic
+    # For now, we'll simply truncate the content to fit within OpenAI's token limit
+    # This is a naive approach; a more sophisticated method may be needed for longer documents
+    MAX_TOKENS = 2048  # OpenAI's current token limit for the davinci model
+    return document_content[:MAX_TOKENS]  # Truncate to the max token limit
+
+def call_openai_api(api_params):
+    openai.api_key = OPENAI_API_KEY
+    response = openai.Completion.create(**api_params)
+    summary = response.choices[0].text.strip()
+    return summary
+
+def summarize_content(document_content):
+    if not document_content:
+        return "No content provided to summarize."
+
+    prepared_content = preprocess_content_for_openai(document_content)
+
+    api_params = {
+        "model": "text-davinci-003",
+        "prompt": "Summarize the following text:\n\n" + prepared_content,
+        "temperature": 0.7,
+        "max_tokens": 150,
+        "top_p": 1.0,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+    }
+
+    summary = call_openai_api(api_params)
+    return summary
 
 # app config
 st.set_page_config(page_title="Chat with websites")
