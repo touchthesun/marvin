@@ -147,7 +147,7 @@ def extract_summary_from_response(response):
     response = send_http_request_to_openai(api_params)
     return summary
 
-# app config
+# App config
 st.set_page_config(page_title="Chat with websites")
 st.title("Chat with websites")
 
@@ -191,21 +191,19 @@ else:
 
 # pseudocode
 
-Function summarize_content(document_content):
-    This function takes in the textual content of a document and uses the OpenAI API to generate a concise summary.
+def summarize_content(document_content):
+    """This function takes in the textual content of a document and uses the OpenAI API to generate a concise summary."""
 
-    Parameters:
-    document_content (string): The textual content extracted from the webpage.
+    :param document_content: The textual content extracted from the webpage.
 
-    Returns:
-    summary (string): A summary of the document content.
+    :return: A summary of the document content.
 
 
-    Step 1: Validate the input
-    If document_content is empty or null:
+    # Step 1: Validate the input
+    if not document_content:
         Return an error message or an empty string indicating no content to summarize
 
-    Step 2: Prepare the content for the OpenAI API
+    # Step 2: Prepare the content for the OpenAI API
     This might involve ensuring the content is within the API's maximum token limit
     prepared_content = preprocess_content_for_openai(document_content)
 
@@ -240,22 +238,22 @@ def extract_summary_from_response(response):
     # where each choice is a dictionary with a 'text' key
     return response['choices'][0]['text'].strip()
 
-    Step 4: Call the OpenAI API to generate the summary
+    # Step 4: Call the OpenAI API to generate the summary
     response = send_http_request_to_openai(api_params)
 
-    Optional Step 5: Post-process the summary if necessary
+    # Optional Step 5: Post-process the summary if necessary
     This could involve additional formatting or adjustments based on your application's needs
     final_summary = postprocess_summary(summary)
 
     Step 6: Return the summary
     Return final_summary
 
-Function preprocess_content_for_openai(document_content):
+def preprocess_content_for_openai(document_content):
     Placeholder for preprocessing logic
     Implement any necessary preprocessing here, such as shortening content or removing HTML tags
     Return processed_content
 
-Function call_openai_api(api_params):
+def call_openai_api(api_params):
     Placeholder for the API call logic
     Implement the actual API call to OpenAI here using the provided parameters
     This will involve sending a HTTP request to the OpenAI API endpoint and handling the response
