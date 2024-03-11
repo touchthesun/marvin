@@ -16,9 +16,9 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 DEFAULT_API_PARAMS = {
-    "model": "text-davinci-003",
-    "temperature": 0.7,
-    "max_tokens": 150,
+    "model": "gpt-3.5-turbo",
+    "temperature": 0.5,
+    "max_tokens": 250,
     "top_p": 1.0,
     "frequency_penalty": 0.0,
     "presence_penalty": 0.0
