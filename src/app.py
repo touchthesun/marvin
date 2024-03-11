@@ -1,5 +1,9 @@
 import streamlit as st
 import os
+import json
+import requests
+from datetime import datetime
+from bs4 import BeautifulSoup
 from openai import OpenAI
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
@@ -125,7 +129,29 @@ def summarize_content(document_content, override_params=None):
     except Exception as e:
         return f"An error occurred while calling the OpenAI API: {str(e)}"
 
+def create_url_metadata_json(url):
+    # Step 1: Extract Page Content and Title
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    page_content = ' '.join(p.get_text() for p in soup.find_all('p'))  # Simplified content extraction
+    page_title = soup.title.string if soup.title else "No Title"
 
+    # Step 2: Generate Summary
+    summary = summarize_content(page_content)
+
+    # Step 3: Extract Metadata
+    # For the date, we're using the current retrieval date as a placeholder
+    date_created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Step 4: Compile JSON Object
+    page_metadata = {
+        "url": url,
+        "page_title": page_title,
+        "summary": summary,
+        "date_created": date_created
+    }
+
+    return json.dumps(page_metadata, indent=4)
 
 def preprocess_summary(summary):
     # Placeholder for any pre-processing steps that might be needed
