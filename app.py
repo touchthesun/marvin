@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import HTMLHeaderTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
@@ -25,10 +25,28 @@ DEFAULT_API_PARAMS = {
 }
 
 def get_vectorstore_from_url(url):
+    # Load the document from the URL
     loader = WebBaseLoader(url)
     document = loader.load()
-    vector_store = Chroma.from_documents(document, OpenAIEmbeddings(), document_transformer=HTMLHeaderTextSplitter())
+
+    # Split the document into chunks
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=250,
+        chunk_overlap=20,
+        length_function=len,
+        is_separator_regex=False,
+    )
+    document_chunks = text_splitter.split_documents(document)
+
+    # Vectorize the document chunks
+    embeddings = OpenAIEmbeddings()
+    document_vectors = [embeddings.embed_documents(chunk) for chunk in document_chunks]
+
+    # Create the vector store from document vectors
+    vector_store = Chroma.from_documents(document_vectors)
+
     return vector_store
+
 
 
 def get_context_retriever_chain(vector_store):
