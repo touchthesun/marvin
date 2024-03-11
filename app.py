@@ -125,6 +125,25 @@ def extract_summary_from_response(response):
     # where each choice is a dictionary with a 'text' key
     return response['choices'][0]['text'].strip()
 
+    try:
+        openai.api_key = OPENAI_API_KEY
+        response = openai.Completion.create(**api_params)
+        summary = response.choices[0].text.strip()
+        return summary
+    except openai.error.OpenAIError as e:
+        return f"An error occurred while calling the OpenAI API: {str(e)}"
+
+def postprocess_summary(summary):
+    # Placeholder for any post-processing steps that might be needed
+    # For now, we'll just return the summary as is
+    return summary
+
+def extract_summary_from_response(response):
+    # Placeholder for logic to extract the summary from the OpenAI API response
+    # Assuming the response is a dictionary with a 'choices' key that contains a list of choices,
+    # where each choice is a dictionary with a 'text' key
+    return response['choices'][0]['text'].strip()
+
     response = send_http_request_to_openai(api_params)
     return summary
 
@@ -201,6 +220,25 @@ Function summarize_content(document_content):
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0
     }
+
+    try:
+        openai.api_key = OPENAI_API_KEY
+        response = openai.Completion.create(**api_params)
+        summary = response.choices[0].text.strip()
+        return summary
+    except openai.error.OpenAIError as e:
+        return f"An error occurred while calling the OpenAI API: {str(e)}"
+
+def postprocess_summary(summary):
+    # Placeholder for any post-processing steps that might be needed
+    # For now, we'll just return the summary as is
+    return summary
+
+def extract_summary_from_response(response):
+    # Placeholder for logic to extract the summary from the OpenAI API response
+    # Assuming the response is a dictionary with a 'choices' key that contains a list of choices,
+    # where each choice is a dictionary with a 'text' key
+    return response['choices'][0]['text'].strip()
 
     Step 4: Call the OpenAI API to generate the summary
     response = send_http_request_to_openai(api_params)
