@@ -43,8 +43,8 @@ def get_vectorstore_from_url(url):
     texts = [chunk.page_content for chunk in document_chunks]
     document_vectors = embeddings.embed_documents(texts)
 
-    # Create the vector store from document vectors
-    vector_store = Chroma.from_documents(texts)
+    # Create the vector store from the document vectors
+    vector_store = Chroma.from_documents(document_vectors)
 
     return vector_store
 
