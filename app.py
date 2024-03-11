@@ -15,6 +15,15 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+DEFAULT_API_PARAMS = {
+    "model": "text-davinci-003",
+    "temperature": 0.7,
+    "max_tokens": 150,
+    "top_p": 1.0,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0
+}
+
 def get_vectorstore_from_url(url):
     loader = WebBaseLoader(url)
     document = loader.load()
@@ -77,15 +86,8 @@ def summarize_content(document_content):
 
     prepared_content = preprocess_summary(document_content)
 
-    api_params = {
-        "model": "text-davinci-003",
-        "prompt": "Summarize the following text:\n\n" + prepared_content,
-        "temperature": 0.7,
-        "max_tokens": 150,
-        "top_p": 1.0,
-        "frequency_penalty": 0.0,
-        "presence_penalty": 0.0
-    }
+    api_params = DEFAULT_API_PARAMS.copy()
+    api_params["prompt"] = "Summarize the following text:\n\n" + prepared_content
 
     try:
         openai.api_key = OPENAI_API_KEY
