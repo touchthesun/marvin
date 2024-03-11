@@ -44,7 +44,6 @@ def get_vectorstore_from_url(url):
 
     # Create the vector store from document vectors
     vector_store = Chroma.from_documents(document_vectors)
-    vector_store = Chroma.from_documents(document_vectors)
 
     return vector_store
 
