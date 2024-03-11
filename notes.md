@@ -34,3 +34,17 @@ Function dev strategies
    - **Elegance:** Moderate. This approach uses a combination of different models or services to generate the best possible summary.
    - **Maintainability:** Moderate. Managing multiple models or services can increase complexity.
    - **Modularity:** High. Each summarization model or service can be a separate module, and a coordinator module can select the best summary.
+
+
+Debug Functions:
+
+
+st.header("Summarization test")
+test_content = st.text_area("Enter text to summarize:", key="test_content")
+
+if st.button("Summarize"):
+   if test_content:
+      summary = summarize_content(test_content)
+      st.sidebar.text_area("Summary:", value=summary, height=100, key="summary_output")
+   else:
+      st.sidebar.warning("Please enter text to summarize")

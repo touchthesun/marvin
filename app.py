@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-import openai
+from openai import OpenAI
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_core.messages import AIMessage, HumanMessage
@@ -14,6 +14,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 # system config
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 DEFAULT_API_PARAMS = {
     "model": "gpt-3.5-turbo",
@@ -85,15 +86,14 @@ def get_response(user_input):
         "input": user_input
     })
 
-    return response['answer']
+    return response.answer
 
 
 def call_openai_api(api_params):
     try:
-        openai.api_key = OPENAI_API_KEY
-        response = openai.Completion.create(**api_params)
+        response = client.completions.create(**api_params)
         return response
-    except openai.error.OpenAIError as e:
+    except Exception as e:
         return f"An error occurred while calling the OpenAI API: {str(e)}"
 
 
@@ -106,15 +106,26 @@ def summarize_content(document_content, override_params=None):
     api_params = DEFAULT_API_PARAMS.copy()
     if override_params:
         api_params.update(override_params)
-    api_params["prompt"] = "Summarize the following text:\n\n" + prepared_content
-
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant who provides summaries."},
+        {"role": "user", "content": prepared_content}
+    ]
     try:
-        openai.api_key = OPENAI_API_KEY
-        response = openai.Completion.create(**api_params)
-        summary = response.choices[0].text.strip()
+        response = client.chat.completions.create(model=api_params['model'], 
+                                                  temperature=api_params['temperature'],
+                                                  max_tokens=api_params['max_tokens'],
+                                                  top_p=api_params['top_p'],
+                                                  frequency_penalty=api_params['frequency_penalty'],
+                                                  presence_penalty=api_params['presence_penalty'],
+                                                  messages=messages)
+        summary = response.choices[0].message.content
+
+
         return summary
-    except openai.error.OpenAIError as e:
+    except Exception as e:
         return f"An error occurred while calling the OpenAI API: {str(e)}"
+
+
 
 def preprocess_summary(summary):
     # Placeholder for any pre-processing steps that might be needed
@@ -125,7 +136,7 @@ def extract_summary_from_response(response):
     # Placeholder for logic to extract the summary from the OpenAI API response
     # Assuming the response is a dictionary with a 'choices' key that contains a list of choices,
     # where each choice is a dictionary with a 'text' key
-    return response['choices'][0]['text'].strip()
+    return response.choices[0].text.strip()
 
 
 def postprocess_summary(summary):
@@ -174,3 +185,4 @@ else:
         elif isinstance(message, HumanMessage):
             with st.chat_message("Human"):
                 st.write(message.content)
+
