@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+from langchain.document_transformers import HTMLHeaderTextSplitter
 import openai
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
@@ -21,11 +22,7 @@ def get_vectorstore_from_url(url):
     document = loader.load()
 
     # split doc into chunks
-    text_splitter = RecursiveCharacterTextSplitter()
-    document_chunks = text_splitter.split_documents(document)
-
-    # create vector store from chunks
-    vector_store = Chroma.from_documents(document_chunks, OpenAIEmbeddings())
+    vector_store = Chroma.from_documents(document, OpenAIEmbeddings(), document_transformer=HTMLHeaderTextSplitter())
     return vector_store
 
 
@@ -73,13 +70,7 @@ def get_response(user_input):
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-def send_http_request_to_openai(api_params):
-    # Truncate the content to fit within OpenAI's token limit
-    response = send_http_request_to_openai(api_params)
-    # Tokenize the content to ensure proper truncation
-    tokens = document_content.split()
-    truncated_tokens = tokens[:MAX_TOKENS]
-    return ' '.join(truncated_tokens)
+
 
 def call_openai_api(api_params):
     try:
@@ -260,4 +251,3 @@ def call_openai_api(api_params):
     response = send_http_request_to_openai(api_params)
     summary = extract_summary_from_response(response)
     Return summary
-
