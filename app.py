@@ -40,7 +40,7 @@ def get_vectorstore_from_url(url):
 
     # Vectorize the document chunks
     embeddings = OpenAIEmbeddings()
-    document_vectors = embeddings.embed_documents([chunk.get_text() for chunk in document_chunks])
+    document_vectors = embeddings.embed_documents([chunk.page_content for chunk in document_chunks])
 
     # Create the vector store from document vectors
     vector_store = Chroma.from_documents(document_vectors)
