@@ -80,13 +80,15 @@ def call_openai_api(api_params):
         return f"An error occurred while calling the OpenAI API: {str(e)}"
 
 
-def summarize_content(document_content):
+def summarize_content(document_content, override_params=None):
     if not document_content or document_content == "":
         return "No content provided to summarize."
 
     prepared_content = preprocess_summary(document_content)
 
-    api_params = {**DEFAULT_API_PARAMS, **(override_params or {})}
+    api_params = DEFAULT_API_PARAMS.copy()
+    if override_params:
+        api_params.update(override_params)
     api_params["prompt"] = "Summarize the following text:\n\n" + prepared_content
 
     try:
