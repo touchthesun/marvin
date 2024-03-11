@@ -1,31 +1,24 @@
 import streamlit as st
 import os
-from langchain.document_transformers import HTMLHeaderTextSplitter
 import openai
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import HTMLHeaderTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
-
+# system config
 load_dotenv()
-
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 def get_vectorstore_from_url(url):
     loader = WebBaseLoader(url)
     document = loader.load()
-
-    # split doc into chunks using HTMLHeaderTextSplitter
-    # get the text in the documents
-    loader = WebBaseLoader(url)
-    document = loader.load()
     vector_store = Chroma.from_documents(document, OpenAIEmbeddings(), document_transformer=HTMLHeaderTextSplitter())
-    return vector_store
     return vector_store
 
 
@@ -39,7 +32,6 @@ def get_context_retriever_chain(vector_store):
         ("user", "{input}"),
         ("user", "Given the above conversation, generate a search query to look up in order to get information relevant to the conversation")
     ])
-
     retriever_chain = create_history_aware_retriever(llm, retriever, prompt)
 
     return retriever_chain
@@ -70,25 +62,20 @@ def get_response(user_input):
     return response['answer']
 
 
-
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
-
-
 def call_openai_api(api_params):
     try:
         openai.api_key = OPENAI_API_KEY
         response = openai.Completion.create(**api_params)
-        summary = response.choices[0].text.strip()
-        return summary
+        return response
     except openai.error.OpenAIError as e:
         return f"An error occurred while calling the OpenAI API: {str(e)}"
 
+
 def summarize_content(document_content):
-    if not document_content:
+    if not document_content or document_content == "":
         return "No content provided to summarize."
 
-    prepared_content = preprocess_content_for_openai(document_content)
+    prepared_content = preprocess_summary(document_content)
 
     api_params = {
         "model": "text-davinci-003",
@@ -108,8 +95,8 @@ def summarize_content(document_content):
     except openai.error.OpenAIError as e:
         return f"An error occurred while calling the OpenAI API: {str(e)}"
 
-def postprocess_summary(summary):
-    # Placeholder for any post-processing steps that might be needed
+def preprocess_summary(summary):
+    # Placeholder for any pre-processing steps that might be needed
     # For now, we'll just return the summary as is
     return summary
 
@@ -119,27 +106,12 @@ def extract_summary_from_response(response):
     # where each choice is a dictionary with a 'text' key
     return response['choices'][0]['text'].strip()
 
-    try:
-        openai.api_key = OPENAI_API_KEY
-        response = openai.Completion.create(**api_params)
-        summary = response.choices[0].text.strip()
-        return summary
-    except openai.error.OpenAIError as e:
-        return f"An error occurred while calling the OpenAI API: {str(e)}"
 
 def postprocess_summary(summary):
     # Placeholder for any post-processing steps that might be needed
     # For now, we'll just return the summary as is
     return summary
 
-def extract_summary_from_response(response):
-    # Placeholder for logic to extract the summary from the OpenAI API response
-    # Assuming the response is a dictionary with a 'choices' key that contains a list of choices,
-    # where each choice is a dictionary with a 'text' key
-    return response['choices'][0]['text'].strip()
-
-    response = send_http_request_to_openai(api_params)
-    return summary
 
 # App config
 st.set_page_config(page_title="Chat with websites")
@@ -181,7 +153,3 @@ else:
         elif isinstance(message, HumanMessage):
             with st.chat_message("Human"):
                 st.write(message.content)
-
-
-# pseudocode
-
