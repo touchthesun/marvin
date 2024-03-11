@@ -74,17 +74,21 @@ def get_response(user_input):
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 def preprocess_content_for_openai(document_content):
-    # Placeholder for preprocessing logic
-    # For now, we'll simply truncate the content to fit within OpenAI's token limit
-    # This is a naive approach; a more sophisticated method may be needed for longer documents
+    # Truncate the content to fit within OpenAI's token limit
     MAX_TOKENS = 2048  # OpenAI's current token limit for the davinci model
-    return document_content[:MAX_TOKENS]  # Truncate to the max token limit
+    # Tokenize the content to ensure proper truncation
+    tokens = document_content.split()
+    truncated_tokens = tokens[:MAX_TOKENS]
+    return ' '.join(truncated_tokens)
 
 def call_openai_api(api_params):
-    openai.api_key = OPENAI_API_KEY
-    response = openai.Completion.create(**api_params)
-    summary = response.choices[0].text.strip()
-    return summary
+    try:
+        openai.api_key = OPENAI_API_KEY
+        response = openai.Completion.create(**api_params)
+        summary = response.choices[0].text.strip()
+        return summary
+    except openai.error.OpenAIError as e:
+        return f"An error occurred while calling the OpenAI API: {str(e)}"
 
 def summarize_content(document_content):
     if not document_content:
