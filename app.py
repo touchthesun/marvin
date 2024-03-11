@@ -147,8 +147,8 @@ else:
                 st.write(message.content)
 
 
+# pseudocode
 
-"""
 Function summarize_content(document_content):
     This function takes in the textual content of a document and uses the OpenAI API to generate a concise summary.
 
@@ -201,4 +201,4 @@ Function call_openai_api(api_params):
     response = send_http_request_to_openai(api_params)
     summary = extract_summary_from_response(response)
     Return summary
-"""
+
