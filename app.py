@@ -21,7 +21,8 @@ def get_vectorstore_from_url(url):
     loader = WebBaseLoader(url)
     document = loader.load()
 
-    # split doc into chunks
+    # split doc into chunks using HTMLHeaderTextSplitter
+    vector_store = Chroma.from_documents(document, OpenAIEmbeddings(), document_transformer=HTMLHeaderTextSplitter())
     vector_store = Chroma.from_documents(document, OpenAIEmbeddings(), document_transformer=HTMLHeaderTextSplitter())
     return vector_store
 
