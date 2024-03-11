@@ -86,7 +86,7 @@ def summarize_content(document_content):
 
     prepared_content = preprocess_summary(document_content)
 
-    api_params = DEFAULT_API_PARAMS.copy()
+    api_params = {**DEFAULT_API_PARAMS, **(override_params or {})}
     api_params["prompt"] = "Summarize the following text:\n\n" + prepared_content
 
     try:
