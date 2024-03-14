@@ -6,7 +6,10 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from openai import OpenAI
 from dotenv import load_dotenv
+from db import Neo4jConnection
 from langchain_community.vectorstores import Chroma
+# from langchain_community.graphs import Neo4jGraph
+# from langchain.chains import GraphCypherQAChain
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -18,6 +21,13 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 # system config
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+NEO4J_CONNECTION_FILE = os.getenv('NEO4J_CONNECTION_FILE')
+# db_url = os.getenv("NEO4J_URI")
+# db_username = os.getenv("NEO4J_USERNAME")
+# db_password = os.getenv("NEO4J_PASSWORD")
+
+
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 DEFAULT_API_PARAMS = {
@@ -28,6 +38,26 @@ DEFAULT_API_PARAMS = {
     "frequency_penalty": 0.0,
     "presence_penalty": 0.0
 }
+
+
+
+
+# API call wrapper
+
+def call_openai_api(api_params):
+    try:
+        response = client.completions.create(**api_params)
+        return response
+    except Exception as e:
+        return f"An error occurred while calling the OpenAI API: {str(e)}"
+
+
+# initialize graphdb
+
+
+
+
+# Get data
 
 def get_vectorstore_from_url(url):
     # Load the document from the URL
@@ -52,6 +82,7 @@ def get_vectorstore_from_url(url):
     return vector_store
 
 
+# Talk to data
 
 def get_context_retriever_chain(vector_store):
     llm = ChatOpenAI()
@@ -66,6 +97,7 @@ def get_context_retriever_chain(vector_store):
     retriever_chain = create_history_aware_retriever(llm, retriever, prompt)
 
     return retriever_chain
+
 
 
 def get_conversational_rag_chain(retriever_chain):
@@ -90,16 +122,9 @@ def get_response(user_input):
         "input": user_input
     })
 
-    return response.answer
+    return response
 
-
-def call_openai_api(api_params):
-    try:
-        response = client.completions.create(**api_params)
-        return response
-    except Exception as e:
-        return f"An error occurred while calling the OpenAI API: {str(e)}"
-
+# Manage data
 
 def summarize_content(document_content, override_params=None):
     if not document_content or document_content == "":
@@ -123,7 +148,6 @@ def summarize_content(document_content, override_params=None):
                                                   presence_penalty=api_params['presence_penalty'],
                                                   messages=messages)
         summary = response.choices[0].message.content
-
 
         return summary
     except Exception as e:
@@ -171,6 +195,71 @@ def postprocess_summary(summary):
     return summary
 
 
+# Neo4j Graph DB
+
+
+
+def add_page_metadata_to_graph(page_metadata):
+    """
+    Adds a node to the Neo4j graph with properties derived from page metadata.
+
+    Parameters:
+    page_metadata (dict): A dictionary containing page metadata.
+    """
+    driver = Neo4jConnection.get_driver()
+    with driver.session() as session:
+        # Define a Cypher query to create a node with properties
+        query = """
+        CREATE (p:Page {
+            url: $url,
+            title: $page_title,
+            summary: $summary,
+            dateCreated: $date_created
+        })
+        RETURN id(p) AS node_id
+        """
+        # Parameters need to be passed explicitly rather than as a single dict
+        parameters = {
+            "url": page_metadata["url"],
+            "page_title": page_metadata["page_title"],
+            "summary": page_metadata["summary"],
+            "date_created": page_metadata["date_created"]
+        }
+        # Run the query with parameters
+        result = session.run(query, parameters)
+        node_id = result.single()["node_id"]
+        print(f"Node created with ID: {node_id}")
+
+
+# test function
+
+def process_url_and_add_to_graph(url):
+    
+    vector_store = get_vectorstore_from_url(url) 
+
+    if vector_store:
+        # Here, adapt the logic based on how you're implementing content summarization
+        # For demonstration, assuming direct content is available for summarization
+        document_content = vector_store.get_document_content()  # Placeholder; adapt based on actual implementation
+        summary = summarize_content(document_content)
+
+        # Create metadata JSON; adapt as necessary
+        page_metadata = create_url_metadata_json({
+            "url": url,
+            "page_title": "Extracted or Placeholder Title",  # Adapt based on actual title extraction
+            "summary": summary,
+            "date_created": "YYYY-MM-DD"  # Consider generating or extracting an actual date
+        })
+
+        # Add to Neo4j graph
+        add_page_metadata_to_graph(page_metadata)
+
+        st.sidebar.success("Page processed and added to graph.")
+    else:
+        st.sidebar.error("Failed to process URL.")
+
+
+
 # App config
 st.set_page_config(page_title="Chat with websites")
 st.title("Chat with websites")
@@ -180,7 +269,7 @@ st.title("Chat with websites")
 with st.sidebar:
     st.header("Settings")
     website_url = st.text_input("Website URL")
-
+    process_button = st.sidebar.button("Process URL")
 
 if website_url is None or website_url == "":
     st.info("Please enter a URL")
@@ -198,12 +287,14 @@ else:
     user_query = st.chat_input("Type your message here...")
     if user_query is not None and user_query != "":
         response = get_response(user_query)
-        st.session_state.chat_history.append(HumanMessage(content=user_query))
-        st.session_state.chat_history.append(AIMessage(content=response))
-
+        
+        if "answer" in response:
+            st.session_state.chat_history.append(HumanMessage(content=user_query))
+            st.session_state.chat_history.append(AIMessage(content=response["answer"]))
+        else:
+            print("The expected 'answer' key is not found in the response.")
 
     # conversation
-
     for message in st.session_state.chat_history:
         if isinstance(message, AIMessage):
             with st.chat_message("AI"):
