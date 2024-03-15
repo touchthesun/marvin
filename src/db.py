@@ -9,7 +9,7 @@ class Neo4jConnection:
     @staticmethod
     def get_driver():
         if Neo4jConnection._driver is None:
-            load_status = load_dotenv(NEO4J_CONNECTION_FILE)
+            load_status = load_dotenv("NEO4J_CONNECTION_FILE")
             if not load_status:
                 raise RuntimeError('Environment variables not loaded.')
 
