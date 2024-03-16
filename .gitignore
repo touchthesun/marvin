@@ -120,6 +120,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+*.env
 .env
 .venv
 env/
@@ -161,3 +162,7 @@ cython_debug/
 
 # aider-chat artifacts
 .aider*
+
+
+# exclude temp docs in /notes
+/notes/*

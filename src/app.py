@@ -1,8 +1,8 @@
-import streamlit as st
 import os
-import json
 import requests
 import logging
+import streamlit as st
+from openai import OpenAI as ai
 from datetime import datetime
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -11,27 +11,21 @@ from langchain_community.vectorstores import Chroma
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_openai import OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
 # system config
-load_dotenv()
-NEO4J_CONNECTION_FILE = os.getenv('NEO4J_CONNECTION_FILE')
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path)
+client = ai()
+
 
 # Configure basic logging
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-def generate_chat_messages_with_context(user_query, document_summary):
-    messages = [
-        {"role": "system", "content": "The following is a summary of the document content:"},
-        {"role": "assistant", "content": document_summary},
-        {"role": "user", "content": user_query}
-    ]
-    return messages
 
 
 def chat_completion(messages, model="gpt-3.5-turbo", override_params=None):
@@ -40,24 +34,28 @@ def chat_completion(messages, model="gpt-3.5-turbo", override_params=None):
     """
     logger.debug(f"Generating chat completion with model {model}. Messages: {messages}")
     
-    api_params = {"model": model, "messages": messages}
+    api_params = {
+        "model": model,
+        "messages": messages,
+    }
     
     if override_params:
         api_params.update(override_params)
         logger.debug(f"Override parameters applied: {override_params}")
 
-    client = ChatOpenAI()
+    # Log the payload being sent to OpenAI
+    print("Sending request to OpenAI with payload:", api_params)
 
     try:
         completion = client.chat.completions.create(**api_params)
         logger.debug(f"Chat completion successful. Response: {completion}")
+        response = completion.choices[0].message.content
+        print(response)
         return completion
+        
     except Exception as e:
         logger.error(f"Chat completion failed with error: {e}")
         return {"error": str(e)}
-
-
-    
 
 
 def summarize_content(document_content, model="gpt-3.5-turbo", override_params=None):
@@ -69,21 +67,22 @@ def summarize_content(document_content, model="gpt-3.5-turbo", override_params=N
         return "No content provided to summarize."
     
     messages = [
-        {"role": "system", "content": "You are a summarizing assistant, providing concise summary of provided content."},
-        {"role": "user", "content": document_content}
+        {"role": "system", 
+        "content": "You are a summarizing assistant, providing concise summary of provided content."},
+        {"role": "user", 
+        "content": document_content}
     ]
 
     logger.debug(f"Summarizing content with model {model}. Content: {document_content[:100]}...")  # Log first 100 characters to avoid clutter
 
-    client = ChatOpenAI()
     response = chat_completion(messages, model=model, override_params=override_params)
-    
+
     if "error" in response:
         logger.error(f"Error in summarizing content: {response['error']}")
         return response["error"]
     
     try:
-        summary = response.choices[-1].message["content"].strip()
+        summary = response.choices[0].message.content
         logger.debug(f"Content summarized successfully. Summary: {summary[:100]}...")  # Log first 100 characters
         return summary
     except (AttributeError, IndexError) as e:
@@ -118,7 +117,7 @@ def get_vectorstore_from_url(url):
 # Talk to data
 def get_context_retriever_chain(vector_store):
     logger.debug("Initializing context retriever chain.")
-    llm = ChatOpenAI()
+    llm = OpenAI()
     retriever = vector_store.as_retriever()
     logger.debug(f"Retriever based on vector store: {retriever}")
 
@@ -138,7 +137,7 @@ def get_context_retriever_chain(vector_store):
 
 def get_conversational_rag_chain(retriever_chain):
     logger.debug("Initializing conversational RAG chain.")
-    llm = ChatOpenAI()
+    llm = OpenAI()
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", "Answer the user's questions based on the below context:\n\n{context}"),
@@ -182,61 +181,61 @@ def get_response(user_input):
 # Manage data
 
 def create_url_metadata_json(url):
-    # Step 1: Extract Page Content and Title
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    page_content = ' '.join(p.get_text() for p in soup.find_all('p'))  # Simplified content extraction
-    page_title = soup.title.string if soup.title else "No Title"
+    """
+    Extracts page content and title from a given URL, generates a summary,
+    and compiles metadata into a dictionary.
 
-    # Step 2: Generate Summary
-    summary = summarize_content(page_content)
+    Parameters:
+    url (str): URL of the webpage to process.
 
-    # Step 3: Extract Metadata
-    # For the date, we're using the current retrieval date as a placeholder
-    date_created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    Returns:
+    dict: Dictionary containing page metadata.
+    """
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        page_content = ' '.join(p.get_text() for p in soup.find_all('p'))
+        page_title = soup.title.string if soup.title else "No Title"
 
-    # Step 4: Compile JSON Object
-    page_metadata = {
-        "url": url,
-        "page_title": page_title,
-        "summary": summary,
-        "date_created": date_created
-    }
+        summary = summarize_content(page_content)
 
-    return json.dumps(page_metadata, indent=4)
+        page_metadata = {
+            "url": url,
+            "page_title": page_title,
+            "summary": summary,
+            "date_created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
 
-# TODO: Fix add_page_metadata_to_graph to make better use of page_metadata properties
+        return page_metadata
+    except Exception as e:
+        logger.error(f"Failed to create URL metadata for {url}: {e}")
+        return {}
+
 
 def add_page_metadata_to_graph(page_metadata):
     """
     Adds a node to the Neo4j graph with properties derived from page metadata.
 
     Parameters:
-    page_metadata (dict): A dictionary containing page metadata.
+    page_metadata (dict): Dictionary containing page metadata.
     """
     driver = Neo4jConnection.get_driver()
-    with driver.session() as session:
-        # Define a Cypher query to create a node with properties
-        query = """
-        CREATE (p:Page {
-            url: $url,
-            title: $page_title,
-            summary: $summary,
-            dateCreated: $date_created
-        })
-        RETURN id(p) AS node_id
-        """
-        # Parameters need to be passed explicitly rather than as a single dict
-        parameters = {
-            "url": page_metadata["url"],
-            "page_title": page_metadata["page_title"],
-            "summary": page_metadata["summary"],
-            "date_created": page_metadata["date_created"]
-        }
-        # Run the query with parameters
-        result = session.run(query, parameters)
-        node_id = result.single()["node_id"]
-        print(f"Node created with ID: {node_id}")
+    try:
+        with driver.session() as session:
+            query = """
+            CREATE (p:Page {
+                url: $url,
+                title: $page_title,
+                summary: $summary,
+                dateCreated: $date_created
+            })
+            RETURN id(p) AS node_id
+            """
+            result = session.run(query, page_metadata)
+            node_id = result.single()["node_id"]
+            logger.info(f"Node created with ID: {node_id}")
+    except Exception as e:
+        logger.error(f"Failed to add page metadata to graph: {e}")
 
 
 
@@ -249,7 +248,7 @@ def extract_summary_from_response(response):
     # Placeholder for logic to extract the summary from the OpenAI API response
     # Assuming the response is a dictionary with a 'choices' key that contains a list of choices,
     # where each choice is a dictionary with a 'text' key
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content
 
 
 def postprocess_summary(summary):
@@ -258,36 +257,17 @@ def postprocess_summary(summary):
     return summary
 
 
-# Neo4j Graph DB
-
-
-# test function
-
-def process_url_and_add_to_graph(url):
-    
-    vector_store = get_vectorstore_from_url(url) 
-
-    if vector_store:
-        # Here, adapt the logic based on how you're implementing content summarization
-        # For demonstration, assuming direct content is available for summarization
-        document_content = vector_store.get_document_content() 
-        summary = summarize_content(document_content)
-
-        # Create metadata JSON; adapt as necessary
-        page_metadata = create_url_metadata_json({
-            "url": url,
-            "page_title": "Extracted or Placeholder Title", 
-            "summary": summary,
-            "date_created": "YYYY-MM-DD"  # Consider generating or extracting an actual date
-        })
-
-        # Add to Neo4j graph
+# Function to process URL and add metadata to graph
+def process_and_add_url_to_graph(url):
+    try:
+        page_metadata = create_url_metadata_json(url)
+        # Note: Assuming create_url_metadata_json now returns a dictionary instead of JSON string based on previous discussion
         add_page_metadata_to_graph(page_metadata)
-
+        logger.info(f"Page metadata for {url} added to graph.")
         st.sidebar.success("Page processed and added to graph.")
-    else:
-        st.sidebar.error("Failed to process URL.")
-
+    except Exception as e:
+        logger.error(f"Failed to process URL {url}: {e}")
+        st.sidebar.error(f"Failed to process URL: {e}")
 
 
 # App config
@@ -313,6 +293,8 @@ else:
     if "vector_store" not in st.session_state:
         st.session_state.vector_store = get_vectorstore_from_url(url)
 
+    if process_button:
+        process_and_add_url_to_graph(url)
 
     user_query = st.chat_input("Type your message here...")
     if user_query is not None and user_query != "":
@@ -322,7 +304,7 @@ else:
             st.session_state.chat_history.append(HumanMessage(content=user_query))
             st.session_state.chat_history.append(AIMessage(content=response["answer"]))
         else:
-            print("The expected 'answer' key is not found in the response.")
+            logger.info("The expected 'answer' key is not found in the response.")
 
     # conversation
     for message in st.session_state.chat_history:
