@@ -3,14 +3,12 @@ import logging
 from neo4j import GraphDatabase
 from dotenv import load_dotenv
 
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Neo4jConnection:
     _driver = None
-
 
     @staticmethod
     def load_environment_variables():

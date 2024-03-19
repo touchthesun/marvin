@@ -1,0 +1,11 @@
+INFO:db:Successfully connected to Neo4j.
+INFO:__main__:Node created with ID: 13
+INFO:__main__:Page metadata for https://tasty.co/recipe/ratatouille added to graph.
+INFO:__main__:Performing similarity search with query: Can you tell me about the slow cooker recipes offered by Tasty.com
+INFO:__main__:Setting up existing graph vector store with Neo4j database.
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+INFO:__main__:Existing graph vector store setup complete.
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+INFO:__main__:Similarity search complete. Results: [Document(page_content="\ntitle: Slow Cooker Beef and Broccoli  Recipe by Tasty\nsummary: Sure! Here's a summary of the recipe for Slow Cooker Beef and Broccoli:\n\n- A delicious and easy weeknight meal that can be prepared in under 30 minutes.\n- Let your slow cooker do the work to create tender beef and crisp broccoli with mouthwatering flavors.\n- The recipe serves 4 people and offers a quick and satisfying meal option for busy evenings.", metadata={'dateCreated': '2024-03-16 11:38:57', 'title_embedding': [-0.01011623993647901, -0.03000354558874962,  -0.029311054759789023, -0.03453192049122523], 'url': 'https://tasty.co/recipe/slow-cooker-roasted-tomato-basil-soup'}), Document(page_content='\ntitle: Slow Cooker Pork Shoulder Cornbread Chili Recipe by Tasty\nsummary: Summary: This hearty and comforting pork chili recipe features tender pork shoulder slow-cooked with a blend of spices, served over sweet and savory cornbread. The dish offers a perfect balance of flavors and textures, making it a beloved family favorite for chilly nights. Recipe provides 5 servings.', metadata={'dateCreated': '2024-03-15 23:23:52', 'title_embedding': [-0.004767189377549575, -0.013507590939499072, 0.016464244952576576, -0.012304996423010129, 0.016610416034020775, 0.004846919439332927, 0.0019899278870692894,  -0.014843068426632303], 'url': 'https://tasty.co/recipe/slow-cooker-pork-shoulder-cornbread-chili'})]
+ERROR:__main__:An error occurred during the similarity search: 'Document' object has no attribute 'get'
+INFO:__main__:The expected 'answer' key is not found in the response.

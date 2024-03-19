@@ -7,6 +7,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from db import Neo4jConnection
+from langchain.vectorstores import Neo4jVector
 from langchain_community.vectorstores import Chroma
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import WebBaseLoader
@@ -114,10 +115,10 @@ def get_vectorstore_from_url(url):
     return vector_store
 
 
-# Talk to data
+# This function should be replaced by one that uses Neo4j as vector store
 def get_context_retriever_chain(vector_store):
     logger.debug("Initializing context retriever chain.")
-    llm = OpenAI()
+    llm = ai()
     retriever = vector_store.as_retriever()
     logger.debug(f"Retriever based on vector store: {retriever}")
 
@@ -137,7 +138,7 @@ def get_context_retriever_chain(vector_store):
 
 def get_conversational_rag_chain(retriever_chain):
     logger.debug("Initializing conversational RAG chain.")
-    llm = OpenAI()
+    llm = ai()
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", "Answer the user's questions based on the below context:\n\n{context}"),
@@ -219,55 +220,158 @@ def add_page_metadata_to_graph(page_metadata):
     Parameters:
     page_metadata (dict): Dictionary containing page metadata.
     """
+    # Extract metadata
+    url = page_metadata["url"]
+    title = page_metadata["page_title"]
+    summary = page_metadata["summary"]
+    date_created = page_metadata["date_created"]
+
+    # Initialize the embeddings model
+    embeddings_model = OpenAIEmbeddings()
+
+    # Generate embeddings for the title and summary
+    title_embedding = embeddings_model.embed_query(title)
+    summary_embedding = embeddings_model.embed_query(summary)
+
+    # Convert embeddings to list if they're not already
+    title_embedding = title_embedding if isinstance(title_embedding, list) else title_embedding.tolist()
+    summary_embedding = summary_embedding[0] if isinstance(summary_embedding[0], list) else summary_embedding[0].tolist()
+
+
+    # Instantiate Neo4j connection
     driver = Neo4jConnection.get_driver()
-    try:
-        with driver.session() as session:
-            query = """
+
+    query = """
             CREATE (p:Page {
                 url: $url,
-                title: $page_title,
+                title: $title,
                 summary: $summary,
-                dateCreated: $date_created
+                dateCreated: $date_created,
+                title_embedding: $title_embedding,
+                summary_embedding: $summary_embedding
             })
             RETURN id(p) AS node_id
             """
-            result = session.run(query, page_metadata)
+    parameters = {
+        "url": url,
+        "title": title,
+        "summary": summary,
+        "date_created": date_created,
+        "title_embedding": title_embedding,
+        "summary_embedding": summary_embedding
+    }
+    
+    with driver.session() as session:
+        try:
+            result = session.run(query, parameters)
             node_id = result.single()["node_id"]
             logger.info(f"Node created with ID: {node_id}")
-    except Exception as e:
-        logger.error(f"Failed to add page metadata to graph: {e}")
+        except Exception as e:
+            logger.error(f"Failed to add page metadata to graph: {e}")
 
 
+def process_bookmarks_html_from_upload(uploaded_file):
+    # Read content from the uploaded file
+    bookmarks_html = uploaded_file.getvalue().decode("utf-8")
+    soup = BeautifulSoup(bookmarks_html, 'html.parser')
+    bookmarks = soup.find_all('a')
+    
+    for bookmark in bookmarks:
+        url = bookmark['href']
+        title = bookmark.text
+        print(f"Processing {title}: {url}")
 
-def preprocess_summary(summary):
-    # Placeholder for any pre-processing steps that might be needed
-    # For now, we'll just return the summary as is
-    return summary
+        # Generate metadata for URL
+        metadata = create_url_metadata_json(url)
+        if 'error' in metadata:
+            print(f"Error processing {url}: {metadata['error']}")
+            continue
 
-def extract_summary_from_response(response):
-    # Placeholder for logic to extract the summary from the OpenAI API response
-    # Assuming the response is a dictionary with a 'choices' key that contains a list of choices,
-    # where each choice is a dictionary with a 'text' key
-    return response.choices[0].message.content
-
-
-def postprocess_summary(summary):
-    # Placeholder for any post-processing steps that might be needed
-    # For now, we'll just return the summary as is
-    return summary
+        # Add metadata to Neo4j database
+        try:
+            add_page_metadata_to_graph(metadata)
+            print(f"Successfully added {url} to Neo4j database.")
+        except Exception as e:
+            print(f"Error adding {url} to database: {e}")
 
 
 # Function to process URL and add metadata to graph
 def process_and_add_url_to_graph(url):
     try:
         page_metadata = create_url_metadata_json(url)
-        # Note: Assuming create_url_metadata_json now returns a dictionary instead of JSON string based on previous discussion
         add_page_metadata_to_graph(page_metadata)
         logger.info(f"Page metadata for {url} added to graph.")
         st.sidebar.success("Page processed and added to graph.")
     except Exception as e:
         logger.error(f"Failed to process URL {url}: {e}")
         st.sidebar.error(f"Failed to process URL: {e}")
+
+
+def setup_existing_graph_vector_store():
+    try:
+        # Instantiate Neo4j connection using the get_driver method
+        driver = Neo4jConnection.get_driver()
+        
+        # Extract the necessary connection details from the driver
+        uri = os.getenv("NEO4J_URI")
+        username = os.getenv("NEO4J_USERNAME")
+        password = os.getenv("NEO4J_PASSWORD")
+        
+        logger.info("Setting up existing graph vector store with Neo4j database.")
+        
+        existing_graph = Neo4jVector.from_existing_graph(
+            embedding=OpenAIEmbeddings(),
+            url=uri,
+            username=username,
+            password=password,
+            index_name="page_index",
+            node_label="Page",
+            text_node_properties=["title", "summary"],
+            embedding_node_property="summary_embedding",
+        )
+        logger.info("Existing graph vector store setup complete.")
+        return existing_graph
+    except Exception as e:
+        logger.error(f"Failed to setup existing graph vector store: {e}")
+
+
+# currently not working, probably needs to be reworked
+def search_graph(query, k=1):
+    try:
+        logger.info("Performing similarity search with query: %s", query)
+        existing_graph = setup_existing_graph_vector_store()
+        result = existing_graph.similarity_search(query, k=k)
+        logger.info("Similarity search complete. Results: %s", result)
+        return result
+    except Exception as e:
+        logger.error("Failed to perform similarity search: %s", e)
+        raise
+
+# currently not working, probably needs to be reworked
+def format_search_results(search_results):
+    """
+    Formats the search results into a readable string.
+
+    Parameters:
+    search_results (list of dicts): The search results to format, where each dict contains information about a node.
+
+    Returns:
+    str: A formatted string representing the search results.
+    """
+    if not search_results:
+        return "No relevant results found."
+    
+    formatted_results = []
+    for i, result in enumerate(search_results, start=1):
+        title = result.get("title", "No title")
+        url = result.get("url", "No URL provided")
+        # Assume 'score' or similar relevance measure is part of the result, adjust as needed
+        score = result.get("score", "N/A")
+        formatted_results.append(f"{i}. {title} (Score: {score})\nURL: {url}\n")
+
+    return "\n".join(formatted_results)
+
+
 
 
 # App config
@@ -280,6 +384,14 @@ with st.sidebar:
     st.header("Settings")
     url = st.text_input("Website URL")
     process_button = st.sidebar.button("Process URL")
+    uploaded_file = st.file_uploader("Upload bookmarks HTML file", type="html")
+
+if uploaded_file is not None:
+    process_bookmarks_html_from_upload(uploaded_file)
+    st.sidebar.success("Bookmarks processed!")
+
+else:
+    st.sidebar.info("Upload a bookmarks HTML file to get started.")
 
 if url is None or url == "":
     st.info("Please enter a URL")
@@ -298,11 +410,22 @@ else:
 
     user_query = st.chat_input("Type your message here...")
     if user_query is not None and user_query != "":
-        response = get_response(user_query)
+        # this version of user_query uses the simple chroma vector store of page embeddings
+        # response = get_response(user_query)
+
+        # updated graphdb version of user query
+        try:
+            search_results = search_graph(user_query, k=3)
+            formatted_search_results = format_search_results(search_results)
+            response = f"Based on your query, here are some relevant results:\n{formatted_search_results}"
+        except Exception as e:
+            logger.error(f"An error occurred during the similarity search: {e}")
+            response = "Sorry, I couldn't find anything relevant."
+
         
         if "answer" in response:
             st.session_state.chat_history.append(HumanMessage(content=user_query))
-            st.session_state.chat_history.append(AIMessage(content=response["answer"]))
+            st.session_state.chat_history.append(AIMessage(content=response))
         else:
             logger.info("The expected 'answer' key is not found in the response.")
 
