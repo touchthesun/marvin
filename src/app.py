@@ -1,6 +1,7 @@
 import os
 import requests
 import logging
+import json
 import streamlit as st
 from openai import OpenAI as ai
 from datetime import datetime
@@ -9,19 +10,19 @@ from dotenv import load_dotenv
 from db import Neo4jConnection
 from langchain.vectorstores import Neo4jVector
 from langchain_community.vectorstores import Chroma
+from langchain_community.graphs import Neo4jGraph
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain, GraphCypherQAChain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
 # system config
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path)
 client = ai()
-
 
 # Configure basic logging
 logging.basicConfig(level=logging.DEBUG,
@@ -216,10 +217,9 @@ def create_url_metadata_json(url):
 def add_page_metadata_to_graph(page_metadata):
     """
     Adds a node to the Neo4j graph with properties derived from page metadata.
-
-    Parameters:
-    page_metadata (dict): Dictionary containing page metadata.
     """
+    # logger.info(f"Processing URL for graph addition: {page_metadata['url']}")
+
     # Extract metadata
     url = page_metadata["url"]
     title = page_metadata["page_title"]
@@ -229,45 +229,42 @@ def add_page_metadata_to_graph(page_metadata):
     # Initialize the embeddings model
     embeddings_model = OpenAIEmbeddings()
 
-    # Generate embeddings for the title and summary
-    title_embedding = embeddings_model.embed_query(title)
-    summary_embedding = embeddings_model.embed_query(summary)
+    try:
+        # Generate embeddings for the title and summary
+        title_embedding = embeddings_model.embed_query(title)
+        summary_embedding = embeddings_model.embed_query(summary)
 
-    # Convert embeddings to list if they're not already
-    title_embedding = title_embedding if isinstance(title_embedding, list) else title_embedding.tolist()
-    summary_embedding = summary_embedding[0] if isinstance(summary_embedding[0], list) else summary_embedding[0].tolist()
+        # Instantiate Neo4j connection
+        driver = Neo4jConnection.get_driver()
 
+        # Query to create the node with embeddings
+        query = """
+                CREATE (p:Page {
+                    url: $url,
+                    title: $title,
+                    summary: $summary,
+                    dateCreated: $date_created,
+                    title_embedding: $title_embedding,
+                    summary_embedding: $summary_embedding
+                })
+                RETURN id(p) AS node_id
+                """
+        parameters = {
+            "url": url,
+            "title": title,
+            "summary": summary,
+            "date_created": date_created,
+            "title_embedding": title_embedding,
+            "summary_embedding": summary_embedding
+        }
 
-    # Instantiate Neo4j connection
-    driver = Neo4jConnection.get_driver()
-
-    query = """
-            CREATE (p:Page {
-                url: $url,
-                title: $title,
-                summary: $summary,
-                dateCreated: $date_created,
-                title_embedding: $title_embedding,
-                summary_embedding: $summary_embedding
-            })
-            RETURN id(p) AS node_id
-            """
-    parameters = {
-        "url": url,
-        "title": title,
-        "summary": summary,
-        "date_created": date_created,
-        "title_embedding": title_embedding,
-        "summary_embedding": summary_embedding
-    }
-    
-    with driver.session() as session:
-        try:
+        with driver.session() as session:
             result = session.run(query, parameters)
             node_id = result.single()["node_id"]
             logger.info(f"Node created with ID: {node_id}")
-        except Exception as e:
-            logger.error(f"Failed to add page metadata to graph: {e}")
+    except Exception as e:
+        logger.error(f"Failed to process URL {url}: {e}")
+
 
 
 def process_bookmarks_html_from_upload(uploaded_file):
@@ -335,42 +332,47 @@ def setup_existing_graph_vector_store():
         logger.error(f"Failed to setup existing graph vector store: {e}")
 
 
-# currently not working, probably needs to be reworked
 def search_graph(query, k=1):
     try:
         logger.info("Performing similarity search with query: %s", query)
         existing_graph = setup_existing_graph_vector_store()
-        result = existing_graph.similarity_search(query, k=k)
-        logger.info("Similarity search complete. Results: %s", result)
-        return result
+        results = existing_graph.similarity_search(query, k=k)
+        
+        # Ensure results are in the expected format and iterate over them
+        for result in results:
+            # Access the Document object's properties correctly.
+            # Assuming 'result' is a Document object and it has a 'metadata' attribute
+            # which itself is a dictionary containing 'title' and 'url'.
+            title = result.metadata.get('title', 'No title')
+            url = result.metadata.get('url', 'No URL provided')
+            logger.info(f"Found: {title} at {url}")
+        
+        logger.info("Similarity search complete.")
+        return results
     except Exception as e:
         logger.error("Failed to perform similarity search: %s", e)
         raise
 
-# currently not working, probably needs to be reworked
+
+
+def format_embedding_for_logging(embedding, preview_length=3):
+    preview_start = ', '.join(map(str, embedding[:preview_length]))
+    preview_end = ', '.join(map(str, embedding[-preview_length:]))
+    return f"Embedding (length {len(embedding)}): [{preview_start} ... {preview_end}]"
+
+
 def format_search_results(search_results):
-    """
-    Formats the search results into a readable string.
-
-    Parameters:
-    search_results (list of dicts): The search results to format, where each dict contains information about a node.
-
-    Returns:
-    str: A formatted string representing the search results.
-    """
     if not search_results:
         return "No relevant results found."
     
-    formatted_results = []
-    for i, result in enumerate(search_results, start=1):
-        title = result.get("title", "No title")
-        url = result.get("url", "No URL provided")
-        # Assume 'score' or similar relevance measure is part of the result, adjust as needed
-        score = result.get("score", "N/A")
-        formatted_results.append(f"{i}. {title} (Score: {score})\nURL: {url}\n")
-
-    return "\n".join(formatted_results)
-
+    formatted_results = "Based on your query, here are some relevant results:\n"
+    for i, doc in enumerate(search_results, start=1):
+        # Assuming 'doc.metadata' contains 'url' and 'title' keys
+        title = doc.metadata.get("title", "No title")
+        url = doc.metadata.get("url", "No URL provided")
+        formatted_results += f"{i}. {title}\nURL: {url}\n"
+    
+    return formatted_results
 
 
 
@@ -410,24 +412,16 @@ else:
 
     user_query = st.chat_input("Type your message here...")
     if user_query is not None and user_query != "":
-        # this version of user_query uses the simple chroma vector store of page embeddings
-        # response = get_response(user_query)
-
-        # updated graphdb version of user query
         try:
             search_results = search_graph(user_query, k=3)
             formatted_search_results = format_search_results(search_results)
-            response = f"Based on your query, here are some relevant results:\n{formatted_search_results}"
+            response = formatted_search_results
         except Exception as e:
             logger.error(f"An error occurred during the similarity search: {e}")
             response = "Sorry, I couldn't find anything relevant."
 
-        
-        if "answer" in response:
-            st.session_state.chat_history.append(HumanMessage(content=user_query))
-            st.session_state.chat_history.append(AIMessage(content=response))
-        else:
-            logger.info("The expected 'answer' key is not found in the response.")
+        st.session_state.chat_history.append(HumanMessage(content=user_query))
+        st.session_state.chat_history.append(AIMessage(content=response))
 
     # conversation
     for message in st.session_state.chat_history:
