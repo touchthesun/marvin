@@ -1,7 +1,8 @@
-import os
 import logging
 from neo4j import GraphDatabase
-from dotenv import load_dotenv
+
+from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,26 +12,12 @@ class Neo4jConnection:
     _driver = None
 
     @staticmethod
-    def load_environment_variables():
-        dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-        load_status = load_dotenv(dotenv_path)
-        
-        if not load_status:
-            logger.error('Failed to load the Neo4j connection file at: %s', dotenv_path)
-            raise RuntimeError('Neo4j environment variables not loaded.')
-        else:
-            logger.info('Neo4j environment variables successfully loaded from: %s', dotenv_path)
-
-
-    @staticmethod
     def get_driver():
         if Neo4jConnection._driver is None:
-            # Load environment variables from the specified connection file
-            Neo4jConnection.load_environment_variables()
 
-            uri = os.getenv("NEO4J_URI")
-            username = os.getenv("NEO4J_USERNAME")
-            password = os.getenv("NEO4J_PASSWORD")
+            uri = NEO4J_URI
+            username = NEO4J_USERNAME
+            password = NEO4J_PASSWORD
 
             if None in [uri, username, password]:
                 logger.error('One or more Neo4j environment variables are missing.')
