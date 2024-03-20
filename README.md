@@ -34,6 +34,7 @@ Install required dependencies:
 ### Configuration
 Copy the .env.template file and rename it to .env.
 Fill in the required values in the .env file:
+
 OPENAI_API_KEY: Your OpenAI API key.
 NEO4J_URI: The URI for your Neo4j instance.
 NEO4J_USERNAME: Your Neo4j username.
