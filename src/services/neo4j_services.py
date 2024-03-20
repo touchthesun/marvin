@@ -1,6 +1,9 @@
 import streamlit as st
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
+from langchain.chains import GraphCypherQAChain
+from langchain_openai import ChatOpenAI
 from langchain_community.graphs import Neo4jGraph
 from langchain_openai import OpenAIEmbeddings
 from langchain.vectorstores import Neo4jVector
@@ -13,6 +16,33 @@ from services.document_processing import create_url_metadata_json
 
 # Instantiate logger
 logger = get_logger(__name__)
+
+# Initialize models
+neo4j_graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
+llm = ChatOpenAI(temperature=0)
+graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, verbose=True)
+
+
+def ask_neo4j(query: str, top_k: int = 10):
+    """
+    Queries the Neo4j database using natural language via the GraphCypherQAChain.
+    
+    Parameters:
+    - question (str): The natural language question to query the database.
+    - top_k (int): The maximum number of results to return.
+
+    Returns:
+    - Dict[str, Any]: The query result.
+    """
+    # Construct the input dictionary expected by `invoke`
+    input_dict = {
+        'query': query,
+        'top_k': top_k
+    }
+    
+    # Call `invoke` with the constructed input
+    response = graph_cypher_qa_chain.invoke(input=input_dict)
+    return response
 
 
 def process_and_add_url_to_graph(url):
@@ -72,17 +102,18 @@ def search_graph(query, k=1):
         logger.error("Failed to perform similarity search: %s", e)
         raise
 
+
 def add_page_metadata_to_graph(page_metadata):
     """
-    Adds a node to the Neo4j graph with properties derived from page metadata.
+    Adds a node to the Neo4j graph with properties derived from page metadata,
+    and links it to a Site node representing its source website.
     """
-    # logger.info(f"Processing URL for graph addition: {page_metadata['url']}")
-
     # Extract metadata
     url = page_metadata["url"]
     title = page_metadata["page_title"]
     summary = page_metadata["summary"]
     date_created = page_metadata["date_created"]
+    site_name = urlparse(url).netloc  # Implement this function based on URL parsing
 
     # Initialize the embeddings model
     embeddings_model = OpenAIEmbeddings()
@@ -95,8 +126,9 @@ def add_page_metadata_to_graph(page_metadata):
         # Instantiate Neo4j connection
         driver = Neo4jConnection.get_driver()
 
-        # Query to create the node with embeddings
+        # Query to create the node with embeddings, and link it to a Site node
         query = """
+                MERGE (s:Site {name: $site_name})
                 CREATE (p:Page {
                     url: $url,
                     title: $title,
@@ -104,10 +136,11 @@ def add_page_metadata_to_graph(page_metadata):
                     dateCreated: $date_created,
                     title_embedding: $title_embedding,
                     summary_embedding: $summary_embedding
-                })
+                })-[:FROM]->(s)
                 RETURN id(p) AS node_id
                 """
         parameters = {
+            "site_name": site_name,
             "url": url,
             "title": title,
             "summary": summary,
@@ -119,12 +152,12 @@ def add_page_metadata_to_graph(page_metadata):
         with driver.session() as session:
             result = session.run(query, parameters)
             node_id = result.single()["node_id"]
-            logger.info(f"Node created with ID: {node_id}")
+            logger.info(f"Page node linked to Site '{site_name}' with ID: {node_id}")
     except Exception as e:
         logger.error(f"Failed to process URL {url}: {e}")
 
 
-def process_bookmarks_html_from_upload(uploaded_file):
+def consume_bookmarks(uploaded_file):
     # Read content from the uploaded file
     bookmarks_html = uploaded_file.getvalue().decode("utf-8")
     soup = BeautifulSoup(bookmarks_html, 'html.parser')

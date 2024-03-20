@@ -8,14 +8,13 @@ from utils.logger import get_logger
 from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
 from services.document_processing import get_vectorstore_from_url
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import search_graph, process_and_add_url_to_graph, process_bookmarks_html_from_upload
+from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j
 
 # system config
 client = ai(api_key=OPENAI_API_KEY)
 
 # Instantiate logging
 logger = get_logger(__name__)
-
 
 
 def get_response(user_input):
@@ -54,60 +53,68 @@ def format_search_results(search_results):
     return formatted_results
 
 
+def setup_sidebar():
+    logger.debug("Setting up sidebar")
+    with st.sidebar:
+        st.header("Settings")
+        url = st.text_input("Website URL")
+        process_button = st.button("Process URL")
+        uploaded_file = st.file_uploader("Upload bookmarks HTML file", type="html")
 
-# App config
-st.set_page_config(page_title="Chat with websites")
-st.title("Chat with websites")
+    logger.debug(f"URL: {url}, Process button clicked: {process_button}, File uploaded: {uploaded_file is not None}")
+    return url, process_button, uploaded_file
 
-
-# sidebar
-with st.sidebar:
-    st.header("Settings")
-    url = st.text_input("Website URL")
-    process_button = st.sidebar.button("Process URL")
-    uploaded_file = st.file_uploader("Upload bookmarks HTML file", type="html")
-
-if uploaded_file is not None:
-    process_bookmarks_html_from_upload(uploaded_file)
-    st.sidebar.success("Bookmarks processed!")
-
-else:
-    st.sidebar.info("Upload a bookmarks HTML file to get started.")
-
-if url is None or url == "":
-    st.info("Please enter a URL")
-
-else:
-    # session state
+def initialize_session_state():
     if "chat_history" not in st.session_state:
-        st.session_state.chat_history = [
-            AIMessage(content="Hello, I am a bot. How can I help you?")
-        ]
-    # if "vector_store" not in st.session_state:
-        st.session_state.vector_store = get_vectorstore_from_url(url)
+        logger.debug("Initializing chat history in session state")
+        st.session_state.chat_history = [AIMessage(content="Hello, I am Marvin, your personal librarian. How can I assist you today?")]
 
-    if process_button:
+def process_actions(url, process_button, uploaded_file):
+    if uploaded_file is not None:
+        logger.debug("Processing uploaded bookmarks file")
+        consume_bookmarks(uploaded_file)  # Assuming this function exists
+        st.sidebar.success("Bookmarks processed!")
+
+    if process_button and url:
+        logger.debug(f"Processing URL: {url}")
         process_and_add_url_to_graph(url)
+        st.session_state.vector_store = get_vectorstore_from_url(url)  # Assuming this function exists
+        st.sidebar.success(f"URL processed: {url}")
 
-    user_query = st.chat_input("Type your message here...")
-    if user_query is not None and user_query != "":
-        try:
-            search_results = search_graph(user_query, k=3)
-            formatted_search_results = format_search_results(search_results)
-            response = formatted_search_results
-        except Exception as e:
-            logger.error(f"An error occurred during the similarity search: {e}")
-            response = "Sorry, I couldn't find anything relevant."
+def display_chat():
+    logger.debug("Displaying chat interface")
 
+    # Chat input
+    user_query = st.text_input("Type your message here...", key="new_user_query")
+
+    # Process and display new query if present
+    if user_query:
+        logger.debug(f"Received new user query: {user_query}")
         st.session_state.chat_history.append(HumanMessage(content=user_query))
-        st.session_state.chat_history.append(AIMessage(content=response))
+        try:
+            logger.debug("Asking Neo4j with the user query")
+            response = ask_neo4j(query=user_query)
+            if isinstance(response, dict) or isinstance(response, list):
+                formatted_response = str(response)  # Basic formatting, consider a more nuanced approach based on your data structure
+            else:
+                formatted_response = response
+            st.session_state.chat_history.append(AIMessage(content=formatted_response))
+        except Exception as e:
+            logger.error("Error during asking Neo4j", exc_info=True)
+            st.session_state.chat_history.append(AIMessage(content="Sorry, I couldn't find anything relevant to your query."))
 
-    # conversation
+    # Display all messages in chat history
     for message in st.session_state.chat_history:
         if isinstance(message, AIMessage):
-            with st.chat_message("AI"):
-                st.write(message.content)
+            st.info(message.content)
         elif isinstance(message, HumanMessage):
-            with st.chat_message("Human"):
-                st.write(message.content)
+            st.success(message.content)
 
+
+# App main flow
+logger.info("App main flow starting")
+url, process_button, uploaded_file = setup_sidebar()
+initialize_session_state()
+process_actions(url, process_button, uploaded_file)
+display_chat()
+logger.info("App main flow completed")
