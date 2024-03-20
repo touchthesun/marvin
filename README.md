@@ -35,12 +35,13 @@ Install required dependencies:
 Copy the .env.template file and rename it to .env.
 Fill in the required values in the .env file:
 
-OPENAI_API_KEY: Your OpenAI API key.
-NEO4J_URI: The URI for your Neo4j instance.
-NEO4J_USERNAME: Your Neo4j username.
-NEO4J_PASSWORD: Your Neo4j password.
-AURA_INSTANCEID: Your Aura instance ID (if applicable).
-AURA_INSTANCENAME: Your Aura instance name (if applicable).
+
+OPENAI_API_KEY: Your OpenAI API key
+NEO4J_URI: The URI for your Neo4j instance
+NEO4J_USERNAME: Your Neo4j username
+NEO4J_PASSWORD: Your Neo4j password
+AURA_INSTANCEID: Your Aura instance ID (if applicable)
+AURA_INSTANCENAME: Your Aura instance name (if applicable)
 
 ## Running Marvin
 To test and interact with Marvin during its development, we use a Streamlit interface. Activate this interface by running:
