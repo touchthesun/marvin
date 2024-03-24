@@ -9,6 +9,8 @@ from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
 from services.document_processing import get_vectorstore_from_url
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
 from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j
+from services.category import add_category_to_neo4j, Category
+
 
 # system config
 client = ai(api_key=OPENAI_API_KEY)
@@ -81,6 +83,34 @@ def process_actions(url, process_button, uploaded_file):
         st.session_state.vector_store = get_vectorstore_from_url(url)  # Assuming this function exists
         st.sidebar.success(f"URL processed: {url}")
 
+
+def process_category_actions(new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button):
+    if add_category_button and new_category_name:
+        # Add new category logic here
+        try:
+            add_category_to_neo4j(new_category_name, new_category_description)
+            st.sidebar.success("Category added successfully!")
+            logger.info(f"Category '{new_category_name}' added.")
+        except Exception as e:
+            logger.error(f"Failed to add category '{new_category_name}': {e}", exc_info=True)
+            st.sidebar.error("Failed to add category.")
+
+    if add_keyword_button and keyword and category_for_keyword:
+        # Add keyword to category logic here
+        try:
+            category = Category.find_by_name(category_for_keyword)
+            if category:
+                category.add_keyword(keyword)  # Assuming a method in Category for adding a keyword directly
+                category.save_to_neo4j()  # Save updates
+                st.sidebar.success(f"Keyword '{keyword}' added to category '{category_for_keyword}'.")
+                logger.info(f"Keyword '{keyword}' added to category '{category_for_keyword}'.")
+            else:
+                st.sidebar.error(f"Category '{category_for_keyword}' not found.")
+        except Exception as e:
+            logger.error(f"Failed to add keyword '{keyword}' to category '{category_for_keyword}': {e}", exc_info=True)
+            st.sidebar.error("Failed to add keyword.")
+
+
 def display_chat():
     logger.debug("Displaying chat interface")
 
@@ -111,10 +141,29 @@ def display_chat():
             st.success(message.content)
 
 
+def setup_category_management():
+    logger.debug("Setting up category management UI")
+    with st.sidebar:
+        st.header("Category Management")
+        # UI for adding a new category
+        new_category_name = st.text_input("New Category Name", key="new_category_name")
+        new_category_description = st.text_area("Category Description", key="new_category_description")
+        add_category_button = st.button("Add New Category")
+
+        # UI for adding keywords to an existing category (simplified for initial setup)
+        keyword = st.text_input("Keyword to add", key="keyword")
+        category_for_keyword = st.text_input("Category for Keyword", key="category_for_keyword")
+        add_keyword_button = st.button("Add Keyword")
+
+    return new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button
+
+
 # App main flow
 logger.info("App main flow starting")
 url, process_button, uploaded_file = setup_sidebar()
 initialize_session_state()
 process_actions(url, process_button, uploaded_file)
+new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button = setup_category_management()
+process_category_actions(new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button)
 display_chat()
 logger.info("App main flow completed")

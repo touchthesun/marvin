@@ -34,3 +34,62 @@ Function dev strategies
    - **Elegance:** Moderate. This approach uses a combination of different models or services to generate the best possible summary.
    - **Maintainability:** Moderate. Managing multiple models or services can increase complexity.
    - **Modularity:** High. Each summarization model or service can be a separate module, and a coordinator module can select the best summary.
+
+
+# Content Categorization plans
+
+Phase 1: Basic Category Creation and LLM Integration
+Objective: Establish foundational capabilities for category creation and initiate basic LLM integration for content analysis and keyword extraction.
+
+Manual Category Creation:
+
+Start with a simple interface where users can manually create categories by specifying names and descriptions.
+Implement basic validation to avoid duplicates in the category creation process.
+
+Basic LLM Content Analysis:
+
+Utilize LLMs to summarize content and extract keywords as previously discussed. This process is initially automatic, without user input on the categorization.
+
+Category Assignment:
+
+Allow users to assign content to categories manually based on their judgment and the keywords extracted by the LLM.
+
+Implementation Highlights:
+
+Focus on building a robust Category class that integrates smoothly with your Neo4j database.
+Develop straightforward UI elements for category management (creation and assignment).
+
+Phase 2: Semi-Automatic Categorization with LLM Suggestions
+Objective: Introduce LLM suggestions for category assignments, incorporating a basic level of user involvement.
+
+LLM Suggested Categories:
+
+After analyzing content, use LLMs to suggest potential categories based on keywords and content summary. These are preliminary suggestions based on existing categories.
+
+User Confirmation:
+
+Present LLM-suggested categories to users for confirmation or adjustment. Users can accept suggestions, modify them, or create new categories based on the suggestions.
+
+Feedback Loop for LLM Improvement:
+
+Collect data on user adjustments to LLM suggestions to refine the model or the logic used to generate suggestions.
+
+Implementation Highlights:
+
+Enhance the UI to facilitate easy review and modification of LLM suggestions.
+Begin tracking user feedback for future refinement of the LLM categorization logic.
+
+Phase 3: Advanced User and LLM Interaction for Dynamic Categorization
+Objective: Fully integrate user feedback into the categorization process, enabling dynamic category creation and refinement based on both LLM suggestions and user input.
+
+Dynamic Category Creation and Refinement:
+
+Implement a more sophisticated system where users can create new categories or refine existing ones based on LLM suggestions and their insights. This includes merging categories, adjusting descriptions, and reassigning keywords.
+
+LLM Training and Refinement:
+
+Use collected user feedback to train or refine the LLM, improving its ability to suggest relevant categories and understand the nuances of your content.
+
+Automated Suggestions with User Oversight:
+
+Move towards a system where the LLM can automatically categorize content but allows for user oversight and correction. Implement dashboards or notification systems for users to easily review and adjust automated categorizations.

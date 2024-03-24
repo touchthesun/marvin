@@ -80,27 +80,27 @@ def setup_existing_graph_vector_store():
     except Exception as e:
         logger.error(f"Failed to setup existing graph vector store: {e}")
 
-
-def search_graph(query, k=1):
-    try:
-        logger.info("Performing similarity search with query: %s", query)
-        existing_graph = setup_existing_graph_vector_store()
-        results = existing_graph.similarity_search(query, k=k)
+# not currently in use
+# def search_graph(query, k=1):
+#     try:
+#         logger.info("Performing similarity search with query: %s", query)
+#         existing_graph = setup_existing_graph_vector_store()
+#         results = existing_graph.similarity_search(query, k=k)
         
-        # Ensure results are in the expected format and iterate over them
-        for result in results:
-            # Access the Document object's properties correctly.
-            # Assuming 'result' is a Document object and it has a 'metadata' attribute
-            # which itself is a dictionary containing 'title' and 'url'.
-            title = result.metadata.get('title', 'No title')
-            url = result.metadata.get('url', 'No URL provided')
-            logger.info(f"Found: {title} at {url}")
+#         # Ensure results are in the expected format and iterate over them
+#         for result in results:
+#             # Access the Document object's properties correctly.
+#             # Assuming 'result' is a Document object and it has a 'metadata' attribute
+#             # which itself is a dictionary containing 'title' and 'url'.
+#             title = result.metadata.get('title', 'No title')
+#             url = result.metadata.get('url', 'No URL provided')
+#             logger.info(f"Found: {title} at {url}")
         
-        logger.info("Similarity search complete.")
-        return results
-    except Exception as e:
-        logger.error("Failed to perform similarity search: %s", e)
-        raise
+#         logger.info("Similarity search complete.")
+#         return results
+#     except Exception as e:
+#         logger.error("Failed to perform similarity search: %s", e)
+#         raise
 
 
 def add_page_metadata_to_graph(page_metadata):

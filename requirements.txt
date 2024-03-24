@@ -9,3 +9,4 @@ chromadb
 pytest
 neo4j
 openai
+py2neo
