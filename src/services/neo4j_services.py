@@ -6,12 +6,12 @@ from langchain.chains import GraphCypherQAChain
 from langchain_openai import ChatOpenAI
 from langchain_community.graphs import Neo4jGraph
 from langchain_openai import OpenAIEmbeddings
-from langchain.vectorstores import Neo4jVector
+from langchain_community.vectorstores import Neo4jVector
 
 from utils.logger import get_logger
 from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME
 from db import Neo4jConnection
-from services.document_processing import create_url_metadata_json
+from services.metadata import create_url_metadata_json
 
 
 # Instantiate logger
@@ -22,6 +22,13 @@ neo4j_graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_
 llm = ChatOpenAI(temperature=0)
 graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, verbose=True)
 
+
+def setup_database_constraints():
+    driver = Neo4jConnection.get_driver()
+    with driver.session() as session:
+        session.run("CREATE CONSTRAINT unique_category_name IF NOT EXISTS FOR (c:Category) REQUIRE c.name IS UNIQUE")
+        session.run("CREATE CONSTRAINT unique_keyword_name IF NOT EXISTS FOR (k:Keyword) REQUIRE k.name IS UNIQUE")
+        logger.info("Database constraints successfully set up.")
 
 def ask_neo4j(query: str, top_k: int = 10):
     """

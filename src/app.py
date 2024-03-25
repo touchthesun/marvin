@@ -8,7 +8,7 @@ from utils.logger import get_logger
 from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
 from services.document_processing import get_vectorstore_from_url
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j
+from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints
 from services.category import add_category_to_neo4j, Category
 
 
@@ -47,7 +47,6 @@ def format_search_results(search_results):
     
     formatted_results = "Based on your query, here are some relevant results:\n"
     for i, doc in enumerate(search_results, start=1):
-        # Assuming 'doc.metadata' contains 'url' and 'title' keys
         title = doc.metadata.get("title", "No title")
         url = doc.metadata.get("url", "No URL provided")
         formatted_results += f"{i}. {title}\nURL: {url}\n"
@@ -74,19 +73,18 @@ def initialize_session_state():
 def process_actions(url, process_button, uploaded_file):
     if uploaded_file is not None:
         logger.debug("Processing uploaded bookmarks file")
-        consume_bookmarks(uploaded_file)  # Assuming this function exists
+        consume_bookmarks(uploaded_file)
         st.sidebar.success("Bookmarks processed!")
 
     if process_button and url:
         logger.debug(f"Processing URL: {url}")
         process_and_add_url_to_graph(url)
-        st.session_state.vector_store = get_vectorstore_from_url(url)  # Assuming this function exists
+        st.session_state.vector_store = get_vectorstore_from_url(url)
         st.sidebar.success(f"URL processed: {url}")
 
 
 def process_category_actions(new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button):
     if add_category_button and new_category_name:
-        # Add new category logic here
         try:
             add_category_to_neo4j(new_category_name, new_category_description)
             st.sidebar.success("Category added successfully!")
@@ -96,12 +94,11 @@ def process_category_actions(new_category_name, new_category_description, add_ca
             st.sidebar.error("Failed to add category.")
 
     if add_keyword_button and keyword and category_for_keyword:
-        # Add keyword to category logic here
         try:
             category = Category.find_by_name(category_for_keyword)
             if category:
-                category.add_keyword(keyword)  # Assuming a method in Category for adding a keyword directly
-                category.save_to_neo4j()  # Save updates
+                category.add_keyword(keyword)
+                category.save_to_neo4j()
                 st.sidebar.success(f"Keyword '{keyword}' added to category '{category_for_keyword}'.")
                 logger.info(f"Keyword '{keyword}' added to category '{category_for_keyword}'.")
             else:
@@ -125,7 +122,7 @@ def display_chat():
             logger.debug("Asking Neo4j with the user query")
             response = ask_neo4j(query=user_query)
             if isinstance(response, dict) or isinstance(response, list):
-                formatted_response = str(response)  # Basic formatting, consider a more nuanced approach based on your data structure
+                formatted_response = str(response)
             else:
                 formatted_response = response
             st.session_state.chat_history.append(AIMessage(content=formatted_response))
@@ -158,12 +155,21 @@ def setup_category_management():
     return new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button
 
 
+if 'setup_done' not in st.session_state:
+    setup_database_constraints()
+    st.session_state['setup_done'] = True
+
 # App main flow
 logger.info("App main flow starting")
+
 url, process_button, uploaded_file = setup_sidebar()
 initialize_session_state()
+
 process_actions(url, process_button, uploaded_file)
+
 new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button = setup_category_management()
 process_category_actions(new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button)
+
 display_chat()
+
 logger.info("App main flow completed")

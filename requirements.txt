@@ -10,3 +10,7 @@ pytest
 neo4j
 openai
 py2neo
+spacy
+newspaper3k
+
+# python -m spacy download en_core_web_sm
