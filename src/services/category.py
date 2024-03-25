@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 client = OpenAI(api_key=OPENAI_API_KEY)
 nlp = spacy.load("en_core_web_sm")
 
+
 class Category(GraphObject):
     __primarykey__ = "name"
 

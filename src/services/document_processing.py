@@ -76,31 +76,24 @@ def extract_keywords_from_summary(summary):
         temperature=0.5
     )
     
-    # Adjust this output format as necessary
     keywords = response.choices[0].text.strip().split(', ')
     return keywords
 
 
-# experimental features below this line
-
-
-def generate_tags_from_content(content):
+def extract_site_name(url):
     """
-    Generates tags from page content using NLP for keyword extraction.
-    Returns 5 most common keywords found in content.
-    
-    Parameters:
-    content (str): Text content from which to extract keywords.
-
-    Returns:
-    list: A list of extracted keywords.
+    Extracts the site name from a given URL.
     """
-    doc = nlp(content)
-    # Extract nouns and proper nouns as potential tags, you can adjust this logic
-    keywords = [token.text.lower() for token in doc if token.pos_ in ['NOUN', 'PROPN']]
-    # Use Counter to find the most common keywords, you might adjust the number
-    most_common_keywords = [item[0] for item in Counter(keywords).most_common(5)]
-    return most_common_keywords
+    try:
+        site_name = urlparse(url).netloc
+        if site_name:
+            logger.debug(f"Extracted site name: {site_name} from URL: {url}")
+        else:
+            logger.warning(f"Failed to extract site name from URL: {url}")
+        return site_name
+    except Exception as e:
+        logger.error(f"Error extracting site name from URL {url}: {e}", exc_info=True)
+        return None
 
 
 def get_vectorstore_from_url(url):
@@ -124,3 +117,24 @@ def get_vectorstore_from_url(url):
 
     logger.info(f"Vector store created: {vector_store}")
     return vector_store
+
+
+# experimental features below this line
+
+def generate_tags_from_content(content):
+    """
+    Generates tags from page content using NLP for keyword extraction.
+    Returns 5 most common keywords found in content.
+    
+    Parameters:
+    content (str): Text content from which to extract keywords.
+
+    Returns:
+    list: A list of extracted keywords.
+    """
+    doc = nlp(content)
+    # Extract nouns and proper nouns as potential tags, you can adjust this logic
+    keywords = [token.text.lower() for token in doc if token.pos_ in ['NOUN', 'PROPN']]
+    # Use Counter to find the most common keywords, you might adjust the number
+    most_common_keywords = [item[0] for item in Counter(keywords).most_common(5)]
+    return most_common_keywords

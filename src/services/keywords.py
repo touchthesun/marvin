@@ -8,7 +8,6 @@ class Keyword(GraphObject):
     creation_date = Property()
     last_updated = Property()
 
-    # Relation to Category
     categories = RelatedFrom("Category", "HAS_KEYWORD")
 
     def __init__(self, name):

@@ -1,6 +1,7 @@
 import streamlit as st
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
+from datetime import datetime
 
 from langchain.chains import GraphCypherQAChain
 from langchain_openai import ChatOpenAI
@@ -12,6 +13,8 @@ from utils.logger import get_logger
 from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME
 from db import Neo4jConnection
 from services.metadata import create_url_metadata_json
+from services.openai_services import generate_embeddings
+from services.document_processing import extract_site_name
 
 
 # Instantiate logger
@@ -115,35 +118,31 @@ def add_page_metadata_to_graph(page_metadata):
     Adds a node to the Neo4j graph with properties derived from page metadata,
     and links it to a Site node representing its source website.
     """
-    # Extract metadata
-    url = page_metadata["url"]
-    title = page_metadata["page_title"]
-    summary = page_metadata["summary"]
-    date_created = page_metadata["date_created"]
-    site_name = urlparse(url).netloc  # Implement this function based on URL parsing
-
     # Initialize the embeddings model
     embeddings_model = OpenAIEmbeddings()
-
+    
+    # Extract metadata
+    url = page_metadata["url"]
+    title = page_metadata.get("title", "Unknown Title")  # Updated based on the new structure
+    summary = page_metadata.get("summary", "No summary available")
+    author = page_metadata.get("author", "Unknown Author")
+    publication_date = page_metadata.get("publication_date", "Unknown Date")
+    date_created = page_metadata.get("date_created", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    site_name = extract_site_name(url)
+    
     try:
-        # Generate embeddings for the title and summary
-        title_embedding = embeddings_model.embed_query(title)
-        summary_embedding = embeddings_model.embed_query(summary)
-
-        # Instantiate Neo4j connection
-        driver = Neo4jConnection.get_driver()
-
-        # Query to create the node with embeddings, and link it to a Site node
+        # Generate embeddings
+        title_embedding = generate_embeddings(embeddings_model, title)
+        summary_embedding = generate_embeddings(embeddings_model, summary)
+        
+        # Query to create the node with new fields and link it to a Site node
         query = """
                 MERGE (s:Site {name: $site_name})
-                CREATE (p:Page {
-                    url: $url,
-                    title: $title,
-                    summary: $summary,
-                    dateCreated: $date_created,
-                    title_embedding: $title_embedding,
-                    summary_embedding: $summary_embedding
-                })-[:FROM]->(s)
+                MERGE (p:Page {url: $url})
+                ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
+                              p.publication_date = $publication_date, p.dateCreated = $date_created,
+                              p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
+                MERGE (p)-[:FROM]->(s)
                 RETURN id(p) AS node_id
                 """
         parameters = {
@@ -151,17 +150,22 @@ def add_page_metadata_to_graph(page_metadata):
             "url": url,
             "title": title,
             "summary": summary,
+            "author": author,
+            "publication_date": publication_date,
             "date_created": date_created,
             "title_embedding": title_embedding,
             "summary_embedding": summary_embedding
         }
 
+        # Instantiate Neo4j connection and run query
+        driver = Neo4jConnection.get_driver()
         with driver.session() as session:
             result = session.run(query, parameters)
-            node_id = result.single()["node_id"]
+            node_id = result.single().get("node_id")
             logger.info(f"Page node linked to Site '{site_name}' with ID: {node_id}")
     except Exception as e:
-        logger.error(f"Failed to process URL {url}: {e}")
+        logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
+
 
 
 def consume_bookmarks(uploaded_file):

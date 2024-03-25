@@ -81,3 +81,20 @@ def get_conversational_rag_chain(retriever_chain):
     logger.debug(f"Final conversational RAG chain: {conversational_rag_chain}")
 
     return conversational_rag_chain
+
+
+def generate_embeddings(embeddings_model, text):
+    """
+    Generates embeddings for given text using the specified embeddings model.
+    """
+    try:
+        if not text:
+            logger.warning("No text provided for generating embeddings.")
+            return None
+        
+        embeddings = embeddings_model.embed_query(text)
+        logger.debug("Generated embeddings successfully.")
+        return embeddings
+    except Exception as e:
+        logger.error(f"Failed to generate embeddings: {e}", exc_info=True)
+        return None
