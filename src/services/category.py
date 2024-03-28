@@ -12,6 +12,7 @@ from utils.logger import get_logger
 from services.keywords import Keyword
 from services.document_processing import summarize_content
 from services.openai_services import query_llm_for_categories
+from services.neo4j_services import store_categories
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -134,7 +135,7 @@ def categorize_page_with_llm(url):
                 summary = summarize_content(document_content)
                 categories = query_llm_for_categories(summary)
                 if categories:
-                    store_initial_categories_in_db(url, categories)
+                    store_categories(url, categories)
                     logger.info(f"Successfully categorized and updated the page: {url} with categories: {categories}")
                 else:
                     logger.warning(f"No categories were suggested for the page: {url}.")

@@ -6,10 +6,11 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from utils.logger import get_logger
 from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
-from services.document_processing import get_vectorstore_from_url
+from services.document_processing import get_vectorstore_from_url, summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints
-from services.category import add_category_to_neo4j, Category
+from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints, store_keywords_in_db
+from services.keywords import extract_keywords_from_summary
+from services.category import categorize_page_with_llm, add_category_to_neo4j, Category
 
 
 # system config
@@ -77,13 +78,47 @@ def process_uploaded_bookmarks(uploaded_file):
         consume_bookmarks(uploaded_file)
         st.sidebar.success("Bookmarks processed!")
 
+# def process_url(url, process_button):
+#     if process_button and url:
+#         logger.debug(f"Processing URL: {url}")
+#         process_and_add_url_to_graph(url)
+#         st.session_state.vector_store = get_vectorstore_from_url(url)
+#         st.sidebar.success(f"URL processed: {url}")
+
+
 def process_url(url, process_button):
     if process_button and url:
         logger.debug(f"Processing URL: {url}")
-        process_and_add_url_to_graph(url)
-        st.session_state.vector_store = get_vectorstore_from_url(url)
-        st.sidebar.success(f"URL processed: {url}")
+        # First, process the URL and add its metadata to the graph
+        metadata_success = process_and_add_url_to_graph(url)
+        
+        if metadata_success:
+            # Assuming 'process_and_add_url_to_graph' returns a success flag
+            logger.info(f"Successfully added metadata for {url} to the graph.")
+            
+            # Now, categorize the page using the LLM
+            categorize_page_with_llm(url)
 
+            # Extract the page's summary for keyword extraction
+            # Ensure 'process_and_add_url_to_graph' stores or returns the summary for use here
+            summary = summarize_content(url)  # This function needs to retrieve the summary from your storage
+            
+            if summary:
+                # Extract and store keywords based on the summary
+                keywords = extract_keywords_from_summary(summary)
+                # Assuming a function to store keywords in the database or associate them with the URL
+                store_keywords_in_db(url, keywords)
+                logger.info(f"Keywords extracted and stored for {url}.")
+            else:
+                logger.warning(f"No summary available for keyword extraction for {url}.")
+            
+            # Update or refresh the vector store based on the new content
+            st.session_state.vector_store = get_vectorstore_from_url(url)
+            st.sidebar.success(f"URL processed and categorized: {url}")
+        else:
+            # Log failure but do not halt the application; this allows for future expansion or retries
+            logger.error(f"Failed to process and add metadata for {url}.")
+            st.sidebar.error(f"Failed to process URL: {url}")
 
 def add_new_category(new_category_name, new_category_description, add_category_button):
     if add_category_button and new_category_name:

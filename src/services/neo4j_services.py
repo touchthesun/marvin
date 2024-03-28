@@ -110,12 +110,21 @@ def process_url_submission(url):
 def process_and_add_url_to_graph(url):
     try:
         page_metadata = create_url_metadata_json(url)
-        add_page_metadata_to_graph(page_metadata)
-        logger.info(f"Page metadata for {url} added to graph.")
-        st.sidebar.success("Page processed and added to graph.")
+        if page_metadata:  # Ensure page_metadata is not empty or null
+            add_page_metadata_to_graph(page_metadata)
+            logger.info(f"Page metadata for {url} added to graph.")
+            st.sidebar.success("Page processed and added to graph.")
+            return True  # Indicates success
+        else:
+            logger.warning(f"No metadata found or extracted for {url}.")
+            st.sidebar.warning("No metadata found or extracted.")
+            return False  # Indicates failure due to missing metadata
     except Exception as e:
-        logger.error(f"Failed to process URL {url}: {e}")
+        logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
         st.sidebar.error(f"Failed to process URL: {e}")
+        return False  # Indicates failure due to an exception
+
+
 
 
 def setup_existing_graph_vector_store():
@@ -240,6 +249,13 @@ def add_page_to_category(page_url, category_name):
     except Exception as e:
         logger.error(f"Failed to add Page {page_url} to Category {category_name}: {e}", exc_info=True)
 
+
+def store_keywords_in_db(page_url, keywords):
+    """
+    Adds each keyword in the list of keywords to the specified page in the Neo4j graph database.
+    """
+    for keyword in keywords:
+        add_keyword_to_page(page_url, keyword)
 
 
 def add_keyword_to_page(page_url, keyword_text):

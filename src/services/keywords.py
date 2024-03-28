@@ -1,9 +1,12 @@
 from py2neo.ogm import GraphObject, Property, RelatedFrom
 from datetime import datetime
 from openai import OpenAI
+from utils.logger import get_logger
+from services.openai_services import chat_completion
 import spacy
 
-
+# Initialize 
+logger = get_logger(__name__)
 nlp = spacy.load("en_core_web_sm")
 client = OpenAI()
 
@@ -39,20 +42,37 @@ class Keyword(GraphObject):
 
 
 def extract_keywords_from_summary(summary):
-    response = client.Completion.create(
-        engine="gpt-3.5-turbo",
-        prompt=f"Extract keywords from this summary, and present your response as a single string of keywords, using ', ' as a delimiter between them:\n\n{summary}",
-        max_tokens=100,
-        temperature=0.5
-    )
+    # Construct messages for chat completion
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that extracts keywords from summaries."},
+        {"role": "user", "content": f"Extract keywords from this summary:\n\n{summary}"}
+    ]
     
-    # Extract keywords from the model's response
-    raw_keywords = response.choices[0].text.strip().split(', ')
+    # Define override parameters for the chat completion request if needed
+    override_params = {
+        "temperature": 0.5,
+        "max_tokens": 250,
+    }
+    
+    # Use chat_completion function to get response from OpenAI
+    response_obj = chat_completion(messages, model="gpt-3.5-turbo", override_params=override_params)
+    
+    if "error" in response_obj:
+        logger.error(f"Error in obtaining keywords from LLM: {response_obj['error']}")
+        return []
 
-    # Validate and clean each keyword
-    cleaned_keywords = [keyword.strip() for keyword in raw_keywords if is_valid_keyword(keyword)]
+    try:
+        # Extracting the message content from the response object
+        response_text = response_obj.choices[0].message.content if response_obj.choices else ""
+        raw_keywords = response_text.split(', ')  # Split the response text to get individual keywords
+        cleaned_keywords = [keyword.strip() for keyword in raw_keywords if is_valid_keyword(keyword)]
+        logger.debug(f"Keywords extracted: {cleaned_keywords}")
+        return cleaned_keywords
+    except (AttributeError, IndexError) as e:
+        logger.error(f"Failed to extract keywords from response. Error: {e}")
+        return []
 
-    return cleaned_keywords
+
 
 def is_valid_keyword(keyword):
     """
