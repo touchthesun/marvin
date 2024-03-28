@@ -70,12 +70,14 @@ def initialize_session_state():
         logger.debug("Initializing chat history in session state")
         st.session_state.chat_history = [AIMessage(content="Hello, I am Marvin, your personal librarian. How can I assist you today?")]
 
-def process_actions(url, process_button, uploaded_file):
+
+def process_uploaded_bookmarks(uploaded_file):
     if uploaded_file is not None:
         logger.debug("Processing uploaded bookmarks file")
         consume_bookmarks(uploaded_file)
         st.sidebar.success("Bookmarks processed!")
 
+def process_url(url, process_button):
     if process_button and url:
         logger.debug(f"Processing URL: {url}")
         process_and_add_url_to_graph(url)
@@ -83,7 +85,7 @@ def process_actions(url, process_button, uploaded_file):
         st.sidebar.success(f"URL processed: {url}")
 
 
-def process_category_actions(new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button):
+def add_new_category(new_category_name, new_category_description, add_category_button):
     if add_category_button and new_category_name:
         try:
             add_category_to_neo4j(new_category_name, new_category_description)
@@ -93,6 +95,7 @@ def process_category_actions(new_category_name, new_category_description, add_ca
             logger.error(f"Failed to add category '{new_category_name}': {e}", exc_info=True)
             st.sidebar.error("Failed to add category.")
 
+def add_keyword_to_category(keyword, category_for_keyword, add_keyword_button):
     if add_keyword_button and keyword and category_for_keyword:
         try:
             category = Category.find_by_name(category_for_keyword)
@@ -106,6 +109,7 @@ def process_category_actions(new_category_name, new_category_description, add_ca
         except Exception as e:
             logger.error(f"Failed to add keyword '{keyword}' to category '{category_for_keyword}': {e}", exc_info=True)
             st.sidebar.error("Failed to add keyword.")
+
 
 
 def display_chat():
@@ -165,11 +169,12 @@ logger.info("App main flow starting")
 url, process_button, uploaded_file = setup_sidebar()
 initialize_session_state()
 
-process_actions(url, process_button, uploaded_file)
+process_uploaded_bookmarks(uploaded_file)
+process_url(url, process_button)
 
 new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button = setup_category_management()
-process_category_actions(new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button)
-
+add_new_category(new_category_name, new_category_description, add_category_button)
+add_keyword_to_category(keyword, category_for_keyword, add_keyword_button)
 display_chat()
 
 logger.info("App main flow completed")

@@ -10,7 +10,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
 
 from utils.logger import get_logger
-from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME
+from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME, ENABLE_METADATA_COMPARISON
 from db import Neo4jConnection
 from services.metadata import create_url_metadata_json
 from services.openai_services import generate_embeddings
@@ -27,11 +27,17 @@ graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, 
 
 
 def setup_database_constraints():
-    driver = Neo4jConnection.get_driver()
-    with driver.session() as session:
-        session.run("CREATE CONSTRAINT unique_category_name IF NOT EXISTS FOR (c:Category) REQUIRE c.name IS UNIQUE")
-        session.run("CREATE CONSTRAINT unique_keyword_name IF NOT EXISTS FOR (k:Keyword) REQUIRE k.name IS UNIQUE")
-        logger.info("Database constraints successfully set up.")
+    """
+    Sets up database constraints, ensuring uniqueness for Category and Keyword names.
+    """
+    constraints_query = [
+        "CREATE CONSTRAINT unique_category_name IF NOT EXISTS FOR (c:Category) REQUIRE c.name IS UNIQUE",
+        "CREATE CONSTRAINT unique_keyword_name IF NOT EXISTS FOR (k:Keyword) REQUIRE k.name IS UNIQUE"
+    ]
+    for query in constraints_query:
+        Neo4jConnection.execute_query(query)
+    logger.info("Database constraints successfully set up.")
+
 
 def ask_neo4j(query: str, top_k: int = 10):
     """
@@ -53,6 +59,52 @@ def ask_neo4j(query: str, top_k: int = 10):
     # Call `invoke` with the constructed input
     response = graph_cypher_qa_chain.invoke(input=input_dict)
     return response
+
+def url_exists_in_graph(url):
+    """
+    Checks if a given URL already exists in the graph.
+    """
+    query = "MATCH (p:Page {url: $url}) RETURN p"
+    parameters = {"url": url}
+    result = Neo4jConnection.execute_query(query, parameters)
+    return bool(result)
+
+
+def get_existing_metadata(url):
+    """
+    Retrieves existing metadata for a given URL from the graph.
+    """
+    query = """
+    MATCH (p:Page {url: $url})
+    RETURN p.title AS title, p.summary AS summary, p.author AS author, p.publication_date AS publication_date
+    """
+    parameters = {"url": url}
+    result = Neo4jConnection.execute_query(query, parameters)
+    return dict(result[0]) if result else {}
+
+
+def compare_metadata(new_metadata, existing_metadata):
+    return new_metadata != existing_metadata
+
+def process_url_submission(url):
+    """
+    Processes a given URL submission by checking its existence in the graph,
+    and comparing new metadata with existing metadata if necessary.
+    """
+    if url_exists_in_graph(url):
+        logger.info(f"URL already exists in the graph: {url}")
+        if ENABLE_METADATA_COMPARISON:
+            existing_metadata = get_existing_metadata(url)
+            new_metadata = create_url_metadata_json(url)
+            # Further logic for comparison and potential update
+            logger.info("Metadata comparison is enabled.")
+        else:
+            logger.info("Metadata comparison is disabled. Skipping comparison.")
+    else:
+        logger.info(f"URL does not exist in the graph. Processing: {url}")
+        new_metadata = create_url_metadata_json(url)
+        add_page_metadata_to_graph(new_metadata)
+
 
 
 def process_and_add_url_to_graph(url):
@@ -90,28 +142,6 @@ def setup_existing_graph_vector_store():
     except Exception as e:
         logger.error(f"Failed to setup existing graph vector store: {e}")
 
-# not currently in use
-# def search_graph(query, k=1):
-#     try:
-#         logger.info("Performing similarity search with query: %s", query)
-#         existing_graph = setup_existing_graph_vector_store()
-#         results = existing_graph.similarity_search(query, k=k)
-        
-#         # Ensure results are in the expected format and iterate over them
-#         for result in results:
-#             # Access the Document object's properties correctly.
-#             # Assuming 'result' is a Document object and it has a 'metadata' attribute
-#             # which itself is a dictionary containing 'title' and 'url'.
-#             title = result.metadata.get('title', 'No title')
-#             url = result.metadata.get('url', 'No URL provided')
-#             logger.info(f"Found: {title} at {url}")
-        
-#         logger.info("Similarity search complete.")
-#         return results
-#     except Exception as e:
-#         logger.error("Failed to perform similarity search: %s", e)
-#         raise
-
 
 def add_page_metadata_to_graph(page_metadata):
     """
@@ -123,71 +153,120 @@ def add_page_metadata_to_graph(page_metadata):
     
     # Extract metadata
     url = page_metadata["url"]
-    title = page_metadata.get("title", "Unknown Title")  # Updated based on the new structure
+    title = page_metadata.get("title", "Unknown Title")
     summary = page_metadata.get("summary", "No summary available")
     author = page_metadata.get("author", "Unknown Author")
     publication_date = page_metadata.get("publication_date", "Unknown Date")
     date_created = page_metadata.get("date_created", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     site_name = extract_site_name(url)
     
-    try:
-        # Generate embeddings
-        title_embedding = generate_embeddings(embeddings_model, title)
-        summary_embedding = generate_embeddings(embeddings_model, summary)
-        
-        # Query to create the node with new fields and link it to a Site node
-        query = """
-                MERGE (s:Site {name: $site_name})
-                MERGE (p:Page {url: $url})
-                ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
-                              p.publication_date = $publication_date, p.dateCreated = $date_created,
-                              p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
-                MERGE (p)-[:FROM]->(s)
-                RETURN id(p) AS node_id
-                """
-        parameters = {
-            "site_name": site_name,
-            "url": url,
-            "title": title,
-            "summary": summary,
-            "author": author,
-            "publication_date": publication_date,
-            "date_created": date_created,
-            "title_embedding": title_embedding,
-            "summary_embedding": summary_embedding
-        }
+    # Generate embeddings
+    title_embedding = generate_embeddings(embeddings_model, title)
+    summary_embedding = generate_embeddings(embeddings_model, summary)
+    
+    # Query to create the node with new fields and link it to a Site node
+    query = """
+        MERGE (s:Site {name: $site_name})
+        MERGE (p:Page {url: $url})
+        ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
+                        p.publication_date = $publication_date, p.dateCreated = $date_created,
+                        p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
+        ON MATCH SET p.title = $title, p.summary = $summary, p.author = $author,
+                        p.publication_date = $publication_date, p.dateCreated = $date_created,
+                        p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
+        MERGE (p)-[:FROM]->(s)
+        RETURN id(p) AS node_id
+        """
+    parameters = {
+        "site_name": site_name,
+        "url": url,
+        "title": title,
+        "summary": summary,
+        "author": author,
+        "publication_date": publication_date,
+        "date_created": date_created,
+        "title_embedding": title_embedding,
+        "summary_embedding": summary_embedding
+    }
 
-        # Instantiate Neo4j connection and run query
-        driver = Neo4jConnection.get_driver()
-        with driver.session() as session:
-            result = session.run(query, parameters)
-            node_id = result.single().get("node_id")
-            logger.info(f"Page node linked to Site '{site_name}' with ID: {node_id}")
+    try:
+        node_id = Neo4jConnection.execute_query(query, parameters)
+        logger.info(f"Page node linked to Site '{site_name}' with ID: {node_id}")
     except Exception as e:
         logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
 
 
-
 def consume_bookmarks(uploaded_file):
+    """
+    Processes bookmarks from an uploaded HTML file, extracting URLs and their titles,
+    and then processing each URL using the process_url_submission function to either
+    add or update its metadata in the Neo4j database.
+    """
     # Read content from the uploaded file
     bookmarks_html = uploaded_file.getvalue().decode("utf-8")
     soup = BeautifulSoup(bookmarks_html, 'html.parser')
     bookmarks = soup.find_all('a')
     
     for bookmark in bookmarks:
-        url = bookmark['href']
-        title = bookmark.text
-        print(f"Processing {title}: {url}")
-
-        # Generate metadata for URL
-        metadata = create_url_metadata_json(url)
-        if 'error' in metadata:
-            print(f"Error processing {url}: {metadata['error']}")
+        url = bookmark.get('href')
+        if not url:
+            logger.error("Bookmark without URL found.")
             continue
+        title = bookmark.get_text()
+        logger.info(f"Processing bookmark '{title}': {url}")
 
-        # Add metadata to Neo4j database
-        try:
-            add_page_metadata_to_graph(metadata)
-            print(f"Successfully added {url} to Neo4j database.")
-        except Exception as e:
-            print(f"Error adding {url} to database: {e}")
+        # Use process_url_submission to handle each URL
+        process_url_submission(url)
+
+    logger.info("Finished processing all bookmarks.")
+
+
+# experimental features
+
+def add_page_to_category(page_url, category_name):
+    """
+    Creates a BELONGS_TO relationship between a Page and a Category in the Neo4j graph.
+    """
+    query = """
+    MATCH (p:Page {url: $page_url})
+    MATCH (c:Category {name: $category_name})
+    MERGE (p)-[:BELONGS_TO]->(c)
+    """
+    parameters = {"page_url": page_url, "category_name": category_name}
+
+    try:
+        Neo4jConnection.execute_query(query, parameters)
+        logger.info(f"Page {page_url} successfully added to Category {category_name}.")
+    except Exception as e:
+        logger.error(f"Failed to add Page {page_url} to Category {category_name}: {e}", exc_info=True)
+
+
+
+def add_keyword_to_page(page_url, keyword_text):
+    """
+    Creates a HAS_KEYWORD relationship between a Page and some number of Keywords in the Neo4j Graph.
+    """
+    query = """
+    MATCH (p:Page {url: $page_url})
+    MERGE (k:Keyword {text: $keyword_text})
+    MERGE (p)-[:HAS_KEYWORD]->(k)
+    """
+    parameters = {"page_url": page_url, "keyword_text": keyword_text}
+    try: 
+        Neo4jConnection.execute_query(query, parameters)
+        logger.info(f"Keywords {keyword_text} successfully added to Page {page_url}.")
+    except Exception as e:
+        logger.error(f"Failed to add Keywords {keyword_text} to Page {page_url}: {e}", exc_info=True)
+
+
+def store_categories(page_url, categories):
+    query = """
+    MERGE (p:Page {url: $page_url})
+    SET p.categories = $categories
+    """
+    parameters = {"url": page_url, "categories": categories}
+    try: 
+        Neo4jConnection.execute_query(query, parameters)
+        logger.info(f"Categories {categories} successfully added to Page {page_url}")
+    except Exception as e:
+        logger.error(f"Failed to add Categories {categories} to Page {page_url}: {e}", exc_info=True)

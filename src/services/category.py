@@ -1,4 +1,6 @@
 import spacy
+import requests
+from bs4 import BeautifulSoup
 from openai import OpenAI
 from datetime import datetime
 from py2neo.ogm import Property, RelatedTo, GraphObject, Node
@@ -8,6 +10,8 @@ from config import OPENAI_API_KEY
 from db import Neo4jConnection
 from utils.logger import get_logger
 from services.keywords import Keyword
+from services.document_processing import summarize_content
+from services.openai_services import query_llm_for_categories
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -110,66 +114,33 @@ def add_category_to_neo4j(name, description):
     new_category.save_to_neo4j()
 
 
-def extract_keywords_from_summary(summary):
-    response = client.Completion.create(
-        engine="gpt-3.5-turbo",
-        prompt=f"Extract keywords from this summary, and present your response as a single string of keywords, using ', ' as a delimiter between them:\n\n{summary}",
-        max_tokens=100,
-        temperature=0.5
-    )
-    
-    # Extract keywords from the model's response
-    raw_keywords = response.choices[0].text.strip().split(', ')
-
-    # Validate and clean each keyword
-    cleaned_keywords = [keyword.strip() for keyword in raw_keywords if is_valid_keyword(keyword)]
-
-    return cleaned_keywords
-
-def is_valid_keyword(keyword):
-    """
-    Validates a keyword using basic checks, NLP techniques, including Named Entity Recognition, 
-    and domain-specific rules.
-    
-    Parameters:
-    - keyword (str): The keyword to validate.
-    
-    Returns:
-    - bool: True if the keyword is valid, False otherwise.
-    """
-    # Basic length check and stop words exclusion
-    stop_words = set(["and", "or", "the", "an", "a", "with", "to", "of"])
-
-    if len(keyword) <= 2 or keyword.lower() in stop_words:
-        return False
-    
-    # NLP processing for part-of-speech tagging and NER
-    doc = nlp(keyword)
-    
-    # Initially assume keyword is not valid
-    valid_keyword = False
-    
-    for token in doc:
-        # Part-of-Speech tagging to prefer nouns, proper nouns, and adjectives
-        if token.pos_ in ["NOUN", "PROPN", "ADJ"]:
-            valid_keyword = True
-
-    # Check if the keyword is a named entity, enhancing its validity
-    if len(doc.ents) > 0:
-        valid_keyword = True
-    
-    for ent in doc.ents:
-        if ent.label_ in ["PERSON", "ORG", "GPE"]:  # Example entity types
-            valid_keyword = True
-            break  # Break after finding the first significant entity
-    
-    return valid_keyword
-
-
-
-
 def update_graph_with_content_analysis(category, summary, keywords):
     category.description = summary  # Update the description with the summary
     for keyword in keywords:
         category.add_keyword(keyword)  
     category.save_to_neo4j()  # Save the category and its keywords to Neo4j
+
+
+def categorize_page_with_llm(url):
+    """
+    Fetches webpage content, summarizes it, and queries an LLM for category suggestions.
+    """
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            document_content = ' '.join(p.get_text() for p in soup.find_all('p'))
+            if document_content:
+                summary = summarize_content(document_content)
+                categories = query_llm_for_categories(summary)
+                if categories:
+                    store_initial_categories_in_db(url, categories)
+                    logger.info(f"Successfully categorized and updated the page: {url} with categories: {categories}")
+                else:
+                    logger.warning(f"No categories were suggested for the page: {url}.")
+            else:
+                logger.warning(f"No content found to summarize for URL: {url}")
+        else:
+            logger.error(f"Failed to fetch content for URL: {url}. HTTP Status Code: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Exception occurred while fetching content for URL: {url}. Error: {e}", exc_info=True)

@@ -33,64 +33,74 @@ Continuous Learning: Incorporate a system for the application to learn from user
 
 
 
-# Content Categorization plans
+Category Management Workflow & Code Scaffolding
 
-Phase 1: Basic Category Creation and LLM Integration
-Objective: Establish foundational capabilities for category creation and initiate basic LLM integration for content analysis and keyword extraction.
+# Workflow 1: Initial Page Categorization with LLM
+def categorize_page_with_llm(url):
+    content_summary = summarize_webpage_content(url)
+    categories = query_llm_for_categories(content_summary)
+    store_initial_categories_in_db(url, categories)
 
-Manual Category Creation:
+# Workflow 2: Displaying Categories and Collecting User Feedback
+def collect_user_feedback_on_categories(url):
+    suggested_categories = get_suggested_categories_from_db(url)
+    user_modified_categories = display_categories_and_collect_feedback(suggested_categories)
+    update_categories_in_db(url, user_modified_categories)
 
-Start with a simple interface where users can manually create categories by specifying names and descriptions.
-Implement basic validation to avoid duplicates in the category creation process.
+# Workflow 3: Updating Categories Based on User Feedback
+def update_page_categories_from_feedback(url):
+    feedback = get_user_feedback_for_url(url)
+    final_categories = process_feedback_to_determine_final_categories(feedback)
+    update_categories_in_db(url, final_categories)
+    # Optional: aggregate_feedback_for_model_improvement(feedback)
 
-Basic LLM Content Analysis:
+# Workflow 4: Aggregating Feedback for Model Improvement (Optional)
+def aggregate_feedback_for_model_improvement():
+    all_feedback = collect_all_user_feedback()
+    patterns = identify_patterns_in_feedback(all_feedback)
+    adjust_llm_or_train_supplementary_model(patterns)
 
-Utilize LLMs to summarize content and extract keywords as previously discussed. This process is initially automatic, without user input on the categorization.
+# Supporting Functions (Assume implementation exists or to be created)
+def summarize_webpage_content(url):
+    """Summarizes the content of a webpage."""
+    pass
 
-Category Assignment:
+def query_llm_for_categories(content_summary):
+    """Queries an LLM to suggest categories based on the content summary."""
+    pass
 
-Allow users to assign content to categories manually based on their judgment and the keywords extracted by the LLM.
+def store_initial_categories_in_db(url, categories):
+    """Stores the initial LLM-suggested categories in the database."""
+    pass
 
-Implementation Highlights:
+def get_suggested_categories_from_db(url):
+    """Retrieves LLM-suggested categories from the database for a given URL."""
+    pass
 
-Focus on building a robust Category class that integrates smoothly with your Neo4j database.
-Develop straightforward UI elements for category management (creation and assignment).
+def display_categories_and_collect_feedback(suggested_categories):
+    """Displays categories to the user and collects feedback (approve, modify, add)."""
+    pass
 
-Phase 2: Semi-Automatic Categorization with LLM Suggestions
-Objective: Introduce LLM suggestions for category assignments, incorporating a basic level of user involvement.
+def update_categories_in_db(url, user_modified_categories):
+    """Updates the categories for a given URL in the database based on user feedback."""
+    pass
 
-LLM Suggested Categories:
+def get_user_feedback_for_url(url):
+    """Retrieves user feedback for the categories of a given URL."""
+    pass
 
-After analyzing content, use LLMs to suggest potential categories based on keywords and content summary. These are preliminary suggestions based on existing categories.
+def process_feedback_to_determine_final_categories(feedback):
+    """Processes user feedback to determine the final set of categories for a webpage."""
+    pass
 
-User Confirmation:
+def collect_all_user_feedback():
+    """Collects all user feedback on categorizations across many webpages."""
+    pass
 
-Present LLM-suggested categories to users for confirmation or adjustment. Users can accept suggestions, modify them, or create new categories based on the suggestions.
+def identify_patterns_in_feedback(all_feedback):
+    """Identifies patterns or frequent corrections in the aggregated feedback."""
+    pass
 
-Feedback Loop for LLM Improvement:
-
-Collect data on user adjustments to LLM suggestions to refine the model or the logic used to generate suggestions.
-
-Implementation Highlights:
-
-Enhance the UI to facilitate easy review and modification of LLM suggestions.
-Begin tracking user feedback for future refinement of the LLM categorization logic.
-
-Phase 3: Advanced User and LLM Interaction for Dynamic Categorization
-Objective: Fully integrate user feedback into the categorization process, enabling dynamic category creation and refinement based on both LLM suggestions and user input.
-
-Dynamic Category Creation and Refinement:
-
-Implement a more sophisticated system where users can create new categories or refine existing ones based on LLM suggestions and their insights. This includes merging categories, adjusting descriptions, and reassigning keywords.
-
-LLM Training and Refinement:
-
-Use collected user feedback to train or refine the LLM, improving its ability to suggest relevant categories and understand the nuances of your content.
-
-Automated Suggestions with User Oversight:
-
-Move towards a system where the LLM can automatically categorize content but allows for user oversight and correction. Implement dashboards or notification systems for users to easily review and adjust automated categorizations.
-
-
-
-prompt=f"Extract keywords from this summary, and present your response as a single string of keywords, using ', ' as a delimiter between them:\n\n{summary}"
+def adjust_llm_or_train_supplementary_model(patterns):
+    """Adjusts the LLM based on feedback patterns or trains a supplementary model."""
+    pass

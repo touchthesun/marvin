@@ -98,3 +98,37 @@ def generate_embeddings(embeddings_model, text):
     except Exception as e:
         logger.error(f"Failed to generate embeddings: {e}", exc_info=True)
         return None
+
+
+def query_llm_for_categories(summary):
+    """
+    Queries the LLM to suggest categories based on the summary of webpage content.
+    """
+    # Define override parameters for the chat completion request if needed
+    override_params = {
+        "temperature": 0.5,
+        "max_tokens": 250,
+    }
+    
+    # Construct the chat interaction for category suggestion
+    messages = [
+        {"role": "system", "content": "You are an assistant that suggests categories based on content summaries."},
+        {"role": "user", "content": summary}
+    ]
+    
+    response = chat_completion(messages, model="gpt-3.5-turbo", override_params=override_params)
+    
+    if "error" in response:
+        logger.error(f"Error in obtaining categories from LLM: {response['error']}")
+        return []
+    
+    try:
+        categories = response.choices[0].message.content.split(',')
+        categories = [category.strip() for category in categories]
+        logger.debug(f"Categories suggested by LLM: {categories}")
+        return categories
+    except (AttributeError, IndexError) as e:
+        logger.error(f"Failed to extract categories from LLM response. Error: {e}")
+        return []
+
+

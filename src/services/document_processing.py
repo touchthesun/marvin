@@ -1,11 +1,8 @@
-import requests
 import spacy
-import json
-from datetime import datetime
-from config import OPENAI_API_KEY
+
 from openai import OpenAI
-from bs4 import BeautifulSoup
 from collections import Counter
+from urllib.parse import urlparse
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
@@ -14,6 +11,7 @@ from langchain_community.document_loaders import WebBaseLoader
 
 from services.openai_services import chat_completion
 from utils.logger import get_logger
+from config import OPENAI_API_KEY
 
 # Initialize the OpenAI API with the API key from config.py
 OpenAI.api_key = OPENAI_API_KEY

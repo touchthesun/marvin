@@ -14,3 +14,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Logging Config
 LOGGING_LEVEL = os.getenv("LOGGING_LEVEL")
+
+# Config Settings
+ENABLE_METADATA_COMPARISON = os.getenv("ENABLE_METADATA_COMPARISON", "False").lower() in ("true", "1", "t")

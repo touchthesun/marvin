@@ -34,7 +34,7 @@ def create_url_metadata_json(url):
         if "publication_date" not in page_metadata:
             page_metadata["publication_date"] = extract_publication_date(soup)
 
-        page_metadata["main_content"] = extract_main_content(soup)
+        page_metadata["main_content"] = extract_main_content(url)
         page_metadata["summary"] = summarize_content(page_metadata.get("main_content", ""))
         page_metadata["url"] = url
         page_metadata["date_created"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -70,10 +70,12 @@ def process_ld_json_block(ld_json_block):
     try:
         for ld_key, meta_key in metadata_mapping.items():
             if ld_key in ld_json_block:
-                if ld_key == "author" and isinstance(ld_json_block[ld_key], dict):  # Handling author as object
-                    author_name = ld_json_block[ld_key].get("name", "Unknown")
-                    page_metadata[meta_key] = author_name
-                    logger.info(f"Author extracted: {author_name}")
+                if ld_key == "author":
+                    if isinstance(ld_json_block[ld_key], dict):  # Single author
+                        page_metadata[meta_key] = [ld_json_block[ld_key].get("name", "Unknown")]
+                    elif isinstance(ld_json_block[ld_key], list):  # Multiple authors
+                        page_metadata[meta_key] = [author.get("name", "Unknown") for author in ld_json_block[ld_key]]
+                        logger.info(f"Author(s) extracted: {', '.join(page_metadata[meta_key])}")
                 elif ld_key == "keywords" and isinstance(ld_json_block[ld_key], str):  # Handling keywords string
                     keywords_list = ld_json_block[ld_key].split(", ")
                     page_metadata[meta_key] = keywords_list
@@ -202,6 +204,8 @@ def extract_main_content(url, min_content_length=100):
     except Exception as fallback_reason:
         # Fallback to BeautifulSoup or another method
         logger.warning(f"Using fallback due to: {fallback_reason}")
+        logger.debug(f"Fetching URL with requests: {url}")
+
         response = requests.get(url)
         soup = BeautifulSoup(response.content, 'html.parser')
         # Implement custom logic similar to initial BeautifulSoup attempts
