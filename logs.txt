@@ -1,380 +1,262 @@
-2024-03-27 21:52:29 - __main__ - DEBUG - URL: https://xkcd.com/, Process button clicked: True, File uploaded: False
-2024-03-27 21:52:29 - __main__ - DEBUG - Processing URL: https://xkcd.com/
-2024-03-27 21:52:29 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): xkcd.com:443
-2024-03-27 21:52:29 - urllib3.connectionpool - DEBUG - https://xkcd.com:443 "GET / HTTP/1.1" 200 2881
-2024-03-27 21:52:29 - charset_normalizer - DEBUG - Encoding detection: utf_8 is most likely the one.
-2024-03-27 21:52:29 - services.metadata - DEBUG - Searching for structured data (LD+JSON) in the webpage.
-2024-03-27 21:52:29 - services.metadata - DEBUG - No LD+JSON blocks found.
-2024-03-27 21:52:29 - services.metadata - WARNING - No structured data extracted. Check if webpage contains valid LD+JSON.
-2024-03-27 21:52:29 - services.metadata - DEBUG - Attempting to extract the webpage title.
-2024-03-27 21:52:29 - services.metadata - INFO - Title extracted from <title> tag: xkcd: Cursive Letters
-2024-03-27 21:52:29 - services.metadata - DEBUG - Attempting to extract author information.
-2024-03-27 21:52:29 - services.metadata - WARNING - No author information found using standard or alternate sources.
-2024-03-27 21:52:29 - services.metadata - DEBUG - Attempting to extract publication date.
-2024-03-27 21:52:29 - services.metadata - WARNING - No publication date found using standard or alternate meta tags.
-2024-03-27 21:52:29 - services.metadata - DEBUG - Attempting to extract content from URL: <!DOCTYPE html>
+2024-03-28 21:36:58 - __main__ - INFO - App main flow starting
+2024-03-28 21:36:58 - services.metadata - INFO - Extracted structured data from 3 blocks.
+2024-03-28 21:36:58 - services.metadata - INFO - Author(s) extracted: Frank Tiu
+2024-03-28 21:36:58 - services.metadata - INFO - Keywords extracted: dome pancakes, easy pancakes, japanese fluffy pancakes, japanese pancakes, no flip pancakes, pancake perfection, pancakes, rice cooker pancakes, round pancakes, smooth pancakes, tasty, tasty_vegetarian
+2024-03-28 21:36:58 - services.metadata - INFO - Successfully extracted metadata from LD+JSON block.
+2024-03-28 21:36:58 - services.metadata - INFO - Title extracted from <title> tag: Fluffy Pancakes Recipe by Tasty
+2024-03-28 21:37:00 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Summary: Fluffy Pancakes recipe promises light and airy pancakes that make for the ultimate breakfast treat. Topped with fruits, syrup, or whipped cream, they offer a delicious stack of pure bliss.
+2024-03-28 21:37:00 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-03-28 21:37:00 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-03-28 21:37:00 - services.neo4j_services - INFO - Page node linked to Site 'tasty.co' with ID: [<Record node_id=89>]
+2024-03-28 21:37:00 - services.neo4j_services - INFO - Page metadata for https://tasty.co/recipe/fluffy-perfect-pancakes added to graph.
+2024-03-28 21:37:00 - __main__ - INFO - Successfully added metadata for https://tasty.co/recipe/fluffy-perfect-pancakes to the graph.
+2024-03-28 21:37:00 - models - INFO - Starting category generation process for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:04 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Sure! Below is a summary of the recipe you provided:
 
-<html>
-<head>
-<link href="/s/7d94e0.css" rel="stylesheet" title="Default" type="text/css"/>
-<title>xkcd: Cursive Letters</title>
-<meta content="IE=edge" http-equiv="X-UA-Compatible"/>
-<link href="/s/919f27.ico" rel="shortcut icon" type="image/x-icon"/>
-<link href="/s/919f27.ico" rel="icon" type="image/x-icon"/>
-<link href="/atom.xml" rel="alternate" title="Atom 1.0" type="application/atom+xml"/>
-<link href="/rss.xml" rel="alternate" title="RSS 2.0" type="application/rss+xml"/>
-<!-- <script type="text/javascript" src="/s/b66ed7.js" async></script>
-<script type="text/javascript" src="/s/1b9456.js" async></script> -->
-<meta content="xkcd" property="og:site_name"/>
-<meta content="Cursive Letters" property="og:title"/>
-<meta content="https://xkcd.com/2912/" property="og:url"/>
-<meta content="https://imgs.xkcd.com/comics/cursive_letters_2x.png" property="og:image"/>
-<meta content="summary_large_image" name="twitter:card"/>
-</head>
-<body>
-<div id="topContainer">
-<div id="topLeft">
-<ul>
-<li><a href="/archive">Archive</a></li>
-<li><a href="https://what-if.xkcd.com">What If?</a></li>
-<li><a href="/about" rel="author">About</a></li>
-<li><a href="/atom.xml">Feed</a>•<a href="/newsletter/">Email</a></li>
-<li><a href="https://twitter.com/xkcd/">TW</a>•<a href="https://www.facebook.com/TheXKCD/">FB</a>•<a href="https://www.instagram.com/xkcd/">IG</a></li>
-<li><a href="/books/">-Books-</a></li>
-<li><a href="/what-if-2/">What If? 2</a></li>
-<li><a href="/what-if/">WI?</a>•<a href="/thing-explainer/">TE</a>•<a href="/how-to/">HT</a></li>
-</ul>
-</div>
-<div id="topRight">
-<div id="masthead">
-<span><a href="/"><img alt="xkcd.com logo" height="83" src="/s/0b7742.png" width="185"/></a></span>
-<span id="slogan">A webcomic of romance,<br/> sarcasm, math, and language.</span>
-</div>
-<div id="news">
-<div id="xkcdNews">
-<a href="https://what-if.xkcd.com/">What If?</a> is on YouTube! The first video answers<br/><a href="https://youtu.be/2LSyizrk8-0">“What if we aimed Hubble at Earth?”</a> Follow the <br/><a href="https://www.youtube.com/@xkcd_whatif">What If?</a> channel to be notified about new videos.
-</div>
-</div>
-</div>
-<div class="bg box" id="bgLeft"></div>
-<div class="bg box" id="bgRight"></div>
-</div>
-<div class="box" id="middleContainer">
-<div id="ctitle">Cursive Letters</div>
-<ul class="comicNav">
-<li><a href="/1/">|&lt;</a></li>
-<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>
-<li><a href="//c.xkcd.com/random/comic/">Random</a></li>
-<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>
-<li><a href="/">&gt;|</a></li>
-</ul>
-<div id="comic">
-<img alt="Cursive Letters" src="//imgs.xkcd.com/comics/cursive_letters.png" srcset="//imgs.xkcd.com/comics/cursive_letters_2x.png 2x" style="image-orientation:none" title="𝓘 𝓽𝓱𝓲𝓷𝓴 𝓬𝓪𝓹𝓲𝓽𝓪𝓵 𝓛 𝓲𝓼 𝓹𝓻𝓸𝓫𝓪𝓫𝓵𝔂 𝓽𝓱𝓮 𝓶𝓸𝓼𝓽 𝓯𝓾𝓷 𝓽𝓸 𝔀𝓻𝓲𝓽𝓮, 𝓽𝓱𝓸𝓾𝓰𝓱 𝓵𝓸𝔀𝓮𝓻𝓬𝓪𝓼𝓮 𝓺 𝓲𝓼 𝓪𝓵𝓼𝓸 𝓪 𝓼𝓽𝓻𝓸𝓷𝓰 𝓬𝓸𝓷𝓽𝓮𝓷𝓭𝓮𝓻."/>
-</div>
-<ul class="comicNav">
-<li><a href="/1/">|&lt;</a></li>
-<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>
-<li><a href="//c.xkcd.com/random/comic/">Random</a></li>
-<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>
-<li><a href="/">&gt;|</a></li>
-</ul>
-<br/>
-Permanent link to this comic: <a href="https://xkcd.com/2912">https://xkcd.com/2912/</a><br/>
-Image URL (for hotlinking/embedding): <a href="https://imgs.xkcd.com/comics/cursive_letters.png">https://imgs.xkcd.com/comics/cursive_letters.png</a>
-<div id="transcript" style="display: none"></div>
-</div>
-<div class="box" id="bottom">
-<img alt="Selected Comics" height="100" src="//imgs.xkcd.com/s/a899e84.jpg" usemap="#comicmap" width="520"/>
-<map id="comicmap" name="comicmap">
-<area alt="Grownups" coords="0,0,100,100" href="/150/" shape="rect"/>
-<area alt="Circuit Diagram" coords="104,0,204,100" href="/730/" shape="rect"/>
-<area alt="Angular Momentum" coords="208,0,308,100" href="/162/" shape="rect"/>
-<area alt="Self-Description" coords="312,0,412,100" href="/688/" shape="rect"/>
-<area alt="Alternative Energy Revolution" coords="416,0,520,100" href="/556/" shape="rect"/>
-</map>
-<br/>
-<a href="//xkcd.com/1732/"><img alt="Earth temperature timeline" border="0" height="100" src="//imgs.xkcd.com/s/temperature.png" width="520"/></a>
-<br/>
-<div>
-<!--
-Search comic titles and transcripts:
-<script type="text/javascript" src="//www.google.com/jsapi"></script>
-<script type="text/javascript">google.load('search', '1');google.setOnLoadCallback(function() {google.search.CustomSearchControl.attachAutoCompletion('012652707207066138651:zudjtuwe28q',document.getElementById('q'),'cse-search-box');});</script>
-<form action="//www.google.com/cse" id="cse-search-box">
-<div>
-<input type="hidden" name="cx" value="012652707207066138651:zudjtuwe28q"/>
-<input type="hidden" name="ie" value="UTF-8"/>
-<input type="text" name="q" id="q" size="31"/>
-<input type="submit" name="sa" value="Search"/>
-</div>
-</form>
-<script type="text/javascript" src="//www.google.com/cse/brand?form=cse-search-box&amp;lang=en"></script>
--->
-<a href="/rss.xml">RSS Feed</a> - <a href="/atom.xml">Atom Feed</a> - <a href="/newsletter/">Email</a>
-</div>
-<br/>
-<div id="comicLinks">
-Comics I enjoy:<br/>
-<a href="http://threewordphrase.com/">Three Word Phrase</a>,
-        <a href="https://www.smbc-comics.com/">SMBC</a>,
-        <a href="https://www.qwantz.com">Dinosaur Comics</a>,
-        <a href="https://oglaf.com/">Oglaf</a> (nsfw),
-        <a href="https://www.asofterworld.com">A Softer World</a>,
-        <a href="https://buttersafe.com/">Buttersafe</a>,
-        <a href="https://pbfcomics.com/">Perry Bible Fellowship</a>,
-        <a href="https://questionablecontent.net/">Questionable Content</a>,
-        <a href="http://www.buttercupfestival.com/">Buttercup Festival</a>,
-        <a href="https://www.homestuck.com/">Homestuck</a>,
-        <a href="https://www.jspowerhour.com/">Junior Scientist Power Hour</a>
-</div>
-<br/>
-<div id="comicLinks">
-Other things:<br/>
-<a href="https://medium.com/civic-tech-thoughts-from-joshdata/so-you-want-to-reform-democracy-7f3b1ef10597">Tips on technology and government</a>,<br/>
-<a href="https://www.nytimes.com/interactive/2017/climate/what-is-climate-change.html">Climate FAQ</a>,
-        <a href="https://twitter.com/KHayhoe">Katharine Hayhoe</a>
-</div>
-<br/>
-<center>
-<div id="footnote" style="width:70%">xkcd.com is best viewed with Netscape Navigator 4.0 or below on a Pentium 3±1 emulated in Javascript on an Apple IIGS<br/>at a screen resolution of 1024x1. Please enable your ad blockers, disable high-heat drying, and remove your device<br/>from Airplane Mode and set it to Boat Mode. For security reasons, please leave caps lock on while browsing.</div>
-</center>
-<div id="licenseText">
-<p>
-This work is licensed under a
-<a href="https://creativecommons.org/licenses/by-nc/2.5/">Creative Commons Attribution-NonCommercial 2.5 License</a>.
-</p><p>
-This means you're free to copy and share these comics (but not to sell them). <a href="/license.html" rel="license">More details</a>.</p>
-</div>
-</div>
-</body>
-<!-- Layout by Ian Clasbey, davean, and chromakode -->
-</html>
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes that are perfect for breakfast
+- Time: 35 minutes total (10 minutes prep, 20 minutes cook time)
+- Serving size: 4 pancakes
+- Serve with: Your favorite fruits, syrup, or whipped cream
+- Estimated values: One serving size
+- Cooking time: Under 30 minutes
 
-2024-03-27 21:52:29 - services.metadata - WARNING - Using fallback due to: 'ascii' codec can't encode character '\u2022' in position 159: ordinal not in range(128)
-2024-03-27 21:52:29 - services.metadata - DEBUG - Fetching URL with requests: <!DOCTYPE html>
+Enjoy flipping out over these fluffy and delectable pancakes!
+2024-03-28 21:37:04 - models - INFO - Summary successfully generated for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:05 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Based on the summary of the fluffy pancakes recipe, here are some suggested categories:
 
-<html>
-<head>
-<link href="/s/7d94e0.css" rel="stylesheet" title="Default" type="text/css"/>
-<title>xkcd: Cursive Letters</title>
-<meta content="IE=edge" http-equiv="X-UA-Compatible"/>
-<link href="/s/919f27.ico" rel="shortcut icon" type="image/x-icon"/>
-<link href="/s/919f27.ico" rel="icon" type="image/x-icon"/>
-<link href="/atom.xml" rel="alternate" title="Atom 1.0" type="application/atom+xml"/>
-<link href="/rss.xml" rel="alternate" title="RSS 2.0" type="application/rss+xml"/>
-<!-- <script type="text/javascript" src="/s/b66ed7.js" async></script>
-<script type="text/javascript" src="/s/1b9456.js" async></script> -->
-<meta content="xkcd" property="og:site_name"/>
-<meta content="Cursive Letters" property="og:title"/>
-<meta content="https://xkcd.com/2912/" property="og:url"/>
-<meta content="https://imgs.xkcd.com/comics/cursive_letters_2x.png" property="og:image"/>
-<meta content="summary_large_image" name="twitter:card"/>
-</head>
-<body>
-<div id="topContainer">
-<div id="topLeft">
-<ul>
-<li><a href="/archive">Archive</a></li>
-<li><a href="https://what-if.xkcd.com">What If?</a></li>
-<li><a href="/about" rel="author">About</a></li>
-<li><a href="/atom.xml">Feed</a>•<a href="/newsletter/">Email</a></li>
-<li><a href="https://twitter.com/xkcd/">TW</a>•<a href="https://www.facebook.com/TheXKCD/">FB</a>•<a href="https://www.instagram.com/xkcd/">IG</a></li>
-<li><a href="/books/">-Books-</a></li>
-<li><a href="/what-if-2/">What If? 2</a></li>
-<li><a href="/what-if/">WI?</a>•<a href="/thing-explainer/">TE</a>•<a href="/how-to/">HT</a></li>
-</ul>
-</div>
-<div id="topRight">
-<div id="masthead">
-<span><a href="/"><img alt="xkcd.com logo" height="83" src="/s/0b7742.png" width="185"/></a></span>
-<span id="slogan">A webcomic of romance,<br/> sarcasm, math, and language.</span>
-</div>
-<div id="news">
-<div id="xkcdNews">
-<a href="https://what-if.xkcd.com/">What If?</a> is on YouTube! The first video answers<br/><a href="https://youtu.be/2LSyizrk8-0">“What if we aimed Hubble at Earth?”</a> Follow the <br/><a href="https://www.youtube.com/@xkcd_whatif">What If?</a> channel to be notified about new videos.
-</div>
-</div>
-</div>
-<div class="bg box" id="bgLeft"></div>
-<div class="bg box" id="bgRight"></div>
-</div>
-<div class="box" id="middleContainer">
-<div id="ctitle">Cursive Letters</div>
-<ul class="comicNav">
-<li><a href="/1/">|&lt;</a></li>
-<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>
-<li><a href="//c.xkcd.com/random/comic/">Random</a></li>
-<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>
-<li><a href="/">&gt;|</a></li>
-</ul>
-<div id="comic">
-<img alt="Cursive Letters" src="//imgs.xkcd.com/comics/cursive_letters.png" srcset="//imgs.xkcd.com/comics/cursive_letters_2x.png 2x" style="image-orientation:none" title="𝓘 𝓽𝓱𝓲𝓷𝓴 𝓬𝓪𝓹𝓲𝓽𝓪𝓵 𝓛 𝓲𝓼 𝓹𝓻𝓸𝓫𝓪𝓫𝓵𝔂 𝓽𝓱𝓮 𝓶𝓸𝓼𝓽 𝓯𝓾𝓷 𝓽𝓸 𝔀𝓻𝓲𝓽𝓮, 𝓽𝓱𝓸𝓾𝓰𝓱 𝓵𝓸𝔀𝓮𝓻𝓬𝓪𝓼𝓮 𝓺 𝓲𝓼 𝓪𝓵𝓼𝓸 𝓪 𝓼𝓽𝓻𝓸𝓷𝓰 𝓬𝓸𝓷𝓽𝓮𝓷𝓭𝓮𝓻."/>
-</div>
-<ul class="comicNav">
-<li><a href="/1/">|&lt;</a></li>
-<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>
-<li><a href="//c.xkcd.com/random/comic/">Random</a></li>
-<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>
-<li><a href="/">&gt;|</a></li>
-</ul>
-<br/>
-Permanent link to this comic: <a href="https://xkcd.com/2912">https://xkcd.com/2912/</a><br/>
-Image URL (for hotlinking/embedding): <a href="https://imgs.xkcd.com/comics/cursive_letters.png">https://imgs.xkcd.com/comics/cursive_letters.png</a>
-<div id="transcript" style="display: none"></div>
-</div>
-<div class="box" id="bottom">
-<img alt="Selected Comics" height="100" src="//imgs.xkcd.com/s/a899e84.jpg" usemap="#comicmap" width="520"/>
-<map id="comicmap" name="comicmap">
-<area alt="Grownups" coords="0,0,100,100" href="/150/" shape="rect"/>
-<area alt="Circuit Diagram" coords="104,0,204,100" href="/730/" shape="rect"/>
-<area alt="Angular Momentum" coords="208,0,308,100" href="/162/" shape="rect"/>
-<area alt="Self-Description" coords="312,0,412,100" href="/688/" shape="rect"/>
-<area alt="Alternative Energy Revolution" coords="416,0,520,100" href="/556/" shape="rect"/>
-</map>
-<br/>
-<a href="//xkcd.com/1732/"><img alt="Earth temperature timeline" border="0" height="100" src="//imgs.xkcd.com/s/temperature.png" width="520"/></a>
-<br/>
-<div>
-<!--
-Search comic titles and transcripts:
-<script type="text/javascript" src="//www.google.com/jsapi"></script>
-<script type="text/javascript">google.load('search', '1');google.setOnLoadCallback(function() {google.search.CustomSearchControl.attachAutoCompletion('012652707207066138651:zudjtuwe28q',document.getElementById('q'),'cse-search-box');});</script>
-<form action="//www.google.com/cse" id="cse-search-box">
-<div>
-<input type="hidden" name="cx" value="012652707207066138651:zudjtuwe28q"/>
-<input type="hidden" name="ie" value="UTF-8"/>
-<input type="text" name="q" id="q" size="31"/>
-<input type="submit" name="sa" value="Search"/>
-</div>
-</form>
-<script type="text/javascript" src="//www.google.com/cse/brand?form=cse-search-box&amp;lang=en"></script>
--->
-<a href="/rss.xml">RSS Feed</a> - <a href="/atom.xml">Atom Feed</a> - <a href="/newsletter/">Email</a>
-</div>
-<br/>
-<div id="comicLinks">
-Comics I enjoy:<br/>
-<a href="http://threewordphrase.com/">Three Word Phrase</a>,
-        <a href="https://www.smbc-comics.com/">SMBC</a>,
-        <a href="https://www.qwantz.com">Dinosaur Comics</a>,
-        <a href="https://oglaf.com/">Oglaf</a> (nsfw),
-        <a href="https://www.asofterworld.com">A Softer World</a>,
-        <a href="https://buttersafe.com/">Buttersafe</a>,
-        <a href="https://pbfcomics.com/">Perry Bible Fellowship</a>,
-        <a href="https://questionablecontent.net/">Questionable Content</a>,
-        <a href="http://www.buttercupfestival.com/">Buttercup Festival</a>,
-        <a href="https://www.homestuck.com/">Homestuck</a>,
-        <a href="https://www.jspowerhour.com/">Junior Scientist Power Hour</a>
-</div>
-<br/>
-<div id="comicLinks">
-Other things:<br/>
-<a href="https://medium.com/civic-tech-thoughts-from-joshdata/so-you-want-to-reform-democracy-7f3b1ef10597">Tips on technology and government</a>,<br/>
-<a href="https://www.nytimes.com/interactive/2017/climate/what-is-climate-change.html">Climate FAQ</a>,
-        <a href="https://twitter.com/KHayhoe">Katharine Hayhoe</a>
-</div>
-<br/>
-<center>
-<div id="footnote" style="width:70%">xkcd.com is best viewed with Netscape Navigator 4.0 or below on a Pentium 3±1 emulated in Javascript on an Apple IIGS<br/>at a screen resolution of 1024x1. Please enable your ad blockers, disable high-heat drying, and remove your device<br/>from Airplane Mode and set it to Boat Mode. For security reasons, please leave caps lock on while browsing.</div>
-</center>
-<div id="licenseText">
-<p>
-This work is licensed under a
-<a href="https://creativecommons.org/licenses/by-nc/2.5/">Creative Commons Attribution-NonCommercial 2.5 License</a>.
-</p><p>
-This means you're free to copy and share these comics (but not to sell them). <a href="/license.html" rel="license">More details</a>.</p>
-</div>
-</div>
-</body>
-<!-- Layout by Ian Clasbey, davean, and chromakode -->
-</html>
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits, syrup, whipped cream
 
-2024-03-27 21:52:29 - services.metadata - ERROR - Error processing URL https://xkcd.com/: No connection adapters were found for '<!DOCTYPE html>\n\n<html>\n<head>\n<link href="/s/7d94e0.css" rel="stylesheet" title="Default" type="text/css"/>\n<title>xkcd: Cursive Letters</title>\n<meta content="IE=edge" http-equiv="X-UA-Compatible"/>\n<link href="/s/919f27.ico" rel="shortcut icon" type="image/x-icon"/>\n<link href="/s/919f27.ico" rel="icon" type="image/x-icon"/>\n<link href="/atom.xml" rel="alternate" title="Atom 1.0" type="application/atom+xml"/>\n<link href="/rss.xml" rel="alternate" title="RSS 2.0" type="application/rss+xml"/>\n<!-- <script type="text/javascript" src="/s/b66ed7.js" async></script>\n<script type="text/javascript" src="/s/1b9456.js" async></script> -->\n<meta content="xkcd" property="og:site_name"/>\n<meta content="Cursive Letters" property="og:title"/>\n<meta content="https://xkcd.com/2912/" property="og:url"/>\n<meta content="https://imgs.xkcd.com/comics/cursive_letters_2x.png" property="og:image"/>\n<meta content="summary_large_image" name="twitter:card"/>\n</head>\n<body>\n<div id="topContainer">\n<div id="topLeft">\n<ul>\n<li><a href="/archive">Archive</a></li>\n<li><a href="https://what-if.xkcd.com">What If?</a></li>\n<li><a href="/about" rel="author">About</a></li>\n<li><a href="/atom.xml">Feed</a>•<a href="/newsletter/">Email</a></li>\n<li><a href="https://twitter.com/xkcd/">TW</a>•<a href="https://www.facebook.com/TheXKCD/">FB</a>•<a href="https://www.instagram.com/xkcd/">IG</a></li>\n<li><a href="/books/">-Books-</a></li>\n<li><a href="/what-if-2/">What If? 2</a></li>\n<li><a href="/what-if/">WI?</a>•<a href="/thing-explainer/">TE</a>•<a href="/how-to/">HT</a></li>\n</ul>\n</div>\n<div id="topRight">\n<div id="masthead">\n<span><a href="/"><img alt="xkcd.com logo" height="83" src="/s/0b7742.png" width="185"/></a></span>\n<span id="slogan">A webcomic of romance,<br/> sarcasm, math, and language.</span>\n</div>\n<div id="news">\n<div id="xkcdNews">\n<a href="https://what-if.xkcd.com/">What If?</a> is on YouTube! The first video answers<br/><a href="https://youtu.be/2LSyizrk8-0">“What if we aimed Hubble at Earth?”</a> Follow the <br/><a href="https://www.youtube.com/@xkcd_whatif">What If?</a> channel to be notified about new videos.\n</div>\n</div>\n</div>\n<div class="bg box" id="bgLeft"></div>\n<div class="bg box" id="bgRight"></div>\n</div>\n<div class="box" id="middleContainer">\n<div id="ctitle">Cursive Letters</div>\n<ul class="comicNav">\n<li><a href="/1/">|&lt;</a></li>\n<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>\n<li><a href="//c.xkcd.com/random/comic/">Random</a></li>\n<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>\n<li><a href="/">&gt;|</a></li>\n</ul>\n<div id="comic">\n<img alt="Cursive Letters" src="//imgs.xkcd.com/comics/cursive_letters.png" srcset="//imgs.xkcd.com/comics/cursive_letters_2x.png 2x" style="image-orientation:none" title="𝓘 𝓽𝓱𝓲𝓷𝓴 𝓬𝓪𝓹𝓲𝓽𝓪𝓵 𝓛 𝓲𝓼 𝓹𝓻𝓸𝓫𝓪𝓫𝓵𝔂 𝓽𝓱𝓮 𝓶𝓸𝓼𝓽 𝓯𝓾𝓷 𝓽𝓸 𝔀𝓻𝓲𝓽𝓮, 𝓽𝓱𝓸𝓾𝓰𝓱 𝓵𝓸𝔀𝓮𝓻𝓬𝓪𝓼𝓮 𝓺 𝓲𝓼 𝓪𝓵𝓼𝓸 𝓪 𝓼𝓽𝓻𝓸𝓷𝓰 𝓬𝓸𝓷𝓽𝓮𝓷𝓭𝓮𝓻."/>\n</div>\n<ul class="comicNav">\n<li><a href="/1/">|&lt;</a></li>\n<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>\n<li><a href="//c.xkcd.com/random/comic/">Random</a></li>\n<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>\n<li><a href="/">&gt;|</a></li>\n</ul>\n<br/>\nPermanent link to this comic: <a href="https://xkcd.com/2912">https://xkcd.com/2912/</a><br/>\nImage URL (for hotlinking/embedding): <a href="https://imgs.xkcd.com/comics/cursive_letters.png">https://imgs.xkcd.com/comics/cursive_letters.png</a>\n<div id="transcript" style="display: none"></div>\n</div>\n<div class="box" id="bottom">\n<img alt="Selected Comics" height="100" src="//imgs.xkcd.com/s/a899e84.jpg" usemap="#comicmap" width="520"/>\n<map id="comicmap" name="comicmap">\n<area alt="Grownups" coords="0,0,100,100" href="/150/" shape="rect"/>\n<area alt="Circuit Diagram" coords="104,0,204,100" href="/730/" shape="rect"/>\n<area alt="Angular Momentum" coords="208,0,308,100" href="/162/" shape="rect"/>\n<area alt="Self-Description" coords="312,0,412,100" href="/688/" shape="rect"/>\n<area alt="Alternative Energy Revolution" coords="416,0,520,100" href="/556/" shape="rect"/>\n</map>\n<br/>\n<a href="//xkcd.com/1732/"><img alt="Earth temperature timeline" border="0" height="100" src="//imgs.xkcd.com/s/temperature.png" width="520"/></a>\n<br/>\n<div>\n<!--\nSearch comic titles and transcripts:\n<script type="text/javascript" src="//www.google.com/jsapi"></script>\n<script type="text/javascript">google.load(\'search\', \'1\');google.setOnLoadCallback(function() {google.search.CustomSearchControl.attachAutoCompletion(\'012652707207066138651:zudjtuwe28q\',document.getElementById(\'q\'),\'cse-search-box\');});</script>\n<form action="//www.google.com/cse" id="cse-search-box">\n<div>\n<input type="hidden" name="cx" value="012652707207066138651:zudjtuwe28q"/>\n<input type="hidden" name="ie" value="UTF-8"/>\n<input type="text" name="q" id="q" size="31"/>\n<input type="submit" name="sa" value="Search"/>\n</div>\n</form>\n<script type="text/javascript" src="//www.google.com/cse/brand?form=cse-search-box&amp;lang=en"></script>\n-->\n<a href="/rss.xml">RSS Feed</a> - <a href="/atom.xml">Atom Feed</a> - <a href="/newsletter/">Email</a>\n</div>\n<br/>\n<div id="comicLinks">\nComics I enjoy:<br/>\n<a href="http://threewordphrase.com/">Three Word Phrase</a>,\n        <a href="https://www.smbc-comics.com/">SMBC</a>,\n        <a href="https://www.qwantz.com">Dinosaur Comics</a>,\n        <a href="https://oglaf.com/">Oglaf</a> (nsfw),\n        <a href="https://www.asofterworld.com">A Softer World</a>,\n        <a href="https://buttersafe.com/">Buttersafe</a>,\n        <a href="https://pbfcomics.com/">Perry Bible Fellowship</a>,\n        <a href="https://questionablecontent.net/">Questionable Content</a>,\n        <a href="http://www.buttercupfestival.com/">Buttercup Festival</a>,\n        <a href="https://www.homestuck.com/">Homestuck</a>,\n\t<a href="https://www.jspowerhour.com/">Junior Scientist Power Hour</a>\n</div>\n<br/>\n<div id="comicLinks">\nOther things:<br/>\n<a href="https://medium.com/civic-tech-thoughts-from-joshdata/so-you-want-to-reform-democracy-7f3b1ef10597">Tips on technology and government</a>,<br/>\n<a href="https://www.nytimes.com/interactive/2017/climate/what-is-climate-change.html">Climate FAQ</a>,\n\t<a href="https://twitter.com/KHayhoe">Katharine Hayhoe</a>\n</div>\n<br/>\n<center>\n<div id="footnote" style="width:70%">xkcd.com is best viewed with Netscape Navigator 4.0 or below on a Pentium 3±1 emulated in Javascript on an Apple IIGS<br/>at a screen resolution of 1024x1. Please enable your ad blockers, disable high-heat drying, and remove your device<br/>from Airplane Mode and set it to Boat Mode. For security reasons, please leave caps lock on while browsing.</div>\n</center>\n<div id="licenseText">\n<p>\nThis work is licensed under a\n<a href="https://creativecommons.org/licenses/by-nc/2.5/">Creative Commons Attribution-NonCommercial 2.5 License</a>.\n</p><p>\nThis means you\'re free to copy and share these comics (but not to sell them). <a href="/license.html" rel="license">More details</a>.</p>\n</div>\n</div>\n</body>\n<!-- Layout by Ian Clasbey, davean, and chromakode -->\n</html>\n'
-Traceback (most recent call last):
-  File "/Users/nathanparker/Documents/workspace/personal/marvin/src/services/metadata.py", line 191, in extract_main_content
-    article = Article(url)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/newspaper/article.py", line 60, in __init__
-    scheme = urls.get_scheme(url)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/newspaper/urls.py", line 279, in get_scheme
-    return urlparse(abs_url, **kwargs).scheme
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/urllib/parse.py", line 408, in urlparse
-    return _coerce_result(result)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/urllib/parse.py", line 116, in _encode_result
-    return obj.encode(encoding, errors)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/urllib/parse.py", line 144, in encode
-    return self._encoded_counterpart(*(x.encode(encoding, errors) for x in self))
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/urllib/parse.py", line 144, in <genexpr>
-    return self._encoded_counterpart(*(x.encode(encoding, errors) for x in self))
-UnicodeEncodeError: 'ascii' codec can't encode character '\u2022' in position 159: ordinal not in range(128)
+These categories can help users easily find and organize similar recipes.
+2024-03-28 21:37:05 - models - INFO - Categories suggested for URL https://tasty.co/recipe/fluffy-perfect-pancakes: ['Based on the summary of the fluffy pancakes recipe', 'here are some suggested categories:\n\n1. Recipe Category: Breakfast\n2. Dish Type: Pancakes\n3. Cooking Time: Under 30 minutes\n4. Meal Type: Breakfast\n5. Occasion: Brunch\n6. Cuisine: General\n7. Main Ingredient: Flour\n8. Dietary Preference: Vegetarian\n9. Serving Size: 4 pancakes\n10. Accompaniments: Fruits', 'syrup', 'whipped cream\n\nThese categories can help users easily find and organize similar recipes.']
+2024-03-28 21:37:07 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes, breakfast
+- Time: 35 minutes total, 10 minutes prep, 20 minutes cook time, under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits, syrup, whipped cream
+- Estimated values: One serving size
+2024-03-28 21:37:07 - models - INFO - Keywords extracted for URL https://tasty.co/recipe/fluffy-perfect-pancakes: ['Keywords extracted from the summary:\n- Recipe: Fluffy Pancakes\n- Description: Light and airy pancakes', 'breakfast\n- Time: 35 minutes total', '10 minutes prep', '20 minutes cook time', 'under 30 minutes cooking time\n- Serving size: 4 pancakes\n- Serve with: Fruits', 'whipped cream\n- Estimated values: One serving size']
+2024-03-28 21:37:07 - services.neo4j_services - INFO - Category 'Based on the summary of the fluffy pancakes recipe' not found in Neo4j.
+2024-03-28 21:37:08 - models - INFO - Category 'Based on the summary of the fluffy pancakes recipe' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:08 - models - INFO - New category 'Based on the summary of the fluffy pancakes recipe' created and saved to Neo4j.
+2024-03-28 21:37:08 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:09 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:10 - models - INFO - Keyword '10 minutes prep' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:10 - models - INFO - Keyword '20 minutes cook time' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:11 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:11 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:11 - models - INFO - Category 'Based on the summary of the fluffy pancakes recipe' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:11 - services.neo4j_services - INFO - Category 'here are some suggested categories:
 
-During handling of the above exception, another exception occurred:
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' not found in Neo4j.
+2024-03-28 21:37:12 - models - INFO - Category 'here are some suggested categories:
 
-Traceback (most recent call last):
-  File "/Users/nathanparker/Documents/workspace/personal/marvin/src/services/metadata.py", line 37, in create_url_metadata_json
-    page_metadata["main_content"] = extract_main_content(soup)
-  File "/Users/nathanparker/Documents/workspace/personal/marvin/src/services/metadata.py", line 207, in extract_main_content
-    response = requests.get(url)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/requests/api.py", line 73, in get
-    return request("get", url, params=params, **kwargs)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/requests/api.py", line 59, in request
-    return session.request(method=method, url=url, **kwargs)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/requests/sessions.py", line 589, in request
-    resp = self.send(prep, **send_kwargs)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/requests/sessions.py", line 697, in send
-    adapter = self.get_adapter(url=request.url)
-  File "/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/requests/sessions.py", line 794, in get_adapter
-    raise InvalidSchema(f"No connection adapters were found for {url!r}")
-requests.exceptions.InvalidSchema: No connection adapters were found for '<!DOCTYPE html>\n\n<html>\n<head>\n<link href="/s/7d94e0.css" rel="stylesheet" title="Default" type="text/css"/>\n<title>xkcd: Cursive Letters</title>\n<meta content="IE=edge" http-equiv="X-UA-Compatible"/>\n<link href="/s/919f27.ico" rel="shortcut icon" type="image/x-icon"/>\n<link href="/s/919f27.ico" rel="icon" type="image/x-icon"/>\n<link href="/atom.xml" rel="alternate" title="Atom 1.0" type="application/atom+xml"/>\n<link href="/rss.xml" rel="alternate" title="RSS 2.0" type="application/rss+xml"/>\n<!-- <script type="text/javascript" src="/s/b66ed7.js" async></script>\n<script type="text/javascript" src="/s/1b9456.js" async></script> -->\n<meta content="xkcd" property="og:site_name"/>\n<meta content="Cursive Letters" property="og:title"/>\n<meta content="https://xkcd.com/2912/" property="og:url"/>\n<meta content="https://imgs.xkcd.com/comics/cursive_letters_2x.png" property="og:image"/>\n<meta content="summary_large_image" name="twitter:card"/>\n</head>\n<body>\n<div id="topContainer">\n<div id="topLeft">\n<ul>\n<li><a href="/archive">Archive</a></li>\n<li><a href="https://what-if.xkcd.com">What If?</a></li>\n<li><a href="/about" rel="author">About</a></li>\n<li><a href="/atom.xml">Feed</a>•<a href="/newsletter/">Email</a></li>\n<li><a href="https://twitter.com/xkcd/">TW</a>•<a href="https://www.facebook.com/TheXKCD/">FB</a>•<a href="https://www.instagram.com/xkcd/">IG</a></li>\n<li><a href="/books/">-Books-</a></li>\n<li><a href="/what-if-2/">What If? 2</a></li>\n<li><a href="/what-if/">WI?</a>•<a href="/thing-explainer/">TE</a>•<a href="/how-to/">HT</a></li>\n</ul>\n</div>\n<div id="topRight">\n<div id="masthead">\n<span><a href="/"><img alt="xkcd.com logo" height="83" src="/s/0b7742.png" width="185"/></a></span>\n<span id="slogan">A webcomic of romance,<br/> sarcasm, math, and language.</span>\n</div>\n<div id="news">\n<div id="xkcdNews">\n<a href="https://what-if.xkcd.com/">What If?</a> is on YouTube! The first video answers<br/><a href="https://youtu.be/2LSyizrk8-0">“What if we aimed Hubble at Earth?”</a> Follow the <br/><a href="https://www.youtube.com/@xkcd_whatif">What If?</a> channel to be notified about new videos.\n</div>\n</div>\n</div>\n<div class="bg box" id="bgLeft"></div>\n<div class="bg box" id="bgRight"></div>\n</div>\n<div class="box" id="middleContainer">\n<div id="ctitle">Cursive Letters</div>\n<ul class="comicNav">\n<li><a href="/1/">|&lt;</a></li>\n<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>\n<li><a href="//c.xkcd.com/random/comic/">Random</a></li>\n<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>\n<li><a href="/">&gt;|</a></li>\n</ul>\n<div id="comic">\n<img alt="Cursive Letters" src="//imgs.xkcd.com/comics/cursive_letters.png" srcset="//imgs.xkcd.com/comics/cursive_letters_2x.png 2x" style="image-orientation:none" title="𝓘 𝓽𝓱𝓲𝓷𝓴 𝓬𝓪𝓹𝓲𝓽𝓪𝓵 𝓛 𝓲𝓼 𝓹𝓻𝓸𝓫𝓪𝓫𝓵𝔂 𝓽𝓱𝓮 𝓶𝓸𝓼𝓽 𝓯𝓾𝓷 𝓽𝓸 𝔀𝓻𝓲𝓽𝓮, 𝓽𝓱𝓸𝓾𝓰𝓱 𝓵𝓸𝔀𝓮𝓻𝓬𝓪𝓼𝓮 𝓺 𝓲𝓼 𝓪𝓵𝓼𝓸 𝓪 𝓼𝓽𝓻𝓸𝓷𝓰 𝓬𝓸𝓷𝓽𝓮𝓷𝓭𝓮𝓻."/>\n</div>\n<ul class="comicNav">\n<li><a href="/1/">|&lt;</a></li>\n<li><a accesskey="p" href="/2911/" rel="prev">&lt; Prev</a></li>\n<li><a href="//c.xkcd.com/random/comic/">Random</a></li>\n<li><a accesskey="n" href="#" rel="next">Next &gt;</a></li>\n<li><a href="/">&gt;|</a></li>\n</ul>\n<br/>\nPermanent link to this comic: <a href="https://xkcd.com/2912">https://xkcd.com/2912/</a><br/>\nImage URL (for hotlinking/embedding): <a href="https://imgs.xkcd.com/comics/cursive_letters.png">https://imgs.xkcd.com/comics/cursive_letters.png</a>\n<div id="transcript" style="display: none"></div>\n</div>\n<div class="box" id="bottom">\n<img alt="Selected Comics" height="100" src="//imgs.xkcd.com/s/a899e84.jpg" usemap="#comicmap" width="520"/>\n<map id="comicmap" name="comicmap">\n<area alt="Grownups" coords="0,0,100,100" href="/150/" shape="rect"/>\n<area alt="Circuit Diagram" coords="104,0,204,100" href="/730/" shape="rect"/>\n<area alt="Angular Momentum" coords="208,0,308,100" href="/162/" shape="rect"/>\n<area alt="Self-Description" coords="312,0,412,100" href="/688/" shape="rect"/>\n<area alt="Alternative Energy Revolution" coords="416,0,520,100" href="/556/" shape="rect"/>\n</map>\n<br/>\n<a href="//xkcd.com/1732/"><img alt="Earth temperature timeline" border="0" height="100" src="//imgs.xkcd.com/s/temperature.png" width="520"/></a>\n<br/>\n<div>\n<!--\nSearch comic titles and transcripts:\n<script type="text/javascript" src="//www.google.com/jsapi"></script>\n<script type="text/javascript">google.load(\'search\', \'1\');google.setOnLoadCallback(function() {google.search.CustomSearchControl.attachAutoCompletion(\'012652707207066138651:zudjtuwe28q\',document.getElementById(\'q\'),\'cse-search-box\');});</script>\n<form action="//www.google.com/cse" id="cse-search-box">\n<div>\n<input type="hidden" name="cx" value="012652707207066138651:zudjtuwe28q"/>\n<input type="hidden" name="ie" value="UTF-8"/>\n<input type="text" name="q" id="q" size="31"/>\n<input type="submit" name="sa" value="Search"/>\n</div>\n</form>\n<script type="text/javascript" src="//www.google.com/cse/brand?form=cse-search-box&amp;lang=en"></script>\n-->\n<a href="/rss.xml">RSS Feed</a> - <a href="/atom.xml">Atom Feed</a> - <a href="/newsletter/">Email</a>\n</div>\n<br/>\n<div id="comicLinks">\nComics I enjoy:<br/>\n<a href="http://threewordphrase.com/">Three Word Phrase</a>,\n        <a href="https://www.smbc-comics.com/">SMBC</a>,\n        <a href="https://www.qwantz.com">Dinosaur Comics</a>,\n        <a href="https://oglaf.com/">Oglaf</a> (nsfw),\n        <a href="https://www.asofterworld.com">A Softer World</a>,\n        <a href="https://buttersafe.com/">Buttersafe</a>,\n        <a href="https://pbfcomics.com/">Perry Bible Fellowship</a>,\n        <a href="https://questionablecontent.net/">Questionable Content</a>,\n        <a href="http://www.buttercupfestival.com/">Buttercup Festival</a>,\n        <a href="https://www.homestuck.com/">Homestuck</a>,\n\t<a href="https://www.jspowerhour.com/">Junior Scientist Power Hour</a>\n</div>\n<br/>\n<div id="comicLinks">\nOther things:<br/>\n<a href="https://medium.com/civic-tech-thoughts-from-joshdata/so-you-want-to-reform-democracy-7f3b1ef10597">Tips on technology and government</a>,<br/>\n<a href="https://www.nytimes.com/interactive/2017/climate/what-is-climate-change.html">Climate FAQ</a>,\n\t<a href="https://twitter.com/KHayhoe">Katharine Hayhoe</a>\n</div>\n<br/>\n<center>\n<div id="footnote" style="width:70%">xkcd.com is best viewed with Netscape Navigator 4.0 or below on a Pentium 3±1 emulated in Javascript on an Apple IIGS<br/>at a screen resolution of 1024x1. Please enable your ad blockers, disable high-heat drying, and remove your device<br/>from Airplane Mode and set it to Boat Mode. For security reasons, please leave caps lock on while browsing.</div>\n</center>\n<div id="licenseText">\n<p>\nThis work is licensed under a\n<a href="https://creativecommons.org/licenses/by-nc/2.5/">Creative Commons Attribution-NonCommercial 2.5 License</a>.\n</p><p>\nThis means you\'re free to copy and share these comics (but not to sell them). <a href="/license.html" rel="license">More details</a>.</p>\n</div>\n</div>\n</body>\n<!-- Layout by Ian Clasbey, davean, and chromakode -->\n</html>\n'
-2024-03-27 21:52:29 - httpx - DEBUG - load_ssl_context verify=True cert=None trust_env=True http2=False
-2024-03-27 21:52:29 - httpx - DEBUG - load_verify_locations cafile='/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/certifi/cacert.pem'
-2024-03-27 21:52:29 - httpx - DEBUG - load_ssl_context verify=True cert=None trust_env=True http2=False
-2024-03-27 21:52:29 - httpx - DEBUG - load_verify_locations cafile='/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/certifi/cacert.pem'
-2024-03-27 21:52:29 - services.neo4j_services - ERROR - Failed to process URL https://xkcd.com/: 'url'
-2024-03-27 21:52:29 - services.document_processing - INFO - Loading document from URL: https://xkcd.com/
-2024-03-27 21:52:29 - langchain_community.document_loaders.web_base - INFO - fake_useragent not found, using default user agent.To get a realistic header for requests, `pip install fake_useragent`.
-2024-03-27 21:52:29 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): xkcd.com:443
-2024-03-27 21:52:29 - urllib3.connectionpool - DEBUG - https://xkcd.com:443 "GET / HTTP/1.1" 200 7362
-2024-03-27 21:52:29 - charset_normalizer - DEBUG - Encoding detection: utf_8 is most likely the one.
-2024-03-27 21:52:29 - services.document_processing - DEBUG - Splitting document into chunks.
-2024-03-27 21:52:29 - services.document_processing - DEBUG - Vectorizing document chunks.
-2024-03-27 21:52:29 - httpx - DEBUG - load_ssl_context verify=True cert=None trust_env=True http2=False
-2024-03-27 21:52:29 - httpx - DEBUG - load_verify_locations cafile='/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/certifi/cacert.pem'
-2024-03-27 21:52:29 - httpx - DEBUG - load_ssl_context verify=True cert=None trust_env=True http2=False
-2024-03-27 21:52:29 - httpx - DEBUG - load_verify_locations cafile='/Users/nathanparker/miniconda3/envs/marvin/lib/python3.9/site-packages/certifi/cacert.pem'
-2024-03-27 21:52:30 - chromadb.auth.registry - DEBUG - Registering provider: token_config
-2024-03-27 21:52:30 - chromadb.auth.registry - DEBUG - Registering provider: user_token_config
-2024-03-27 21:52:30 - chromadb.auth.registry - DEBUG - Registering provider: token
-2024-03-27 21:52:30 - chromadb.auth.registry - DEBUG - Registering provider: token
-2024-03-27 21:52:30 - chromadb.telemetry.product.posthog - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component System
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component Posthog
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component OpenTelemetryClient
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component SimpleAssignmentPolicy
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component SqliteDB
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component QuotaEnforcer
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component LocalSegmentManager
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component SegmentAPI
-2024-03-27 21:52:30 - openai._base_client - DEBUG - Request options: {'method': 'post', 'url': '/embeddings', 'files': None, 'post_parser': <function Embeddings.create.<locals>.parser at 0x16fc42d30>, 'json_data': {'input': [[87, 74, 4484, 25, 356, 16921, 45397, 25638, 198, 43602, 198, 3923, 1442, 5380, 10714, 198, 30016, 6806, 4886, 198, 48169, 6806, 16606, 6806, 1953, 198, 12, 25335, 7058, 3923, 1442, 30, 220, 17, 198, 61295, 30, 6806, 2505, 6806, 2607, 5244, 32, 3566, 90989, 315, 30363, 11, 79866, 10753, 11, 7033, 11, 323, 4221, 13], [3923, 1442, 30, 374, 389, 13674, 0, 578, 1176, 2835, 11503, 44130, 422, 584, 20034, 473, 14942, 520, 9420, 12671, 11359, 279, 3639, 1442, 30, 5613, 311, 387, 30316, 922, 502, 6946, 28527, 34, 16921, 45397, 271, 91, 31658, 27, 60101, 198, 14326, 198, 5971, 6235, 70944, 5244, 91, 31658, 27, 60101, 198, 14326, 198, 5971, 6235, 70944], [79893, 2723, 311, 420, 20303, 25, 3788, 1129, 87, 74, 4484, 916, 14, 17335, 17, 6018, 1945, 5665, 320, 2000, 4106, 2125, 287, 59753, 7113, 1680, 3788, 1129, 59675, 2036, 74, 4484, 916, 26149, 1233, 2971, 16921, 68430, 3592, 25638, 198, 70080, 29970, 482, 40616, 29970, 482, 8463], [1110, 1233, 358, 4774, 512, 20215, 9506, 69100, 345, 286, 14031, 5002, 345, 286, 423, 89247, 35156, 345, 286, 507, 6200, 2642, 320, 4511, 21206, 1350, 286, 362, 2100, 1064, 4435, 345, 286, 2030, 5153, 5763, 345, 286, 31421, 17377, 65742, 345, 286, 16225, 481, 9059, 345, 286, 31457, 37765, 17772, 345, 286, 13525, 478, 1983, 11], [50742, 478, 1983, 345, 17538, 359, 2521, 68409, 7572, 31933], [11663, 2574, 512, 50179, 389, 5557, 323, 3109, 345, 83146, 32072, 345, 40440, 589, 75314, 18276, 77035], [87, 74, 4484, 916, 374, 1888, 19894, 449, 59487, 5443, 27640, 220, 19, 13, 15, 477, 3770, 389, 264, 23458, 2411, 220, 18, 38121, 16, 991, 7913, 304, 32952, 389, 459, 8325, 358, 1953, 35982, 264, 4264, 11175, 315, 220, 4278, 19, 87, 16, 13, 5321, 7431, 701, 1008, 84235, 11, 11404, 1579, 12, 20559, 46479, 11, 323, 4148, 701, 3756, 1527, 6690, 19563, 14904], [26777, 19563, 14904, 323, 743, 433, 311, 45332, 14904, 13, 1789, 4868, 8125, 11, 4587, 5387, 19079, 5409, 389, 1418, 32421, 13], [2028, 990, 374, 16383, 1234, 264, 198, 64046, 26667, 59418, 12, 8284, 60816, 220, 17, 13, 20, 1914, 382, 2028, 3445, 499, 2351, 1949, 311, 3048, 323, 4430, 1521, 29159, 320, 8248, 539, 311, 4662, 1124, 570, 4497, 3649, 13]], 'model': 'text-embedding-ada-002', 'encoding_format': 'base64'}}
-2024-03-27 21:52:30 - httpcore.connection - DEBUG - connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=None socket_options=None
-2024-03-27 21:52:30 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x303e619d0>
-2024-03-27 21:52:30 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x16ef69ac0> server_hostname='api.openai.com' timeout=None
-2024-03-27 21:52:30 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x303e61fa0>
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - send_request_headers.complete
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - send_request_body.complete
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 28 Mar 2024 04:52:30 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-allow-origin', b'*'), (b'openai-model', b'text-embedding-ada-002'), (b'openai-organization', b'user-f5hgkqonqs47erntkv4czssb'), (b'openai-processing-ms', b'26'), (b'openai-version', b'2020-10-01'), (b'strict-transport-security', b'max-age=15724800; includeSubDomains'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'5000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'4999626'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'4ms'), (b'x-request-id', b'req_d89b4932f62b89f2273f57f874e44c56'), (b'CF-Cache-Status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=bK0wLKJDySvd01GcupoWkbPbaV49U6ROWDkRvSgdNjw-1711601550-1.0.1.1-Dkt8uYnlpSrPo6A_881hKkh6BocjZHfyIwJWwRibR8TncuO6cjET.Xi0CeHbZeuC.2pSdzJPjkOupRVVdyZHww; path=/; expires=Thu, 28-Mar-24 05:22:30 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Set-Cookie', b'_cfuvid=DU7ypZ5wdlbIwiMazGcgjkyYAWokVPu5ziYb5_8kWrk-1711601550703-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'86b502dafe2ac372-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
-2024-03-27 21:52:30 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - receive_response_body.complete
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - response_closed.started
-2024-03-27 21:52:30 - httpcore.http11 - DEBUG - response_closed.complete
-2024-03-27 21:52:30 - openai._base_client - DEBUG - HTTP Request: POST https://api.openai.com/v1/embeddings "200 OK"
-2024-03-27 21:52:30 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): us-api.i.posthog.com:443
-2024-03-27 21:52:30 - chromadb.config - DEBUG - Starting component LocalHnswSegment
-2024-03-27 21:52:30 - services.document_processing - INFO - Vector store created: <langchain_community.vectorstores.chroma.Chroma object at 0x16ef5cbe0>
-2024-03-27 21:52:30 - __main__ - DEBUG - Setting up category management UI
-2024-03-27 21:52:30 - __main__ - DEBUG - Displaying chat interface
-2024-03-27 21:52:30 - __main__ - INFO - App main flow completed
-2024-03-27 21:52:31 - urllib3.connectionpool - DEBUG - https://us-api.i.posthog.com:443 "POST /batch/ HTTP/1.1" 200 None
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:12 - models - INFO - New category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' created and saved to Neo4j.
+2024-03-28 21:37:12 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:13 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:13 - models - INFO - Keyword '10 minutes prep' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:14 - models - INFO - Keyword '20 minutes cook time' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:14 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:15 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:15 - models - INFO - Category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:15 - services.neo4j_services - INFO - Category 'syrup' not found in Neo4j.
+2024-03-28 21:37:15 - models - INFO - Category 'syrup' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:15 - models - INFO - New category 'syrup' created and saved to Neo4j.
+2024-03-28 21:37:16 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'syrup'.
+2024-03-28 21:37:17 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'syrup'.
+2024-03-28 21:37:17 - models - INFO - Keyword '10 minutes prep' added to category 'syrup'.
+2024-03-28 21:37:18 - models - INFO - Keyword '20 minutes cook time' added to category 'syrup'.
+2024-03-28 21:37:20 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'syrup'.
+2024-03-28 21:37:21 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'syrup'.
+2024-03-28 21:37:21 - models - INFO - Category 'syrup' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:21 - services.neo4j_services - INFO - Category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' not found in Neo4j.
+2024-03-28 21:37:21 - models - INFO - Category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:21 - models - INFO - New category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' created and saved to Neo4j.
+2024-03-28 21:37:22 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:22 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:23 - models - INFO - Keyword '10 minutes prep' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:23 - models - INFO - Keyword '20 minutes cook time' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:24 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:24 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:24 - models - INFO - Category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:24 - models - INFO - Category generation process completed successfully for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:24 - models - INFO - Processing completed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:27 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+The provided link leads to a Tasty recipe for fluffy perfect pancakes.
+2024-03-28 21:37:27 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Keywords: Tasty, recipe, fluffy, perfect, pancakes
+2024-03-28 21:37:28 - services.neo4j_services - INFO - Keywords Keywords: Tasty successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:28 - services.neo4j_services - INFO - Keywords recipe successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:28 - services.neo4j_services - INFO - Keywords fluffy successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - services.neo4j_services - INFO - Keywords perfect successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - services.neo4j_services - INFO - Keywords pancakes successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - __main__ - INFO - Keywords extracted and stored for https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - services.document_processing - INFO - Loading document from URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:29 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-03-28 21:37:30 - services.document_processing - INFO - Vector store created: <langchain_community.vectorstores.chroma.Chroma object at 0x1340a7250>
+2024-03-28 21:37:30 - __main__ - INFO - App main flow completed

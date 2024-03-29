@@ -3,6 +3,7 @@ from datetime import datetime
 from openai import OpenAI
 from utils.logger import get_logger
 from services.openai_services import chat_completion
+
 import spacy
 
 # Initialize 
@@ -17,7 +18,6 @@ class Keyword(GraphObject):
     name = Property()
     creation_date = Property()
     last_updated = Property()
-
     categories = RelatedFrom("Category", "HAS_KEYWORD")
 
     def __init__(self, name):
@@ -31,8 +31,20 @@ class Keyword(GraphObject):
 
     def add_to_category(self, category):
         """Add this keyword to a category."""
-        self.categories.add(category)
-        self.update_last_updated()
+        try:
+            # Add the category to the keyword's categories set
+            self.categories.add(category)
+            # Call the save method to persist changes. Ensure this is a method call.
+            self.save()
+            # Update the last_updated timestamp
+            self.update_last_updated()
+            # Log the successful addition of the keyword to the category
+            logger.info(f"Keyword '{self.name}' successfully added to Category '{category.name}'.")
+        except Exception as e:
+            # Log any exceptions that occur during the process
+            logger.error(f"Failed to add Keyword '{self.name}' to Category '{category.name}': {e}", exc_info=True)
+            # Depending on your application's needs, you might raise the exception or handle it gracefully
+            raise
 
     def remove_from_category(self, category):
         """Remove this keyword from a category."""

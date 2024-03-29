@@ -114,15 +114,16 @@ def process_and_add_url_to_graph(url):
             add_page_metadata_to_graph(page_metadata)
             logger.info(f"Page metadata for {url} added to graph.")
             st.sidebar.success("Page processed and added to graph.")
-            return True  # Indicates success
+            return True, page_metadata.get("summary", "")  # Return success flag and summary
         else:
             logger.warning(f"No metadata found or extracted for {url}.")
             st.sidebar.warning("No metadata found or extracted.")
-            return False  # Indicates failure due to missing metadata
+            return False, ""  # Indicates failure due to missing metadata, no summary
     except Exception as e:
         logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
         st.sidebar.error(f"Failed to process URL: {e}")
-        return False  # Indicates failure due to an exception
+        return False, ""  # Indicates failure due to an exception, no summary
+
 
 
 
@@ -230,6 +231,42 @@ def consume_bookmarks(uploaded_file):
     logger.info("Finished processing all bookmarks.")
 
 
+def find_by_name(graph_object_class, name):
+    """
+    Finds an object by its name from the Neo4j database.
+
+    Parameters:
+    - graph_object_class: The class of the object, derived from GraphObject.
+    - name (str): The name of the object to find.
+
+    Returns:
+    The found object or None if not found.
+    """
+    driver = Neo4jConnection.get_driver()
+    try:
+        with driver.session() as session:
+            result = session.run(f"MATCH (n:{graph_object_class.__name__} {{name: $name}}) RETURN n", name=name).single()
+            if result:
+                logger.info(f"{graph_object_class.__name__} '{name}' found in Neo4j.")
+                # Additional logging to inspect the graph_object_class and result
+                logger.info(f"Inspecting {graph_object_class.__name__}: {graph_object_class}, result: {result[0]}")
+                try:
+                    # Attempt to use the inflate method
+                    inflated_object = graph_object_class.inflate(result[0])
+                    logger.info(f"Inflated object: {inflated_object}")
+                    return inflated_object
+                except AttributeError as e:
+                    # Log the error if inflate is not found
+                    logger.error(f"'{graph_object_class.__name__}' object has no attribute 'inflate': {e}")
+                    return None
+            else:
+                logger.info(f"{graph_object_class.__name__} '{name}' not found in Neo4j.")
+                return None
+    except Exception as e:
+        logger.error(f"Error finding {graph_object_class.__name__} '{name}' in Neo4j: {e}", exc_info=True)
+        raise
+
+
 # experimental features
 
 def add_page_to_category(page_url, category_name):
@@ -274,15 +311,15 @@ def add_keyword_to_page(page_url, keyword_text):
     except Exception as e:
         logger.error(f"Failed to add Keywords {keyword_text} to Page {page_url}: {e}", exc_info=True)
 
-
-def store_categories(page_url, categories):
-    query = """
-    MERGE (p:Page {url: $page_url})
-    SET p.categories = $categories
-    """
-    parameters = {"url": page_url, "categories": categories}
-    try: 
-        Neo4jConnection.execute_query(query, parameters)
-        logger.info(f"Categories {categories} successfully added to Page {page_url}")
-    except Exception as e:
-        logger.error(f"Failed to add Categories {categories} to Page {page_url}: {e}", exc_info=True)
+# deprecated. use services.category.store_categories instead
+# def store_categories(page_url, categories):
+#     query = """
+#     MERGE (p:Page {url: $page_url})
+#     SET p.categories = $categories
+#     """
+#     parameters = {"url": page_url, "categories": categories}
+#     try: 
+#         Neo4jConnection.execute_query(query, parameters)
+#         logger.info(f"Categories {categories} successfully added to Page {page_url}")
+#     except Exception as e:
+#         logger.error(f"Failed to add Categories {categories} to Page {page_url}: {e}", exc_info=True)

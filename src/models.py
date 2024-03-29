@@ -1,22 +1,131 @@
 import spacy
-from openai import OpenAI
+
+from py2neo.ogm import GraphObject, Property, RelatedFrom, RelatedTo
 from datetime import datetime
-from py2neo.ogm import Property, RelatedTo, GraphObject
+from openai import OpenAI
 
 from config import OPENAI_API_KEY
 from db import Neo4jConnection
 from utils.logger import get_logger
-from services.keywords import Keyword, extract_keywords_from_summary
 from services.document_processing import summarize_content, fetch_webpage_content
-from services.openai_services import query_llm_for_categories
+from services.openai_services import query_llm_for_categories, chat_completion
 from services.neo4j_services import find_by_name
 
-# Initialize logger
+# Initialize 
 logger = get_logger(__name__)
-
-# Initialize openai and spacy
-client = OpenAI(api_key=OPENAI_API_KEY)
 nlp = spacy.load("en_core_web_sm")
+client = OpenAI()
+
+
+class Keyword(GraphObject):
+    __primarykey__ = "name"
+
+    name = Property()
+    creation_date = Property()
+    last_updated = Property()
+    categories = RelatedFrom("Category", "HAS_KEYWORD")
+
+    def __init__(self, name):
+        self.name = name
+        self.creation_date = datetime.utcnow().isoformat()
+        self.last_updated = self.creation_date
+
+    def update_last_updated(self):
+        """Update the last_updated property to the current datetime."""
+        self.last_updated = datetime.utcnow().isoformat()
+
+    def add_to_category(self, category):
+        try:
+            query = """
+            MATCH (c:Category {name: $category_name})
+            MERGE (k:Keyword {name: $keyword_name})
+            MERGE (k)-[:HAS_KEYWORD]->(c)
+            """
+            parameters = {"category_name": category.name, "keyword_name": self.name}
+            Neo4jConnection.execute_query(query, parameters)
+            logger.info(f"Keyword '{self.name}' successfully added to Category '{category.name}'.")
+        except Exception as e:
+            logger.error(f"Failed to add Keyword '{self.name}' to Category '{category.name}': {e}", exc_info=True)
+            raise
+
+    def remove_from_category(self, category):
+        """Remove this keyword from a category."""
+        if category in self.categories:
+            self.categories.remove(category)
+            self.update_last_updated()
+
+
+def extract_keywords_from_summary(summary):
+    # Construct messages for chat completion
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that extracts keywords from summaries."},
+        {"role": "user", "content": f"Extract keywords from this summary:\n\n{summary}"}
+    ]
+    
+    # Define override parameters for the chat completion request if needed
+    override_params = {
+        "temperature": 0.5,
+        "max_tokens": 250,
+    }
+    
+    # Use chat_completion function to get response from OpenAI
+    response_obj = chat_completion(messages, model="gpt-3.5-turbo", override_params=override_params)
+    
+    if "error" in response_obj:
+        logger.error(f"Error in obtaining keywords from LLM: {response_obj['error']}")
+        return []
+
+    try:
+        # Extracting the message content from the response object
+        response_text = response_obj.choices[0].message.content if response_obj.choices else ""
+        raw_keywords = response_text.split(', ')  # Split the response text to get individual keywords
+        cleaned_keywords = [keyword.strip() for keyword in raw_keywords if is_valid_keyword(keyword)]
+        logger.debug(f"Keywords extracted: {cleaned_keywords}")
+        return cleaned_keywords
+    except (AttributeError, IndexError) as e:
+        logger.error(f"Failed to extract keywords from response. Error: {e}")
+        return []
+
+
+
+def is_valid_keyword(keyword):
+    """
+    Validates a keyword using basic checks, NLP techniques, including Named Entity Recognition, 
+    and domain-specific rules.
+    
+    Parameters:
+    - keyword (str): The keyword to validate.
+    
+    Returns:
+    - bool: True if the keyword is valid, False otherwise.
+    """
+    # Basic length check and stop words exclusion
+    stop_words = set(["and", "or", "the", "an", "a", "with", "to", "of"])
+
+    if len(keyword) <= 2 or keyword.lower() in stop_words:
+        return False
+    
+    # NLP processing for part-of-speech tagging and NER
+    doc = nlp(keyword)
+    
+    # Initially assume keyword is not valid
+    valid_keyword = False
+    
+    for token in doc:
+        # Part-of-Speech tagging to prefer nouns, proper nouns, and adjectives
+        if token.pos_ in ["NOUN", "PROPN", "ADJ"]:
+            valid_keyword = True
+
+    # Check if the keyword is a named entity, enhancing its validity
+    if len(doc.ents) > 0:
+        valid_keyword = True
+    
+    for ent in doc.ents:
+        if ent.label_ in ["PERSON", "ORG", "GPE"]:  # Example entity types
+            valid_keyword = True
+            break  # Break after finding the first significant entity
+    
+    return valid_keyword
 
 
 class Category(GraphObject):
@@ -39,15 +148,28 @@ class Category(GraphObject):
         self.last_updated = self.creation_date
 
     def add_keyword(self, keyword_name):
-        """
-        Adds a keyword to this category.
-        """
-        keyword = find_by_name(Keyword, keyword_name) or Keyword(name=keyword_name)
-        self.keywords.add(keyword)
-        keyword.add_to_category(self)  # Ensuring bidirectional relationship
-        keyword.save()
-        self.save()
-        logger.info(f"Keyword '{keyword_name}' added to category '{self.name}'.")
+        try:
+            # Ensure the keyword exists or create a new one
+            keyword_query = """
+            MERGE (k:Keyword {name: $keyword_name})
+            ON CREATE SET k.creation_date = datetime(), k.last_updated = datetime()
+            ON MATCH SET k.last_updated = datetime()
+            RETURN k
+            """
+            Neo4jConnection.execute_query(keyword_query, {"keyword_name": keyword_name})
+            
+            # Create the relationship between the keyword and the category
+            relation_query = """
+            MATCH (k:Keyword {name: $keyword_name}), (c:Category {name: $category_name})
+            MERGE (k)-[:HAS_KEYWORD]->(c)
+            """
+            parameters = {"keyword_name": keyword_name, "category_name": self.name}
+            Neo4jConnection.execute_query(relation_query, parameters)
+            
+            logger.info(f"Keyword '{keyword_name}' added to category '{self.name}'.")
+        except Exception as e:
+            logger.error(f"Failed to add Keyword '{keyword_name}' to Category '{self.name}': {e}", exc_info=True)
+            raise
 
 
     def save_to_neo4j(self):

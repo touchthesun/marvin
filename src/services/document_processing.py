@@ -1,8 +1,10 @@
 import spacy
+import requests
 
 from openai import OpenAI
 from collections import Counter
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
@@ -53,6 +55,37 @@ def summarize_content(document_content, model="gpt-3.5-turbo", override_params=N
     except (AttributeError, IndexError) as e:
         logger.error(f"Failed to extract summary from response. Error: {e}")
         return "Failed to extract summary from response."
+
+
+def fetch_webpage_content(url):
+    """
+    Fetches and extracts main textual content from a given URL using requests and BeautifulSoup.
+    
+    Parameters:
+    - url (str): The URL of the webpage to fetch and extract content from.
+    
+    Returns:
+    - str: The extracted textual content from the webpage. Returns an empty string if unable to fetch or no content found.
+    """
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            document_content = ' '.join(p.get_text().strip() for p in soup.find_all('p'))
+            if document_content:
+                logger.debug(f"Content fetched successfully for URL: {url}")
+                return document_content
+            else:
+                logger.warning(f"No content found to summarize for URL: {url}")
+                return ""
+        else:
+            logger.error(f"Failed to fetch content for URL: {url}. HTTP Status Code: {response.status_code}")
+            return ""
+    except Exception as e:
+        logger.error(f"Exception occurred while fetching content for URL: {url}. Error: {e}", exc_info=True)
+        return ""
+
+
 
 
 def extract_keywords_from_summary(summary):

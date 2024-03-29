@@ -8,9 +8,9 @@ from utils.logger import get_logger
 from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
 from services.document_processing import get_vectorstore_from_url, summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints, store_keywords_in_db
-from services.keywords import extract_keywords_from_summary
-from services.category import categorize_page_with_llm, add_category_to_neo4j, Category
+from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints, store_keywords_in_db, find_by_name
+from models import extract_keywords_from_summary, categorize_page_with_llm, Category
+
 
 
 # system config
@@ -78,19 +78,12 @@ def process_uploaded_bookmarks(uploaded_file):
         consume_bookmarks(uploaded_file)
         st.sidebar.success("Bookmarks processed!")
 
-# def process_url(url, process_button):
-#     if process_button and url:
-#         logger.debug(f"Processing URL: {url}")
-#         process_and_add_url_to_graph(url)
-#         st.session_state.vector_store = get_vectorstore_from_url(url)
-#         st.sidebar.success(f"URL processed: {url}")
-
 
 def process_url(url, process_button):
     if process_button and url:
         logger.debug(f"Processing URL: {url}")
         # First, process the URL and add its metadata to the graph
-        metadata_success = process_and_add_url_to_graph(url)
+        metadata_success, summary = process_and_add_url_to_graph(url)
         
         if metadata_success:
             # Assuming 'process_and_add_url_to_graph' returns a success flag
@@ -120,20 +113,21 @@ def process_url(url, process_button):
             logger.error(f"Failed to process and add metadata for {url}.")
             st.sidebar.error(f"Failed to process URL: {url}")
 
-def add_new_category(new_category_name, new_category_description, add_category_button):
-    if add_category_button and new_category_name:
-        try:
-            add_category_to_neo4j(new_category_name, new_category_description)
-            st.sidebar.success("Category added successfully!")
-            logger.info(f"Category '{new_category_name}' added.")
-        except Exception as e:
-            logger.error(f"Failed to add category '{new_category_name}': {e}", exc_info=True)
-            st.sidebar.error("Failed to add category.")
+# deprecated
+# def add_new_category(new_category_name, new_category_description, add_category_button):
+#     if add_category_button and new_category_name:
+#         try:
+#             add_category_to_neo4j(new_category_name, new_category_description)
+#             st.sidebar.success("Category added successfully!")
+#             logger.info(f"Category '{new_category_name}' added.")
+#         except Exception as e:
+#             logger.error(f"Failed to add category '{new_category_name}': {e}", exc_info=True)
+#             st.sidebar.error("Failed to add category.")
 
 def add_keyword_to_category(keyword, category_for_keyword, add_keyword_button):
     if add_keyword_button and keyword and category_for_keyword:
         try:
-            category = Category.find_by_name(category_for_keyword)
+            category = find_by_name(Category, category_for_keyword)
             if category:
                 category.add_keyword(keyword)
                 category.save_to_neo4j()
@@ -176,7 +170,7 @@ def display_chat():
         elif isinstance(message, HumanMessage):
             st.success(message.content)
 
-
+# This is a testing function and will be removed or changed later
 def setup_category_management():
     logger.debug("Setting up category management UI")
     with st.sidebar:
@@ -208,7 +202,8 @@ process_uploaded_bookmarks(uploaded_file)
 process_url(url, process_button)
 
 new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button = setup_category_management()
-add_new_category(new_category_name, new_category_description, add_category_button)
+# 
+# add_new_category(new_category_name, new_category_description, add_category_button)
 add_keyword_to_category(keyword, category_for_keyword, add_keyword_button)
 display_chat()
 

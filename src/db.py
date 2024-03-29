@@ -14,7 +14,6 @@ class Neo4jConnection:
             if None in [NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD]:
                 logger.error('One or more Neo4j environment variables are missing.')
                 raise RuntimeError('Missing Neo4j environment variables.')
-
             try:
                 cls._driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
                 cls._driver.verify_connectivity()
