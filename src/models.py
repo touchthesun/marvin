@@ -73,7 +73,7 @@ def add_keyword_to_page(url, keyword):
     """
     parameters = {
         "url": url,
-        "keyword_name": keyword.name,
+        "keyword_name": keyword.name.lower(),
         "creation_date": keyword.creation_date,
         "last_updated": keyword.last_updated
     }
@@ -176,7 +176,7 @@ class Category(GraphObject):
 
     name = Property()
     description = Property()
-    keywords = RelatedTo("Keyword")
+    pages = RelatedTo("Page")
     llm_suggestions = Property()
     user_feedback = Property()
     creation_date = Property()
@@ -191,35 +191,9 @@ class Category(GraphObject):
         self.last_updated = self.creation_date
 
 
-    # deprecated
-    # def add_keyword(self, keyword_name):
-    #     try:
-    #         # Ensure the keyword exists or create a new one
-    #         keyword_query = """
-    #         MERGE (k:Keyword {name: $keyword_name})
-    #         ON CREATE SET k.creation_date = datetime(), k.last_updated = datetime()
-    #         ON MATCH SET k.last_updated = datetime()
-    #         RETURN k
-    #         """
-    #         Neo4jConnection.execute_query(keyword_query, {"keyword_name": keyword_name})
-            
-    #         # Create the relationship between the keyword and the category
-    #         relation_query = """
-    #         MATCH (k:Keyword {name: $keyword_name}), (c:Category {name: $category_name})
-    #         MERGE (k)-[:HAS_KEYWORD]->(c)
-    #         """
-    #         parameters = {"keyword_name": keyword_name, "category_name": self.name}
-    #         Neo4jConnection.execute_query(relation_query, parameters)
-            
-    #         logger.info(f"Keyword '{keyword_name}' added to category '{self.name}'.")
-    #     except Exception as e:
-    #         logger.error(f"Failed to add Keyword '{keyword_name}' to Category '{self.name}': {e}", exc_info=True)
-    #         raise
-
-
     def save_to_neo4j(self):
         """
-        Saves the category and its keywords to the Neo4j database using execute_query for efficiency.
+        Saves the category to the Neo4j database using execute_query.
         """
         # Prepare query and parameters for saving the category
         save_category_query = """
@@ -236,19 +210,6 @@ class Category(GraphObject):
         
         # Execute query to save or update the category
         Neo4jConnection.execute_query(save_category_query, category_params)
-        
-        # Handle keywords
-        for keyword in self.keywords:
-            add_keyword_query = """
-            MERGE (k:Keyword {name: $name})
-            WITH k
-            MATCH (c:Category {name: $category_name})
-            MERGE (c)-[:HAS_KEYWORD]->(k)
-            """
-            keyword_params = {"name": keyword.name, "category_name": self.name}
-            Neo4jConnection.execute_query(add_keyword_query, keyword_params)
-        
-        logger.info(f"Category '{self.name}' and its keywords successfully saved to Neo4j.")
 
 
     @staticmethod
@@ -272,7 +233,6 @@ class Category(GraphObject):
             new_category = Category(name=name, description=description)
             new_category.creation_date = datetime.utcnow().isoformat()
             new_category.last_updated = new_category.creation_date
-            
             new_category.save_to_neo4j()
             logger.info(f"New category '{name}' created and saved to Neo4j.")
             return (new_category, True)
@@ -281,15 +241,12 @@ class Category(GraphObject):
             raise
 
 
-
-
 class CategoryManager:
     def __init__(self, url):
         self.url = url
         self.page_metadata = None
         self.categories = []
         self.summary = ""
-        self.keywords = []
 
 
     def generate_categories(self):
@@ -343,15 +300,15 @@ class CategoryManager:
 
     def process(self):
         """
-        Orchestrates the process of generating a summary, identifying categories and keywords,
-        and storing them in the database. Returns the categories and keywords generated.
+        Orchestrates the process of generating a summary, identifying categories,
+        and storing them in the database. Returns the categories generated.
         """
         logger.info(f"Starting category generation process for URL: {self.url}")
         try:
             self.generate_categories()
             if self.categories:
                 self.store_categories()
-                logger.info(f"Category generation process completed successfully for URL: {self.url}. Categories: {self.categories}, Keywords: {self.keywords}")
+                logger.info(f"Category generation process completed successfully for URL: {self.url}. Categories: {self.categories}")
             else:
                 logger.warning(f"No categories generated for URL: {self.url}; no further processing.")
                 return []
@@ -360,12 +317,12 @@ class CategoryManager:
             logger.error(f"An unexpected error occurred during the category generation process for URL: {self.url}: {e}", exc_info=True)
             return []
 
-        return self.categories, self.keywords
+        return self.categories
 
 def categorize_page_with_llm(url):
     """
     Creates a CategoryManager instance for the given URL and uses it to
-    generate and store categories and keywords.
+    generate and store categories.
     """
     category_manager = CategoryManager(url)
     categories = category_manager.process()

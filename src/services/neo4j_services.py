@@ -240,7 +240,7 @@ def add_page_to_category(page_url, category_name):
     """
     query = """
     MATCH (p:Page {url: $page_url})
-    MATCH (c:Category {name: $category_name})
+    MERGE (c:Category {name: $category_name})
     MERGE (p)-[:BELONGS_TO]->(c)
     """
     parameters = {"page_url": page_url, "category_name": category_name}
@@ -251,30 +251,3 @@ def add_page_to_category(page_url, category_name):
     except Exception as e:
         logger.error(f"Failed to add Page {page_url} to Category {category_name}: {e}", exc_info=True)
 
-
-
-
-
-
-# def store_keywords_in_db(page_url, keywords):
-#     """
-#     Adds each keyword in the list of keywords to the specified page in the Neo4j graph database.
-#     """
-#     for keyword in keywords:
-#         add_keyword_to_page(page_url, keyword)
-
-# def add_keyword_to_page(page_url, keyword_text):
-#     """
-#     Creates a HAS_KEYWORD relationship between a Page and some number of Keywords in the Neo4j Graph.
-#     """
-#     query = """
-#     MATCH (p:Page {url: $page_url})
-#     MERGE (k:Keyword {text: $keyword_text})
-#     MERGE (p)-[:HAS_KEYWORD]->(k)
-#     """
-#     parameters = {"page_url": page_url, "keyword_text": keyword_text}
-#     try: 
-#         Neo4jConnection.execute_query(query, parameters)
-#         logger.info(f"Keywords {keyword_text} successfully added to Page {page_url}.")
-#     except Exception as e:
-#         logger.error(f"Failed to add Keywords {keyword_text} to Page {page_url}: {e}", exc_info=True)

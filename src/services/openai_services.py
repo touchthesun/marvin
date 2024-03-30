@@ -114,7 +114,7 @@ def query_llm_for_categories(summary):
         {"role": "user", "content": summary}
     ]
     
-    response_obj = chat_completion(messages, model="gpt-3.5-turbo", override_params=override_params)
+    response_obj = chat_completion(messages, model="gpt-4", override_params=override_params)
     
     if "error" in response_obj:
         logger.error(f"Error in obtaining categories from LLM: {response_obj['error']}")
@@ -123,13 +123,21 @@ def query_llm_for_categories(summary):
     try:
         # Extracting the message content from the response object
         response_text = response_obj.choices[0].message.content if response_obj.choices else ""
-        categories = response_text.split(',')
-        categories = [category.strip() for category in categories if category.strip()]  # Ensure no empty strings
-        logger.debug(f"Categories suggested by LLM: {categories}")
-        return categories
+        # Assuming the response_text could be a comma-separated list
+        category_items = response_text.split(',')
+        valid_categories = set()
+        for item in category_items:
+            category = item.strip()
+            if category and len(category.split()) <= 4:
+                valid_categories.add(category)
+            elif isinstance(category, list):  # Check if any category is actually a list and handle accordingly
+                for sub_item in category:
+                    sub_category = sub_item.strip()
+                    if sub_category and len(sub_category.split()) <= 4:
+                        valid_categories.add(sub_category)
+        logger.info(f"Valid categories extracted: {valid_categories}")
+        return list(valid_categories)
     except (AttributeError, IndexError) as e:
         logger.error(f"Failed to extract categories from LLM response. Error: {e}")
         return []
-
-
 

@@ -1,11 +1,17 @@
 prompts = {
     'category_generation': {
-        'prompt': """Given a summary of web content, suggest relevant categories in a bulleted list. The categories should be broad and concise, and never more than four words in length. Categories should represent broad topics of information, and are expected to be shared across many pages. Examples include 'Agriculture', 'Artificial Intelligence', '20th Century Jazz', or 'Artificial Intelligence Research'. Categories can also include the type of page itself, examples include 'Food blog', 'web mail', 'web comic', 'research aggregator'. Categories should represent a topic or idea that is general enough to be useful in grouping many web pages.\n\nContent Summary: {}\n\nCategories (in a comma separated list):""",
+        'prompt': """Given a summary of web content, suggest relevant categories that could broadly represent the content's topic or theme. Categories should be concise, ideally consisting of one to four words. Think of categories as umbrella terms that could encompass a wide range of web pages under a common theme. Some examples are 'Agriculture', 'Artificial Intelligence', '20th Century Jazz', and 'Machine Learning Research'. Consider also the type of page, such as 'Food Blog', 'Webcomic', 'Tech News', or 'Academic Journal'.
+
+        Remember, the goal is to identify broad topics or domains that could help someone quickly understand the general subject matter of the content. Please provide your suggestions in a comma-separated list to ensure clarity and ease of processing.
+
+        Content Summary: {}
+
+        Please list relevant categories as a comma-separated list:""",
         'parameters': {
             'temperature': 0.5,
             'max_tokens': 100,
             'top_p': 1.0,
-            'frequency_penalty': 0.0,
+            'frequency_penalty': 0.5,
             'presence_penalty': 0.0,
         }
     },
@@ -20,3 +26,5 @@ prompts = {
         }
     },
 }
+
+
