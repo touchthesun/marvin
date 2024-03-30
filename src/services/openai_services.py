@@ -4,6 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
+from llm_prompts import prompts
 from utils.logger import get_logger
 from config import OPENAI_API_KEY
 
@@ -81,3 +82,62 @@ def get_conversational_rag_chain(retriever_chain):
     logger.debug(f"Final conversational RAG chain: {conversational_rag_chain}")
 
     return conversational_rag_chain
+
+
+def generate_embeddings(embeddings_model, text):
+    """
+    Generates embeddings for given text using the specified embeddings model.
+    """
+    try:
+        if not text:
+            logger.warning("No text provided for generating embeddings.")
+            return None
+        
+        embeddings = embeddings_model.embed_query(text)
+        logger.debug("Generated embeddings successfully.")
+        return embeddings
+    except Exception as e:
+        logger.error(f"Failed to generate embeddings: {e}", exc_info=True)
+        return None
+
+
+def query_llm_for_categories(summary):
+    """
+    Queries the LLM to suggest categories based on the summary of webpage content.
+    """
+    prompt_template = prompts['category_generation']['prompt'].format(summary)
+    override_params = prompts['category_generation']['parameters']
+
+    # Construct the chat interaction for category suggestion using the revised prompt
+    messages = [
+        {"role": "system", "content": prompt_template},
+        {"role": "user", "content": summary}
+    ]
+    
+    response_obj = chat_completion(messages, model="gpt-4", override_params=override_params)
+    
+    if "error" in response_obj:
+        logger.error(f"Error in obtaining categories from LLM: {response_obj['error']}")
+        return []
+
+    try:
+        # Extracting the message content from the response object
+        response_text = response_obj.choices[0].message.content if response_obj.choices else ""
+        # Assuming the response_text could be a comma-separated list
+        category_items = response_text.split(',')
+        valid_categories = set()
+        for item in category_items:
+            category = item.strip()
+            if category and len(category.split()) <= 4:
+                valid_categories.add(category)
+            elif isinstance(category, list):  # Check if any category is actually a list and handle accordingly
+                for sub_item in category:
+                    sub_category = sub_item.strip()
+                    if sub_category and len(sub_category.split()) <= 4:
+                        valid_categories.add(sub_category)
+        logger.info(f"Valid categories extracted: {valid_categories}")
+        return list(valid_categories)
+    except (AttributeError, IndexError) as e:
+        logger.error(f"Failed to extract categories from LLM response. Error: {e}")
+        return []
+

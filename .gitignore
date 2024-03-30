@@ -166,5 +166,5 @@ cython_debug/
 
 # exclude temp docs in /notes
 /notes/*
-
+notes.md
 .DS_Store

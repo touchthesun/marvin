@@ -1,0 +1,262 @@
+2024-03-28 21:36:58 - __main__ - INFO - App main flow starting
+2024-03-28 21:36:58 - services.metadata - INFO - Extracted structured data from 3 blocks.
+2024-03-28 21:36:58 - services.metadata - INFO - Author(s) extracted: Frank Tiu
+2024-03-28 21:36:58 - services.metadata - INFO - Keywords extracted: dome pancakes, easy pancakes, japanese fluffy pancakes, japanese pancakes, no flip pancakes, pancake perfection, pancakes, rice cooker pancakes, round pancakes, smooth pancakes, tasty, tasty_vegetarian
+2024-03-28 21:36:58 - services.metadata - INFO - Successfully extracted metadata from LD+JSON block.
+2024-03-28 21:36:58 - services.metadata - INFO - Title extracted from <title> tag: Fluffy Pancakes Recipe by Tasty
+2024-03-28 21:37:00 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Summary: Fluffy Pancakes recipe promises light and airy pancakes that make for the ultimate breakfast treat. Topped with fruits, syrup, or whipped cream, they offer a delicious stack of pure bliss.
+2024-03-28 21:37:00 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-03-28 21:37:00 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-03-28 21:37:00 - services.neo4j_services - INFO - Page node linked to Site 'tasty.co' with ID: [<Record node_id=89>]
+2024-03-28 21:37:00 - services.neo4j_services - INFO - Page metadata for https://tasty.co/recipe/fluffy-perfect-pancakes added to graph.
+2024-03-28 21:37:00 - __main__ - INFO - Successfully added metadata for https://tasty.co/recipe/fluffy-perfect-pancakes to the graph.
+2024-03-28 21:37:00 - models - INFO - Starting category generation process for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:04 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Sure! Below is a summary of the recipe you provided:
+
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes that are perfect for breakfast
+- Time: 35 minutes total (10 minutes prep, 20 minutes cook time)
+- Serving size: 4 pancakes
+- Serve with: Your favorite fruits, syrup, or whipped cream
+- Estimated values: One serving size
+- Cooking time: Under 30 minutes
+
+Enjoy flipping out over these fluffy and delectable pancakes!
+2024-03-28 21:37:04 - models - INFO - Summary successfully generated for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:05 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Based on the summary of the fluffy pancakes recipe, here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits, syrup, whipped cream
+
+These categories can help users easily find and organize similar recipes.
+2024-03-28 21:37:05 - models - INFO - Categories suggested for URL https://tasty.co/recipe/fluffy-perfect-pancakes: ['Based on the summary of the fluffy pancakes recipe', 'here are some suggested categories:\n\n1. Recipe Category: Breakfast\n2. Dish Type: Pancakes\n3. Cooking Time: Under 30 minutes\n4. Meal Type: Breakfast\n5. Occasion: Brunch\n6. Cuisine: General\n7. Main Ingredient: Flour\n8. Dietary Preference: Vegetarian\n9. Serving Size: 4 pancakes\n10. Accompaniments: Fruits', 'syrup', 'whipped cream\n\nThese categories can help users easily find and organize similar recipes.']
+2024-03-28 21:37:07 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes, breakfast
+- Time: 35 minutes total, 10 minutes prep, 20 minutes cook time, under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits, syrup, whipped cream
+- Estimated values: One serving size
+2024-03-28 21:37:07 - models - INFO - Keywords extracted for URL https://tasty.co/recipe/fluffy-perfect-pancakes: ['Keywords extracted from the summary:\n- Recipe: Fluffy Pancakes\n- Description: Light and airy pancakes', 'breakfast\n- Time: 35 minutes total', '10 minutes prep', '20 minutes cook time', 'under 30 minutes cooking time\n- Serving size: 4 pancakes\n- Serve with: Fruits', 'whipped cream\n- Estimated values: One serving size']
+2024-03-28 21:37:07 - services.neo4j_services - INFO - Category 'Based on the summary of the fluffy pancakes recipe' not found in Neo4j.
+2024-03-28 21:37:08 - models - INFO - Category 'Based on the summary of the fluffy pancakes recipe' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:08 - models - INFO - New category 'Based on the summary of the fluffy pancakes recipe' created and saved to Neo4j.
+2024-03-28 21:37:08 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:09 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:10 - models - INFO - Keyword '10 minutes prep' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:10 - models - INFO - Keyword '20 minutes cook time' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:11 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:11 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'Based on the summary of the fluffy pancakes recipe'.
+2024-03-28 21:37:11 - models - INFO - Category 'Based on the summary of the fluffy pancakes recipe' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:11 - services.neo4j_services - INFO - Category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' not found in Neo4j.
+2024-03-28 21:37:12 - models - INFO - Category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:12 - models - INFO - New category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' created and saved to Neo4j.
+2024-03-28 21:37:12 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:13 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:13 - models - INFO - Keyword '10 minutes prep' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:14 - models - INFO - Keyword '20 minutes cook time' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:14 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:15 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits'.
+2024-03-28 21:37:15 - models - INFO - Category 'here are some suggested categories:
+
+1. Recipe Category: Breakfast
+2. Dish Type: Pancakes
+3. Cooking Time: Under 30 minutes
+4. Meal Type: Breakfast
+5. Occasion: Brunch
+6. Cuisine: General
+7. Main Ingredient: Flour
+8. Dietary Preference: Vegetarian
+9. Serving Size: 4 pancakes
+10. Accompaniments: Fruits' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:15 - services.neo4j_services - INFO - Category 'syrup' not found in Neo4j.
+2024-03-28 21:37:15 - models - INFO - Category 'syrup' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:15 - models - INFO - New category 'syrup' created and saved to Neo4j.
+2024-03-28 21:37:16 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'syrup'.
+2024-03-28 21:37:17 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'syrup'.
+2024-03-28 21:37:17 - models - INFO - Keyword '10 minutes prep' added to category 'syrup'.
+2024-03-28 21:37:18 - models - INFO - Keyword '20 minutes cook time' added to category 'syrup'.
+2024-03-28 21:37:20 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'syrup'.
+2024-03-28 21:37:21 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'syrup'.
+2024-03-28 21:37:21 - models - INFO - Category 'syrup' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:21 - services.neo4j_services - INFO - Category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' not found in Neo4j.
+2024-03-28 21:37:21 - models - INFO - Category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' and its keywords successfully saved to Neo4j.
+2024-03-28 21:37:21 - models - INFO - New category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' created and saved to Neo4j.
+2024-03-28 21:37:22 - models - INFO - Keyword 'Keywords extracted from the summary:
+- Recipe: Fluffy Pancakes
+- Description: Light and airy pancakes' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:22 - models - INFO - Keyword 'breakfast
+- Time: 35 minutes total' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:23 - models - INFO - Keyword '10 minutes prep' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:23 - models - INFO - Keyword '20 minutes cook time' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:24 - models - INFO - Keyword 'under 30 minutes cooking time
+- Serving size: 4 pancakes
+- Serve with: Fruits' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:24 - models - INFO - Keyword 'whipped cream
+- Estimated values: One serving size' added to category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.'.
+2024-03-28 21:37:24 - models - INFO - Category 'whipped cream
+
+These categories can help users easily find and organize similar recipes.' processed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes. New category: True
+2024-03-28 21:37:24 - models - INFO - Category generation process completed successfully for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:24 - models - INFO - Processing completed for URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:27 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+The provided link leads to a Tasty recipe for fluffy perfect pancakes.
+2024-03-28 21:37:27 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Keywords: Tasty, recipe, fluffy, perfect, pancakes
+2024-03-28 21:37:28 - services.neo4j_services - INFO - Keywords Keywords: Tasty successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:28 - services.neo4j_services - INFO - Keywords recipe successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:28 - services.neo4j_services - INFO - Keywords fluffy successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - services.neo4j_services - INFO - Keywords perfect successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - services.neo4j_services - INFO - Keywords pancakes successfully added to Page https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - __main__ - INFO - Keywords extracted and stored for https://tasty.co/recipe/fluffy-perfect-pancakes.
+2024-03-28 21:37:29 - services.document_processing - INFO - Loading document from URL: https://tasty.co/recipe/fluffy-perfect-pancakes
+2024-03-28 21:37:29 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-03-28 21:37:30 - services.document_processing - INFO - Vector store created: <langchain_community.vectorstores.chroma.Chroma object at 0x1340a7250>
+2024-03-28 21:37:30 - __main__ - INFO - App main flow completed

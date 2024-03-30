@@ -19,7 +19,8 @@ def get_logger(name):
     logging.basicConfig(
         level=logging_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        datefmt='%Y-%m-%d %H:%M:%S',
+        encoding='utf-8'
     )
     
     # Create a logger instance with the specified name
