@@ -7,6 +7,7 @@ from openai import OpenAI
 from config import OPENAI_API_KEY
 from db import Neo4jConnection
 from utils.logger import get_logger
+from llm_prompts import prompts
 from services.document_processing import summarize_content, fetch_webpage_content
 from services.openai_services import query_llm_for_categories, chat_completion
 from services.neo4j_services import find_by_name
@@ -17,7 +18,7 @@ nlp = spacy.load("en_core_web_sm")
 client = OpenAI()
 
 
-class Keyword(GraphObject):
+class Keyword(GraphObject): 
     __primarykey__ = "name"
 
     name = Property()
@@ -56,18 +57,15 @@ class Keyword(GraphObject):
 
 
 def extract_keywords_from_summary(summary):
+    prompt_template = prompts['keyword_extraction']['prompt'].format(summary)
+    override_params = prompts['keyword_extraction']['parameters']
+
     # Construct messages for chat completion
     messages = [
-        {"role": "system", "content": "You are a helpful assistant that extracts keywords from summaries."},
-        {"role": "user", "content": f"Extract keywords from this summary:\n\n{summary}"}
+        {"role": "system", "content": prompt_template},
+        {"role": "user", "content": summary}
     ]
-    
-    # Define override parameters for the chat completion request if needed
-    override_params = {
-        "temperature": 0.5,
-        "max_tokens": 250,
-    }
-    
+
     # Use chat_completion function to get response from OpenAI
     response_obj = chat_completion(messages, model="gpt-3.5-turbo", override_params=override_params)
     
@@ -306,19 +304,23 @@ class CategoryManager:
     def process(self):
         """
         Orchestrates the process of generating a summary, identifying categories and keywords,
-        and storing them in the database.
+        and storing them in the database. Returns the categories and keywords generated.
         """
         logger.info(f"Starting category generation process for URL: {self.url}")
         try:
             self.generate_categories()
             if self.categories:
                 self.store_categories()
-                logger.info(f"Category generation process completed successfully for URL: {self.url}")
+                logger.info(f"Category generation process completed successfully for URL: {self.url}. Categories: {self.categories}, Keywords: {self.keywords}")
             else:
                 logger.warning(f"No categories generated for URL: {self.url}; no further processing.")
+                return [], []
+
         except Exception as e:
             logger.error(f"An unexpected error occurred during the category generation process for URL: {self.url}: {e}", exc_info=True)
+            return [], []
 
+        return self.categories, self.keywords
 
 def categorize_page_with_llm(url):
     """
@@ -326,5 +328,6 @@ def categorize_page_with_llm(url):
     generate and store categories and keywords.
     """
     category_manager = CategoryManager(url)
-    category_manager.process()  # This will handle summary generation, category generation, and storage.
-    logger.info(f"Processing completed for URL: {url}")
+    categories, keywords = category_manager.process()
+    logger.info(f"Processing completed for URL: {url}. Categories: {categories}, Keywords: {keywords}")
+    return categories, keywords

@@ -310,16 +310,3 @@ def add_keyword_to_page(page_url, keyword_text):
         logger.info(f"Keywords {keyword_text} successfully added to Page {page_url}.")
     except Exception as e:
         logger.error(f"Failed to add Keywords {keyword_text} to Page {page_url}: {e}", exc_info=True)
-
-# deprecated. use services.category.store_categories instead
-# def store_categories(page_url, categories):
-#     query = """
-#     MERGE (p:Page {url: $page_url})
-#     SET p.categories = $categories
-#     """
-#     parameters = {"url": page_url, "categories": categories}
-#     try: 
-#         Neo4jConnection.execute_query(query, parameters)
-#         logger.info(f"Categories {categories} successfully added to Page {page_url}")
-#     except Exception as e:
-#         logger.error(f"Failed to add Categories {categories} to Page {page_url}: {e}", exc_info=True)
