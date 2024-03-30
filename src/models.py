@@ -10,7 +10,7 @@ from utils.logger import get_logger
 from llm_prompts import prompts
 from services.document_processing import summarize_content, fetch_webpage_content
 from services.openai_services import query_llm_for_categories, chat_completion
-from services.neo4j_services import find_by_name
+from utils.neo4j_utils import find_by_name
 
 # Initialize 
 logger = get_logger(__name__)
@@ -24,7 +24,7 @@ class Keyword(GraphObject):
     name = Property()
     creation_date = Property()
     last_updated = Property()
-    categories = RelatedFrom("Category", "HAS_KEYWORD")
+    pages = RelatedFrom("Pages", "HAS_KEYWORD")
 
     def __init__(self, name):
         self.name = name
@@ -35,25 +35,50 @@ class Keyword(GraphObject):
         """Update the last_updated property to the current datetime."""
         self.last_updated = datetime.utcnow().isoformat()
 
-    def add_to_category(self, category):
-        try:
-            query = """
-            MATCH (c:Category {name: $category_name})
-            MERGE (k:Keyword {name: $keyword_name})
-            MERGE (k)-[:HAS_KEYWORD]->(c)
-            """
-            parameters = {"category_name": category.name, "keyword_name": self.name}
-            Neo4jConnection.execute_query(query, parameters)
-            logger.info(f"Keyword '{self.name}' successfully added to Category '{category.name}'.")
-        except Exception as e:
-            logger.error(f"Failed to add Keyword '{self.name}' to Category '{category.name}': {e}", exc_info=True)
-            raise
 
-    def remove_from_category(self, category):
-        """Remove this keyword from a category."""
-        if category in self.categories:
-            self.categories.remove(category)
-            self.update_last_updated()
+def process_page_keywords(url, summary):
+    """
+    Extracts keywords from the page summary and associates them with the Page node in the graph.
+
+    Parameters:
+    - url (str): The URL of the page.
+    - summary (str): The summary of the page content.
+    """
+    keywords = extract_keywords_from_summary(summary)
+    if keywords:
+        for keyword_text in keywords:
+            keyword = find_by_name(Keyword, keyword_text) or Keyword(name=keyword_text)
+            keyword.creation_date = datetime.utcnow().isoformat()  
+            keyword.last_updated = datetime.utcnow().isoformat()
+
+            add_keyword_to_page(url, keyword)
+            logger.info(f"Keyword '{keyword_text}' associated with page '{url}'.")
+    else:
+        logger.warning(f"No keywords extracted for URL: {url}.")
+
+def add_keyword_to_page(url, keyword):
+    """
+    Associates a Keyword object with a Page object in the Neo4j graph database.
+
+    Parameters:
+    - url (str): The URL of the page.
+    - keyword (Keyword): The Keyword object to associate.
+    """
+    query = """
+    MATCH (p:Page {url: $url})
+    MERGE (k:Keyword {name: $keyword_name})
+    ON CREATE SET k.creation_date = $creation_date, k.last_updated = $last_updated
+    ON MATCH SET k.last_updated = $last_updated
+    MERGE (p)-[:HAS_KEYWORD]->(k)
+    """
+    parameters = {
+        "url": url,
+        "keyword_name": keyword.name,
+        "creation_date": keyword.creation_date,
+        "last_updated": keyword.last_updated
+    }
+    Neo4jConnection.execute_query(query, parameters)
+    logger.info(f"Keyword '{keyword.name}' successfully associated with Page '{url}'.")
 
 
 def extract_keywords_from_summary(summary):
@@ -83,7 +108,6 @@ def extract_keywords_from_summary(summary):
     except (AttributeError, IndexError) as e:
         logger.error(f"Failed to extract keywords from response. Error: {e}")
         return []
-
 
 
 def is_valid_keyword(keyword):
@@ -126,6 +150,27 @@ def is_valid_keyword(keyword):
     return valid_keyword
 
 
+def store_keywords_in_db(url, keyword_texts):
+    """
+    Adds each keyword in the list of keyword_texts to the specified page in the Neo4j graph database.
+    Assumes keyword_texts is a list of strings.
+    """
+    for keyword_text in keyword_texts:
+        # Attempt to find an existing Keyword object by name or create one if not found
+        keyword = find_by_name(Keyword, keyword_text)
+ 
+        
+        # If the keyword does not exist, create a new Keyword object
+        if not keyword:
+            keyword = Keyword(name=keyword_text)
+            keyword.creation_date = datetime.utcnow().isoformat()  
+            keyword.last_updated = datetime.utcnow().isoformat()
+            # Here, you might want to set other properties of Keyword and save it if necessary
+        
+        # Now that we have a Keyword object, associate it with the page
+        add_keyword_to_page(url, keyword)
+
+
 class Category(GraphObject):
     __primarykey__ = "name"
 
@@ -145,29 +190,31 @@ class Category(GraphObject):
         self.creation_date = datetime.utcnow().isoformat()
         self.last_updated = self.creation_date
 
-    def add_keyword(self, keyword_name):
-        try:
-            # Ensure the keyword exists or create a new one
-            keyword_query = """
-            MERGE (k:Keyword {name: $keyword_name})
-            ON CREATE SET k.creation_date = datetime(), k.last_updated = datetime()
-            ON MATCH SET k.last_updated = datetime()
-            RETURN k
-            """
-            Neo4jConnection.execute_query(keyword_query, {"keyword_name": keyword_name})
+
+    # deprecated
+    # def add_keyword(self, keyword_name):
+    #     try:
+    #         # Ensure the keyword exists or create a new one
+    #         keyword_query = """
+    #         MERGE (k:Keyword {name: $keyword_name})
+    #         ON CREATE SET k.creation_date = datetime(), k.last_updated = datetime()
+    #         ON MATCH SET k.last_updated = datetime()
+    #         RETURN k
+    #         """
+    #         Neo4jConnection.execute_query(keyword_query, {"keyword_name": keyword_name})
             
-            # Create the relationship between the keyword and the category
-            relation_query = """
-            MATCH (k:Keyword {name: $keyword_name}), (c:Category {name: $category_name})
-            MERGE (k)-[:HAS_KEYWORD]->(c)
-            """
-            parameters = {"keyword_name": keyword_name, "category_name": self.name}
-            Neo4jConnection.execute_query(relation_query, parameters)
+    #         # Create the relationship between the keyword and the category
+    #         relation_query = """
+    #         MATCH (k:Keyword {name: $keyword_name}), (c:Category {name: $category_name})
+    #         MERGE (k)-[:HAS_KEYWORD]->(c)
+    #         """
+    #         parameters = {"keyword_name": keyword_name, "category_name": self.name}
+    #         Neo4jConnection.execute_query(relation_query, parameters)
             
-            logger.info(f"Keyword '{keyword_name}' added to category '{self.name}'.")
-        except Exception as e:
-            logger.error(f"Failed to add Keyword '{keyword_name}' to Category '{self.name}': {e}", exc_info=True)
-            raise
+    #         logger.info(f"Keyword '{keyword_name}' added to category '{self.name}'.")
+    #     except Exception as e:
+    #         logger.error(f"Failed to add Keyword '{keyword_name}' to Category '{self.name}': {e}", exc_info=True)
+    #         raise
 
 
     def save_to_neo4j(self):
@@ -247,23 +294,18 @@ class CategoryManager:
 
     def generate_categories(self):
         """
-        Generates categories based on the webpage's content by summarizing the content,
-        querying an LLM for category suggestions, and extracting relevant keywords.
+        Generates categories based on the webpage's content by summarizing the content
+        and querying an LLM for category suggestions.
         """
         self.fetch_summary()
         if self.summary:
             self.categories = query_llm_for_categories(self.summary)
             if self.categories:
                 logger.info(f"Categories suggested for URL {self.url}: {self.categories}")
-                self.keywords = extract_keywords_from_summary(self.summary)
-                if self.keywords:
-                    logger.info(f"Keywords extracted for URL {self.url}: {self.keywords}")
-                else:
-                    logger.warning(f"No keywords were extracted from the summary for URL: {self.url}.")
             else:
                 logger.warning(f"No categories were suggested based on the summary for URL: {self.url}.")
         else:
-            logger.error(f"No summary could be generated for URL: {self.url}, hence no categories or keywords will be generated.")
+            logger.error(f"No summary could be generated for URL: {self.url}, hence no categories will be generated.")
 
 
     def fetch_summary(self):
@@ -293,9 +335,7 @@ class CategoryManager:
         
         for category_name in self.categories:
             try:
-                category, was_created = Category.find_or_create(name=category_name, description=self.summary)
-                for keyword_name in self.keywords:
-                    category.add_keyword(keyword_name)
+                category, was_created = Category.find_or_create(name=category_name.strip(), description=self.summary)
                 logger.info(f"Category '{category_name}' processed for URL: {self.url}. New category: {was_created}")
             except Exception as e:
                 logger.error(f"Failed to store or update category '{category_name}' for URL: {self.url}: {e}", exc_info=True)
@@ -314,11 +354,11 @@ class CategoryManager:
                 logger.info(f"Category generation process completed successfully for URL: {self.url}. Categories: {self.categories}, Keywords: {self.keywords}")
             else:
                 logger.warning(f"No categories generated for URL: {self.url}; no further processing.")
-                return [], []
+                return []
 
         except Exception as e:
             logger.error(f"An unexpected error occurred during the category generation process for URL: {self.url}: {e}", exc_info=True)
-            return [], []
+            return []
 
         return self.categories, self.keywords
 
@@ -328,6 +368,6 @@ def categorize_page_with_llm(url):
     generate and store categories and keywords.
     """
     category_manager = CategoryManager(url)
-    categories, keywords = category_manager.process()
-    logger.info(f"Processing completed for URL: {url}. Categories: {categories}, Keywords: {keywords}")
-    return categories, keywords
+    categories = category_manager.process()
+    logger.info(f"Processing completed for URL: {url}. Categories: {categories}")
+    return categories

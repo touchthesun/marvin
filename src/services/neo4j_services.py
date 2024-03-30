@@ -12,6 +12,7 @@ from langchain_community.vectorstores import Neo4jVector
 from utils.logger import get_logger
 from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME, ENABLE_METADATA_COMPARISON
 from db import Neo4jConnection
+from models import add_keyword_to_page
 from services.metadata import create_url_metadata_json
 from services.openai_services import generate_embeddings
 from services.document_processing import extract_site_name
@@ -231,42 +232,6 @@ def consume_bookmarks(uploaded_file):
     logger.info("Finished processing all bookmarks.")
 
 
-def find_by_name(graph_object_class, name):
-    """
-    Finds an object by its name from the Neo4j database.
-
-    Parameters:
-    - graph_object_class: The class of the object, derived from GraphObject.
-    - name (str): The name of the object to find.
-
-    Returns:
-    The found object or None if not found.
-    """
-    driver = Neo4jConnection.get_driver()
-    try:
-        with driver.session() as session:
-            result = session.run(f"MATCH (n:{graph_object_class.__name__} {{name: $name}}) RETURN n", name=name).single()
-            if result:
-                logger.info(f"{graph_object_class.__name__} '{name}' found in Neo4j.")
-                # Additional logging to inspect the graph_object_class and result
-                logger.info(f"Inspecting {graph_object_class.__name__}: {graph_object_class}, result: {result[0]}")
-                try:
-                    # Attempt to use the inflate method
-                    inflated_object = graph_object_class.inflate(result[0])
-                    logger.info(f"Inflated object: {inflated_object}")
-                    return inflated_object
-                except AttributeError as e:
-                    # Log the error if inflate is not found
-                    logger.error(f"'{graph_object_class.__name__}' object has no attribute 'inflate': {e}")
-                    return None
-            else:
-                logger.info(f"{graph_object_class.__name__} '{name}' not found in Neo4j.")
-                return None
-    except Exception as e:
-        logger.error(f"Error finding {graph_object_class.__name__} '{name}' in Neo4j: {e}", exc_info=True)
-        raise
-
-
 # experimental features
 
 def add_page_to_category(page_url, category_name):
@@ -287,26 +252,29 @@ def add_page_to_category(page_url, category_name):
         logger.error(f"Failed to add Page {page_url} to Category {category_name}: {e}", exc_info=True)
 
 
-def store_keywords_in_db(page_url, keywords):
-    """
-    Adds each keyword in the list of keywords to the specified page in the Neo4j graph database.
-    """
-    for keyword in keywords:
-        add_keyword_to_page(page_url, keyword)
 
 
-def add_keyword_to_page(page_url, keyword_text):
-    """
-    Creates a HAS_KEYWORD relationship between a Page and some number of Keywords in the Neo4j Graph.
-    """
-    query = """
-    MATCH (p:Page {url: $page_url})
-    MERGE (k:Keyword {text: $keyword_text})
-    MERGE (p)-[:HAS_KEYWORD]->(k)
-    """
-    parameters = {"page_url": page_url, "keyword_text": keyword_text}
-    try: 
-        Neo4jConnection.execute_query(query, parameters)
-        logger.info(f"Keywords {keyword_text} successfully added to Page {page_url}.")
-    except Exception as e:
-        logger.error(f"Failed to add Keywords {keyword_text} to Page {page_url}: {e}", exc_info=True)
+
+
+# def store_keywords_in_db(page_url, keywords):
+#     """
+#     Adds each keyword in the list of keywords to the specified page in the Neo4j graph database.
+#     """
+#     for keyword in keywords:
+#         add_keyword_to_page(page_url, keyword)
+
+# def add_keyword_to_page(page_url, keyword_text):
+#     """
+#     Creates a HAS_KEYWORD relationship between a Page and some number of Keywords in the Neo4j Graph.
+#     """
+#     query = """
+#     MATCH (p:Page {url: $page_url})
+#     MERGE (k:Keyword {text: $keyword_text})
+#     MERGE (p)-[:HAS_KEYWORD]->(k)
+#     """
+#     parameters = {"page_url": page_url, "keyword_text": keyword_text}
+#     try: 
+#         Neo4jConnection.execute_query(query, parameters)
+#         logger.info(f"Keywords {keyword_text} successfully added to Page {page_url}.")
+#     except Exception as e:
+#         logger.error(f"Failed to add Keywords {keyword_text} to Page {page_url}: {e}", exc_info=True)

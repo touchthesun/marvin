@@ -12,6 +12,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import WebBaseLoader
 
 from services.openai_services import chat_completion
+from llm_prompts import prompts
 from utils.logger import get_logger
 from config import OPENAI_API_KEY
 
@@ -87,28 +88,28 @@ def fetch_webpage_content(url):
 
 
 
-
-def extract_keywords_from_summary(summary):
-    """
-    Extracts keywords from a given summary using an LLM.
+# Updated and moved to models.py
+# def extract_keywords_from_summary(summary):
+#     """
+#     Extracts keywords from a given summary using an LLM.
     
-    Parameters:
-    - summary (str): The content summary.
-    - openai_api_key (str): The API key for accessing the LLM service.
+#     Parameters:
+#     - summary (str): The content summary.
+#     - openai_api_key (str): The API key for accessing the LLM service.
     
-    Returns:
-    - list: A list of extracted keywords.
-    """
+#     Returns:
+#     - list: A list of extracted keywords.
+#     """
     
-    response = client.Completion.create(
-        engine="gpt-3.5-turbo",
-        prompt=f"Extract keywords from this summary, and present your response as a single string of keywords, using ', ' as a delimiter between them:\n\n{summary}",
-        max_tokens=100,
-        temperature=0.5
-    )
+#     response = client.Completion.create(
+#         engine="gpt-3.5-turbo",
+#         prompt=f"Extract keywords from this summary, and present your response as a single string of keywords, using ', ' as a delimiter between them:\n\n{summary}",
+#         max_tokens=100,
+#         temperature=0.5
+#     )
     
-    keywords = response.choices[0].text.strip().split(', ')
-    return keywords
+#     keywords = response.choices[0].text.strip().split(', ')
+#     return keywords
 
 
 def extract_site_name(url):

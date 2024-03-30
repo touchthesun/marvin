@@ -6,12 +6,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from utils.logger import get_logger
 from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
-from services.document_processing import get_vectorstore_from_url, summarize_content
+from services.document_processing import summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints, store_keywords_in_db, add_page_to_category, add_keyword_to_page
-from models import extract_keywords_from_summary, categorize_page_with_llm, Category
-
-
+from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints, add_page_to_category
+from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
 
 # system config
 client = ai(api_key=OPENAI_API_KEY)
@@ -103,6 +101,7 @@ def process_url(url, process_button):
             if summary:
                 # Extract and store keywords based on the summary
                 keywords = extract_keywords_from_summary(summary)
+                process_page_keywords(url, summary)
                 store_keywords_in_db(url, keywords)
                 logger.info(f"Keywords extracted and stored for {url}.")
             else:
@@ -110,40 +109,12 @@ def process_url(url, process_button):
             
             # Update or refresh the vector store based on the new content
             # this function is not currently used as a vector store in chat
-            st.session_state.vector_store = get_vectorstore_from_url(url)
-            st.sidebar.success(f"URL processed and categorized: {url}")
+            # st.session_state.vector_store = get_vectorstore_from_url(url)
+            # st.sidebar.success(f"URL processed and categorized: {url}")
         else:
             # Log failure but do not halt the application
             logger.error(f"Failed to process and add metadata for {url}.")
             st.sidebar.error(f"Failed to process URL: {url}")
-
-# deprecated
-# def add_new_category(new_category_name, new_category_description, add_category_button):
-#     if add_category_button and new_category_name:
-#         try:
-#             add_category_to_neo4j(new_category_name, new_category_description)
-#             st.sidebar.success("Category added successfully!")
-#             logger.info(f"Category '{new_category_name}' added.")
-#         except Exception as e:
-#             logger.error(f"Failed to add category '{new_category_name}': {e}", exc_info=True)
-#             st.sidebar.error("Failed to add category.")
-
-# This is a test feature
-# def add_keyword_to_category(keyword, category_for_keyword, add_keyword_button):
-#     if add_keyword_button and keyword and category_for_keyword:
-#         try:
-#             category = find_by_name(Category, category_for_keyword)
-#             if category:
-#                 category.add_keyword(keyword)
-#                 category.save_to_neo4j()
-#                 st.sidebar.success(f"Keyword '{keyword}' added to category '{category_for_keyword}'.")
-#                 logger.info(f"Keyword '{keyword}' added to category '{category_for_keyword}'.")
-#             else:
-#                 st.sidebar.error(f"Category '{category_for_keyword}' not found.")
-#         except Exception as e:
-#             logger.error(f"Failed to add keyword '{keyword}' to category '{category_for_keyword}': {e}", exc_info=True)
-#             st.sidebar.error("Failed to add keyword.")
-
 
 
 def display_chat():
@@ -175,23 +146,6 @@ def display_chat():
         elif isinstance(message, HumanMessage):
             st.success(message.content)
 
-# This is a testing function and will be removed or changed later
-# def setup_category_management():
-#     logger.debug("Setting up category management UI")
-#     with st.sidebar:
-#         st.header("Category Management")
-#         # UI for adding a new category
-#         new_category_name = st.text_input("New Category Name", key="new_category_name")
-#         new_category_description = st.text_area("Category Description", key="new_category_description")
-#         add_category_button = st.button("Add New Category")
-
-        # UI for adding keywords to an existing category (simplified for initial setup)
-        # keyword = st.text_input("Keyword to add", key="keyword")
-        # category_for_keyword = st.text_input("Category for Keyword", key="category_for_keyword")
-        # add_keyword_button = st.button("Add Keyword")
-
-    # return new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button
-
 
 if 'setup_done' not in st.session_state:
     setup_database_constraints()
@@ -202,14 +156,8 @@ logger.info("App main flow starting")
 
 url, process_button, uploaded_file = setup_sidebar()
 initialize_session_state()
-
 process_uploaded_bookmarks(uploaded_file)
 process_url(url, process_button)
-
-# new_category_name, new_category_description, add_category_button, keyword, category_for_keyword, add_keyword_button = setup_category_management()
-# 
-# add_new_category(new_category_name, new_category_description, add_category_button)
-# add_keyword_to_category(keyword, category_for_keyword, add_keyword_button)
 display_chat()
 
 logger.info("App main flow completed")
