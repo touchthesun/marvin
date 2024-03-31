@@ -17,7 +17,7 @@ def find_by_name(graph_object_class, name):
     driver = Neo4jConnection.get_driver()
     try:
         with driver.session() as session:
-            result = session.run(f"MATCH (n:{graph_object_class.__name__} {{name: $name}}) RETURN n", name=name).single()
+            result = session.invoke(f"MATCH (n:{graph_object_class.__name__} {{name: $name}}) RETURN n", name=name).single()
             if result:
                 logger.info(f"{graph_object_class.__name__} '{name}' found in Neo4j.")
                 # Additional logging to inspect the graph_object_class and result

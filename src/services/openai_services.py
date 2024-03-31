@@ -141,3 +141,22 @@ def query_llm_for_categories(summary):
         logger.error(f"Failed to extract categories from LLM response. Error: {e}")
         return []
 
+def get_model_parameters(model_name: str, model_reference_data: dict):
+    """
+    Retrieves the max_tokens and context_window for a given model name from the model reference data.
+
+    Parameters:
+    - model_name (str): The name of the model.
+    - model_reference_data (dict): A dictionary containing reference data for various models.
+
+    Returns:
+    - tuple: A tuple containing the max_tokens and context_window for the specified model.
+    """
+    model_info = model_reference_data.get(model_name, {})
+    max_tokens = model_info.get("max_tokens", None)
+    context_window = model_info.get("context_window", None)
+    
+    if max_tokens is None or context_window is None:
+        raise ValueError(f"Model parameters not found for model: {model_name}")
+    
+    return max_tokens, context_window

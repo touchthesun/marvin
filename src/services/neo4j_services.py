@@ -1,6 +1,7 @@
+import os
+import json
 import streamlit as st
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
 from datetime import datetime
 
 from langchain.chains import GraphCypherQAChain
@@ -12,9 +13,8 @@ from langchain_community.vectorstores import Neo4jVector
 from utils.logger import get_logger
 from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME, ENABLE_METADATA_COMPARISON
 from db import Neo4jConnection
-from models import add_keyword_to_page
 from services.metadata import create_url_metadata_json
-from services.openai_services import generate_embeddings
+from services.openai_services import generate_embeddings, get_model_parameters
 from services.document_processing import extract_site_name
 
 
@@ -22,9 +22,16 @@ from services.document_processing import extract_site_name
 logger = get_logger(__name__)
 
 # Initialize models
+model_name = 'gpt-4-1106-preview'
+# current_dir = os.path.dirname(os.path.realpath(__file__))
+# model_reference_data_path = os.path.join(os.path.dirname(__file__), '..', 'model_reference_data.json')
+# with open(model_reference_data_path, 'r') as file:
+#     model_reference_data = json.load(file)
+# max_tokens, context_window = get_model_parameters(model_name, model_reference_data)
 neo4j_graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
-llm = ChatOpenAI(temperature=0)
+llm = ChatOpenAI(temperature=0, model=model_name)
 graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, verbose=True)
+
 
 
 def setup_database_constraints():
@@ -51,15 +58,21 @@ def ask_neo4j(query: str, top_k: int = 10):
     Returns:
     - Dict[str, Any]: The query result.
     """
+    logger.debug(f"Querying Neo4j with: '{query}', Top K: {top_k}")
+
     # Construct the input dictionary expected by `invoke`
     input_dict = {
         'query': query,
         'top_k': top_k
     }
     
-    # Call `invoke` with the constructed input
-    response = graph_cypher_qa_chain.invoke(input=input_dict)
-    return response
+    try:
+        response = graph_cypher_qa_chain.invoke(input=input_dict)
+        logger.debug(f"GraphCypherQAChain response: {response}")
+        return response
+    except Exception as e:
+        logger.error("Failed to invoke GraphCypherQAChain", exc_info=True)
+        raise
 
 def url_exists_in_graph(url):
     """
@@ -126,9 +139,6 @@ def process_and_add_url_to_graph(url):
         return False, ""  # Indicates failure due to an exception, no summary
 
 
-
-
-
 def setup_existing_graph_vector_store():
     try:        
         # Load environment variables
@@ -138,7 +148,7 @@ def setup_existing_graph_vector_store():
         
         logger.info("Setting up existing graph vector store with Neo4j database.")
         
-        existing_graph = Neo4jVector.from_existing_graph(
+        vector_index = Neo4jVector.from_existing_graph(
             embedding=OpenAIEmbeddings(),
             url=uri,
             username=username,
@@ -146,10 +156,10 @@ def setup_existing_graph_vector_store():
             index_name="page_index",
             node_label="Page",
             text_node_properties=["title", "summary"],
-            embedding_node_property="summary_embedding",
+            embedding_node_property="embedding",
         )
         logger.info("Existing graph vector store setup complete.")
-        return existing_graph
+        return vector_index
     except Exception as e:
         logger.error(f"Failed to setup existing graph vector store: {e}")
 
@@ -232,8 +242,6 @@ def consume_bookmarks(uploaded_file):
     logger.info("Finished processing all bookmarks.")
 
 
-# experimental features
-
 def add_page_to_category(page_url, category_name):
     """
     Creates a BELONGS_TO relationship between a Page and a Category in the Neo4j graph.
@@ -251,3 +259,68 @@ def add_page_to_category(page_url, category_name):
     except Exception as e:
         logger.error(f"Failed to add Page {page_url} to Category {category_name}: {e}", exc_info=True)
 
+
+
+# experimental
+
+def query_graph(user_input, model_name=model_name):
+    # Load model reference data
+    # model_reference_data = json.load(open('model_reference_data.json'))
+
+    # Get max_tokens and context_window for the selected model
+    # max_tokens, _ = get_model_parameters(model_name, model_reference_data)
+    # Setting hardcoded max_tokens for simplicity
+    max_tokens = 4096
+    logger.debug(f"Using max_tokens: {max_tokens}")
+
+    # Initialize the Neo4j graph connection
+    logger.info("Initializing Neo4j graph connection...")
+    graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
+    
+    # Initialize the language model
+    logger.info(f"Initializing language model: {model_name}...")
+    llm = ChatOpenAI(temperature=0, model=model_name)
+
+    # Initialize the GraphCypherQAChain with both the graph and language model
+    logger.info("Initializing GraphCypherQAChain with graph and language model...")
+    cypher_chain = GraphCypherQAChain.from_llm(
+        cypher_llm=llm,
+        qa_llm=llm,
+        graph=graph,
+        verbose=True,
+    )
+
+    # Prepare the input by concatenating recent chat history and the new user input
+    logger.info("Preparing combined input for query...")
+    combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
+    logger.debug(f"Combined input for query: {combined_input}")
+    
+    # Execute the query using the combined input
+    logger.info("Executing graph query...")
+    response = cypher_chain.invoke({"query": combined_input})
+    logger.info(f"Graph query response: {response}")
+
+    return response
+
+def truncate_chat_history(chat_history, new_input, max_tokens=8192):
+    """
+    Truncate the chat history to ensure the total input length does not exceed max_tokens.
+    This method ensures that the combined input of chat history and new query 
+    fits within the model's maximum context window by trimming older messages first.
+    """
+    # Attempt to generate combined input
+    combined_input = "\n".join([msg.content for msg in chat_history] + [new_input])
+    
+    # Count tokens in the combined input
+    # This is a simplified count; consider using a tokenizer for accurate token counts
+    token_count = len(combined_input.split())
+    
+    # While the token count exceeds the max_tokens limit, remove the oldest messages
+    while token_count > max_tokens and chat_history:
+        # Remove the oldest message
+        chat_history.pop(0)
+        # Recalculate combined_input and token_count
+        combined_input = "\n".join([msg.content for msg in chat_history] + [new_input])
+        token_count = len(combined_input.split())
+    
+    return combined_input

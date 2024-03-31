@@ -8,7 +8,7 @@ from utils.logger import get_logger
 from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
 from services.document_processing import summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, ask_neo4j, setup_database_constraints, add_page_to_category
+from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, setup_database_constraints, add_page_to_category, query_graph
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
 
 # system config
@@ -119,17 +119,26 @@ def display_chat():
     # Chat input
     user_query = st.text_input("Type your message here...", key="new_user_query")
 
-    # Process and display new query if present
     if user_query:
-        logger.debug(f"Received new user query: {user_query}")
+        logger.info(f"Received new user query: '{user_query}'")
         st.session_state.chat_history.append(HumanMessage(content=user_query))
+        
         try:
             logger.debug("Asking Neo4j with the user query")
-            response = ask_neo4j(query=user_query)
-            if isinstance(response, dict) or isinstance(response, list):
-                formatted_response = str(response)
+            # response = ask_neo4j(query=user_query)
+            response = query_graph(user_query)
+            # change this back to logger.debug later
+            logger.debug(f"Neo4j response: {response}")
+            
+            # if isinstance(response, dict) or isinstance(response, list):
+            #     formatted_response = str(response)
+            # else:
+            #     formatted_response = response
+            if response and 'result' in response:
+                formatted_response = response['result']
             else:
-                formatted_response = response
+                formatted_response = "Sorry, I couldn't find anything relevant to your query."
+                
             st.session_state.chat_history.append(AIMessage(content=formatted_response))
         except Exception as e:
             logger.error("Error during asking Neo4j", exc_info=True)
