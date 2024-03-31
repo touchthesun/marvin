@@ -168,3 +168,6 @@ cython_debug/
 /notes/*
 notes.md
 .DS_Store
+
+# ignore neo4j local data
+/neo4j

@@ -107,10 +107,6 @@ def process_url(url, process_button):
             else:
                 logger.warning(f"No summary available for keyword extraction for {url}.")
             
-            # Update or refresh the vector store based on the new content
-            # this function is not currently used as a vector store in chat
-            # st.session_state.vector_store = get_vectorstore_from_url(url)
-            # st.sidebar.success(f"URL processed and categorized: {url}")
         else:
             # Log failure but do not halt the application
             logger.error(f"Failed to process and add metadata for {url}.")
