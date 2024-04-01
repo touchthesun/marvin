@@ -1,9 +1,16 @@
 import logging
 from neo4j import GraphDatabase
-from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
+from config import load_config
+
+# Config
+config = load_config()
+NEO4J_URI = config["neo4j_uri"]
+NEO4J_USERNAME = config ["neo4j_username"]
+NEO4J_PASSWORD = config ["neo4j_password"]
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
 
 class Neo4jConnection:
     _driver = None

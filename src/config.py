@@ -4,16 +4,18 @@ from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path)
 
-# Neo4j Database configurations
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-
-# OpenAI API Key
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# Logging Config
-LOGGING_LEVEL = os.getenv("LOGGING_LEVEL")
-
-# Config Settings
-ENABLE_METADATA_COMPARISON = os.getenv("ENABLE_METADATA_COMPARISON", "False").lower() in ("true", "1", "t")
+def load_config():
+    """
+    Loads and returns the application configuration based on environment variables.
+    """
+    config = {
+        "logging_level": os.getenv("LOGGING_LEVEL"),
+        "enable_metadata_comparison": os.getenv("ENABLE_METADATA_COMPARISON", "False").lower() in ("true", "1", "t"),
+        "openai_api_key": os.getenv('OPENAI_API_KEY'),
+        "db_mode": os.getenv('DB_MODE', 'LOCAL'),
+        "streamlit_mode": os.getenv('STREAMLIT_MODE', 'TERMINAL'),
+        "neo4j_uri": os.getenv('NEO4J_URI_LOCAL') if os.getenv('DB_MODE') == 'LOCAL' else os.getenv('NEO4J_URI_REMOTE'),
+        "neo4j_username": os.getenv('NEO4J_USERNAME_LOCAL') if os.getenv('DB_MODE') == 'LOCAL' else os.getenv('NEO4J_USERNAME_REMOTE'),
+        "neo4j_password": os.getenv('NEO4J_PASSWORD_LOCAL') if os.getenv('DB_MODE') == 'LOCAL' else os.getenv('NEO4J_PASSWORD_REMOTE'),
+    }
+    return config

@@ -1,18 +1,17 @@
 import streamlit as st
 from openai import OpenAI as ai
-from bs4 import BeautifulSoup
-
 from langchain_core.messages import AIMessage, HumanMessage
 
 from utils.logger import get_logger
-from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, OPENAI_API_KEY
+from config import load_config
 from services.document_processing import summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
 from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, setup_database_constraints, add_page_to_category, query_graph
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
 
 # system config
-client = ai(api_key=OPENAI_API_KEY)
+config = load_config()
+client = ai(api_key=config["openai_api_key"])
 
 # Instantiate logging
 logger = get_logger(__name__)
@@ -138,7 +137,7 @@ def display_chat():
                 formatted_response = response['result']
             else:
                 formatted_response = "Sorry, I couldn't find anything relevant to your query."
-                
+
             st.session_state.chat_history.append(AIMessage(content=formatted_response))
         except Exception as e:
             logger.error("Error during asking Neo4j", exc_info=True)

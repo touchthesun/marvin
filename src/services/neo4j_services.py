@@ -1,5 +1,3 @@
-import os
-import json
 import streamlit as st
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -11,15 +9,18 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
 
 from utils.logger import get_logger
-from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME, ENABLE_METADATA_COMPARISON
+from config import load_config
 from db import Neo4jConnection
 from services.metadata import create_url_metadata_json
 from services.openai_services import generate_embeddings, get_model_parameters
 from services.document_processing import extract_site_name
 
 
-# Instantiate logger
+# Instantiate and config
+config = load_config()
 logger = get_logger(__name__)
+
+
 
 # Initialize models
 model_name = 'gpt-4-1106-preview'
@@ -28,7 +29,7 @@ model_name = 'gpt-4-1106-preview'
 # with open(model_reference_data_path, 'r') as file:
 #     model_reference_data = json.load(file)
 # max_tokens, context_window = get_model_parameters(model_name, model_reference_data)
-neo4j_graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
+neo4j_graph = Neo4jGraph(url=config["neo4j_uri"], username=config["neo4j_username"], password=config["neo4j_password"])
 llm = ChatOpenAI(temperature=0, model=model_name)
 graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, verbose=True)
 
@@ -107,7 +108,7 @@ def process_url_submission(url):
     """
     if url_exists_in_graph(url):
         logger.info(f"URL already exists in the graph: {url}")
-        if ENABLE_METADATA_COMPARISON:
+        if config["enable_metadata_comparison"]:
             existing_metadata = get_existing_metadata(url)
             new_metadata = create_url_metadata_json(url)
             # Further logic for comparison and potential update
@@ -142,9 +143,9 @@ def process_and_add_url_to_graph(url):
 def setup_existing_graph_vector_store():
     try:        
         # Load environment variables
-        uri = NEO4J_URI
-        username = NEO4J_USERNAME
-        password = NEO4J_PASSWORD
+        uri = config["neo4j_uri"]
+        username = config["neo4j_username"]
+        password = config["neo4j_password"]
         
         logger.info("Setting up existing graph vector store with Neo4j database.")
         
@@ -275,8 +276,9 @@ def query_graph(user_input, model_name=model_name):
 
     # Initialize the Neo4j graph connection
     logger.info("Initializing Neo4j graph connection...")
-    graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
-    
+    # graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
+    graph = neo4j_graph
+
     # Initialize the language model
     logger.info(f"Initializing language model: {model_name}...")
     llm = ChatOpenAI(temperature=0, model=model_name)

@@ -1,9 +1,10 @@
 import logging
-from config import LOGGING_LEVEL
+from config import load_config
 
+config = load_config()
 # You can set a default logging level here and override it using an environment variable
 default_logging_level = logging.INFO
-logging_level = LOGGING_LEVEL
+logging_level = config["logging_level"]
 
 def get_logger(name):
     """

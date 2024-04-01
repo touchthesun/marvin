@@ -4,7 +4,7 @@ from py2neo.ogm import GraphObject, Property, RelatedFrom, RelatedTo
 from datetime import datetime
 from openai import OpenAI
 
-from config import OPENAI_API_KEY
+from config import load_config
 from db import Neo4jConnection
 from utils.logger import get_logger
 from llm_prompts import prompts
@@ -12,10 +12,13 @@ from services.document_processing import summarize_content, fetch_webpage_conten
 from services.openai_services import query_llm_for_categories, chat_completion
 from utils.neo4j_utils import find_by_name
 
-# Initialize 
+# Initialize and config
+config = load_config()
 logger = get_logger(__name__)
 nlp = spacy.load("en_core_web_sm")
+OPENAI_API_KEY = config["openai_api_key"]
 client = OpenAI()
+
 
 
 class Keyword(GraphObject): 

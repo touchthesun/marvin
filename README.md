@@ -22,14 +22,38 @@ Marvin is developed with Python 3.9, leveraging Conda for environment management
 
 Clone the repository to your local machine.
 
-Copy the .env.template file and rename it to .env.
+### Configuration
+Marvin's behavior can be tailored through environment variables. These variables control aspects such as database connectivity, logging level, and feature toggling. Here's how to set them up:
 
-Fill in the required values in the .env file:
+Step 1: .env File
+Copy the .env.template file to a new file named .env in the root directory of your project. This file will store your environment variables.
 
-OPENAI_API_KEY: Your OpenAI API key.
-NEO4J_PASSWORD: The password you wish to set for the Neo4j database. (This will be initialized in your Docker Compose setup.)
+Step 2: Environment Variables
+Here are the environment variables you can configure:
 
-Start Marvin using Docker Compose:
+LOGGING_LEVEL: Sets the logging level (e.g., DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is not set.
+ENABLE_METADATA_COMPARISON: Enable or disable metadata comparison feature (True/False). Default is False.
+OPENAI_API_KEY: Your OpenAI API key for accessing GPT models.
+DB_MODE: Database mode, either LOCAL for local Neo4j instance or REMOTE for a cloud-based instance. Default is LOCAL.
+STREAMLIT_MODE: Defines how Streamlit is run, either TERMINAL for local terminal execution or CONTAINER for running inside a Docker container. Default is TERMINAL.
+NEO4J_URI_LOCAL: URI for your local Neo4j instance.
+NEO4J_USERNAME_LOCAL: Username for your local Neo4j instance.
+NEO4J_PASSWORD_LOCAL: Password for your local Neo4j instance.
+NEO4J_URI_REMOTE: URI for your remote (cloud-based) Neo4j instance.
+NEO4J_USERNAME_REMOTE: Username for your remote Neo4j instance.
+NEO4J_PASSWORD_REMOTE: Password for your remote Neo4j instance.
+
+Fill in the necessary values based on your setup and preferences.
+
+Step 3: Using the Configuration
+The application automatically reads these settings at startup. You can switch between local and remote databases or change the Streamlit mode by adjusting the respective environment variables in the .env file and restarting the application.
+
+### Run Mode
+
+If you want to run the app directly from your terminal, just cd to the root of the repo and run
+'streamlit run src/app.py'
+
+If you want to run the app in its containerized, local mode, make sure to set DB_MODE to LOCAL and then run
 
 $ docker-compose up --build
 

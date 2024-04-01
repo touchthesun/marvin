@@ -6,13 +6,14 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 
 from llm_prompts import prompts
 from utils.logger import get_logger
-from config import OPENAI_API_KEY
+from config import load_config
 
-# Instantiate logging
+# Instantiate and config
 logger = get_logger(__name__)
+config = load_config()
 
 # Initialize openai API
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=config["openai_api_key"])
 
 
 def chat_completion(messages, model="gpt-3.5-turbo", override_params=None):

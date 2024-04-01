@@ -14,16 +14,13 @@ from langchain_community.document_loaders import WebBaseLoader
 from services.openai_services import chat_completion
 from llm_prompts import prompts
 from utils.logger import get_logger
-from config import OPENAI_API_KEY
+from config import load_config
 
-# Initialize the OpenAI API with the API key from config.py
-OpenAI.api_key = OPENAI_API_KEY
+# Initialize and config
+config = load_config()
+OpenAI.api_key = config["openai_api_key"]
 client = OpenAI()
-
-# Setup logger
 logger = get_logger(__name__)
-
-# # Load the spaCy model for English
 nlp = spacy.load("en_core_web_sm")
 
 def summarize_content(document_content, model="gpt-3.5-turbo", override_params=None):
