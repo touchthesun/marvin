@@ -76,40 +76,43 @@ def process_uploaded_bookmarks(uploaded_file):
         st.sidebar.success("Bookmarks processed!")
 
 
-def process_url(url, process_button):
-    if process_button and url:
-        logger.debug(f"Processing URL: {url}")
-        # First, process the URL and add its metadata to the graph
-        metadata_success = process_and_add_url_to_graph(url)
+# TODO remove process_button logic from this function so it is context agnostic
+
+
+def process_url(url):
+    logger.debug(f"Processing URL: {url}")
+    # First, process the URL and add its metadata to the graph
+    metadata_success = process_and_add_url_to_graph(url)
+
+    if metadata_success:
+        logger.info(f"Successfully added metadata for {url} to the graph.")
         
-        if metadata_success:
-            logger.info(f"Successfully added metadata for {url} to the graph.")
-            
-            # Categorize the page using an LLM
-            categories = categorize_page_with_llm(url)
+        # Categorize the page using an LLM
+        categories = categorize_page_with_llm(url)
 
-            # Store relationships between the page and its categories
-            for category_name in categories:
-                add_page_to_category(url, category_name)
-                logger.info(f"Page {url} added to Category {category_name}.")
+        # Store relationships between the page and its categories
+        for category_name in categories:
+            add_page_to_category(url, category_name)
+            logger.info(f"Page {url} added to Category {category_name}.")
 
-            # Extract the page's summary for keyword extraction
-            # TODO find a more efficient way to cache summary instead of generating it in multiple parts of the app
-            summary = summarize_content(url)
-            
-            if summary:
-                # Extract and store keywords based on the summary
-                keywords = extract_keywords_from_summary(summary)
-                process_page_keywords(url, summary)
-                store_keywords_in_db(url, keywords)
-                logger.info(f"Keywords extracted and stored for {url}.")
-            else:
-                logger.warning(f"No summary available for keyword extraction for {url}.")
-            
+        # Extract the page's summary for keyword extraction
+        # TODO find a more efficient way to cache summary instead of generating it in multiple parts of the app
+        summary = summarize_content(url)
+        
+        if summary:
+            # Extract and store keywords based on the summary
+            keywords = extract_keywords_from_summary(summary)
+            process_page_keywords(url, summary)
+            store_keywords_in_db(url, keywords)
+            logger.info(f"Keywords extracted and stored for {url}.")
         else:
-            # Log failure but do not halt the application
-            logger.error(f"Failed to process and add metadata for {url}.")
-            st.sidebar.error(f"Failed to process URL: {url}")
+            logger.warning(f"No summary available for keyword extraction for {url}.")
+        
+    else:
+        # Log failure but do not halt the application
+        logger.error(f"Failed to process and add metadata for {url}.")
+        st.sidebar.error(f"Failed to process URL: {url}")
+
 
 
 def display_chat():
@@ -126,13 +129,8 @@ def display_chat():
             logger.debug("Asking Neo4j with the user query")
             # response = ask_neo4j(query=user_query)
             response = query_graph(user_query)
-            # change this back to logger.debug later
             logger.debug(f"Neo4j response: {response}")
             
-            # if isinstance(response, dict) or isinstance(response, list):
-            #     formatted_response = str(response)
-            # else:
-            #     formatted_response = response
             if response and 'result' in response:
                 formatted_response = response['result']
             else:
@@ -155,13 +153,16 @@ if 'setup_done' not in st.session_state:
     setup_database_constraints()
     st.session_state['setup_done'] = True
 
+
+
 # App main flow
 logger.info("App main flow starting")
 
 url, process_button, uploaded_file = setup_sidebar()
 initialize_session_state()
+if process_button and url:
+    process_url(url)
 process_uploaded_bookmarks(uploaded_file)
-process_url(url, process_button)
 display_chat()
 
 logger.info("App main flow completed")

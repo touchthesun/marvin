@@ -1,0 +1,6 @@
+{
+    "privy.customModel": "deepseek-coder:6.7b-instruct",
+    "CodeGPT.Autocomplete.provider": "Ollama - codellama",
+    "CodeGPT.apiKey": "Ollama",
+    "CodeGPT.Autocomplete.enabled": true
+}

@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "name": "Marvin Extension",
+    "version": "0.1",
+    "description": "Captures URLs from open tabs and bookmarks, and processes them.",
+    "permissions": [
+      "tabs",
+      "bookmarks",
+      "storage"
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": "icon.png"
+    },
+    "icons": {
+      "48": "icon.png"
+    }
+  }
+  

@@ -1,3 +1,9 @@
+from langchain.prompts import PromptTemplate
+from db import Neo4jConnection
+
+# graph = Neo4jConnection
+# graph.refresh_schema()
+
 prompts = {
     'category_generation': {
         'prompt': """Given a summary of web content, suggest relevant categories that could broadly represent the content's topic or theme. Categories should be concise, ideally consisting of one to four words. Think of categories as umbrella terms that could encompass a wide range of web pages under a common theme. Some examples are 'Agriculture', 'Artificial Intelligence', '20th Century Jazz', and 'Machine Learning Research'. Consider also the type of page, such as 'Food Blog', 'Webcomic', 'Tech News', or 'Academic Journal'.
@@ -26,5 +32,6 @@ prompts = {
         }
     },
 }
+
 
 

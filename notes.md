@@ -1,39 +1,4 @@
-Step 1: Webpage Parsing for Keywords
-Implement Web Scraping: Use libraries like Beautiful Soup or Scrapy to extract text from webpages provided by the user.
-
-Keyword Extraction: Leverage the LLM (e.g., GPT-3) or other NLP tools to analyze the scraped text and extract relevant keywords. This might involve sending the text to the LLM with prompts designed for keyword extraction.
-
-Display Extracted Keywords: Show the extracted keywords to the user in the Streamlit interface, allowing them to select or modify the keywords before saving.
-
-Step 2: Suggesting Categories
-Category Suggestion Logic: Develop logic that suggests categories based on the extracted keywords. This could involve querying the existing categories in Neo4j for matches or using the LLM to generate category suggestions based on the context of the keywords.
-
-User Interaction for Suggestions: Present suggested categories to the user in the Streamlit interface. Allow the user to accept suggestions, modify them, or create new categories based on the suggestions.
-
-Step 3: CRUD Operations on Categories and Keywords
-CRUD Interface: Expand the Streamlit interface to support creating, reading, updating, and deleting (CRUD) categories and keywords. This could involve forms for adding new categories/keywords, lists or tables for viewing them, and options to edit or delete existing entries.
-
-Integration with Neo4j: Ensure that all CRUD operations are reflected in your Neo4j database. This involves executing the appropriate Cypher queries to add, update, or remove nodes and relationships based on user actions.
-
-LLM-Assisted Editing: For updating categories or keywords, consider leveraging the LLM to suggest improvements or alternatives based on the latest data or trends.
-
-Step 4: Iterative Feedback Loop
-User Feedback Collection: Implement mechanisms to collect user feedback on the suggested categories, keywords, and the overall functionality of the CRUD operations.
-
-Refinement Based on Feedback: Use the collected feedback to refine the logic for keyword extraction, category suggestion, and the user interface. This might involve adjusting your LLM prompts, improving the NLP models, or tweaking the UI/UX based on user preferences.
-
-Best Practices and Considerations
-Privacy and Security: Ensure that your web scraping respects the privacy and security guidelines of the target websites. Additionally, secure the data processed by your application, especially if sensitive information might be involved.
-
-Performance and Scalability: Optimize the performance of your NLP and database operations, considering the potential for large volumes of data or high user concurrency.
-
-User-Centric Design: Keep the user experience at the forefront of your design, making the interface intuitive and the interactions with the LLM as seamless as possible.
-
-Continuous Learning: Incorporate a system for the application to learn from user interactions over time, improving the accuracy of category suggestions and keyword extraction.
-
-
-
-Category Management Workflow & Code Scaffolding
+# Category Management Workflow & Code Scaffolding
 
 # Workflow 1: Initial Page Categorization with LLM
 def categorize_page_with_llm(url):
