@@ -65,7 +65,7 @@ Access Marvin's Streamlit interface at http://localhost:8501 and the Neo4j Brows
 The .env file configuration is crucial for connecting Marvin to the required services. Ensure you have set your OpenAI API key correctly. The Neo4j database will be automatically configured and initialized by Docker Compose, so no additional setup is required for Neo4j beyond setting your desired password in the .env file.
 
 ## Running Marvin
-Once you have started the services using Docker Compose, you can interact with Marvin through the Streamlit interface accessible at http://localhost:8501.
+Once you have started the services using Docker Compose, you can interact with Marvin through the Streamlit interface accessible at http://localhost:8501, and the Neo4j interface is accessible at http://localhost:7474
 
 ## License
 Marvin is made available under the CC0 1.0 Universal (CC0 1.0) Public Domain Dedication.
