@@ -19,14 +19,14 @@ from services.document_processing import extract_site_name
 # Instantiate and config
 config = load_config()
 logger = get_logger(__name__)
-
+model_name = 'gpt-4-1106-preview'
 
 
 # Initialize models
-model_name = 'gpt-4-1106-preview'
-neo4j_graph = Neo4jGraph(url=config["neo4j_uri"], username=config["neo4j_username"], password=config["neo4j_password"])
-llm = ChatOpenAI(temperature=0, model=model_name)
-graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, verbose=True)
+# deprecated
+# neo4j_graph = Neo4jGraph(url=config["neo4j_uri"], username=config["neo4j_username"], password=config["neo4j_password"])
+# llm = ChatOpenAI(temperature=0, model=model_name)
+# graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, verbose=True)
 
 
 
@@ -42,33 +42,6 @@ def setup_database_constraints():
         Neo4jConnection.execute_query(query)
     logger.info("Database constraints successfully set up.")
 
-# deprecated
-# def ask_neo4j(query: str, top_k: int = 10):
-#     """
-#     Queries the Neo4j database using natural language via the GraphCypherQAChain.
-    
-#     Parameters:
-#     - question (str): The natural language question to query the database.
-#     - top_k (int): The maximum number of results to return.
-
-#     Returns:
-#     - Dict[str, Any]: The query result.
-#     """
-#     logger.debug(f"Querying Neo4j with: '{query}', Top K: {top_k}")
-
-#     # Construct the input dictionary expected by `invoke`
-#     input_dict = {
-#         'query': query,
-#         'top_k': top_k
-#     }
-    
-#     try:
-#         response = graph_cypher_qa_chain.invoke(input=input_dict)
-#         logger.debug(f"GraphCypherQAChain response: {response}")
-#         return response
-#     except Exception as e:
-#         logger.error("Failed to invoke GraphCypherQAChain", exc_info=True)
-#         raise
 
 def url_exists_in_graph(url):
     """
@@ -257,40 +230,50 @@ def add_page_to_category(page_url, category_name):
 
 
 
-# experimental
+def query_graph(user_input, model_name, neo4j_graph, max_tokens=4096):
+    try:
+        logger.info(f"Initializing language model: {model_name}...")
+        llm = ChatOpenAI(temperature=0, model=model_name)
 
-def query_graph(user_input, model_name=model_name):
-    max_tokens = 4096
-    logger.debug(f"Using max_tokens: {max_tokens}")
+        logger.info("Initializing GraphCypherQAChain with graph and language model...")
+        cypher_chain = GraphCypherQAChain.from_llm(cypher_llm=llm, qa_llm=llm, graph=neo4j_graph, verbose=True)
 
-    # Initialize the Neo4j graph connection
-    logger.info("Initializing Neo4j graph connection...")
-    graph = neo4j_graph
+        logger.info("Preparing combined input for query...")
+        combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
+        logger.debug(f"Combined input for query: {combined_input}")
 
-    # Initialize the language model
-    logger.info(f"Initializing language model: {model_name}...")
-    llm = ChatOpenAI(temperature=0, model=model_name)
+        logger.info("Executing graph query...")
+        response = cypher_chain.invoke({"query": combined_input})
+        logger.info(f"Graph query response: {response}")
 
-    # Initialize the GraphCypherQAChain with both the graph and language model
-    logger.info("Initializing GraphCypherQAChain with graph and language model...")
-    cypher_chain = GraphCypherQAChain.from_llm(
-        cypher_llm=llm,
-        qa_llm=llm,
-        graph=graph,
-        verbose=True,
-    )
+        return response
+    except Exception as e:
+        logger.error(f"Error during graph query execution: {e}")
+        return {"error": str(e)}
 
-    # Prepare the input by concatenating recent chat history and the new user input
-    logger.info("Preparing combined input for query...")
-    combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
-    logger.debug(f"Combined input for query: {combined_input}")
+
+# def query_graph(user_input, model_name=model_name):
+#     max_tokens = 4096  # This value should be configurable.
+#     logger.debug(f"Using max_tokens: {max_tokens}")
+
+#     # Fetch the language model and Cypher chain using the Neo4jConnection class
+#     logger.info(f"Fetching initialized language model: {model_name}...")
+#     llm = Neo4jConnection.get_llm(model_name)
+
+#     logger.info("Fetching initialized GraphCypherQAChain with the graph and language model...")
+#     cypher_chain = Neo4jConnection.get_cypher_chain(llm)
+
+#     # Prepare the input by concatenating recent chat history and the new user input
+#     logger.info("Preparing combined input for query...")
+#     combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
+#     logger.debug(f"Combined input for query: {combined_input}")
     
-    # Execute the query using the combined input
-    logger.info("Executing graph query...")
-    response = cypher_chain.invoke({"query": combined_input})
-    logger.info(f"Graph query response: {response}")
+#     # Execute the query using the combined input
+#     logger.info("Executing graph query...")
+#     response = cypher_chain.invoke({"query": combined_input})
+#     logger.info(f"Graph query response: {response}")
 
-    return response
+#     return response
 
 
 def truncate_chat_history(chat_history, new_input, max_tokens):

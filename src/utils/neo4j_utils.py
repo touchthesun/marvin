@@ -14,10 +14,10 @@ def find_by_name(graph_object_class, name):
     Returns:
     The found object or None if not found.
     """
-    driver = Neo4jConnection.get_driver()
+    graph = Neo4jConnection.get_graph()
     try:
-        with driver.session() as session:
-            result = session.run(f"MATCH (n:{graph_object_class.__name__} {{name: $name}}) RETURN n", name=name).single()
+        with graph.session() as session:
+            result = session.invoke(f"MATCH (n:{graph_object_class.__name__} {{name: $name}}) RETURN n", name=name).single()
             if result:
                 logger.info(f"{graph_object_class.__name__} '{name}' found in Neo4j.")
                 # Additional logging to inspect the graph_object_class and result

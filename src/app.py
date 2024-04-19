@@ -3,7 +3,9 @@ from openai import OpenAI as ai
 from langchain_core.messages import AIMessage, HumanMessage
 
 from utils.logger import get_logger
+from utils.signal_handler import setup_signal_handling
 from config import load_config
+from db import Neo4jConnection
 from services.document_processing import summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
 from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, setup_database_constraints, add_page_to_category, query_graph
@@ -127,8 +129,9 @@ def display_chat():
         
         try:
             logger.debug("Asking Neo4j with the user query")
-            # response = ask_neo4j(query=user_query)
-            response = query_graph(user_query)
+            neo4j_graph = Neo4jConnection.get_graph()
+            model_name = 'gpt-4-1106-preview'
+            response = query_graph(user_query, model_name, neo4j_graph)
             logger.debug(f"Neo4j response: {response}")
             
             if response and 'result' in response:
@@ -155,14 +158,18 @@ if 'setup_done' not in st.session_state:
 
 
 
-# App main flow
-logger.info("App main flow starting")
+def main():
+    logger.info("App main flow starting")
+    setup_signal_handling()  # Set up signal handling for graceful shutdown
 
-url, process_button, uploaded_file = setup_sidebar()
-initialize_session_state()
-if process_button and url:
-    process_url(url)
-process_uploaded_bookmarks(uploaded_file)
-display_chat()
+    url, process_button, uploaded_file = setup_sidebar()
+    initialize_session_state()
+    if process_button and url:
+        process_url(url)
+    process_uploaded_bookmarks(uploaded_file)
+    display_chat()
 
-logger.info("App main flow completed")
+    logger.info("App main flow completed")
+
+if __name__ == "__main__":
+    main()

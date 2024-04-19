@@ -1,4 +1,4 @@
-## Marvin: Your LLM-Powered Personal Librarian
+# Marvin: Your LLM-Powered Personal Librarian
 
 Marvin emerged from a simple yet deeply personal need: to combat the "out of sight, out of mind" nature of digital bookmarking. This project is about offering a tool to make the digital environment a more manageable place.
 
@@ -7,12 +7,13 @@ I spend a lot of time researching things on the internet. Every article, blog po
 Marvin is a librarian for your browsing data. Powered by a Large Language Model (LLM), it transforms your bookmarks and open tabs from hidden, cluttered lists into an engaging, accessible library. With Marvin, your digital finds are not just remembered but also become integral parts of your continuous learning journey.
 
 ## Project Status
+
 Currently, Marvin is in its early development stages. We're actively testing and improving its features. Stay tuned for updates.
 
 ## Getting Started
- - Docker and Docker Compose installed on your system.
- - An OpenAI API key.
 
+- Docker and Docker Compose installed on your system.
+- An OpenAI API key.
 
 ### Prerequisites
 
@@ -23,6 +24,7 @@ Marvin is developed with Python 3.9, leveraging Conda for environment management
 Clone the repository to your local machine.
 
 ### Configuration
+
 Marvin's behavior can be tailored through environment variables. These variables control aspects such as database connectivity, logging level, and feature toggling. Here's how to set them up:
 
 Step 1: .env File
@@ -61,11 +63,14 @@ This command builds and starts the containers for both the Streamlit app and the
 
 Access Marvin's Streamlit interface at http://localhost:8501 and the Neo4j Browser at http://localhost:7474.
 
-### Configuration
+## Environment
+
 The .env file configuration is crucial for connecting Marvin to the required services. Ensure you have set your OpenAI API key correctly. The Neo4j database will be automatically configured and initialized by Docker Compose, so no additional setup is required for Neo4j beyond setting your desired password in the .env file.
 
 ## Running Marvin
+
 Once you have started the services using Docker Compose, you can interact with Marvin through the Streamlit interface accessible at http://localhost:8501, and the Neo4j interface is accessible at http://localhost:7474
 
 ## License
+
 Marvin is made available under the CC0 1.0 Universal (CC0 1.0) Public Domain Dedication.
