@@ -1,25 +1,25 @@
 # Category Management Workflow & Code Scaffolding
 
-# Workflow 1: Initial Page Categorization with LLM
+# Workflow 1: Initial Page Categorization with LLM [DONE]
 def categorize_page_with_llm(url):
     content_summary = summarize_webpage_content(url)
     categories = query_llm_for_categories(content_summary)
     store_initial_categories_in_db(url, categories)
 
-# Workflow 2: Displaying Categories and Collecting User Feedback
+# Workflow 2: Displaying Categories and Collecting User Feedback [TODO]
 def collect_user_feedback_on_categories(url):
     suggested_categories = get_suggested_categories_from_db(url)
     user_modified_categories = display_categories_and_collect_feedback(suggested_categories)
     update_categories_in_db(url, user_modified_categories)
 
-# Workflow 3: Updating Categories Based on User Feedback
+# Workflow 3: Updating Categories Based on User Feedback [TODO]
 def update_page_categories_from_feedback(url):
     feedback = get_user_feedback_for_url(url)
     final_categories = process_feedback_to_determine_final_categories(feedback)
     update_categories_in_db(url, final_categories)
     # Optional: aggregate_feedback_for_model_improvement(feedback)
 
-# Workflow 4: Aggregating Feedback for Model Improvement (Optional)
+# Workflow 4: Aggregating Feedback for Model Improvement (Optional) [TODO]
 def aggregate_feedback_for_model_improvement():
     all_feedback = collect_all_user_feedback()
     patterns = identify_patterns_in_feedback(all_feedback)

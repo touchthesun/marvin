@@ -1,3 +1,4 @@
+import json
 from openai import OpenAI
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -14,9 +15,10 @@ config = load_config()
 
 # Initialize openai API
 client = OpenAI(api_key=config["openai_api_key"])
+model_name = config["model_name"]
 
 
-def chat_completion(messages, model="gpt-3.5-turbo", override_params=None):
+def chat_completion(messages, model=model_name, override_params=None):
     """
     Generates a completion using the chat API with a sequence of messages.
     """
@@ -32,19 +34,30 @@ def chat_completion(messages, model="gpt-3.5-turbo", override_params=None):
         logger.debug(f"Override parameters applied: {override_params}")
 
     # Log the payload being sent to OpenAI
-    logger.debug(f"Sending request to OpenAI with payload: {api_params}")
+    try:
+        # Attempt to serialize the messages to JSON for logging
+        json_payload = json.dumps(api_params)
+        logger.debug(f"Sending request to OpenAI with JSON payload: {json_payload}")
+        logger.debug(f"Final messages sent to API: {json.dumps(messages, indent=2)}")  # This assumes messages are in a format that can be directly serialized to JSON
+
+    except TypeError as e:
+        logger.error(f"Failed to serialize messages to JSON: {e}")
 
     try:
         completion = client.chat.completions.create(**api_params)
-        logger.debug(f"Chat completion successful. Response: {completion}")
+        logger.debug(f"Chat completion successful. Full response: {completion}")
         response = completion.choices[0].message.content
-        print(response)
+        logger.debug(f"Received response content: {response}")
         return completion
         
     except Exception as e:
-        logger.error(f"Chat completion failed with error: {e}")
-        return {"error": str(e)}
-
+        if hasattr(e, 'response'):
+            error_details = e.response.json()
+            logger.error(f"Chat completion failed with detailed error: {error_details}")
+            return {"error": error_details}
+        else:
+            logger.error(f"Chat completion failed with error: {str(e)}")
+            return {"error": str(e)}
 
 def get_context_retriever_chain(vector_store):
     logger.debug("Initializing context retriever chain.")
@@ -141,23 +154,3 @@ def query_llm_for_categories(summary):
     except (AttributeError, IndexError) as e:
         logger.error(f"Failed to extract categories from LLM response. Error: {e}")
         return []
-
-def get_model_parameters(model_name: str, model_reference_data: dict):
-    """
-    Retrieves the max_tokens and context_window for a given model name from the model reference data.
-
-    Parameters:
-    - model_name (str): The name of the model.
-    - model_reference_data (dict): A dictionary containing reference data for various models.
-
-    Returns:
-    - tuple: A tuple containing the max_tokens and context_window for the specified model.
-    """
-    model_info = model_reference_data.get(model_name, {})
-    max_tokens = model_info.get("max_tokens", None)
-    context_window = model_info.get("context_window", None)
-    
-    if max_tokens is None or context_window is None:
-        raise ValueError(f"Model parameters not found for model: {model_name}")
-    
-    return max_tokens, context_window

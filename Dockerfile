@@ -7,7 +7,9 @@ WORKDIR /app
 
 # Install pip requirements
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN apt-get update && \
+    apt-get install -y gcc g++ && \ 
+    pip install --trusted-host pypi.python.org --no-cache-dir -r requirements.txt
 RUN python -m spacy download en_core_web_sm
 
 # Streamlit runs on port 8501 by default

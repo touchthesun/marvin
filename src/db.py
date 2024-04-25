@@ -1,6 +1,4 @@
 import logging
-import atexit
-from neo4j import GraphDatabase
 from config import load_config
 from langchain.chains import GraphCypherQAChain
 from langchain_openai import OpenAI
@@ -16,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class Neo4jConnection:
-    _driver = None
     _llm = None
     _cypher_chain = None
     _graph = None

@@ -10,10 +10,12 @@ from services.document_processing import summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
 from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, setup_database_constraints, add_page_to_category, query_graph
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
+from agent import get_first_keyword_in_prompt
 
 # system config
 config = load_config()
 client = ai(api_key=config["openai_api_key"])
+model_name = config["model_name"]
 
 # Instantiate logging
 logger = get_logger(__name__)
@@ -120,36 +122,47 @@ def process_url(url):
 def display_chat():
     logger.debug("Displaying chat interface")
 
-    # Chat input
     user_query = st.text_input("Type your message here...", key="new_user_query")
-
     if user_query:
         logger.info(f"Received new user query: '{user_query}'")
-        st.session_state.chat_history.append(HumanMessage(content=user_query))
+        st.session_state.chat_history.append({"role": "user", "content": user_query})
         
-        try:
-            logger.debug("Asking Neo4j with the user query")
-            neo4j_graph = Neo4jConnection.get_graph()
-            model_name = 'gpt-4-1106-preview'
-            response = query_graph(user_query, model_name, neo4j_graph)
-            logger.debug(f"Neo4j response: {response}")
-            
-            if response and 'result' in response:
-                formatted_response = response['result']
-            else:
-                formatted_response = "Sorry, I couldn't find anything relevant to your query."
+        agent_function, keyword = get_first_keyword_in_prompt(user_query)
+        if agent_function:
+            logger.info(f"Executing workflow based on keyword '{keyword}'")
+            try:
+                response = agent_function(user_query)
+                if not isinstance(response, str):
+                    response = str(response)
+                st.session_state.chat_history.append({"role": "assistant", "content": response})
+                logger.debug(f"Workflow response: {response}")
+            except Exception as e:
+                logger.error(f"Error during executing workflow for keyword '{keyword}'", exc_info=True)
+                response = "Sorry, I couldn't process your request."
+                st.session_state.chat_history.append({"role": "assistant", "content": response})
+        else:
+            logger.warning("No matching keyword found, falling back to default response")
+            response = "I'm not sure how to help with that."
+            st.session_state.chat_history.append({"role": "assistant", "content": response})
 
-            st.session_state.chat_history.append(AIMessage(content=formatted_response))
-        except Exception as e:
-            logger.error("Error during asking Neo4j", exc_info=True)
-            st.session_state.chat_history.append(AIMessage(content="Sorry, I couldn't find anything relevant to your query."))
-
-    # Display all messages in chat history
+    # Handle display based on message type
     for message in st.session_state.chat_history:
-        if isinstance(message, AIMessage):
-            st.info(message.content)
-        elif isinstance(message, HumanMessage):
-            st.success(message.content)
+        if isinstance(message, dict):
+            # Handle dictionary messages
+            if message['role'] == 'assistant':
+                st.info(message['content'])
+            elif message['role'] == 'user':
+                st.success(message['content'])
+        else:
+            # Handle AIMessage objects or other types
+            content = getattr(message, 'content', "No content")
+            role = getattr(message, 'role', "unknown")
+            if role == 'assistant':
+                st.info(content)
+            else:
+                st.success(content)
+
+
 
 
 if 'setup_done' not in st.session_state:

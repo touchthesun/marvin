@@ -8,3 +8,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   });
   
+
+  chrome.storage.local.get(['session_active'], function(result) {
+    if (!result.session_active) {
+        // Close the chat modal or clean up the UI
+        closeChatModal();
+    }
+});

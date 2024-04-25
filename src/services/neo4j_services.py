@@ -4,7 +4,6 @@ from datetime import datetime
 
 from langchain.chains import GraphCypherQAChain
 from langchain_openai import ChatOpenAI
-from langchain_community.graphs import Neo4jGraph
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
 
@@ -12,7 +11,7 @@ from utils.logger import get_logger
 from config import load_config
 from db import Neo4jConnection
 from services.metadata import create_url_metadata_json
-from services.openai_services import generate_embeddings, get_model_parameters
+from services.openai_services import generate_embeddings
 from services.document_processing import extract_site_name
 
 
@@ -20,14 +19,6 @@ from services.document_processing import extract_site_name
 config = load_config()
 logger = get_logger(__name__)
 model_name = 'gpt-4-1106-preview'
-
-
-# Initialize models
-# deprecated
-# neo4j_graph = Neo4jGraph(url=config["neo4j_uri"], username=config["neo4j_username"], password=config["neo4j_password"])
-# llm = ChatOpenAI(temperature=0, model=model_name)
-# graph_cypher_qa_chain = GraphCypherQAChain.from_llm(llm=llm, graph=neo4j_graph, verbose=True)
-
 
 
 def setup_database_constraints():
@@ -138,52 +129,56 @@ def add_page_metadata_to_graph(page_metadata):
     Adds a node to the Neo4j graph with properties derived from page metadata,
     and links it to a Site node representing its source website.
     """
-    # Initialize the embeddings model
-    embeddings_model = OpenAIEmbeddings()
-    
-    # Extract metadata
-    url = page_metadata["url"]
-    title = page_metadata.get("title", "Unknown Title")
-    summary = page_metadata.get("summary", "No summary available")
-    author = page_metadata.get("author", "Unknown Author")
-    publication_date = page_metadata.get("publication_date", "Unknown Date")
-    date_created = page_metadata.get("date_created", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    site_name = extract_site_name(url)
-    
-    # Generate embeddings
-    title_embedding = generate_embeddings(embeddings_model, title)
-    summary_embedding = generate_embeddings(embeddings_model, summary)
-    
-    # Query to create the node with new fields and link it to a Site node
-    query = """
-        MERGE (s:Site {name: $site_name})
-        MERGE (p:Page {url: $url})
-        ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
-                        p.publication_date = $publication_date, p.dateCreated = $date_created,
-                        p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
-        ON MATCH SET p.title = $title, p.summary = $summary, p.author = $author,
-                        p.publication_date = $publication_date, p.dateCreated = $date_created,
-                        p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
-        MERGE (p)-[:FROM]->(s)
-        RETURN id(p) AS node_id
-        """
-    parameters = {
-        "site_name": site_name,
-        "url": url,
-        "title": title,
-        "summary": summary,
-        "author": author,
-        "publication_date": publication_date,
-        "date_created": date_created,
-        "title_embedding": title_embedding,
-        "summary_embedding": summary_embedding
-    }
-
     try:
+        # Initialize the embeddings model
+        embeddings_model = OpenAIEmbeddings()
+        
+        # Extract metadata
+        url = page_metadata["url"]
+        title = page_metadata.get("title", "Unknown Title")
+        summary = page_metadata.get("summary", "No summary available")
+        author = page_metadata.get("author", "Unknown Author")
+        publication_date = page_metadata.get("publication_date", "Unknown Date")
+        date_created = page_metadata.get("date_created", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        site_name = extract_site_name(url)
+        
+        # Generate embeddings
+        title_embedding = generate_embeddings(embeddings_model, title)
+        summary_embedding = generate_embeddings(embeddings_model, summary)
+        
+        # Query to create the node with new fields and link it to a Site node
+        query = """
+            MERGE (s:Site {name: $site_name})
+            MERGE (p:Page {url: $url})
+            ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
+                            p.publication_date = $publication_date, p.dateCreated = $date_created,
+                            p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
+            ON MATCH SET p.title = $title, p.summary = $summary, p.author = $author,
+                            p.publication_date = $publication_date, p.dateCreated = $date_created,
+                            p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
+            MERGE (p)-[:FROM]->(s)
+            RETURN id(p) AS node_id
+            """
+        parameters = {
+            "site_name": site_name,
+            "url": url,
+            "title": title,
+            "summary": summary,
+            "author": author,
+            "publication_date": publication_date,
+            "date_created": date_created,
+            "title_embedding": title_embedding,
+            "summary_embedding": summary_embedding
+        }
+
         node_id = Neo4jConnection.execute_query(query, parameters)
         logger.info(f"Page node linked to Site '{site_name}' with ID: {node_id}")
+        return {'success': True, 'node_id': node_id}
+
     except Exception as e:
         logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
+        return {'error': str(e)}
+
 
 
 def consume_bookmarks(uploaded_file):
@@ -230,19 +225,22 @@ def add_page_to_category(page_url, category_name):
 
 
 
-def query_graph(user_input, model_name, neo4j_graph, max_tokens=4096):
+def query_graph(user_input, model_name, neo4j_graph):
+    max_tokens = config["max_tokens"]
+    logger.debug(f"Using max_tokens: {max_tokens}")
+    logger.info(f"Initializing language model: {model_name}...")
+    llm = ChatOpenAI(temperature=0, model=model_name)
+
+    logger.info("Initializing GraphCypherQAChain with graph and language model...")
+    cypher_chain = GraphCypherQAChain.from_llm(cypher_llm=llm, qa_llm=llm, graph=neo4j_graph, verbose=True)
+
+    logger.info("Preparing combined input for query...")
+    combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
+    
+    logger.debug(f"Combined input for query: {combined_input}")
+
+    logger.info("Executing graph query...")
     try:
-        logger.info(f"Initializing language model: {model_name}...")
-        llm = ChatOpenAI(temperature=0, model=model_name)
-
-        logger.info("Initializing GraphCypherQAChain with graph and language model...")
-        cypher_chain = GraphCypherQAChain.from_llm(cypher_llm=llm, qa_llm=llm, graph=neo4j_graph, verbose=True)
-
-        logger.info("Preparing combined input for query...")
-        combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
-        logger.debug(f"Combined input for query: {combined_input}")
-
-        logger.info("Executing graph query...")
         response = cypher_chain.invoke({"query": combined_input})
         logger.info(f"Graph query response: {response}")
 
@@ -252,49 +250,54 @@ def query_graph(user_input, model_name, neo4j_graph, max_tokens=4096):
         return {"error": str(e)}
 
 
-# def query_graph(user_input, model_name=model_name):
-#     max_tokens = 4096  # This value should be configurable.
-#     logger.debug(f"Using max_tokens: {max_tokens}")
-
-#     # Fetch the language model and Cypher chain using the Neo4jConnection class
-#     logger.info(f"Fetching initialized language model: {model_name}...")
-#     llm = Neo4jConnection.get_llm(model_name)
-
-#     logger.info("Fetching initialized GraphCypherQAChain with the graph and language model...")
-#     cypher_chain = Neo4jConnection.get_cypher_chain(llm)
-
-#     # Prepare the input by concatenating recent chat history and the new user input
-#     logger.info("Preparing combined input for query...")
-#     combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
-#     logger.debug(f"Combined input for query: {combined_input}")
-    
-#     # Execute the query using the combined input
-#     logger.info("Executing graph query...")
-#     response = cypher_chain.invoke({"query": combined_input})
-#     logger.info(f"Graph query response: {response}")
-
-#     return response
-
-
 def truncate_chat_history(chat_history, new_input, max_tokens):
-    """
-    Truncate the chat history to ensure the total input length does not exceed max_tokens.
-    This method ensures that the combined input of chat history and new query 
-    fits within the model's maximum context window by trimming older messages first.
-    """
-    # Attempt to generate combined input
-    combined_input = "\n".join([msg.content for msg in chat_history] + [new_input])
-    
-    # Count tokens in the combined input
-    # This is a simplified count; consider using a tokenizer for accurate token counts
-    token_count = len(combined_input.split())
-    
-    # While the token count exceeds the max_tokens limit, remove the oldest messages
-    while token_count > max_tokens and chat_history:
-        # Remove the oldest message
-        chat_history.pop(0)
-        # Recalculate combined_input and token_count
-        combined_input = "\n".join([msg.content for msg in chat_history] + [new_input])
-        token_count = len(combined_input.split())
-    
-    return combined_input
+    # This function concatenates chat history and new input into a single string limited by max_tokens
+    max_tokens = int(max_tokens) if max_tokens is not None else None
+    combined_input = []
+    for msg in chat_history:
+        # Check if the message is a dictionary and access content appropriately
+        if isinstance(msg, dict):
+            content = msg.get('content', '')  # Safely get content if it's a dictionary
+        else:
+            content = getattr(msg, 'content', '')  # Safely get content attribute if it's an object
+        combined_input.append(content)
+    combined_input.append(new_input)
+    # Join all parts and truncate if necessary to fit within max_tokens
+    return "\n".join(combined_input)[:max_tokens]
+
+
+# experimental
+
+# def fetch_segmented_data(query, params, segment_key, limit=100):
+#     """
+#     Fetches data from Neo4j in segmented form based on the provided segment key.
+
+#     Args:
+#     - query (str): The Cypher query to execute.
+#     - params (dict): Parameters for the Cypher query.
+#     - segment_key (str): The attribute used to segment the data.
+#     - limit (int): The number of records per segment.
+
+#     Returns:
+#     - List[dict]: A list of data segments from the database.
+#     """
+#     segments = []
+#     offset = 0
+
+#     # Initialize the Neo4j graph connection
+#     graph = Neo4jConnection.get_graph()
+
+#     # Modify the query to include pagination
+#     paginated_query = f"{query} RETURN properties(n) ORDER BY n.{segment_key} SKIP $offset LIMIT $limit"
+
+#     while True:
+#         # Execute the query
+#         result = graph.query(paginated_query, {**params, 'offset': offset, 'limit': limit})
+#         if not result:
+#             break  # Break if no more data is returned
+
+#         # Process results and append to segments
+#         segments.extend(result)
+#         offset += limit
+
+#     return segments
