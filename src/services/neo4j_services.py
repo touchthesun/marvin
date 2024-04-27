@@ -226,8 +226,8 @@ def add_page_to_category(page_url, category_name):
 
 
 def query_graph(user_input, model_name, neo4j_graph):
-    max_tokens = config["max_tokens"]
-    logger.debug(f"Using max_tokens: {max_tokens}")
+    # max_tokens = config["max_tokens"]
+    # logger.debug(f"Using max_tokens: {max_tokens}")
     logger.info(f"Initializing language model: {model_name}...")
     llm = ChatOpenAI(temperature=0, model=model_name)
 
@@ -235,13 +235,13 @@ def query_graph(user_input, model_name, neo4j_graph):
     cypher_chain = GraphCypherQAChain.from_llm(cypher_llm=llm, qa_llm=llm, graph=neo4j_graph, verbose=True)
 
     logger.info("Preparing combined input for query...")
-    combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
-    
-    logger.debug(f"Combined input for query: {combined_input}")
+    # combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
+
+    # logger.debug(f"Combined input for query: {combined_input}")
 
     logger.info("Executing graph query...")
     try:
-        response = cypher_chain.invoke({"query": combined_input})
+        response = cypher_chain.invoke({"query": user_input})
         logger.info(f"Graph query response: {response}")
 
         return response
@@ -250,20 +250,20 @@ def query_graph(user_input, model_name, neo4j_graph):
         return {"error": str(e)}
 
 
-def truncate_chat_history(chat_history, new_input, max_tokens):
-    # This function concatenates chat history and new input into a single string limited by max_tokens
-    max_tokens = int(max_tokens) if max_tokens is not None else None
-    combined_input = []
-    for msg in chat_history:
-        # Check if the message is a dictionary and access content appropriately
-        if isinstance(msg, dict):
-            content = msg.get('content', '')  # Safely get content if it's a dictionary
-        else:
-            content = getattr(msg, 'content', '')  # Safely get content attribute if it's an object
-        combined_input.append(content)
-    combined_input.append(new_input)
-    # Join all parts and truncate if necessary to fit within max_tokens
-    return "\n".join(combined_input)[:max_tokens]
+# def truncate_chat_history(chat_history, new_input, max_tokens):
+#     # This function concatenates chat history and new input into a single string limited by max_tokens
+#     max_tokens = int(max_tokens) if max_tokens is not None else None
+#     combined_input = []
+#     for msg in chat_history:
+#         # Check if the message is a dictionary and access content appropriately
+#         if isinstance(msg, dict):
+#             content = msg.get('content', '')  # Safely get content if it's a dictionary
+#         else:
+#             content = getattr(msg, 'content', '')  # Safely get content attribute if it's an object
+#         combined_input.append(content)
+#     combined_input.append(new_input)
+#     # Join all parts and truncate if necessary to fit within max_tokens
+#     return "\n".join(combined_input)[:max_tokens]
 
 
 # experimental

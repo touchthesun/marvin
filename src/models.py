@@ -1,5 +1,4 @@
 import spacy
-
 from py2neo.ogm import GraphObject, Property, RelatedFrom, RelatedTo
 from datetime import datetime
 from openai import OpenAI

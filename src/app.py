@@ -1,16 +1,15 @@
 import streamlit as st
 from openai import OpenAI as ai
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 
 from utils.logger import get_logger
 from utils.signal_handler import setup_signal_handling
 from config import load_config
-from db import Neo4jConnection
 from services.document_processing import summarize_content
 from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, setup_database_constraints, add_page_to_category, query_graph
+from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, setup_database_constraints, add_page_to_category
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
-from agent import get_first_keyword_in_prompt
+from agent import initialize_agent
 
 # system config
 config = load_config()
@@ -71,6 +70,9 @@ def initialize_session_state():
     if "chat_history" not in st.session_state:
         logger.debug("Initializing chat history in session state")
         st.session_state.chat_history = [AIMessage(content="Hello, I am Marvin, your personal librarian. How can I assist you today?")]
+    if 'agent_executor' not in st.session_state:
+        # Initialize agent if not already done
+        st.session_state.agent_executor = initialize_agent(model_name=config["model_name"])
 
 
 def process_uploaded_bookmarks(uploaded_file):
@@ -79,7 +81,7 @@ def process_uploaded_bookmarks(uploaded_file):
         consume_bookmarks(uploaded_file)
         st.sidebar.success("Bookmarks processed!")
 
-
+ 
 # TODO remove process_button logic from this function so it is context agnostic
 
 
@@ -126,23 +128,15 @@ def display_chat():
     if user_query:
         logger.info(f"Received new user query: '{user_query}'")
         st.session_state.chat_history.append({"role": "user", "content": user_query})
-        
-        agent_function, keyword = get_first_keyword_in_prompt(user_query)
-        if agent_function:
-            logger.info(f"Executing workflow based on keyword '{keyword}'")
-            try:
-                response = agent_function(user_query)
-                if not isinstance(response, str):
-                    response = str(response)
-                st.session_state.chat_history.append({"role": "assistant", "content": response})
-                logger.debug(f"Workflow response: {response}")
-            except Exception as e:
-                logger.error(f"Error during executing workflow for keyword '{keyword}'", exc_info=True)
-                response = "Sorry, I couldn't process your request."
-                st.session_state.chat_history.append({"role": "assistant", "content": response})
-        else:
-            logger.warning("No matching keyword found, falling back to default response")
-            response = "I'm not sure how to help with that."
+
+        # Use the agent to generate a response
+        try:
+            response = st.session_state.agent_executor({"input": user_query})
+            st.session_state.chat_history.append({"role": "assistant", "content": response})
+            logger.info(f"Agent response: {response}")
+        except Exception as e:
+            logger.error("Error during agent response generation", exc_info=True)
+            response = "Sorry, I couldn't process your request."
             st.session_state.chat_history.append({"role": "assistant", "content": response})
 
     # Handle display based on message type
