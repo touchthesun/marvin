@@ -20,7 +20,7 @@ def initialize_agent(model_name: str, prompt: Optional[ChatPromptTemplate] = Non
         llm = ChatOpenAI(model_name=model_name, temperature=0)
         
         # Dynamically instantiate tools from TOOL_REGISTRY
-        tools = [tool() for tool in TOOL_REGISTRY.values() if callable(tool)]  # Directly instantiate tools
+        tools = [tool() for tool in TOOL_REGISTRY.values() if callable(tool)]
 
         if not tools:
             logger.error("No tools available in the registry.")
@@ -28,7 +28,7 @@ def initialize_agent(model_name: str, prompt: Optional[ChatPromptTemplate] = Non
 
         if prompt is None:
             logger.warning("No prompt provided. Using the default prompt.")
-            prompt = generate_marvin_init_prompt()  # Ensure this function can handle the tool instances
+            prompt = generate_marvin_init_prompt()
 
         logger.info("Creating the agent.")
         agent = create_tool_calling_agent(llm, tools, prompt=prompt)

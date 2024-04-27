@@ -2,8 +2,6 @@ import streamlit as st
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-from langchain.chains import GraphCypherQAChain
-from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
 
@@ -11,7 +9,6 @@ from utils.logger import get_logger
 from config import load_config
 from db import Neo4jConnection
 from services.metadata import create_url_metadata_json
-from services.openai_services import generate_embeddings
 from services.document_processing import extract_site_name
 
 
@@ -143,8 +140,20 @@ def add_page_metadata_to_graph(page_metadata):
         site_name = extract_site_name(url)
         
         # Generate embeddings
-        title_embedding = generate_embeddings(embeddings_model, title)
-        summary_embedding = generate_embeddings(embeddings_model, summary)
+        # title_embedding = generate_embeddings(embeddings_model, title)
+        # summary_embedding = generate_embeddings(embeddings_model, summary)
+        # query = """
+        #     MERGE (s:Site {name: $site_name})
+        #     MERGE (p:Page {url: $url})
+        #     ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
+        #                     p.publication_date = $publication_date, p.dateCreated = $date_created,
+        #                     p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
+        #     ON MATCH SET p.title = $title, p.summary = $summary, p.author = $author,
+        #                     p.publication_date = $publication_date, p.dateCreated = $date_created,
+        #                     p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
+        #     MERGE (p)-[:FROM]->(s)
+        #     RETURN id(p) AS node_id
+        #     """
         
         # Query to create the node with new fields and link it to a Site node
         query = """
@@ -152,10 +161,8 @@ def add_page_metadata_to_graph(page_metadata):
             MERGE (p:Page {url: $url})
             ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
                             p.publication_date = $publication_date, p.dateCreated = $date_created,
-                            p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
             ON MATCH SET p.title = $title, p.summary = $summary, p.author = $author,
                             p.publication_date = $publication_date, p.dateCreated = $date_created,
-                            p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
             MERGE (p)-[:FROM]->(s)
             RETURN id(p) AS node_id
             """
@@ -167,8 +174,8 @@ def add_page_metadata_to_graph(page_metadata):
             "author": author,
             "publication_date": publication_date,
             "date_created": date_created,
-            "title_embedding": title_embedding,
-            "summary_embedding": summary_embedding
+            # "title_embedding": title_embedding,
+            # "summary_embedding": summary_embedding
         }
 
         node_id = Neo4jConnection.execute_query(query, parameters)
@@ -225,79 +232,19 @@ def add_page_to_category(page_url, category_name):
 
 
 
-def query_graph(user_input, model_name, neo4j_graph):
-    # max_tokens = config["max_tokens"]
-    # logger.debug(f"Using max_tokens: {max_tokens}")
-    logger.info(f"Initializing language model: {model_name}...")
-    llm = ChatOpenAI(temperature=0, model=model_name)
+def query_graph(user_input, model_name):
+    logger.info(f"Fetching language model for: {model_name}...")
+    llm = Neo4jConnection.get_llm(model_name=model_name)
 
-    logger.info("Initializing GraphCypherQAChain with graph and language model...")
-    cypher_chain = GraphCypherQAChain.from_llm(cypher_llm=llm, qa_llm=llm, graph=neo4j_graph, verbose=True)
-
-    logger.info("Preparing combined input for query...")
-    # combined_input = truncate_chat_history(st.session_state.chat_history, user_input, max_tokens)
-
-    # logger.debug(f"Combined input for query: {combined_input}")
+    logger.info("Fetching GraphCypherQAChain with language model and graph...")
+    cypher_chain = Neo4jConnection.get_cypher_chain(llm)
 
     logger.info("Executing graph query...")
     try:
         response = cypher_chain.invoke({"query": user_input})
         logger.info(f"Graph query response: {response}")
-
         return response
     except Exception as e:
         logger.error(f"Error during graph query execution: {e}")
         return {"error": str(e)}
 
-
-# def truncate_chat_history(chat_history, new_input, max_tokens):
-#     # This function concatenates chat history and new input into a single string limited by max_tokens
-#     max_tokens = int(max_tokens) if max_tokens is not None else None
-#     combined_input = []
-#     for msg in chat_history:
-#         # Check if the message is a dictionary and access content appropriately
-#         if isinstance(msg, dict):
-#             content = msg.get('content', '')  # Safely get content if it's a dictionary
-#         else:
-#             content = getattr(msg, 'content', '')  # Safely get content attribute if it's an object
-#         combined_input.append(content)
-#     combined_input.append(new_input)
-#     # Join all parts and truncate if necessary to fit within max_tokens
-#     return "\n".join(combined_input)[:max_tokens]
-
-
-# experimental
-
-# def fetch_segmented_data(query, params, segment_key, limit=100):
-#     """
-#     Fetches data from Neo4j in segmented form based on the provided segment key.
-
-#     Args:
-#     - query (str): The Cypher query to execute.
-#     - params (dict): Parameters for the Cypher query.
-#     - segment_key (str): The attribute used to segment the data.
-#     - limit (int): The number of records per segment.
-
-#     Returns:
-#     - List[dict]: A list of data segments from the database.
-#     """
-#     segments = []
-#     offset = 0
-
-#     # Initialize the Neo4j graph connection
-#     graph = Neo4jConnection.get_graph()
-
-#     # Modify the query to include pagination
-#     paginated_query = f"{query} RETURN properties(n) ORDER BY n.{segment_key} SKIP $offset LIMIT $limit"
-
-#     while True:
-#         # Execute the query
-#         result = graph.query(paginated_query, {**params, 'offset': offset, 'limit': limit})
-#         if not result:
-#             break  # Break if no more data is returned
-
-#         # Process results and append to segments
-#         segments.extend(result)
-#         offset += limit
-
-#     return segments
