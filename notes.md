@@ -69,3 +69,35 @@ def identify_patterns_in_feedback(all_feedback):
 def adjust_llm_or_train_supplementary_model(patterns):
     """Adjusts the LLM based on feedback patterns or trains a supplementary model."""
     pass
+
+
+## Agent KG Strategy
+
+For the use case of an Agent acting as a personal librarian and querying a Neo4j knowledge graph, here are some of the best ways to implement this pattern using LangChain:
+
+• Use a ConversationalRetrievalAgent or ConversationalRetrievalChain to combine the conversational capabilities with retrieval from the Neo4j knowledge graph. 2
+
+• Initialize the agent/chain with a GraphCypherQAChain as the retriever, which handles querying the Neo4j graph. 3
+
+• Customize the GraphCypherQAChain with techniques mentioned earlier like:
+
+• Fuzzy matching in the retrieval_query 1
+• Custom cypher_query_corrector for synonym expansion 5
+• Pre-processing data to include synonyms/fuzzy variants
+
+
+• Consider using a ParentDocumentRetriever to retrieve larger context documents from Neo4j while still allowing precise embedding-based search. 4
+
+• Optionally, use a Neo4jChatMessageHistory to persist conversation history in the Neo4j graph for enhanced context. 3
+
+• Explore advanced retrieval techniques like generating hypothetical questions or summaries and indexing those alongside the original data. 4
+
+
+The key advantages of this approach are:
+
+• Conversational capabilities from the Agent to engage in multi-turn dialog
+• Precise embedding-based retrieval from the Neo4j graph
+• Ability to customize retrieval for fuzziness, synonyms, and larger context
+• Persistence of conversation history in the graph database
+
+This allows building a robust, context-aware personal librarian that can leverage the full power of the Neo4j knowledge graph. 234

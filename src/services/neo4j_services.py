@@ -12,23 +12,167 @@ from services.metadata import create_url_metadata_json
 from services.document_processing import extract_site_name
 
 
+
 # Instantiate and config
 config = load_config()
 logger = get_logger(__name__)
-model_name = 'gpt-4-1106-preview'
+model_name = config["model_name"]
 
 
 def setup_database_constraints():
     """
-    Sets up database constraints, ensuring uniqueness for Category and Keyword names.
+    Sets up database constraints, ensuring uniqueness for Category, Keyword, Site, and Page names/URLs.
     """
     constraints_query = [
         "CREATE CONSTRAINT unique_category_name IF NOT EXISTS FOR (c:Category) REQUIRE c.name IS UNIQUE",
-        "CREATE CONSTRAINT unique_keyword_name IF NOT EXISTS FOR (k:Keyword) REQUIRE k.name IS UNIQUE"
+        "CREATE CONSTRAINT unique_keyword_name IF NOT EXISTS FOR (k:Keyword) REQUIRE k.name IS UNIQUE",
+        "CREATE CONSTRAINT site_name_unique IF NOT EXISTS FOR (s:Site) REQUIRE s.site_name IS UNIQUE",
+        "CREATE CONSTRAINT url_unique IF NOT EXISTS FOR (p:Page) REQUIRE p.url IS UNIQUE",
     ]
     for query in constraints_query:
         Neo4jConnection.execute_query(query)
     logger.info("Database constraints successfully set up.")
+
+def setup_database_indexes():
+    """
+    Sets up database indexes for efficient querying of node properties.
+    """
+    indexes_query = [
+        "CREATE INDEX site_name_index IF NOT EXISTS FOR (s:Site) ON (s.site_name)",
+        "CREATE INDEX url_index IF NOT EXISTS FOR (p:Page) ON (p.url)",
+        "CREATE INDEX title_index IF NOT EXISTS FOR (p:Page) ON (p.title)",
+        "CREATE INDEX summary_index IF NOT EXISTS FOR (p:Page) ON (p.summary)",
+        "CREATE INDEX author_index IF NOT EXISTS FOR (p:Page) ON (p.author)",
+        "CREATE INDEX publication_date_index IF NOT EXISTS FOR (p:Page) ON (p.publication_date)",
+        "CREATE INDEX date_created_index IF NOT EXISTS FOR (p:Page) ON (p.date_created)",
+        "CREATE INDEX keyword_index IF NOT EXISTS FOR (k:Keyword) ON (k.name)",
+        "CREATE INDEX category_index IF NOT EXISTS FOR (c:Category) ON (c.name)",
+    ]
+    for query in indexes_query:
+        Neo4jConnection.execute_query(query)
+    logger.info("Database indexes successfully set up.")
+
+
+# def check_user_database_exists(user_id):
+#     """
+#     Checks if a Neo4j database exists for the given user_id.
+#     """
+#     try:
+#         query = "SHOW DATABASES"
+#         result = Neo4jConnection.execute_query(query)
+#         existing_databases = [row["name"] for row in result]
+#         return user_id in existing_databases
+#     except Exception as e:
+#         logger.error(f"Failed to check if user database exists: {e}")
+#         raise
+
+
+
+def initialize_graph_database():
+    """
+    Initializes the Neo4j database.
+    """
+    try:
+        uri = config["neo4j_uri"]
+        username = config["neo4j_username"]
+        password = config["neo4j_password"]
+
+        # Set up database constraints and indexes
+        setup_database_constraints()
+        setup_database_indexes()
+
+        # Get the Neo4j connection details
+        url = uri
+        username = username
+        password = password
+
+        # Initialize a vector store
+        vector_store = Neo4jVector(
+            embedding=OpenAIEmbeddings(),
+            url=url,
+            username=username,
+            password=password,
+            index_name="page_index",
+            node_label="Page",
+            text_node_property = "title",
+            embedding_node_property="embedding",
+        )
+
+        logger.info(f"Database and vector store initialized")
+        return vector_store
+
+    except Exception as e:
+        logger.error(f"Failed to initialize database and vector store: {e}")
+        raise
+
+
+# def initialize_new_user_database(user_id):
+#     """
+#     Initializes a new Neo4j database for the given user_id if it doesn't exist.
+#     """
+#     try:
+#         if not check_user_database_exists(user_id):
+#             query = f"CREATE DATABASE `{user_id}`"
+#             Neo4jConnection.execute_query(query)
+#             logger.info(f"Created new Neo4j database for user {user_id}")
+
+#             # Set the current database to the user's database
+#             query = f"USE `{user_id}`"
+#             Neo4jConnection.execute_query(query)
+
+#             # Set up database constraints and indexes
+#             setup_database_constraints()
+#             setup_database_indexes()
+
+#             logger.info(f"New user database initialized for {user_id}")
+
+#         return Neo4jConnection.get_graph()
+
+#     except Exception as e:
+#         logger.error(f"Failed to initialize new user database: {e}")
+#         raise
+
+# def initialize_new_user_database(user_id):
+#     try:
+#         # Check if the database already exists for the user
+#         query = "CALL db.stats() YIELD databases"
+#         result = Neo4jConnection.execute_query(query)
+#         existing_databases = [db["databases"] for db in result]
+
+#         # If the database doesn't exist, create a new one
+#         if user_id not in existing_databases:
+#             query = f"CREATE DATABASE `{user_id}`"
+#             Neo4jConnection.execute_query(query)
+#             logger.info(f"Created new Neo4j database for user {user_id}")
+#         else:
+#             logger.info(f"Neo4j database for user {user_id} already exists")
+
+#         # Set the current database to the user's database
+#         query = f"USE `{user_id}`"
+#         Neo4jConnection.execute_query(query)
+
+#         # Set up database constraints and indexes
+#         setup_database_constraints()
+#         setup_database_indexes()
+
+#         # Initialize an empty vector store
+#         vector_store = Neo4jVector(
+#             embedding=OpenAIEmbeddings(),
+#             url=Neo4jConnection.get_graph().url,
+#             username=Neo4jConnection.get_graph().username,
+#             password=Neo4jConnection.get_graph().password,
+#             index_name="page_index",
+#             node_label="Page",
+#             text_node_properties=["title", "summary"],
+#             embedding_node_property="embedding",
+#         )
+
+#         logger.info(f"New user database and vector store initialized for {user_id}")
+#         return vector_store
+
+#     except Exception as e:
+#         logger.error(f"Failed to initialize new user database and vector store: {e}")
+
 
 
 def url_exists_in_graph(url):
@@ -54,9 +198,6 @@ def get_existing_metadata(url):
     return dict(result[0]) if result else {}
 
 
-def compare_metadata(new_metadata, existing_metadata):
-    return new_metadata != existing_metadata
-
 def process_url_submission(url):
     """
     Processes a given URL submission by checking its existence in the graph,
@@ -67,14 +208,21 @@ def process_url_submission(url):
         if config["enable_metadata_comparison"]:
             existing_metadata = get_existing_metadata(url)
             new_metadata = create_url_metadata_json(url)
-            # Further logic for comparison and potential update
-            logger.info("Metadata comparison is enabled.")
+
+            if existing_metadata != new_metadata:
+                logger.info("Metadata has changed. Updating the graph...")
+                add_page_to_graph(url, new_metadata)
+                logger.info("Graph has been updated with new metadata.")
+            else:
+                logger.info("No changes in metadata. No update required.")
         else:
             logger.info("Metadata comparison is disabled. Skipping comparison.")
     else:
-        logger.info(f"URL does not exist in the graph. Processing: {url}")
+        logger.info(f"URL does not exist in the graph. Adding to graph: {url}")
         new_metadata = create_url_metadata_json(url)
-        add_page_metadata_to_graph(new_metadata)
+        add_page_to_graph(url, new_metadata)
+        logger.info("New URL and metadata added to the graph.")
+
 
 
 
@@ -82,7 +230,7 @@ def process_and_add_url_to_graph(url):
     try:
         page_metadata = create_url_metadata_json(url)
         if page_metadata:  # Ensure page_metadata is not empty or null
-            add_page_metadata_to_graph(page_metadata)
+            add_page_to_graph(page_metadata)
             logger.info(f"Page metadata for {url} added to graph.")
             st.sidebar.success("Page processed and added to graph.")
             return True, page_metadata.get("summary", "")  # Return success flag and summary
@@ -96,40 +244,15 @@ def process_and_add_url_to_graph(url):
         return False, ""  # Indicates failure due to an exception, no summary
 
 
-def setup_existing_graph_vector_store():
-    try:        
-        # Load environment variables
-        uri = config["neo4j_uri"]
-        username = config["neo4j_username"]
-        password = config["neo4j_password"]
-        
-        logger.info("Setting up existing graph vector store with Neo4j database.")
-        
-        vector_index = Neo4jVector.from_existing_graph(
-            embedding=OpenAIEmbeddings(),
-            url=uri,
-            username=username,
-            password=password,
-            index_name="page_index",
-            node_label="Page",
-            text_node_properties=["title", "summary"],
-            embedding_node_property="embedding",
-        )
-        logger.info("Existing graph vector store setup complete.")
-        return vector_index
-    except Exception as e:
-        logger.error(f"Failed to setup existing graph vector store: {e}")
 
 
-def add_page_metadata_to_graph(page_metadata):
+
+def add_page_to_graph(page_metadata):
     """
     Adds a node to the Neo4j graph with properties derived from page metadata,
     and links it to a Site node representing its source website.
     """
     try:
-        # Initialize the embeddings model
-        embeddings_model = OpenAIEmbeddings()
-        
         # Extract metadata
         url = page_metadata["url"]
         title = page_metadata.get("title", "Unknown Title")
@@ -138,22 +261,6 @@ def add_page_metadata_to_graph(page_metadata):
         publication_date = page_metadata.get("publication_date", "Unknown Date")
         date_created = page_metadata.get("date_created", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         site_name = extract_site_name(url)
-        
-        # Generate embeddings
-        # title_embedding = generate_embeddings(embeddings_model, title)
-        # summary_embedding = generate_embeddings(embeddings_model, summary)
-        # query = """
-        #     MERGE (s:Site {name: $site_name})
-        #     MERGE (p:Page {url: $url})
-        #     ON CREATE SET p.title = $title, p.summary = $summary, p.author = $author,
-        #                     p.publication_date = $publication_date, p.dateCreated = $date_created,
-        #                     p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
-        #     ON MATCH SET p.title = $title, p.summary = $summary, p.author = $author,
-        #                     p.publication_date = $publication_date, p.dateCreated = $date_created,
-        #                     p.title_embedding = $title_embedding, p.summary_embedding = $summary_embedding
-        #     MERGE (p)-[:FROM]->(s)
-        #     RETURN id(p) AS node_id
-        #     """
         
         # Query to create the node with new fields and link it to a Site node
         query = """
@@ -174,8 +281,6 @@ def add_page_metadata_to_graph(page_metadata):
             "author": author,
             "publication_date": publication_date,
             "date_created": date_created,
-            # "title_embedding": title_embedding,
-            # "summary_embedding": summary_embedding
         }
 
         node_id = Neo4jConnection.execute_query(query, parameters)
@@ -186,31 +291,6 @@ def add_page_metadata_to_graph(page_metadata):
         logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
         return {'error': str(e)}
 
-
-
-def consume_bookmarks(uploaded_file):
-    """
-    Processes bookmarks from an uploaded HTML file, extracting URLs and their titles,
-    and then processing each URL using the process_url_submission function to either
-    add or update its metadata in the Neo4j database.
-    """
-    # Read content from the uploaded file
-    bookmarks_html = uploaded_file.getvalue().decode("utf-8")
-    soup = BeautifulSoup(bookmarks_html, 'html.parser')
-    bookmarks = soup.find_all('a')
-    
-    for bookmark in bookmarks:
-        url = bookmark.get('href')
-        if not url:
-            logger.error("Bookmark without URL found.")
-            continue
-        title = bookmark.get_text()
-        logger.info(f"Processing bookmark '{title}': {url}")
-
-        # Use process_url_submission to handle each URL
-        process_url_submission(url)
-
-    logger.info("Finished processing all bookmarks.")
 
 
 def add_page_to_category(page_url, category_name):
@@ -232,19 +312,77 @@ def add_page_to_category(page_url, category_name):
 
 
 
-def query_graph(user_input, model_name):
-    logger.info(f"Fetching language model for: {model_name}...")
-    llm = Neo4jConnection.get_llm(model_name=model_name)
 
-    logger.info("Fetching GraphCypherQAChain with language model and graph...")
-    cypher_chain = Neo4jConnection.get_cypher_chain(llm)
 
-    logger.info("Executing graph query...")
-    try:
-        response = cypher_chain.invoke({"query": user_input})
-        logger.info(f"Graph query response: {response}")
-        return response
+# Query expansion/correction
+def cypher_query_corrector(query, **kwargs):
+    expanded_query = f"""
+    CALL {{
+        WITH $query AS original_query
+        UNWIND original_query AS term
+        MATCH (k:Keyword)
+        WHERE k.name =~ term
+        RETURN DISTINCT k.name AS expanded_term
+        UNION
+        MATCH (c:Category)
+        WHERE c.name =~ term
+        RETURN DISTINCT c.name AS expanded_term
+        UNION
+        RETURN term AS expanded_term
+    }}
+    RETURN [x IN COLLECT(expanded_term) | x] AS expanded_queries
+    """
+    return expanded_query
+
+
+def setup_existing_graph_vector_store():
+    try:        
+        # Load environment variables
+        uri = config["neo4j_uri"]
+        username = config["neo4j_username"]
+        password = config["neo4j_password"]
+        
+        logger.info("Setting up existing graph vector store with Neo4j database.")
+
+        # Custom retrieval query for keyword search
+        retrieval_query = """
+        CALL db.index.fulltext.queryNodes('node_index', $query + '~') 
+        YIELD node, score
+        RETURN node.title AS text, node.summary AS summary, score
+        """
+        
+        vector_store = Neo4jVector.from_existing_graph(
+            embedding=OpenAIEmbeddings(),
+            url=uri,
+            username=username,
+            password=password,
+            index_name="page_index",
+            node_label="Page",
+            text_node_propertys="title",
+            embedding_node_property="embedding",
+            retrieval_query=retrieval_query,
+            cypher_query_corrector=cypher_query_corrector
+        )
+        logger.info("Existing graph vector store setup complete.")
+        return vector_store
     except Exception as e:
-        logger.error(f"Error during graph query execution: {e}")
-        return {"error": str(e)}
+        logger.error(f"Failed to setup existing graph vector store: {e}")
 
+
+# deprecated
+
+# def query_graph(user_input, model_name):
+#     logger.info(f"Fetching language model for: {model_name}...")
+#     llm = Neo4jConnection.get_llm(model_name=model_name)
+
+#     logger.info("Fetching GraphCypherQAChain with language model and graph...")
+#     cypher_chain = Neo4jConnection.get_cypher_chain(llm)
+
+#     logger.info("Executing graph query...")
+#     try:
+#         response = cypher_chain.invoke({"query": user_input})
+#         logger.info(f"Graph query response: {response}")
+#         return response
+#     except Exception as e:
+#         logger.error(f"Error during graph query execution: {e}")
+#         return {"error": str(e)}

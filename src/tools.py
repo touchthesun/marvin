@@ -1,16 +1,12 @@
 import streamlit as st
 import regex as re
 from typing import Dict, List, Any
-from pydantic import Field, BaseModel, validator
+from pydantic import Field, BaseModel
 from langchain.tools import BaseTool
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain_experimental.utilities import PythonREPL
 
-from services.neo4j_services import query_graph, add_page_metadata_to_graph
-# from services.metadata import create_url_metadata_json
-# from services.openai_services import chat_completion
 from utils.logger import get_logger
-from db import Neo4jConnection
 from config import load_config
 
 # Initialize logging and load config
@@ -51,31 +47,31 @@ class CustomBaseTool(BaseTool):
 
 
 # Custom Tools
-class QueryGraphTool(CustomBaseTool):
-    name: str = "QueryGraphTool"
-    details: ToolDetails = ToolDetails(
-        purpose="interpret and process natural language queries against graph databases",
-        context="extracting specific data points or relationships without direct database querying knowledge",
-        method="a natural language processing interface",
-        action_desc="translates user queries into database commands",
-        output="structured data",
-        interaction_type="synchronous"
-    )
+# class QueryGraphTool(CustomBaseTool):
+#     name: str = "QueryGraphTool"
+#     details: ToolDetails = ToolDetails(
+#         purpose="interpret and process natural language queries against graph databases",
+#         context="extracting specific data points or relationships without direct database querying knowledge",
+#         method="a natural language processing interface",
+#         action_desc="translates user queries into database commands",
+#         output="structured data",
+#         interaction_type="synchronous"
+#     )
 
-    def _run(self, query: str):
-        logger.info("Initiating query_graph_workflow.")
-        try:
-            neo4j_graph = Neo4jConnection.get_graph()
-            model_name = config["model_name"]
-            response = query_graph(query, model_name, neo4j_graph)
-            logger.info("Graph query completed successfully.")
-            return response
-        except Exception as e:
-            logger.error("Failed to complete graph query.", exc_info=True)
-            return {"error": str(e)}
+#     def _run(self, query: str):
+#         logger.info("Initiating query_graph_workflow.")
+#         try:
+#             neo4j_graph = Neo4jConnection.get_graph()
+#             model_name = config["model_name"]
+#             response = query_graph(query, model_name, neo4j_graph)
+#             logger.info("Graph query completed successfully.")
+#             return response
+#         except Exception as e:
+#             logger.error("Failed to complete graph query.", exc_info=True)
+#             return {"error": str(e)}
 
-    def call(self, query: str):
-        return self._run(query)
+#     def call(self, query: str):
+#         return self._run(query)
 
 class PythonREPLTool(CustomBaseTool):
     name: str = "PythonREPL"
@@ -100,11 +96,42 @@ class PythonREPLTool(CustomBaseTool):
     def call(self, code: str):
         return self._run(code)
 
+
+class HybridRetrieverTool(CustomBaseTool):
+    name: str = "hybrid_retriever"
+    vector_store: Any = Field(default=None, description="Stores the vector data for document retrieval")
+    details: ToolDetails = ToolDetails(
+        purpose="retrieve relevant documents from the knowledge graph",
+        context="when you need to find information related to a specific query",
+        method="a combination of vector similarity search and keyword search",
+        action_desc="retrieves relevant documents based on the input query",
+        output="a list of relevant documents",
+        interaction_type="query-based"
+    )
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def __init__(self, vector_store, **kwargs):
+        super().__init__(**kwargs)
+        self.vector_store = vector_store
+    
+    def _run(self, query: str) -> list:
+        vector_results = self.vector_store.similarity_search(query, k=3)
+        keyword_results = self.vector_store.as_retriever(search_type="keyword").get_relevant_documents(query)
+        return vector_results + keyword_results
+
+    def call(self, query: str) -> list:
+        return self._run(query)
+
+def create_hybrid_retriever_tool(vector_store) -> HybridRetrieverTool:
+    return HybridRetrieverTool(vector_store)
+
 # Pretty much what it says on the tin
 
 TOOL_REGISTRY = {
-    "query_graph": QueryGraphTool,
-    "python_repl": PythonREPLTool,
+    "python_repl": lambda: PythonREPLTool(),
+    "hybrid_retriever": lambda vector_store=None: HybridRetrieverTool(vector_store=vector_store),
 }
 
 
@@ -124,9 +151,9 @@ TOOL_REGISTRY = {
 #         logger.error(f"Metadata extraction failed: {metadata['error']}")
 #         return metadata["error"]
 
-#     response = add_page_metadata_to_graph(metadata)
+#     response = add_page_to_graph(metadata)
 #     if response is None:
-#         logger.error("Received no response from add_page_metadata_to_graph.")
+#         logger.error("Received no response from add_page_to_graph.")
 #         return "Failed to add page metadata to graph due to an unknown error."
 #     if "error" in response:
 #         logger.error(f"Failed to add page metadata to graph: {response['error']}")
@@ -230,7 +257,7 @@ def extract_urls_from_prompt(prompt):
 
 # Utility Functions
 
-def load_tools(tool_names: List[str]) -> List[BaseTool]:
+def load_tools(tool_names: List[str], vector_store) -> List[BaseTool]:
     tools = []
     for tool_name in tool_names:
         if tool_name not in TOOL_REGISTRY:
@@ -238,7 +265,10 @@ def load_tools(tool_names: List[str]) -> List[BaseTool]:
 
         tool_init_fn = TOOL_REGISTRY[tool_name]
         if callable(tool_init_fn):
-            tool = tool_init_fn()
+            if tool_name == "hybrid_retriever":
+                tool = tool_init_fn(vector_store)
+            else:
+                tool = tool_init_fn()
         else:
             tool = tool_init_fn
         tools.append(tool)
@@ -246,15 +276,15 @@ def load_tools(tool_names: List[str]) -> List[BaseTool]:
 
 
 # Helper function to create a dictionary of tool descriptions
-def get_tool_descriptions(tool_names: List[str]) -> Dict[str, str]:
+def get_tool_descriptions(tool_names: List[str], vector_store=None) -> Dict[str, str]:
     descriptions = {}
     for name in tool_names:
-        tool_class = TOOL_REGISTRY.get(name)
-        if tool_class:
+        tool_factory = TOOL_REGISTRY.get(name)
+        if tool_factory:
             try:
-                # Instantiate the tool class, which should have sensible defaults or be handled to allow no-arg instantiation
-                tool_instance = tool_class()
-                descriptions[name] = tool_instance.description  # Directly use the dynamic description property
+                # Check if the tool requires specific parameters and handle accordingly
+                tool_instance = tool_factory(vector_store) if name == "hybrid_retriever" else tool_factory()
+                descriptions[name] = tool_instance.description
                 logger.info(f"Successfully retrieved description for tool: {name}")
             except Exception as e:
                 logger.error(f"Error instantiating tool {name}: {str(e)}", exc_info=True)
@@ -264,6 +294,8 @@ def get_tool_descriptions(tool_names: List[str]) -> Dict[str, str]:
             logger.error(error_message)
             descriptions[name] = "Tool not found in registry."
     return descriptions
+
+
 
 
 

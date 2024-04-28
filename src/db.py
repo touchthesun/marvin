@@ -100,6 +100,29 @@ class Neo4jConnection:
         return cls._cypher_chain
 
 
+    # @classmethod
+    # def expand_and_correct_query(cls, original_query):
+    #     # This uses an advanced Cypher query to find synonyms and expand the query
+    #     query = """
+    #     CALL {{
+    #         WITH $original_query AS original_query
+    #         MATCH (n:Synonym)-[:SYNONYM_OF]->(m:Term)
+    #         WHERE n.term =~ ('.*' + original_query + '.*')
+    #         RETURN DISTINCT m.term AS expanded_term
+    #         UNION
+    #         RETURN original_query AS expanded_term
+    #     }}
+    #     RETURN [x IN COLLECT(expanded_term) | x] AS expanded_queries
+    #     """
+    #     try:
+    #         result = cls.execute_query(query, parameters={"original_query": original_query})
+    #         expanded_queries = [record["expanded_queries"] for record in result]
+    #         return expanded_queries
+    #     except Exception as e:
+    #         logger.error(f"Failed to expand and correct query: {e}")
+    #         raise
+
+
     @classmethod
     def close_services(cls):
         if cls._graph:

@@ -16,3 +16,6 @@ newspaper3k
 fastapi
 uvicorn
 lxml_html_clean
+rake_nltk
+nltk
+mimetype

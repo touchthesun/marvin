@@ -6,8 +6,8 @@ from utils.logger import get_logger
 from utils.signal_handler import setup_signal_handling
 from config import load_config
 from services.document_processing import summarize_content
-from services.openai_services import get_context_retriever_chain, get_conversational_rag_chain
-from services.neo4j_services import process_and_add_url_to_graph, consume_bookmarks, setup_database_constraints, add_page_to_category
+from services.neo4j_services import process_and_add_url_to_graph, add_page_to_category, initialize_graph_database
+from services.bookmarks import consume_bookmarks
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
 from agent import initialize_agent
 
@@ -20,27 +20,7 @@ model_name = config["model_name"]
 logger = get_logger(__name__)
 
 
-def get_response(user_input):
-    logger.info("Retrieving response for user input.")
-    if "vector_store" not in st.session_state or st.session_state.vector_store is None:
-        logger.error("Vector store is not initialized.")
-        return "Error: Vector store is not initialized."
 
-    retriever_chain = get_context_retriever_chain(st.session_state.vector_store)
-    conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
-
-    logger.debug(f"Invoking conversation RAG chain with input: {user_input}")
-    response = conversation_rag_chain.invoke({
-        "chat_history": st.session_state.chat_history,
-        "input": user_input
-    })
-
-    if response is None or 'error' in response:
-        logger.error(f"Failed to get a response: {response}")
-        return "Error: Failed to process your query."
-
-    logger.info(f"Response successfully retrieved: {response}")
-    return response
 
 def format_search_results(search_results):
     if not search_results:
@@ -158,17 +138,9 @@ def display_chat():
 
 
 
-
-if 'setup_done' not in st.session_state:
-    setup_database_constraints()
-    st.session_state['setup_done'] = True
-
-
-
 def main():
     logger.info("App main flow starting")
     setup_signal_handling()  # Set up signal handling for graceful shutdown
-
     url, process_button, uploaded_file = setup_sidebar()
     initialize_session_state()
     if process_button and url:
@@ -180,3 +152,29 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# Deprecated
+
+# def get_response(user_input):
+#     logger.info("Retrieving response for user input.")
+#     if "vector_store" not in st.session_state or st.session_state.vector_store is None:
+#         logger.error("Vector store is not initialized.")
+#         return "Error: Vector store is not initialized."
+
+#     retriever_chain = get_context_retriever_chain(st.session_state.vector_store)
+#     conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
+
+#     logger.debug(f"Invoking conversation RAG chain with input: {user_input}")
+#     response = conversation_rag_chain.invoke({
+#         "chat_history": st.session_state.chat_history,
+#         "input": user_input
+#     })
+
+#     if response is None or 'error' in response:
+#         logger.error(f"Failed to get a response: {response}")
+#         return "Error: Failed to process your query."
+
+#     logger.info(f"Response successfully retrieved: {response}")
+#     return response

@@ -3,8 +3,8 @@ from typing import Optional
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-
-from tools import get_tool_descriptions, TOOL_REGISTRY
+from services.neo4j_services import initialize_graph_database
+from tools import get_tool_descriptions, create_hybrid_retriever_tool, PythonREPLTool, TOOL_REGISTRY
 from utils.logger import get_logger
 from config import load_config
 
@@ -14,21 +14,22 @@ config = load_config()
 
 
 # Function to create and initialize the agent
-def initialize_agent(model_name: str, prompt: Optional[ChatPromptTemplate] = None) -> Optional[AgentExecutor]:
+def initialize_agent(model_name: str, prompt: Optional[ChatPromptTemplate] = None):
     try:
         logger.info("Initializing the ChatOpenAI language model.")
         llm = ChatOpenAI(model_name=model_name, temperature=0)
-        
-        # Dynamically instantiate tools from TOOL_REGISTRY
-        tools = [tool() for tool in TOOL_REGISTRY.values() if callable(tool)]
 
-        if not tools:
-            logger.error("No tools available in the registry.")
-            return None
+        # Initialize graph database and vector store
+        vector_store = initialize_graph_database()
+
+        # Create tools directly
+        hybrid_retriever_tool = create_hybrid_retriever_tool(vector_store)
+        other_tools = [PythonREPLTool()]
+        tools = [hybrid_retriever_tool] + other_tools
 
         if prompt is None:
             logger.warning("No prompt provided. Using the default prompt.")
-            prompt = generate_marvin_init_prompt()
+            prompt = generate_marvin_init_prompt(vector_store=vector_store)
 
         logger.info("Creating the agent.")
         agent = create_tool_calling_agent(llm, tools, prompt=prompt)
@@ -41,12 +42,12 @@ def initialize_agent(model_name: str, prompt: Optional[ChatPromptTemplate] = Non
         return None
 
 
-def generate_marvin_init_prompt():
-    # Retrieve and format tool descriptions
-    tool_descriptions_dict = get_tool_descriptions(list(TOOL_REGISTRY.keys()))
+
+def generate_marvin_init_prompt(vector_store=None):
+    # Assume that vector_store or any other dependencies are passed here if needed
+    tool_descriptions_dict = get_tool_descriptions(list(TOOL_REGISTRY.keys()), vector_store=vector_store)
     formatted_tool_descriptions = "\n".join(f"{name}: {desc}" for name, desc in tool_descriptions_dict.items())
 
-    # Define messages including placeholders for chat history and agent scratchpad
     messages = [
         ("system", "You are a helpful assistant. Here are your tools and capabilities:\n" + formatted_tool_descriptions),
         ("placeholder", "{chat_history}"),
@@ -54,5 +55,5 @@ def generate_marvin_init_prompt():
         ("placeholder", "{agent_scratchpad}")
     ]
 
-    # Generate and return the ChatPromptTemplate using from_messages
     return ChatPromptTemplate.from_messages(messages)
+
