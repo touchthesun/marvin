@@ -19,3 +19,4 @@ lxml_html_clean
 rake_nltk
 nltk
 mimetype
+google-search-results

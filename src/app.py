@@ -1,15 +1,17 @@
 import streamlit as st
 from openai import OpenAI as ai
 from langchain_core.messages import AIMessage
+from langchain.agents.agent import AgentExecutor
 
 from utils.logger import get_logger
 from utils.signal_handler import setup_signal_handling
 from config import load_config
 from services.document_processing import summarize_content
-from services.neo4j_services import process_and_add_url_to_graph, add_page_to_category, initialize_graph_database
+from services.neo4j_services import process_and_add_url_to_graph, add_page_to_category, setup_existing_graph_vector_store
 from services.bookmarks import consume_bookmarks
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
-from agent import initialize_agent
+from agent import AgentInitializer
+from tools import TOOL_REGISTRY, initialize_tools
 
 # system config
 config = load_config()
@@ -52,8 +54,15 @@ def initialize_session_state():
         st.session_state.chat_history = [AIMessage(content="Hello, I am Marvin, your personal librarian. How can I assist you today?")]
     if 'agent_executor' not in st.session_state:
         # Initialize agent if not already done
-        st.session_state.agent_executor = initialize_agent(model_name=config["model_name"])
-
+        agent = AgentInitializer(
+            neo4j_uri=config["neo4j_uri"],
+            neo4j_username=config["neo4j_username"],
+            neo4j_password=config["neo4j_password"],
+        ).initialize_agent()
+        tool_names = list(TOOL_REGISTRY.keys())
+        vector_store = setup_existing_graph_vector_store()
+        tools = initialize_tools(tool_names, vector_store)
+        st.session_state.agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
 def process_uploaded_bookmarks(uploaded_file):
     if uploaded_file is not None:
@@ -111,7 +120,7 @@ def display_chat():
 
         # Use the agent to generate a response
         try:
-            response = st.session_state.agent_executor({"input": user_query})
+            response = st.session_state.agent_executor.invoke({"input": user_query})
             st.session_state.chat_history.append({"role": "assistant", "content": response})
             logger.info(f"Agent response: {response}")
         except Exception as e:

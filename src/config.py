@@ -19,5 +19,6 @@ def load_config():
         "neo4j_username": os.getenv('NEO4J_USERNAME_LOCAL') if os.getenv('DB_MODE') == 'LOCAL' else os.getenv('NEO4J_USERNAME_REMOTE'),
         "neo4j_password": os.getenv('NEO4J_PASSWORD_LOCAL') if os.getenv('DB_MODE') == 'LOCAL' else os.getenv('NEO4J_PASSWORD_REMOTE'),
         "model_name": os.getenv('MODEL_NAME'),
+        "serpapi_api_key": os.getenv('SERP_API_KEY'),
     }
     return config

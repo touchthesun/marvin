@@ -86,6 +86,12 @@ def initialize_graph_database():
         username = username
         password = password
 
+        retrieval_query = """
+        CALL db.index.fulltext.queryNodes('node_index', $query + '~') 
+        YIELD node, score
+        RETURN node.title AS text, node.summary AS summary, score
+        """
+
         # Initialize a vector store
         vector_store = Neo4jVector(
             embedding=OpenAIEmbeddings(),
@@ -94,7 +100,7 @@ def initialize_graph_database():
             password=password,
             index_name="page_index",
             node_label="Page",
-            text_node_property = "title",
+            text_node_properties = ["title"],
             embedding_node_property="embedding",
         )
 
@@ -105,74 +111,33 @@ def initialize_graph_database():
         logger.error(f"Failed to initialize database and vector store: {e}")
         raise
 
+def setup_existing_graph_vector_store():
+    try:        
+        # Load environment variables
+        uri = config["neo4j_uri"]
+        username = config["neo4j_username"]
+        password = config["neo4j_password"]
+        
+        logger.info("Setting up existing graph vector store with Neo4j database.")
 
-# def initialize_new_user_database(user_id):
-#     """
-#     Initializes a new Neo4j database for the given user_id if it doesn't exist.
-#     """
-#     try:
-#         if not check_user_database_exists(user_id):
-#             query = f"CREATE DATABASE `{user_id}`"
-#             Neo4jConnection.execute_query(query)
-#             logger.info(f"Created new Neo4j database for user {user_id}")
+        vector_store = Neo4jVector.from_existing_graph(
+            embedding=OpenAIEmbeddings(),
+            url=uri,
+            username=username,
+            password=password,
+            index_name="page_index",
+            node_label="Page",
+            text_node_properties = ["title"],
+            embedding_node_property="embedding",
+        )
+        if vector_store is None:
+            logger.error("Failed to create vector_store instance.")
+            return None
 
-#             # Set the current database to the user's database
-#             query = f"USE `{user_id}`"
-#             Neo4jConnection.execute_query(query)
-
-#             # Set up database constraints and indexes
-#             setup_database_constraints()
-#             setup_database_indexes()
-
-#             logger.info(f"New user database initialized for {user_id}")
-
-#         return Neo4jConnection.get_graph()
-
-#     except Exception as e:
-#         logger.error(f"Failed to initialize new user database: {e}")
-#         raise
-
-# def initialize_new_user_database(user_id):
-#     try:
-#         # Check if the database already exists for the user
-#         query = "CALL db.stats() YIELD databases"
-#         result = Neo4jConnection.execute_query(query)
-#         existing_databases = [db["databases"] for db in result]
-
-#         # If the database doesn't exist, create a new one
-#         if user_id not in existing_databases:
-#             query = f"CREATE DATABASE `{user_id}`"
-#             Neo4jConnection.execute_query(query)
-#             logger.info(f"Created new Neo4j database for user {user_id}")
-#         else:
-#             logger.info(f"Neo4j database for user {user_id} already exists")
-
-#         # Set the current database to the user's database
-#         query = f"USE `{user_id}`"
-#         Neo4jConnection.execute_query(query)
-
-#         # Set up database constraints and indexes
-#         setup_database_constraints()
-#         setup_database_indexes()
-
-#         # Initialize an empty vector store
-#         vector_store = Neo4jVector(
-#             embedding=OpenAIEmbeddings(),
-#             url=Neo4jConnection.get_graph().url,
-#             username=Neo4jConnection.get_graph().username,
-#             password=Neo4jConnection.get_graph().password,
-#             index_name="page_index",
-#             node_label="Page",
-#             text_node_properties=["title", "summary"],
-#             embedding_node_property="embedding",
-#         )
-
-#         logger.info(f"New user database and vector store initialized for {user_id}")
-#         return vector_store
-
-#     except Exception as e:
-#         logger.error(f"Failed to initialize new user database and vector store: {e}")
-
+        logger.info(f"Existing graph vector store setup complete. Index name: {vector_store.index_name}, Node label: {vector_store.node_label}")
+        return vector_store
+    except Exception as e:
+        logger.error(f"Failed to setup existing graph vector store: {e}")
 
 
 def url_exists_in_graph(url):
@@ -314,59 +279,27 @@ def add_page_to_category(page_url, category_name):
 
 
 
-# Query expansion/correction
-def cypher_query_corrector(query, **kwargs):
-    expanded_query = f"""
-    CALL {{
-        WITH $query AS original_query
-        UNWIND original_query AS term
-        MATCH (k:Keyword)
-        WHERE k.name =~ term
-        RETURN DISTINCT k.name AS expanded_term
-        UNION
-        MATCH (c:Category)
-        WHERE c.name =~ term
-        RETURN DISTINCT c.name AS expanded_term
-        UNION
-        RETURN term AS expanded_term
-    }}
-    RETURN [x IN COLLECT(expanded_term) | x] AS expanded_queries
-    """
-    return expanded_query
+# Query expansion/correction for GraphCypherQAChain
+# Not currently being used
+# def cypher_query_corrector(query, **kwargs):
+#     expanded_query = f"""
+#     CALL {{
+#         WITH $query AS original_query
+#         UNWIND original_query AS term
+#         MATCH (k:Keyword)
+#         WHERE k.name =~ term
+#         RETURN DISTINCT k.name AS expanded_term
+#         UNION
+#         MATCH (c:Category)
+#         WHERE c.name =~ term
+#         RETURN DISTINCT c.name AS expanded_term
+#         UNION
+#         RETURN term AS expanded_term
+#     }}
+#     RETURN [x IN COLLECT(expanded_term) | x] AS expanded_queries
+#     """
+#     return expanded_query
 
-
-def setup_existing_graph_vector_store():
-    try:        
-        # Load environment variables
-        uri = config["neo4j_uri"]
-        username = config["neo4j_username"]
-        password = config["neo4j_password"]
-        
-        logger.info("Setting up existing graph vector store with Neo4j database.")
-
-        # Custom retrieval query for keyword search
-        retrieval_query = """
-        CALL db.index.fulltext.queryNodes('node_index', $query + '~') 
-        YIELD node, score
-        RETURN node.title AS text, node.summary AS summary, score
-        """
-        
-        vector_store = Neo4jVector.from_existing_graph(
-            embedding=OpenAIEmbeddings(),
-            url=uri,
-            username=username,
-            password=password,
-            index_name="page_index",
-            node_label="Page",
-            text_node_propertys="title",
-            embedding_node_property="embedding",
-            retrieval_query=retrieval_query,
-            cypher_query_corrector=cypher_query_corrector
-        )
-        logger.info("Existing graph vector store setup complete.")
-        return vector_store
-    except Exception as e:
-        logger.error(f"Failed to setup existing graph vector store: {e}")
 
 
 # deprecated
