@@ -1,9 +1,10 @@
 import logging
 from config import load_config
 from langchain.chains import GraphCypherQAChain
-from langchain_openai import OpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.memory import ConversationKGMemory, CombinedMemory, ConversationBufferWindowMemory
 from langchain_community.graphs.neo4j_graph import Neo4jGraph
+from langchain_community.vectorstores import Neo4jVector
 
 
 # Config
@@ -33,14 +34,15 @@ class Neo4jConnection:
                 cls._graph = Neo4jGraph(
                     url=NEO4J_URI,
                     username=NEO4J_USERNAME,
-                    password=NEO4J_PASSWORD
+                    password=NEO4J_PASSWORD,
                 )
-                cls.check_connectivity()  # Perform the connectivity check
+                cls.check_connectivity()
                 logger.info('Successfully connected to Neo4j.')
             except Exception as e:
                 logger.error('Failed to connect to Neo4j: %s', e)
                 raise
         return cls._graph
+
 
     @classmethod
     def check_connectivity(cls):
@@ -79,25 +81,40 @@ class Neo4jConnection:
     def get_llm(cls, model_name="gpt-4"):
         if cls._llm is None:
             logger.info(f"Initializing language model: {model_name}...")
-            cls._llm = OpenAI(api_key=config["openai_api_key"])
+            cls._llm = ChatOpenAI(model_name=model_name, api_key=config["openai_api_key"])
         return cls._llm
 
+
     @classmethod
-    def get_cypher_chain(cls, llm):
-        if cls._cypher_chain is None:
-            graph = cls.get_graph()  # Ensure the driver is initialized
-            cls._kg_memory = ConversationKGMemory(llm=llm)
-            cls._buffer_memory = ConversationBufferWindowMemory(k=5)  # Keep the last 5 interactions
-            combined_memory = CombinedMemory(memories=[cls._kg_memory, cls._buffer_memory])
-            cls._cypher_chain = GraphCypherQAChain.from_llm(
-                cypher_llm=llm,
-                qa_llm=llm,
-                graph=graph,
-                verbose=True,
-                memory=combined_memory
-            )
-            logger.info('GraphCypherQAChain initialized with graph, language model, and memory.')
-        return cls._cypher_chain
+    def close_services(cls):
+        if cls._graph:
+            logger.info("Closing Neo4j graph...")
+            cls._graph.close()
+            cls._graph = None
+        if cls._llm:
+            logger.info("Resetting language model...")
+            cls._llm = None
+        if cls._cypher_chain:
+            logger.info("Resetting GraphCypherQAChain...")
+            cls._cypher_chain = None
+
+
+    # @classmethod
+    # def get_cypher_chain(cls, llm):
+    #     if cls._cypher_chain is None:
+    #         graph = cls.get_graph()  # Ensure the driver is initialized
+    #         cls._kg_memory = ConversationKGMemory(llm=llm)
+    #         cls._buffer_memory = ConversationBufferWindowMemory(k=5)  # Keep the last 5 interactions
+    #         combined_memory = CombinedMemory(memories=[cls._kg_memory, cls._buffer_memory])
+    #         cls._cypher_chain = GraphCypherQAChain.from_llm(
+    #             cypher_llm=llm,
+    #             qa_llm=llm,
+    #             graph=graph,
+    #             verbose=True,
+    #             memory=combined_memory
+    #         )
+    #         logger.info('GraphCypherQAChain initialized with graph, language model, and memory.')
+    #     return cls._cypher_chain
 
 
     # @classmethod
@@ -121,17 +138,3 @@ class Neo4jConnection:
     #     except Exception as e:
     #         logger.error(f"Failed to expand and correct query: {e}")
     #         raise
-
-
-    @classmethod
-    def close_services(cls):
-        if cls._graph:
-            logger.info("Closing Neo4j graph...")
-            cls._graph.close()
-            cls._graph = None
-        if cls._llm:
-            logger.info("Resetting language model...")
-            cls._llm = None
-        if cls._cypher_chain:
-            logger.info("Resetting GraphCypherQAChain...")
-            cls._cypher_chain = None

@@ -1,7 +1,7 @@
 import streamlit as st
-from openai import OpenAI as ai
 from langchain_core.messages import AIMessage
 from langchain.agents.agent import AgentExecutor
+from langchain_community.embeddings import OpenAIEmbeddings
 
 from utils.logger import get_logger
 from utils.signal_handler import setup_signal_handling
@@ -11,17 +11,15 @@ from services.neo4j_services import process_and_add_url_to_graph, add_page_to_ca
 from services.bookmarks import consume_bookmarks
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
 from agent import AgentInitializer
-from tools import TOOL_REGISTRY, initialize_tools
+from tools import KnowledgeGraphSearchTool
+from db import Neo4jConnection
 
 # system config
 config = load_config()
-client = ai(api_key=config["openai_api_key"])
 model_name = config["model_name"]
 
 # Instantiate logging
 logger = get_logger(__name__)
-
-
 
 
 def format_search_results(search_results):
@@ -52,16 +50,21 @@ def initialize_session_state():
     if "chat_history" not in st.session_state:
         logger.debug("Initializing chat history in session state")
         st.session_state.chat_history = [AIMessage(content="Hello, I am Marvin, your personal librarian. How can I assist you today?")]
-    if 'agent_executor' not in st.session_state:
-        # Initialize agent if not already done
-        agent = AgentInitializer(
-            neo4j_uri=config["neo4j_uri"],
-            neo4j_username=config["neo4j_username"],
-            neo4j_password=config["neo4j_password"],
-        ).initialize_agent()
-        tool_names = list(TOOL_REGISTRY.keys())
-        vector_store = setup_existing_graph_vector_store()
-        tools = initialize_tools(tool_names, vector_store)
+    if 'agent' not in st.session_state:
+        # Load the configuration
+        config = load_config()
+
+        # Initialize the agent
+        agent_initializer = AgentInitializer(config=config)
+        agent = agent_initializer.initialize_agent()
+
+        neo4j_vector = setup_existing_graph_vector_store()
+        neo4j_graph = Neo4jConnection.get_graph
+
+        knowledge_graph_tool = KnowledgeGraphSearchTool()
+        tools = [knowledge_graph_tool]
+
+        # Create the agent executor
         st.session_state.agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
 def process_uploaded_bookmarks(uploaded_file):
