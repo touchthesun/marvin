@@ -93,51 +93,13 @@ def initialize_graph_database():
         """
 
         # Initialize a vector store
-        vector_store = Neo4jVector(
-            embedding=OpenAIEmbeddings(),
-            url=url,
-            username=username,
-            password=password,
-            index_name="page_index",
-            node_label="Page",
-            text_node_properties = ["title"],
-            embedding_node_property="embedding",
-        )
-
+        vector_store = Neo4jConnection.get_vector_store
         logger.info(f"Database and vector store initialized")
         return vector_store
 
     except Exception as e:
         logger.error(f"Failed to initialize database and vector store: {e}")
         raise
-
-def setup_existing_graph_vector_store():
-    try:        
-        # Load environment variables
-        uri = config["neo4j_uri"]
-        username = config["neo4j_username"]
-        password = config["neo4j_password"]
-        
-        logger.info("Setting up existing graph vector store with Neo4j database.")
-
-        vector_store = Neo4jVector.from_existing_graph(
-            embedding=OpenAIEmbeddings(),
-            url=uri,
-            username=username,
-            password=password,
-            index_name="page_index",
-            node_label="Page",
-            text_node_properties = ["title"],
-            embedding_node_property="embedding",
-        )
-        if vector_store is None:
-            logger.error("Failed to create vector_store instance.")
-            return None
-
-        logger.info(f"Existing graph vector store setup complete. Index name: {vector_store.index_name}, Node label: {vector_store.node_label}")
-        return vector_store
-    except Exception as e:
-        logger.error(f"Failed to setup existing graph vector store: {e}")
 
 
 def url_exists_in_graph(url):
@@ -187,8 +149,6 @@ def process_url_submission(url):
         new_metadata = create_url_metadata_json(url)
         add_page_to_graph(url, new_metadata)
         logger.info("New URL and metadata added to the graph.")
-
-
 
 
 def process_and_add_url_to_graph(url):

@@ -2,7 +2,6 @@ from typing import Optional
 from langchain.agents import create_tool_calling_agent
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from services.neo4j_services import setup_existing_graph_vector_store
 from tools import KnowledgeGraphSearchTool
 from utils.logger import get_logger
 from config import load_config
@@ -22,8 +21,8 @@ class AgentInitializer:
 
     def initialize_agent(self):
         # Initialize the language model
-        llm = Neo4jConnection.get_llm(model_name=self.model_name)
-        neo4j_vector = setup_existing_graph_vector_store()
+        llm = Neo4jConnection.get_llm(model_name=self.model_name, max_tokens=1024)
+        neo4j_vector = Neo4jConnection.get_vector_store()
 
         # Initialize the knowledge graph tool
         knowledge_graph_tool = KnowledgeGraphSearchTool()

@@ -7,10 +7,10 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import WebBaseLoader
 
+from db import Neo4jConnection
 from services.openai_services import chat_completion
 from utils.logger import get_logger
 from config import load_config
@@ -116,7 +116,7 @@ def get_vectorstore_from_url(url):
     document_chunks = text_splitter.split_documents(document)
 
     logger.debug("Vectorizing document chunks.")
-    embeddings = OpenAIEmbeddings()
+    embeddings = Neo4jConnection.get_openai_embeddings()
     vector_store = Chroma.from_documents(document_chunks, embeddings)
 
     logger.info(f"Vector store created: {vector_store}")

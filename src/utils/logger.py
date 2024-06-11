@@ -4,7 +4,17 @@ from config import load_config
 config = load_config()
 # You can set a default logging level here and override it using an environment variable
 default_logging_level = logging.INFO
-logging_level = config["logging_level"]
+
+
+def configure_logging():
+    logging.basicConfig(
+        level = config["logging_level"],
+        filename="devlog.txt",
+        filemode='w',  # 'a' appends to the file if it exists, 'w' overwrites
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        encoding='utf-8'
+    )
 
 def get_logger(name):
     """
@@ -16,18 +26,8 @@ def get_logger(name):
     Returns:
     - logger (logging.Logger): Configured logger instance.
     """
-    # Configure logging
-    logging.basicConfig(
-        level=logging_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        encoding='utf-8'
-    )
-    
-    # Create a logger instance with the specified name
-    logger = logging.getLogger(name)
+    return logging.getLogger(name)
 
-    return logger
 
 
 def format_embedding_for_logging(embedding, preview_length=3):

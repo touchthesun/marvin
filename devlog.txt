@@ -1,0 +1,14 @@
+2024-06-11 17:07:30 - __main__ - INFO - App main flow starting
+2024-06-11 17:07:30 - db - INFO - Initializing language model: gpt-4...
+2024-06-11 17:07:30 - db - INFO - Setting up existing graph vector store with Neo4j database.
+2024-06-11 17:07:30 - db - INFO - Initializing OpenAIEmbeddings...
+2024-06-11 17:07:31 - db - INFO - OpenAIEmbeddings initialized.
+2024-06-11 17:07:33 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-06-11 17:07:33 - db - INFO - Existing graph vector store setup complete. Index name: page_index, Node label: Page
+2024-06-11 17:07:33 - db - INFO - Vector store setup successfully.
+2024-06-11 17:07:34 - db - INFO - Connectivity check successful.
+2024-06-11 17:07:34 - db - INFO - Successfully connected to Neo4j.
+2024-06-11 17:07:34 - __main__ - INFO - App main flow completed
+2024-06-11 17:08:44 - __main__ - INFO - App main flow starting
+2024-06-11 17:08:44 - __main__ - INFO - Received new user query: 'what is the capital of france'
+2024-06-11 17:08:45 - utils.tokens - INFO - Message: {'role': 'user', 'content': 'what is the capital of france'} Role tokens: 1, Name tokens: 0, Content tokens: 6

@@ -1,17 +1,24 @@
 import json
+import time
 from openai import OpenAI
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from llm_prompts import prompts
+from utils.tokens import num_tokens_from_messages
 from utils.logger import get_logger
 from config import load_config
 
 # Instantiate and config
 logger = get_logger(__name__)
 config = load_config()
+
+
+# TODO OpenAI returns strings, ChatOpenAI returns Messages. 
+# Clean up chat completion vs summarize to use correct models
 
 # Initialize openai API
 client = OpenAI(api_key=config["openai_api_key"])
@@ -58,6 +65,7 @@ def chat_completion(messages, model=model_name, override_params=None):
         else:
             logger.error(f"Chat completion failed with error: {str(e)}")
             return {"error": str(e)}
+         
 
 def get_context_retriever_chain(vector_store):
     logger.debug("Initializing context retriever chain.")
@@ -77,6 +85,50 @@ def get_context_retriever_chain(vector_store):
 
     return retriever_chain
 
+
+def batch_input(input_text, max_tokens=config["max_tokens"], chunk_overlap=20):
+    # Ensure both max_tokens and chunk_overlap are integers
+    max_tokens = int(max_tokens)
+    chunk_overlap = int(chunk_overlap)
+
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        encoding_name="cl100k_base",
+        chunk_size=max_tokens,
+        chunk_overlap=chunk_overlap,
+    )
+    input_chunks = text_splitter.split_text(input_text)
+
+    responses = []
+    for chunk in input_chunks:
+        # Prepare the chunk in message format for token counting
+        message_format = [{"role": "user", "content": chunk}]
+        token_count = num_tokens_from_messages(message_format)
+        if token_count <= max_tokens:
+            response = safe_call_openai_api(agent, chunk, max_tokens=max_tokens - token_count)
+            responses.append(response)
+        else:
+            responses.append("Input too long to process.")
+    return responses
+
+
+def safe_call_openai_api(request_function, *args, **kwargs):
+    max_retries = 3
+    backoff_factor = 2
+    for i in range(max_retries):
+        try:
+            response = request_function(*args, **kwargs)
+            # Count tokens to ensure compliance with API usage
+            token_count = num_tokens_from_messages(kwargs.get('prompt', ''))
+            logger.info(f"Request made with {token_count} tokens.")
+            return response
+        except OpenAIError as e:
+            if e.code == 429:  # Rate limit error
+                sleep_time = backoff_factor ** i
+                logger.error(f"Rate limit exceeded. Retrying in {sleep_time} seconds.")
+                time.sleep(sleep_time)
+            else:
+                raise e
+    raise RuntimeError("Max retries exceeded for OpenAI API call.")
 
 
 def get_conversational_rag_chain(retriever_chain):

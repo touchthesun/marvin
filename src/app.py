@@ -1,38 +1,26 @@
 import streamlit as st
+import openai
+
 from langchain_core.messages import AIMessage
 from langchain.agents.agent import AgentExecutor
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.callbacks import get_openai_callback
 
-from utils.logger import get_logger
+from utils.logger import get_logger, configure_logging
 from utils.signal_handler import setup_signal_handling
 from config import load_config
+from services.openai_services import batch_input
 from services.document_processing import summarize_content
-from services.neo4j_services import process_and_add_url_to_graph, add_page_to_category, setup_existing_graph_vector_store
+from services.neo4j_services import process_and_add_url_to_graph, add_page_to_category
 from services.bookmarks import consume_bookmarks
 from models import extract_keywords_from_summary, categorize_page_with_llm, process_page_keywords, store_keywords_in_db
 from agent import AgentInitializer
 from tools import KnowledgeGraphSearchTool
-from db import Neo4jConnection
 
 # system config
 config = load_config()
-model_name = config["model_name"]
-
-# Instantiate logging
+configure_logging()
+token_counter = get_openai_callback()
 logger = get_logger(__name__)
-
-
-def format_search_results(search_results):
-    if not search_results:
-        return "No relevant results found."
-    
-    formatted_results = "Based on your query, here are some relevant results:\n"
-    for i, doc in enumerate(search_results, start=1):
-        title = doc.metadata.get("title", "No title")
-        url = doc.metadata.get("url", "No URL provided")
-        formatted_results += f"{i}. {title}\nURL: {url}\n"
-    
-    return formatted_results
 
 
 def setup_sidebar():
@@ -58,8 +46,8 @@ def initialize_session_state():
         agent_initializer = AgentInitializer(config=config)
         agent = agent_initializer.initialize_agent()
 
-        neo4j_vector = setup_existing_graph_vector_store()
-        neo4j_graph = Neo4jConnection.get_graph
+        # neo4j_vector = Neo4jConnection.get_vector_store()
+        # neo4j_graph = Neo4jConnection.get_graph
 
         knowledge_graph_tool = KnowledgeGraphSearchTool()
         tools = [knowledge_graph_tool]
@@ -121,15 +109,27 @@ def display_chat():
         logger.info(f"Received new user query: '{user_query}'")
         st.session_state.chat_history.append({"role": "user", "content": user_query})
 
+        # Batch input using recursive character splitter
+        input_chunks = batch_input(user_query)
+        responses = []
         # Use the agent to generate a response
-        try:
-            response = st.session_state.agent_executor.invoke({"input": user_query})
-            st.session_state.chat_history.append({"role": "assistant", "content": response})
-            logger.info(f"Agent response: {response}")
-        except Exception as e:
-            logger.error("Error during agent response generation", exc_info=True)
-            response = "Sorry, I couldn't process your request."
-            st.session_state.chat_history.append({"role": "assistant", "content": response})
+        for chunk in input_chunks:
+            try:
+                response = st.session_state.agent_executor.invoke({"input": chunk})
+                responses.append(response)
+                st.session_state.chat_history.append({"role": "assistant", "content": response})
+                logger.info(f"Agent response: {response}")
+
+            except openai.error.RateLimitError as e:
+                logger.error("Rate limit exceeded", exc_info=True)
+                response = "Sorry, I couldn't process your request due to rate limiting. Please try again later."
+                responses.append(response)
+            except Exception as e:
+                logger.error("Error during agent response generation", exc_info=True)
+                response = "Sorry, I couldn't process your request."
+                responses.append(response)
+        final_response = " ".join(responses)
+        st.session_state.chat_history.append({"role": "assistant", "content": final_response})
 
     # Handle display based on message type
     for message in st.session_state.chat_history:
@@ -147,6 +147,7 @@ def display_chat():
                 st.info(content)
             else:
                 st.success(content)
+
 
 
 
@@ -190,3 +191,15 @@ if __name__ == "__main__":
 
 #     logger.info(f"Response successfully retrieved: {response}")
 #     return response
+
+# def format_search_results(search_results):
+#     if not search_results:
+#         return "No relevant results found."
+    
+#     formatted_results = "Based on your query, here are some relevant results:\n"
+#     for i, doc in enumerate(search_results, start=1):
+#         title = doc.metadata.get("title", "No title")
+#         url = doc.metadata.get("url", "No URL provided")
+#         formatted_results += f"{i}. {title}\nURL: {url}\n"
+    
+#     return formatted_results

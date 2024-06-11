@@ -6,12 +6,11 @@ from langchain.memory import ConversationKGMemory, CombinedMemory, ConversationB
 from langchain_community.graphs.neo4j_graph import Neo4jGraph
 from langchain_community.vectorstores import Neo4jVector
 
-
 # Config
 config = load_config()
 NEO4J_URI = config["neo4j_uri"]
-NEO4J_USERNAME = config ["neo4j_username"]
-NEO4J_PASSWORD = config ["neo4j_password"]
+NEO4J_USERNAME = config["neo4j_username"]
+NEO4J_PASSWORD = config["neo4j_password"]
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -21,8 +20,10 @@ class Neo4jConnection:
     _llm = None
     _cypher_chain = None
     _graph = None
+    _vector_store = None
     _kg_memory = None
     _buffer_memory = None
+    _openai_embeddings = None
 
     @classmethod
     def get_graph(cls):
@@ -42,6 +43,22 @@ class Neo4jConnection:
                 logger.error('Failed to connect to Neo4j: %s', e)
                 raise
         return cls._graph
+
+    @classmethod
+    def _setup_vector_store(cls):
+        if cls._vector_store is None:
+            try:
+                cls._vector_store = setup_existing_graph_vector_store()
+                logger.info("Vector store setup successfully.")
+            except Exception as e:
+                logger.error(f"Failed to setup vector store: {e}")
+                raise
+
+    @classmethod
+    def get_vector_store(cls):
+        if cls._vector_store is None:
+            cls._setup_vector_store()
+        return cls._vector_store
 
 
     @classmethod
@@ -64,7 +81,7 @@ class Neo4jConnection:
         """Executes a Cypher query using the Neo4jGraph query method."""
         try:
             graph = cls.get_graph()
-            result = graph.query(query, params=parameters)  # Use the query method of Neo4jGraph
+            result = graph.query(query, params=parameters)
             logger.debug(f"Query executed successfully: {query}")
             return result
         except Exception as e:
@@ -78,11 +95,20 @@ class Neo4jConnection:
 
 
     @classmethod
-    def get_llm(cls, model_name="gpt-4"):
+    def get_llm(cls, model_name="gpt-4", max_tokens=config["max_tokens"]):
         if cls._llm is None:
             logger.info(f"Initializing language model: {model_name}...")
-            cls._llm = ChatOpenAI(model_name=model_name, api_key=config["openai_api_key"])
+            cls._llm = ChatOpenAI(model_name=model_name, api_key=config["openai_api_key"], max_tokens=max_tokens)
         return cls._llm
+
+    @classmethod
+    def get_openai_embeddings(cls):
+        """Singleton access to OpenAIEmbeddings."""
+        if cls._openai_embeddings is None:
+            logger.info("Initializing OpenAIEmbeddings...")
+            cls._openai_embeddings = OpenAIEmbeddings(api_key=config["openai_api_key"])
+            logger.info("OpenAIEmbeddings initialized.")
+        return cls._openai_embeddings
 
 
     @classmethod
@@ -97,6 +123,37 @@ class Neo4jConnection:
         if cls._cypher_chain:
             logger.info("Resetting GraphCypherQAChain...")
             cls._cypher_chain = None
+
+
+def setup_existing_graph_vector_store():
+    try:        
+        # Load environment variables
+        uri = NEO4J_URI
+        username = NEO4J_USERNAME
+        password = NEO4J_PASSWORD
+        
+        logger.info("Setting up existing graph vector store with Neo4j database.")
+        openai_embeddings = Neo4jConnection.get_openai_embeddings()
+
+        vector_store = Neo4jVector.from_existing_graph(
+            embedding=openai_embeddings,
+            url=uri,
+            username=username,
+            password=password,
+            index_name="page_index",
+            node_label="Page",
+            text_node_properties = ["title"],
+            embedding_node_property="embedding",
+        )
+        if vector_store is None:
+            logger.error("Failed to create vector_store instance.")
+            return None
+
+        logger.info(f"Existing graph vector store setup complete. Index name: {vector_store.index_name}, Node label: {vector_store.node_label}")
+        return vector_store
+    except Exception as e:
+        logger.error(f"Failed to setup existing graph vector store: {e}")
+
 
 
     # @classmethod

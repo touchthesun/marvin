@@ -3,9 +3,6 @@ from langchain.tools import BaseTool
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.vectorstores import Neo4jVector
 from db import Neo4jConnection
-from services.neo4j_services import setup_existing_graph_vector_store
-
-
 
 active_tools = []
 
@@ -34,7 +31,7 @@ class KnowledgeGraphSearchTool(BaseTool):
     def __init__(self):
         super().__init__()
         self.graph = Neo4jConnection.get_graph()
-        self.vector = setup_existing_graph_vector_store()
+        self.vector = Neo4jConnection.get_vector_store()
 
 
     def _run(self, query: str) -> str:
