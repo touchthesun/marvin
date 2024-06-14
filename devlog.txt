@@ -1,14 +1,109 @@
-2024-06-11 17:07:30 - __main__ - INFO - App main flow starting
-2024-06-11 17:07:30 - db - INFO - Initializing language model: gpt-4...
-2024-06-11 17:07:30 - db - INFO - Setting up existing graph vector store with Neo4j database.
-2024-06-11 17:07:30 - db - INFO - Initializing OpenAIEmbeddings...
-2024-06-11 17:07:31 - db - INFO - OpenAIEmbeddings initialized.
-2024-06-11 17:07:33 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
-2024-06-11 17:07:33 - db - INFO - Existing graph vector store setup complete. Index name: page_index, Node label: Page
-2024-06-11 17:07:33 - db - INFO - Vector store setup successfully.
-2024-06-11 17:07:34 - db - INFO - Connectivity check successful.
-2024-06-11 17:07:34 - db - INFO - Successfully connected to Neo4j.
-2024-06-11 17:07:34 - __main__ - INFO - App main flow completed
-2024-06-11 17:08:44 - __main__ - INFO - App main flow starting
-2024-06-11 17:08:44 - __main__ - INFO - Received new user query: 'what is the capital of france'
-2024-06-11 17:08:45 - utils.tokens - INFO - Message: {'role': 'user', 'content': 'what is the capital of france'} Role tokens: 1, Name tokens: 0, Content tokens: 6
+2024-06-11 17:30:52 - __main__ - INFO - App main flow starting
+2024-06-11 17:30:52 - db - INFO - Initializing language model: gpt-4...
+2024-06-11 17:30:52 - db - INFO - Setting up existing graph vector store with Neo4j database.
+2024-06-11 17:30:52 - db - INFO - Initializing OpenAIEmbeddings...
+2024-06-11 17:30:52 - db - INFO - OpenAIEmbeddings initialized.
+2024-06-11 17:30:54 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2024-06-11 17:30:54 - db - INFO - Existing graph vector store setup complete. Index name: page_index, Node label: Page
+2024-06-11 17:30:54 - db - INFO - Vector store setup successfully.
+2024-06-11 17:30:55 - db - INFO - Connectivity check successful.
+2024-06-11 17:30:55 - db - INFO - Successfully connected to Neo4j.
+2024-06-11 17:30:55 - __main__ - INFO - App main flow completed
+2024-06-11 17:31:14 - __main__ - INFO - App main flow starting
+2024-06-11 17:31:14 - __main__ - INFO - App main flow completed
+2024-06-11 17:31:14 - __main__ - INFO - App main flow starting
+2024-06-11 17:31:14 - services.metadata - ERROR - Error processing URL doit.com: Invalid URL 'doit.com': No scheme supplied. Perhaps you meant https://doit.com?
+Traceback (most recent call last):
+  File "/app/src/services/metadata.py", line 15, in create_url_metadata_json
+    response = requests.get(url)
+  File "/usr/local/lib/python3.9/site-packages/requests/api.py", line 73, in get
+    return request("get", url, params=params, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/requests/sessions.py", line 575, in request
+    prep = self.prepare_request(req)
+  File "/usr/local/lib/python3.9/site-packages/requests/sessions.py", line 486, in prepare_request
+    p.prepare(
+  File "/usr/local/lib/python3.9/site-packages/requests/models.py", line 368, in prepare
+    self.prepare_url(url, params)
+  File "/usr/local/lib/python3.9/site-packages/requests/models.py", line 439, in prepare_url
+    raise MissingSchema(
+requests.exceptions.MissingSchema: Invalid URL 'doit.com': No scheme supplied. Perhaps you meant https://doit.com?
+2024-06-11 17:31:14 - services.neo4j_services - ERROR - Failed to process URL doit.com: local variable 'url' referenced before assignment
+Traceback (most recent call last):
+  File "/app/src/services/neo4j_services.py", line 182, in add_page_to_graph
+    url = page_metadata["url"]
+KeyError: 'url'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/src/services/neo4j_services.py", line 158, in process_and_add_url_to_graph
+    add_page_to_graph(page_metadata)
+  File "/app/src/services/neo4j_services.py", line 216, in add_page_to_graph
+    logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
+UnboundLocalError: local variable 'url' referenced before assignment
+2024-06-11 17:31:14 - __main__ - INFO - Successfully added metadata for doit.com to the graph.
+2024-06-11 17:31:14 - models - INFO - Starting category generation process for URL: doit.com
+2024-06-11 17:31:14 - services.document_processing - ERROR - Exception occurred while fetching content for URL: doit.com. Error: Invalid URL 'doit.com': No scheme supplied. Perhaps you meant https://doit.com?
+Traceback (most recent call last):
+  File "/app/src/services/document_processing.py", line 68, in fetch_webpage_content
+    response = requests.get(url)
+  File "/usr/local/lib/python3.9/site-packages/requests/api.py", line 73, in get
+    return request("get", url, params=params, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/requests/sessions.py", line 575, in request
+    prep = self.prepare_request(req)
+  File "/usr/local/lib/python3.9/site-packages/requests/sessions.py", line 486, in prepare_request
+    p.prepare(
+  File "/usr/local/lib/python3.9/site-packages/requests/models.py", line 368, in prepare
+    self.prepare_url(url, params)
+  File "/usr/local/lib/python3.9/site-packages/requests/models.py", line 439, in prepare_url
+    raise MissingSchema(
+requests.exceptions.MissingSchema: Invalid URL 'doit.com': No scheme supplied. Perhaps you meant https://doit.com?
+2024-06-11 17:31:14 - models - WARNING - No content found to fetch or summarize for URL: doit.com
+2024-06-11 17:31:14 - models - ERROR - No summary could be generated for URL: doit.com, hence no categories will be generated.
+2024-06-11 17:31:14 - models - WARNING - No categories generated for URL: doit.com; no further processing.
+2024-06-11 17:31:14 - models - INFO - Processing completed for URL: doit.com. Categories: []
+2024-06-11 17:31:15 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-06-11 17:31:16 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-06-11 17:31:17 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-06-11 17:31:17 - utils.neo4j_utils - ERROR - Error finding Keyword 'Tasks' in Neo4j: 'Neo4jGraph' object has no attribute 'session'
+Traceback (most recent call last):
+  File "/app/src/utils/neo4j_utils.py", line 19, in find_by_name
+    with graph.session() as session:
+AttributeError: 'Neo4jGraph' object has no attribute 'session'
+2024-06-11 17:31:24 - __main__ - INFO - App main flow starting
+2024-06-11 17:31:24 - __main__ - INFO - App main flow completed
+2024-06-11 17:31:24 - __main__ - INFO - App main flow starting
+2024-06-11 17:31:24 - services.metadata - ERROR - Failed to fetch URL http://www.doit.com with status code 403
+2024-06-11 17:31:24 - services.neo4j_services - ERROR - Failed to process URL http://www.doit.com: local variable 'url' referenced before assignment
+Traceback (most recent call last):
+  File "/app/src/services/neo4j_services.py", line 182, in add_page_to_graph
+    url = page_metadata["url"]
+KeyError: 'url'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/src/services/neo4j_services.py", line 158, in process_and_add_url_to_graph
+    add_page_to_graph(page_metadata)
+  File "/app/src/services/neo4j_services.py", line 216, in add_page_to_graph
+    logger.error(f"Failed to process URL {url}: {e}", exc_info=True)
+UnboundLocalError: local variable 'url' referenced before assignment
+2024-06-11 17:31:24 - __main__ - INFO - Successfully added metadata for http://www.doit.com to the graph.
+2024-06-11 17:31:24 - models - INFO - Starting category generation process for URL: http://www.doit.com
+2024-06-11 17:31:24 - services.document_processing - ERROR - Failed to fetch content for URL: http://www.doit.com. HTTP Status Code: 403
+2024-06-11 17:31:24 - models - WARNING - No content found to fetch or summarize for URL: http://www.doit.com
+2024-06-11 17:31:24 - models - ERROR - No summary could be generated for URL: http://www.doit.com, hence no categories will be generated.
+2024-06-11 17:31:24 - models - WARNING - No categories generated for URL: http://www.doit.com; no further processing.
+2024-06-11 17:31:24 - models - INFO - Processing completed for URL: http://www.doit.com. Categories: []
+2024-06-11 17:31:25 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-06-11 17:31:26 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-06-11 17:31:26 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-06-11 17:31:26 - utils.neo4j_utils - ERROR - Error finding Keyword 'N/A' in Neo4j: 'Neo4jGraph' object has no attribute 'session'
+Traceback (most recent call last):
+  File "/app/src/utils/neo4j_utils.py", line 19, in find_by_name
+    with graph.session() as session:
+AttributeError: 'Neo4jGraph' object has no attribute 'session'
