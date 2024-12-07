@@ -1,0 +1,28 @@
+site_name: Marvin Documentation
+theme: mkdocs
+nav:
+- Home: index.md
+- Architecture:
+  - Overview: architecture/overview.md
+  - Requirements: architecture/requirements.md
+  - Roadmap: architecture/roadmap.md
+  - Components:
+    - Knowledge Graph: architecture/components/knowledge-graph.md
+    - LLM Service: architecture/components/llm-service.md
+    - Task Engine: architecture/components/task-engine.md
+    - Web Search: architecture/components/web-search.md
+- Development:
+  - Setup: development/setup.md
+  - Conventions: development/conventions.md
+  - Testing: development/testing.md
+  - Security: development/security.md
+- User Guide:
+  - Installation: user/installation.md
+  - Getting Started: user/getting-started.md
+  - Features: user/features.md
+  - Privacy: user/privacy.md
+- Reference:
+  - API: reference/api/
+  - Schemas: reference/schemas/
+  - Interfaces: reference/interfaces/
+  - Glossary: reference/glossary.md
