@@ -13,4 +13,11 @@ py2neo
 spacy
 newspaper3k
 
+tiktoken 
+langchain-cohere 
+langchainhub 
+langchain 
+langgraph  
+tavily-python
+
 # python -m spacy download en_core_web_sm

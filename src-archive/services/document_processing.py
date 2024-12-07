@@ -85,30 +85,6 @@ def fetch_webpage_content(url):
 
 
 
-# Updated and moved to models.py
-# def extract_keywords_from_summary(summary):
-#     """
-#     Extracts keywords from a given summary using an LLM.
-    
-#     Parameters:
-#     - summary (str): The content summary.
-#     - openai_api_key (str): The API key for accessing the LLM service.
-    
-#     Returns:
-#     - list: A list of extracted keywords.
-#     """
-    
-#     response = client.Completion.create(
-#         engine="gpt-3.5-turbo",
-#         prompt=f"Extract keywords from this summary, and present your response as a single string of keywords, using ', ' as a delimiter between them:\n\n{summary}",
-#         max_tokens=100,
-#         temperature=0.5
-#     )
-    
-#     keywords = response.choices[0].text.strip().split(', ')
-#     return keywords
-
-
 def extract_site_name(url):
     """
     Extracts the site name from a given URL.
