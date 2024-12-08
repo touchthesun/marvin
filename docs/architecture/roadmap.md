@@ -75,3 +75,33 @@
 2. Neo4j integration method within extension
 3. LLM provider selection and integration
 4. Security model implementation
+
+## MVP Workflow
+### **Basic Knowledge Graph Generation:**
+
+  - Take URL(s) as input
+  - Extract content and metadata
+  - Generate knowledge graph nodes and relationships
+  - Store in Neo4j
+  - Enable basic querying
+
+
+### **Simple Extension Interface:**
+
+  - Access current tab content/URL
+  - Send to Python backend
+  - Display status in popup
+
+
+### **Local Python Backend:**
+
+  - Runs LLM service
+  - Processes URLs through knowledge graph generator
+  - Provides API for extension
+
+
+### **LLM Integration with Knowledge Graph:**
+
+  - Make graph queryable by LLM
+  - Enable basic question answering using the graph
+  - Implement simple context retrieval
