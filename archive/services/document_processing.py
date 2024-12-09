@@ -14,7 +14,7 @@ from langchain_community.document_loaders import WebBaseLoader
 from services.openai_services import chat_completion
 from llm_prompts import prompts
 from utils.logger import get_logger
-from config import load_config
+from core.tools.config import load_config
 
 # Initialize and config
 config = load_config()

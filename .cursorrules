@@ -15,6 +15,7 @@ Project Structure:
 - marvin/extension: Chrome extension code
 - marvin/utils: Development utilities
 - docs/: Project documentation
+- archive/: Archived code and experiments. Ignore in search.
 
 Libraries and Tools:
 - Neo4j for knowledge graph

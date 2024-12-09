@@ -4,7 +4,7 @@ from py2neo.ogm import GraphObject, Property, RelatedFrom, RelatedTo
 from datetime import datetime
 from openai import OpenAI
 
-from config import load_config
+from core.tools.config import load_config
 from db import Neo4jConnection
 from utils.logger import get_logger
 from llm_prompts import prompts

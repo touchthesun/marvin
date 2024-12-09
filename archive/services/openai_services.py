@@ -6,7 +6,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 
 from llm_prompts import prompts
 from utils.logger import get_logger
-from config import load_config
+from core.tools.config import load_config
 
 # Instantiate and config
 logger = get_logger(__name__)

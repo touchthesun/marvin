@@ -9,7 +9,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
 
 from utils.logger import get_logger
-from config import load_config
+from core.tools.config import load_config
 from db import Neo4jConnection
 from services.metadata import create_url_metadata_json
 from services.openai_services import generate_embeddings, get_model_parameters
