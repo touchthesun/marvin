@@ -10,7 +10,7 @@ from utils.logger import get_logger
 from llm_prompts import prompts
 from services.document_processing import summarize_content, fetch_webpage_content
 from services.openai_services import query_llm_for_categories, chat_completion
-from utils.neo4j_utils import find_by_name
+from archive.neo4j_utils import find_by_name
 
 # Initialize and config
 config = load_config()
