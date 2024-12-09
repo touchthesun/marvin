@@ -28,8 +28,8 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 - [Privacy Policy](user/privacy.md)
 
 ### 📖 Reference
-- [API Documentation](reference/api/)
-- [Data Schemas](reference/schemas/)
+- [API Documentation](reference/api_reference.md)
+- [Data Schemas](reference/schemas.md)
 - [Component Interfaces](reference/interfaces/)
 - [Glossary](reference/glossary.md)
 
