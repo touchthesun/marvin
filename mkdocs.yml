@@ -4,7 +4,7 @@ nav:
 - Home: index.md
 - Architecture:
   - Overview: architecture/overview.md
-  - Requirements: architecture/requirements.md
+  - Decisions: architecture/decisions.md
   - Roadmap: architecture/roadmap.md
   - Components:
     - Knowledge Graph: architecture/components/knowledge-graph.md
@@ -22,7 +22,7 @@ nav:
   - Features: user/features.md
   - Privacy: user/privacy.md
 - Reference:
-  - API: reference/api/
+  - API: reference/api_reference.md
   - Schemas: reference/schemas/
   - Interfaces: reference/interfaces/
   - Glossary: reference/glossary.md

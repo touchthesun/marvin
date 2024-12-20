@@ -1,8 +1,9 @@
-import logging
+# import logging
+from utils.logger import get_logger
 from typing import Dict, List, Optional
 from datetime import datetime
 from neo4j import GraphDatabase
-from utils.config import load_config
+from core.utils.config import load_config
 
 
 # Config
@@ -12,7 +13,7 @@ NEO4J_USERNAME = config ["neo4j_username"]
 NEO4J_PASSWORD = config ["neo4j_password"]
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Neo4jConnection:
@@ -323,4 +324,87 @@ class GraphManager:
         
         except Exception as e:
             logger.error(f"Error updating relationship: {str(e)}")
+            raise
+
+
+class GraphSchema:
+    """Manages Neo4j schema operations for Marvin"""
+
+    @staticmethod
+    def create_constraints():
+        """Create uniqueness constraints and indexes"""
+        try:
+            logger.info("Creating schema constraints")
+            queries = [
+                # Uniqueness constraints
+                """CREATE CONSTRAINT site_url IF NOT EXISTS
+                   FOR (s:Site) REQUIRE s.url IS UNIQUE""",
+                
+                """CREATE CONSTRAINT page_url IF NOT EXISTS
+                   FOR (p:Page) REQUIRE p.url IS UNIQUE""",
+                
+                """CREATE CONSTRAINT category_name IF NOT EXISTS
+                   FOR (c:Category) REQUIRE c.name IS UNIQUE""",
+                
+                """CREATE CONSTRAINT keyword_value IF NOT EXISTS
+                   FOR (k:Keyword) REQUIRE k.value IS UNIQUE""",
+
+                # Indexes for frequent lookups
+                """CREATE INDEX page_metadata IF NOT EXISTS
+                   FOR (p:Page) ON (p.metadata_quality_score)""",
+                
+                """CREATE INDEX category_source IF NOT EXISTS
+                   FOR (c:Category) ON (c.source)""",
+                
+                """CREATE INDEX keyword_source IF NOT EXISTS
+                   FOR (k:Keyword) ON (k.source)"""
+            ]
+            
+            for query in queries:
+                Neo4jConnection.execute_query(query)
+            logger.info("Successfully created schema constraints and indexes")
+            
+        except Exception as e:
+            logger.error(f"Error creating schema constraints: {str(e)}")
+            raise
+
+    @staticmethod
+    def validate_schema():
+        """Verify all required constraints and indexes exist"""
+        try:
+            logger.info("Validating schema configuration")
+            query = """
+            CALL db.constraints() YIELD name, description
+            RETURN collect(name) as constraints
+            """
+            result = Neo4jConnection.execute_query(query)
+            constraints = result[0]['constraints']
+            
+            required_constraints = [
+                'site_url', 'page_url', 'category_name', 'keyword_value'
+            ]
+            
+            missing = [c for c in required_constraints if c not in constraints]
+            if missing:
+                logger.warning(f"Missing constraints: {missing}")
+                return False
+                
+            logger.info("Schema validation successful")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating schema: {str(e)}")
+            raise
+
+    @staticmethod
+    def initialize_schema():
+        """Initialize or update schema to latest version"""
+        try:
+            logger.info("Initializing schema")
+            if not GraphSchema.validate_schema():
+                GraphSchema.create_constraints()
+            logger.info("Schema initialization complete")
+            
+        except Exception as e:
+            logger.error(f"Error initializing schema: {str(e)}")
             raise

@@ -12,7 +12,10 @@ openai
 py2neo
 spacy
 newspaper3k
-
+asyncio
+rake-nltk
+pytest-cov
+readability-lxml
 tiktoken 
 langchain-cohere 
 langchainhub 

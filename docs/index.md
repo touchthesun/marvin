@@ -44,8 +44,8 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 ### Current Status
 Marvin is currently in early development. The project is following a phased approach:
 
-- **Phase 0**: Documentation and Planning *(Current Phase)*
-- **Phase 1**: Core Browser Extension MVP
+- **Phase 0**: Documentation and Planning [done]
+- **Phase 1**: Core Browser Extension MVP [currently in progress]
 - **Phase 2**: Core Assistant Features
 - **Phase 3**: Security & Advanced Features
 - **Phase 4**: Production Readiness

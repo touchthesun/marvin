@@ -84,6 +84,77 @@ class Relationship:
     created_at: datetime     # Relationship creation timestamp
 ```
 
+
+## Implementation Phases
+
+### Phase 1 - Core Content Understanding
+These features are critical for initial content understanding and metadata extraction.
+
+#### Primary Data Models
+```python
+class Page:
+    url: str                    # Full URL
+    site_id: str               # Reference to parent Site
+    title: str                 # Page title
+    content: PageContent       # Structured content data
+    last_accessed: datetime    # Last access timestamp
+    metadata: PageMetadata     # Basic metadata
+    embeddings: List[float]    # Vector representation for similarity
+
+class PageContent:
+    raw_text: Optional[str]        # Raw extracted text
+    rendered_text: Optional[str]   # Text from rendered DOM
+    main_content: Optional[str]    # Processed/cleaned content
+    extraction_method: str         # Method used for extraction
+
+class PageMetadata:
+    author: Optional[str]          # Content author
+    publication_date: Optional[datetime]  # Original publish date
+    modified_date: Optional[datetime]     # Last modified date
+    language: str                  # Content language
+    source_type: str              # Content type (e.g., Blog, News)
+```
+
+### Phase 2 - Enhanced Organization
+Features that improve content organization and relationships.
+
+```python
+class PageContent:
+    # Adds to Phase 1 implementation
+    content_blocks: List[Dict]     # Structured content blocks
+    content_summary: str           # Generated summary
+
+class PageMetadata:
+    # Adds to Phase 1 implementation
+    reading_time: int             # Estimated reading time
+    tags: List[str]              # Basic content tags
+```
+
+### Future Phases - Advanced Features
+Features planned for future implementation.
+
+```python
+class ContentNode:
+    id: str                   # Unique identifier
+    node_type: str            # (Concept, Topic, Fact)
+    content: str              # The actual content
+    source_page_id: str       # Reference to source Page
+    confidence_score: float   # Confidence in extraction
+    created_at: datetime      # Node creation timestamp
+    metadata: Dict            # Additional metadata
+
+class PageMetadata:
+    # Adds to Phase 2 implementation
+    social_signals: Dict      # Social media metrics
+```
+## Implementation Notes
+1. Initial focus on core content extraction and storage
+2. Vector embeddings crucial for similarity search
+3. Basic metadata before advanced features
+4. Relationship types added incrementally
+5. Complex semantic analysis in later phases
+
+
 ## Enums and Constants
 
 ### SourceType

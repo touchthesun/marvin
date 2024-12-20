@@ -20,10 +20,29 @@
 
 #### Phase 2: Core Assistant Features
 - **Content Understanding**
-  - Context extraction
-  - Topic identification
-  - Relationship discovery
-  - Content summarization
+  1. **Metadata Extraction**
+     - Parse HTML meta tags
+     - Extract OpenGraph and schema.org markup
+     - Detect metadata quality/availability
+     - Store structured metadata in graph
+
+  2. **Content Analysis**
+     - Implement keyword extraction algorithms
+     - Generate text embeddings
+     - Create similarity functions
+     - Add content-based relationships to graph
+  
+  3. **LLM Integration**
+     - Develop categorization prompts
+     - Implement category assignment
+     - Add verification/refinement layer
+     - Create LLM-based relationships
+  
+  4. **Hybrid System**
+     - Implement fallback strategy
+     - Balance approach selection
+     - Optimize for quality/cost
+     - Create unified search interface
 
 - **Task Execution**
   - Basic autonomous actions

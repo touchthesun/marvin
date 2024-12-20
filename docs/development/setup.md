@@ -86,12 +86,15 @@ Coding Standards:
 - Use TypeScript for extension code
 - Implement test-driven development
 - Document all public functions and classes
+- Keep your code modular and well-organized
+- Follow separation of concerns principle
 
 Project Structure:
 - marvin/core: Backend Python code for LLM and knowledge graph
 - marvin/extension: Chrome extension code
 - marvin/utils: Development utilities
 - docs/: Project documentation
+- archive/: Archived code and experiments. Ignore in search.
 
 Libraries and Tools:
 - Neo4j for knowledge graph
@@ -109,6 +112,9 @@ Error Handling:
 - Use proper exception handling
 - Implement logging with different levels
 - Validate all external inputs
+ - Always use try-except blocks
+ - Print informative error messages
+ - Include the actual error in debug messages
 ```
 
 ## Verification
