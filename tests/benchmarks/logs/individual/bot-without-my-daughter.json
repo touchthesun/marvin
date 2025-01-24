@@ -1,0 +1,128 @@
+{
+  "page_object": {
+    "core_details": {
+      "id": "7d0a104e-b2bb-447c-acfd-47fd9af49031",
+      "url": "https://www.penny-arcade.com/comic/2025/01/20/bot-without-my-daughter",
+      "domain": "penny-arcade.com",
+      "title": null,
+      "status": "active"
+    },
+    "timestamps": {
+      "discovered_at": "2025-01-23T01:12:36.204460",
+      "processed_at": null,
+      "updated_at": "2025-01-23T01:12:39.119063"
+    },
+    "metrics": {
+      "quality_score": 0.0,
+      "relevance_score": 0.0,
+      "processing_time": 2.585258,
+      "keyword_count": 9,
+      "last_visited": null,
+      "visit_count": 0
+    },
+    "browser_context": {
+      "context": "background",
+      "tab_id": null,
+      "window_id": null,
+      "bookmark_id": null,
+      "last_active": null
+    },
+    "metadata": {
+      "content": {
+        "ContentProcessor": true
+      }
+    }
+  },
+  "page_path": "https://www.penny-arcade.com/comic/2025/01/20/bot-without-my-daughter",
+  "content_length": 102566,
+  "processing_time": 2.916642,
+  "metadata_quality": 0,
+  "keyword_count": 9,
+  "keywords": [
+    {
+      "text": "rivals you have",
+      "score": 1.0
+    },
+    {
+      "text": "america",
+      "score": 1.0
+    },
+    {
+      "text": "tik tok",
+      "score": 1.0
+    },
+    {
+      "text": "chinese",
+      "score": 1.0
+    },
+    {
+      "text": "china",
+      "score": 1.0
+    },
+    {
+      "text": "american",
+      "score": 1.0
+    },
+    {
+      "text": "tycho marvel rivals",
+      "score": 0.94
+    },
+    {
+      "text": "instagram pamegacorp",
+      "score": 0.76
+    },
+    {
+      "text": "penny arcade club",
+      "score": 0.76
+    }
+  ],
+  "relationships": [
+    {
+      "source_id": "kw_4dde3c24ebeebcac",
+      "target_id": "kw_9ba31f8182fdae24",
+      "type": "synonym",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: america ~ american",
+            "confidence": 1.000000398054751,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 1.000000398054751
+            }
+          },
+          {
+            "sentence": "It s pretty easy to get banned on there most American users would have no idea what most of this even means We are free to have opinions because it s a locus of social control and civil strife They have a fundamentally different idea of citizenship and it s not a version of what we do If you ve never been someplace where you are the alien maybe that doesn t track",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: america contains/related to american",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:38.356336",
+        "updated_at": "2025-01-23T01:12:39.118944"
+      }
+    }
+  ],
+  "pipeline_metrics": {
+    "stage_times": {},
+    "component_times": {},
+    "total_components": 0,
+    "errors": [],
+    "stage_sequence": []
+  },
+  "final_status": "active",
+  "errors": []
+}

@@ -99,3 +99,123 @@ This document records the key architectural decisions made in the Marvin project
 - Collaborative feature implementation
 - Plugin architecture for extensibility
 - Mobile browser support
+
+
+## Dependency Injection Decision
+
+Context: 
+The content analysis system initially used a singleton pattern for context management, which presented several challenges as the system grew in complexity.
+
+### Pros of Dependency Injection
+
+ - Explicit Dependencies
+
+Dependencies are clearly visible in constructor signatures
+Makes code more maintainable and easier to understand
+Prevents hidden coupling between components
+
+
+ - Improved Testing
+
+Each test can use its own isolated context
+Easy to mock dependencies
+No need to manage global state between tests
+Can test different implementations easily
+
+
+ - Better Flexibility
+
+Easy to swap implementations
+Supports different contexts for different environments
+Can implement different backends without changing client code
+
+
+ - Better Concurrency Support
+
+No shared global state
+Each instance has its own isolated context
+Reduces risk of race conditions
+
+
+ - Clearer Resource Management
+
+Resources tied to specific instances
+Clear lifecycle management
+Better control over cleanup
+
+
+
+### Cons of Dependency Injection
+
+ - Increased Initial Complexity
+
+More setup code required
+Need to manage dependency graph
+More initial boilerplate
+
+
+ - Configuration Management
+
+Need to manage configuration at composition root
+More complex startup process
+Need to carefully manage dependency order
+
+
+ - Learning Curve
+
+Team needs to understand DI patterns
+May be unfamiliar to some developers
+Requires more disciplined coding approach
+
+
+
+### Implementation Plan
+
+**Phase 1: Foundation**
+
+Create base types and interfaces
+
+AbstractBaseClasses for major components
+Type definitions
+Configuration classes
+
+
+Implement context management
+
+Remove singleton pattern
+Create context hierarchy
+Implement different context types
+
+
+
+**Phase 2: Component Refactoring**
+
+Update processor components
+
+Refactor for DI
+Add factory classes
+Update tests
+
+
+Update batch processing
+
+Add context management
+Implement resource tracking
+Update async handling
+
+
+
+**Phase 3: Integration**
+
+Create factory system
+
+Main factory class
+Configuration management
+Component lifecycle
+
+
+Update pipeline
+
+New orchestration
+Error handling
+Monitoring

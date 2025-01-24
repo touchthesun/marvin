@@ -1,0 +1,76 @@
+Benchmark Summary Report
+======================
+
+Generated: 2025-01-23T01:12:39.129225
+Pages Processed: 3
+Total Keywords: 163
+Average Processing Time: 15.33s
+
+Keyword Statistics
+-----------------
+Unique Keywords: 160
+Keywords with Variants: 0
+Average Variants per Keyword: 0.00
+
+Keyword Types:
+  term: 163
+
+Relationship Statistics
+----------------------
+Total Relationships: 40
+
+Relationship Types:
+  related: 32
+  synonym: 5
+  hierarchical: 3
+
+Page Details
+------------
+
+Page: The Subprime AI Crisis.html
+  Content Length: 100301 chars
+  Processing Time: 30.29s
+  Keywords Found: 94
+  Relationships Found: 27
+  Page Object Details:
+    ID: d1116e1a-f72d-4c24-b4c2-a81431dbde75
+    URL: file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/The Subprime AI Crisis.html
+    Domain: localhost
+    Status: active
+    Browser Context: None
+    Metrics:
+      Quality Score: 0.0
+      Relevance Score: 0.0
+      Processing Time (Metrics): 29.926681
+
+Page: end_of_an_empire.html
+  Content Length: 198784 chars
+  Processing Time: 12.78s
+  Keywords Found: 60
+  Relationships Found: 12
+  Page Object Details:
+    ID: 4b4c4011-acb6-4708-84de-b2c6baa8427b
+    URL: file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/end_of_an_empire.html
+    Domain: localhost
+    Status: active
+    Browser Context: None
+    Metrics:
+      Quality Score: 0.0
+      Relevance Score: 0.0
+      Processing Time (Metrics): 12.376508
+
+Page: bot-without-my-daughter
+  Content Length: 102566 chars
+  Processing Time: 2.92s
+  Keywords Found: 9
+  Relationships Found: 1
+  Page Object Details:
+    ID: 7d0a104e-b2bb-447c-acfd-47fd9af49031
+    URL: https://www.penny-arcade.com/comic/2025/01/20/bot-without-my-daughter
+    Domain: penny-arcade.com
+    Status: active
+    Browser Context: None
+    Metrics:
+      Quality Score: 0.0
+      Relevance Score: 0.0
+      Processing Time (Metrics): 2.585258

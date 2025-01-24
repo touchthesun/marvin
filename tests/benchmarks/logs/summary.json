@@ -1,0 +1,69 @@
+{
+  "timestamp": "2025-01-23T01:12:39.129225",
+  "total_pages": 3,
+  "total_keywords": 163,
+  "avg_processing_time": 15.329246333333336,
+  "pages": [
+    {
+      "page": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/The Subprime AI Crisis.html",
+      "content_length": 100301,
+      "processing_time": 30.289337,
+      "keyword_count": 94,
+      "relationship_count": 27,
+      "page_id": "d1116e1a-f72d-4c24-b4c2-a81431dbde75",
+      "url": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/The Subprime AI Crisis.html",
+      "domain": "localhost",
+      "status": "active",
+      "browser_context": null,
+      "quality_score": 0.0,
+      "relevance_score": 0.0,
+      "processing_time_from_metrics": 29.926681
+    },
+    {
+      "page": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/end_of_an_empire.html",
+      "content_length": 198784,
+      "processing_time": 12.78176,
+      "keyword_count": 60,
+      "relationship_count": 12,
+      "page_id": "4b4c4011-acb6-4708-84de-b2c6baa8427b",
+      "url": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/end_of_an_empire.html",
+      "domain": "localhost",
+      "status": "active",
+      "browser_context": null,
+      "quality_score": 0.0,
+      "relevance_score": 0.0,
+      "processing_time_from_metrics": 12.376508
+    },
+    {
+      "page": "https://www.penny-arcade.com/comic/2025/01/20/bot-without-my-daughter",
+      "content_length": 102566,
+      "processing_time": 2.916642,
+      "keyword_count": 9,
+      "relationship_count": 1,
+      "page_id": "7d0a104e-b2bb-447c-acfd-47fd9af49031",
+      "url": "https://www.penny-arcade.com/comic/2025/01/20/bot-without-my-daughter",
+      "domain": "penny-arcade.com",
+      "status": "active",
+      "browser_context": null,
+      "quality_score": 0.0,
+      "relevance_score": 0.0,
+      "processing_time_from_metrics": 2.585258
+    }
+  ],
+  "keyword_stats": {
+    "total_unique": 160,
+    "total_with_variants": 0,
+    "type_distribution": {
+      "term": 163
+    },
+    "avg_variants": 0.0
+  },
+  "relationship_stats": {
+    "total": 40,
+    "type_distribution": {
+      "related": 32,
+      "synonym": 5,
+      "hierarchical": 3
+    }
+  }
+}

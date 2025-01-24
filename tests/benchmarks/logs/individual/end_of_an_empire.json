@@ -1,0 +1,653 @@
+{
+  "page_object": {
+    "core_details": {
+      "id": "4b4c4011-acb6-4708-84de-b2c6baa8427b",
+      "url": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/end_of_an_empire.html",
+      "domain": "localhost",
+      "title": null,
+      "status": "active"
+    },
+    "timestamps": {
+      "discovered_at": "2025-01-23T01:12:23.066090",
+      "processed_at": null,
+      "updated_at": "2025-01-23T01:12:35.844166"
+    },
+    "metrics": {
+      "quality_score": 0.0,
+      "relevance_score": 0.0,
+      "processing_time": 12.376508,
+      "keyword_count": 60,
+      "last_visited": null,
+      "visit_count": 0
+    },
+    "browser_context": {
+      "context": "background",
+      "tab_id": null,
+      "window_id": null,
+      "bookmark_id": null,
+      "last_active": null
+    },
+    "metadata": {
+      "content": {
+        "ContentProcessor": true
+      }
+    }
+  },
+  "page_path": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/end_of_an_empire.html",
+  "content_length": 198784,
+  "processing_time": 12.78176,
+  "metadata_quality": 0,
+  "keyword_count": 60,
+  "keywords": [
+    {
+      "text": "race",
+      "score": 1.0
+    },
+    {
+      "text": "supreme court gut",
+      "score": 0.96
+    },
+    {
+      "text": "justice",
+      "score": 0.94
+    },
+    {
+      "text": "supreme court pema levy",
+      "score": 0.88
+    },
+    {
+      "text": "big feature share",
+      "score": 0.7
+    },
+    {
+      "text": "round holes",
+      "score": 0.7
+    },
+    {
+      "text": "centuries",
+      "score": 1.0
+    },
+    {
+      "text": "rome",
+      "score": 1.0
+    },
+    {
+      "text": "edward gibbon",
+      "score": 1.0
+    },
+    {
+      "text": "roman",
+      "score": 1.0
+    },
+    {
+      "text": "late antiquity",
+      "score": 1.0
+    },
+    {
+      "text": "mediterranean",
+      "score": 1.0
+    },
+    {
+      "text": "ottoman",
+      "score": 1.0
+    },
+    {
+      "text": "romulus augustulus",
+      "score": 1.0
+    },
+    {
+      "text": "julius nepos",
+      "score": 1.0
+    },
+    {
+      "text": "sahara",
+      "score": 1.0
+    },
+    {
+      "text": "britain",
+      "score": 1.0
+    },
+    {
+      "text": "yorkshire",
+      "score": 1.0
+    },
+    {
+      "text": "united states",
+      "score": 1.0
+    },
+    {
+      "text": "cullen murphy",
+      "score": 1.0
+    },
+    {
+      "text": "atlantic",
+      "score": 1.0
+    },
+    {
+      "text": "gaul",
+      "score": 1.0
+    },
+    {
+      "text": "hispania",
+      "score": 1.0
+    },
+    {
+      "text": "africa",
+      "score": 1.0
+    },
+    {
+      "text": "rome ramsay mac mullen",
+      "score": 1.0
+    },
+    {
+      "text": "marcus aurelius",
+      "score": 1.0
+    },
+    {
+      "text": "visigoth",
+      "score": 1.0
+    },
+    {
+      "text": "vandal",
+      "score": 1.0
+    },
+    {
+      "text": "latin",
+      "score": 1.0
+    },
+    {
+      "text": "empire",
+      "score": 1.0
+    },
+    {
+      "text": "america",
+      "score": 1.0
+    },
+    {
+      "text": "robert kraft",
+      "score": 1.0
+    },
+    {
+      "text": "china",
+      "score": 1.0
+    },
+    {
+      "text": "gronk",
+      "score": 1.0
+    },
+    {
+      "text": "roman britain",
+      "score": 1.0
+    },
+    {
+      "text": "north sea",
+      "score": 1.0
+    },
+    {
+      "text": "europe",
+      "score": 1.0
+    },
+    {
+      "text": "british",
+      "score": 1.0
+    },
+    {
+      "text": "england",
+      "score": 1.0
+    },
+    {
+      "text": "burgundian",
+      "score": 1.0
+    },
+    {
+      "text": "balkans",
+      "score": 1.0
+    },
+    {
+      "text": "ostrogoths",
+      "score": 1.0
+    },
+    {
+      "text": "north africa",
+      "score": 1.0
+    },
+    {
+      "text": "roman empire",
+      "score": 1.0
+    },
+    {
+      "text": "aristocratic roman",
+      "score": 1.0
+    },
+    {
+      "text": "italy",
+      "score": 1.0
+    },
+    {
+      "text": "patrick wyman",
+      "score": 1.0
+    },
+    {
+      "text": "mother jones",
+      "score": 1.0
+    },
+    {
+      "text": "american",
+      "score": 1.0
+    },
+    {
+      "text": "donald trump",
+      "score": 0.94
+    },
+    {
+      "text": "shane smith",
+      "score": 0.88
+    },
+    {
+      "text": "anna merlan",
+      "score": 0.88
+    },
+    {
+      "text": "theo bros",
+      "score": 0.88
+    },
+    {
+      "text": "kiera butler",
+      "score": 0.88
+    },
+    {
+      "text": "pema levy",
+      "score": 0.88
+    },
+    {
+      "text": "mark follman",
+      "score": 0.88
+    },
+    {
+      "text": "stephanie mencimer",
+      "score": 0.88
+    },
+    {
+      "text": "serena lin",
+      "score": 0.88
+    },
+    {
+      "text": "eric adams",
+      "score": 0.82
+    },
+    {
+      "text": "supreme court",
+      "score": 0.76
+    }
+  ],
+  "relationships": [
+    {
+      "source_id": "kw_740fca97fbcec220",
+      "target_id": "kw_bce65631ccac23c4",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: supreme court pema levy ~ supreme court",
+            "confidence": 0.8719469600343025,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8719469600343025
+            }
+          },
+          {
+            "sentence": "Uh Thoughts About Antisemitism Kiera Butler Trump\u2019s Billionaire Cabinet Is Unprecedented Tim Murphy Corruption Is About to Get Worse Thanks to the Supreme Court Pema Levy The Looming Danger of Trump\u2019s January 6",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: supreme court pema levy contains/related to supreme court",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.CONCEPT",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:30.908888",
+        "updated_at": "2025-01-23T01:12:35.839073"
+      }
+    },
+    {
+      "source_id": "kw_4b45b1317bc6aaf6",
+      "target_id": "kw_5c7cfd19beac2fc9",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: empire ~ roman empire",
+            "confidence": 0.8335498035619777,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8335498035619777
+            }
+          },
+          {
+            "sentence": "As at the beginning so too at the end If anybody knows anything about Rome they know that it fell and they usually have a theory\u2014lead poisoning is a popular one\u2014to explain why Every scholar working on Roman history has faced the linked questions of whether we\u2019re Rome and where we are in the decline and fall Those twin queries might come from students casual acquaintances at a mandatory social function grasping for conversational common ground some guy at a party ripping massive bong hits to whom you made the mistake of telling your occupation or in my case from podcast listeners and people on Twitter I spent the better part of a decade thinking about the end of the Roman Empire in its various manifestations Academics being academics agree on very little about the topic The idea of \u201cfall\u201d is now pass\u00e9 for better and for worse scholars prefer to speak of a \u201ctransformation\u201d of the Roman world that took place over centuries or better still a long culturally distinct and important in its own right Late Antiquity spanning the Mediterranean world and beyond If the Roman Empire did ever come to a real end all agree it was a slow process lasting many lifetimes\u2014hardly the stuff of dramatic narratives There are still a few catastrophists out there but not many On one hand this is all beside the point While the eastern half of the Roman Empire survived in some form for another thousand years brought to an end only by the Ottoman sultan Mehmed the Conqueror in 1453 the empire in the west did in fact come to a sharp end After a certain point either 476 Romulus Augustulus or 480 Julius Nepos there was no longer an emperor claiming authority over the vast territory Rome had encompassed stretching from the sands of the Sahara to the moors of northern Britain Supply wagons laden with grain and olive oil for Roman garrisons no longer rolled along roads maintained at state expense The villas everywhere from Provence to Yorkshire in which Roman aristocrats had passed their time plotting their election to town councils and composing bad poetry fell into ruin Are we Rome",
+            "confidence": 0.14285714285714285,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.14285714285714285
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: empire contains/related to roman empire",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:30.912602",
+        "updated_at": "2025-01-23T01:12:35.842465"
+      }
+    },
+    {
+      "source_id": "kw_4dde3c24ebeebcac",
+      "target_id": "kw_9ba31f8182fdae24",
+      "type": "synonym",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: america ~ american",
+            "confidence": 1.000000398054751,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 1.000000398054751
+            }
+          },
+          {
+            "sentence": "Mother Jones was founded to do journalism differently We stand for justice and democracy We reject false equivalence We go after stories others don\u2019t We\u2019re a nonprofit newsroom because the kind of truth telling investigations we do doesn\u2019t happen under corporate ownership And we need your support like never before to fight back against the existential threats American democracy faces Fundraising for nonprofit media is always a challenge and we need all hands on deck right now We have no cushion we leave it all on the field",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: america contains/related to american",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:30.912733",
+        "updated_at": "2025-01-23T01:12:35.842584"
+      }
+    },
+    {
+      "source_id": "kw_bce65631ccac23c4",
+      "target_id": "kw_e516185cc198e1fe",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Latest From Africa to America Here\u2019s How Climate Protest Is Being Criminalized Nina Lakhani How a Fantasy Oil Train May Help the Supreme Court Gut a Major Environmental Law Stephanie Mencimer After Random Attacks NY Renews Push for Involuntary Commitment Serena Lin Gerry Connolly Beats AOC in Race for Key Democratic Congressional Post",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:34.918229",
+        "updated_at": "2025-01-23T01:12:34.918231"
+      }
+    },
+    {
+      "source_id": "kw_2b30456bf6fa1838",
+      "target_id": "kw_9418d00aff791246",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "It\u2019s not being caused by one single silver bullet of a threat It\u2019s many things happening at once whether it\u2019s lack of investment in core activities whether it\u2019s diminishing trust in institutions whether it\u2019s growing corruption whether it\u2019s inequality I remember once asking a great scholar of Rome Ramsay Mac Mullen if he could sum up the history of the Roman Empire in a very limited number of words His sentence was \u201cFewer have more \u201d It\u2019s not hard to look around you and see something similar",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: rome contains/related to rome ramsay mac mullen",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.CONCEPT"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.076723",
+        "updated_at": "2025-01-23T01:12:35.839630"
+      }
+    },
+    {
+      "source_id": "kw_4d2208ba6df22c44",
+      "target_id": "kw_9069556529657fd3",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "But this is just a classic example of relying on the ad hoc generosity of the private sector to do something that the government ought to be doing anyway Gronk seems to have late Roman energy Gronk would have made a very good sculpture That can be your last line of the piece Read More Depending on the time place and identity of the observer this process could look and feel much different Let\u2019s say you were a woman born in a thriving market town in Roman Britain in the year 360 If you survived to age 60 that market town would no longer exist along with every other urban settlement of any significant size You lived in a small village now instead of a genuine town You had grown up using money",
+            "confidence": 0.0036496350364963502,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.0036496350364963502
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: roman contains/related to roman britain",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.149025",
+        "updated_at": "2025-01-23T01:12:35.839978"
+      }
+    },
+    {
+      "source_id": "kw_4b45b1317bc6aaf6",
+      "target_id": "kw_9069556529657fd3",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "But by the time the obvious glaring crisis arrives and the true scale of the problem becomes clear it\u2019s far too late The disaster\u2014a major crisis of political legitimacy a pandemic a climate catastrophe\u2014doesn\u2019t so much break the system as show just how broken the system already was The fall of an empire\u2014the end of a polity a socioeconomic order a dominant culture or the intertwined whole\u2014looks more like a cascading series of minor individually unimportant failures than a dramatic ending that appears out of the blue Comparisons between the United States and Rome go back to the very beginning The first volume of Edward Gibbon\u2019s magisterial The History of the Decline and Fall of the Roman Empire was published in 1776 the year of the Declaration of Independence The Founding Fathers had a deep appreciation and understanding of classical antiquity and to some extent they modeled aspects of their new nation on that understanding of the Roman past Southern planters retained a distinct fondness for the Roman aristocracy cultivating a life of high minded leisure on the backs of chattel slaves",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: roman contains/related to roman empire",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.156576",
+        "updated_at": "2025-01-23T01:12:35.840018"
+      }
+    },
+    {
+      "source_id": "kw_9069556529657fd3",
+      "target_id": "kw_a7967a180d894d0b",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "And that\u2019s to say nothing of the decades of pointless self perpetuating and almost undiscussed imperial wars that produce no victories but plenty of expenditures in blood and treasure and a great deal of justified ill will Historians will look back at some enormous disaster either ongoing now or in the decades or centuries to come and say it was just icing on the cake The foundation had already been laid long before in the text of legislation nobody bothered reading in local elections nobody was following in speeches nobody thought were important enough to comment on in a thousand tiny disasters that amounted to a thousand little cuts on the body politic It took a long time decades for the true reality of the change to hit the Romans whose writings have survived Aristocratic Roman officials in Italy maintained the same kind of bureaucratic structure their fathers and grandfathers had writing the same kinds of administrative letters for Ostrogothic kings of Italy that they had for emperors beforehand The pull of the past is strong The mental frameworks through which we understand the world are durable far more than its actual fabric The new falls into the old square pegs into round holes no matter how poor the fit simply because the round holes are what we have available",
+            "confidence": 0.02702702702702703,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.02702702702702703
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: roman contains/related to aristocratic roman",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.157402",
+        "updated_at": "2025-01-23T01:12:35.840032"
+      }
+    },
+    {
+      "source_id": "kw_4d2208ba6df22c44",
+      "target_id": "kw_b5bae584db0b2bd2",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "But this is just a classic example of relying on the ad hoc generosity of the private sector to do something that the government ought to be doing anyway Gronk seems to have late Roman energy Gronk would have made a very good sculpture That can be your last line of the piece Read More Depending on the time place and identity of the observer this process could look and feel much different Let\u2019s say you were a woman born in a thriving market town in Roman Britain in the year 360 If you survived to age 60 that market town would no longer exist along with every other urban settlement of any significant size You lived in a small village now instead of a genuine town You had grown up using money",
+            "confidence": 0.14285714285714285,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.14285714285714285
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: britain contains/related to roman britain",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.333111",
+        "updated_at": "2025-01-23T01:12:35.841006"
+      }
+    },
+    {
+      "source_id": "kw_0debdbfa197b43f1",
+      "target_id": "kw_f77fd0f744ec5aea",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "After some successful pillaging that barbarian came back the next time with an army The fall of an empire \u2014the end of a polity a socioeconomic order a dominant culture or the intertwined whole\u2014looks more like a cascading series of minor individually unimportant failures than a dramatic ending that appears out of the blue Supply carts failing to arrive at some nameless fort because of a dysfunctional military bureaucracy a corrupt official deciding to cook the books and claim taxes were collected when they really weren\u2019t a greedy aristocrat bribing that official instead of paying his bill an aqueduct falling to pieces and nobody willing to front the funds to repair it Consider the city of Rome no longer the capital as the empire wound down but still its symbolic heart It suffered two dramatic sackings in the 5th century the first at the hands of the Visigoths in 410 the second carried out by the Vandals in 455 But neither of those famous plunderings did the city in By some estimates Rome still had at least 100 000 inhabitants well into the barbarian Ostrogoths\u2019 period of rule What shrank Rome to a few tens of thousands by the middle of the 6th century was the end of the annona the intricate state subsidized grain shipments that brought food to the city from North Africa and Sicily The megacity of Rome was an artificial creation of the Roman state and its Roman style Ostrogothic successor Rome faced sieges and a plague outbreak in the 530s and 540s but Rome had dealt with sieges and plagues before What it could not survive was the cutting of its grain supply and the end of the administrative apparatus that ensured its regular delivery Those were small things state subsidized ships pulling up to docks built at state expense sacks of grain hauled on squealing carts and distributed to the citizens but an empire is an agglomeration of small things",
+            "confidence": 0.14285714285714285,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.14285714285714285
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: africa contains/related to north africa",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.486485",
+        "updated_at": "2025-01-23T01:12:35.841865"
+      }
+    },
+    {
+      "source_id": "kw_e516185cc198e1fe",
+      "target_id": "kw_bce65631ccac23c4",
+      "type": "hierarchical",
+      "properties": {
+        "confidence": 0.8,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Hierarchical relationship: supreme court gut contains/related to supreme court",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.CONCEPT",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.838699",
+        "updated_at": "2025-01-23T01:12:35.838701"
+      }
+    },
+    {
+      "source_id": "kw_740fca97fbcec220",
+      "target_id": "kw_5ba8cd6ef6359dba",
+      "type": "hierarchical",
+      "properties": {
+        "confidence": 0.8,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Hierarchical relationship: supreme court pema levy contains/related to pema levy",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.CONCEPT",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:35.839044",
+        "updated_at": "2025-01-23T01:12:35.839046"
+      }
+    }
+  ],
+  "pipeline_metrics": {
+    "stage_times": {},
+    "component_times": {},
+    "total_components": 0,
+    "errors": [],
+    "stage_sequence": []
+  },
+  "final_status": "active",
+  "errors": []
+}

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
-from core.knowledge.neo4j import Neo4jConnection, GraphManager
+from core.knowledge.graph import Neo4jConnection, GraphManager
 
 @pytest.fixture
 def mock_driver():

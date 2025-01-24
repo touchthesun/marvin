@@ -22,5 +22,10 @@ langchainhub
 langchain 
 langgraph  
 tavily-python
+pytest-asyncio
+psutil
+matplotlib
 
+pycountry
+python-us
 # python -m spacy download en_core_web_sm

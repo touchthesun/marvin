@@ -157,12 +157,12 @@ cython_debug/
 .aider*
 
 # exclude temp docs in /notes
-/notes/*
+notes/*
 notes.md
 .DS_Store
 
 # ignore neo4j local data
-/neo4j
+neo4j/*
 
 # ignore package related files
 marvin.egg-info/*

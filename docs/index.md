@@ -14,10 +14,12 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 - [LLM Service](architecture/components/llm-service.md)
 - [Task Engine](architecture/components/task-engine.md)
 - [Web Search](architecture/components/web-search.md)
+- [Content Analysis](architecture/components/content-analysis.md)
 
 ### 💻 Development
 - [Setup Guide](development/setup.md)
 - [Coding Conventions](development/conventions.md)
+- [Librariess & Dependencies](development/dependencies.md)]
 - [Testing Strategy](development/testing.md)
 - [Security Guidelines](development/security.md)
 
