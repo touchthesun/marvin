@@ -1,13 +1,16 @@
 import { TabStateManager, BookmarkManager } from './state';
+import { BrowserPipelineMonitor } from './browser';
 
 
 class MarvinExtension {
     private tabManager: TabStateManager;
     private bookmarkManager: BookmarkManager;
+    private pipelineMonitor: BrowserPipelineMonitor;
 
     constructor() {
         this.tabManager = new TabStateManager();
         this.bookmarkManager = new BookmarkManager();
+        this.pipelineMonitor = new BrowserPipelineMonitor(this.tabManager, this.bookmarkManager);
         this.setupEventListeners();
     }
 

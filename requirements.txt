@@ -12,12 +12,20 @@ openai
 py2neo
 spacy
 newspaper3k
-
+asyncio
+rake-nltk
+pytest-cov
+readability-lxml
 tiktoken 
 langchain-cohere 
 langchainhub 
 langchain 
 langgraph  
 tavily-python
+pytest-asyncio
+psutil
+matplotlib
 
+pycountry
+python-us
 # python -m spacy download en_core_web_sm

@@ -1,5 +1,5 @@
 import logging
-from config import load_config
+from core.utils.config import load_config
 
 config = load_config()
 # You can set a default logging level here and override it using an environment variable

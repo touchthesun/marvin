@@ -10,7 +10,7 @@ from utils.logger import get_logger
 from llm_prompts import prompts
 from services.document_processing import summarize_content, fetch_webpage_content
 from services.openai_services import query_llm_for_categories, chat_completion
-from utils.neo4j_utils import find_by_name
+from archive.neo4j_utils import find_by_name
 
 # Initialize and config
 config = load_config()
@@ -31,12 +31,12 @@ class Keyword(GraphObject):
 
     def __init__(self, name):
         self.name = name
-        self.creation_date = datetime.utcnow().isoformat()
+        self.creation_date = datetime.now().isoformat()
         self.last_updated = self.creation_date
 
     def update_last_updated(self):
         """Update the last_updated property to the current datetime."""
-        self.last_updated = datetime.utcnow().isoformat()
+        self.last_updated = datetime.now().isoformat()
 
 
 def process_page_keywords(url, summary):
@@ -51,8 +51,8 @@ def process_page_keywords(url, summary):
     if keywords:
         for keyword_text in keywords:
             keyword = find_by_name(Keyword, keyword_text) or Keyword(name=keyword_text)
-            keyword.creation_date = datetime.utcnow().isoformat()  
-            keyword.last_updated = datetime.utcnow().isoformat()
+            keyword.creation_date = datetime.now().isoformat()  
+            keyword.last_updated = datetime.now().isoformat()
 
             add_keyword_to_page(url, keyword)
             logger.info(f"Keyword '{keyword_text}' associated with page '{url}'.")
@@ -166,8 +166,8 @@ def store_keywords_in_db(url, keyword_texts):
         # If the keyword does not exist, create a new Keyword object
         if not keyword:
             keyword = Keyword(name=keyword_text)
-            keyword.creation_date = datetime.utcnow().isoformat()  
-            keyword.last_updated = datetime.utcnow().isoformat()
+            keyword.creation_date = datetime.now().isoformat()  
+            keyword.last_updated = datetime.now().isoformat()
             # Here, you might want to set other properties of Keyword and save it if necessary
         
         # Now that we have a Keyword object, associate it with the page
@@ -190,7 +190,7 @@ class Category(GraphObject):
         self.description = description
         self.llm_suggestions = "[]"
         self.user_feedback = "[]"
-        self.creation_date = datetime.utcnow().isoformat()
+        self.creation_date = datetime.now().isoformat()
         self.last_updated = self.creation_date
 
 
@@ -234,7 +234,7 @@ class Category(GraphObject):
         # If category does not exist, create a new one
         try:
             new_category = Category(name=name, description=description)
-            new_category.creation_date = datetime.utcnow().isoformat()
+            new_category.creation_date = datetime.now().isoformat()
             new_category.last_updated = new_category.creation_date
             new_category.save_to_neo4j()
             logger.info(f"New category '{name}' created and saved to Neo4j.")

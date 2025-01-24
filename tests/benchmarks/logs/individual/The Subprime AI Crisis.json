@@ -1,0 +1,1257 @@
+{
+  "page_object": {
+    "core_details": {
+      "id": "d1116e1a-f72d-4c24-b4c2-a81431dbde75",
+      "url": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/The Subprime AI Crisis.html",
+      "domain": "localhost",
+      "title": null,
+      "status": "active"
+    },
+    "timestamps": {
+      "discovered_at": "2025-01-23T01:11:52.775738",
+      "processed_at": null,
+      "updated_at": "2025-01-23T01:12:23.061594"
+    },
+    "metrics": {
+      "quality_score": 0.0,
+      "relevance_score": 0.0,
+      "processing_time": 29.926681,
+      "keyword_count": 94,
+      "last_visited": null,
+      "visit_count": 0
+    },
+    "browser_context": {
+      "context": "background",
+      "tab_id": null,
+      "window_id": null,
+      "bookmark_id": null,
+      "last_active": null
+    },
+    "metadata": {
+      "content": {
+        "ContentProcessor": true
+      }
+    }
+  },
+  "page_path": "file:///Users/nathanparker/Documents/workspace/personal/marvin/tests/benchmarks/pages/The Subprime AI Crisis.html",
+  "content_length": 100301,
+  "processing_time": 30.289337,
+  "metadata_quality": 0,
+  "keyword_count": 94,
+  "keywords": [
+    {
+      "text": "funds",
+      "score": 0.94
+    },
+    {
+      "text": "working",
+      "score": 0.9
+    },
+    {
+      "text": "movement",
+      "score": 0.9
+    },
+    {
+      "text": "prices",
+      "score": 0.8
+    },
+    {
+      "text": "funding round",
+      "score": 0.77
+    },
+    {
+      "text": "creating",
+      "score": 0.76
+    },
+    {
+      "text": "things",
+      "score": 0.75
+    },
+    {
+      "text": "large language models",
+      "score": 1.0
+    },
+    {
+      "text": "promise",
+      "score": 0.73
+    },
+    {
+      "text": "concepts",
+      "score": 0.73
+    },
+    {
+      "text": "new things",
+      "score": 0.73
+    },
+    {
+      "text": "outputs",
+      "score": 0.72
+    },
+    {
+      "text": "basic factual accuracy",
+      "score": 0.7
+    },
+    {
+      "text": "llama",
+      "score": 1.0
+    },
+    {
+      "text": "microsoft",
+      "score": 1.0
+    },
+    {
+      "text": "google",
+      "score": 1.0
+    },
+    {
+      "text": "josh kushner",
+      "score": 1.0
+    },
+    {
+      "text": "thrive capital",
+      "score": 1.0
+    },
+    {
+      "text": "apple",
+      "score": 1.0
+    },
+    {
+      "text": "bloomberg",
+      "score": 1.0
+    },
+    {
+      "text": "mgx",
+      "score": 1.0
+    },
+    {
+      "text": "uae",
+      "score": 1.0
+    },
+    {
+      "text": "saudis",
+      "score": 1.0
+    },
+    {
+      "text": "cnbc",
+      "score": 1.0
+    },
+    {
+      "text": "mubadala",
+      "score": 1.0
+    },
+    {
+      "text": "ftx",
+      "score": 1.0
+    },
+    {
+      "text": "amazon",
+      "score": 1.0
+    },
+    {
+      "text": "dario amodei",
+      "score": 1.0
+    },
+    {
+      "text": "kate clark",
+      "score": 1.0
+    },
+    {
+      "text": "natasha mascarenhas",
+      "score": 1.0
+    },
+    {
+      "text": "sherwood",
+      "score": 1.0
+    },
+    {
+      "text": "reuters",
+      "score": 1.0
+    },
+    {
+      "text": "chat gpt",
+      "score": 1.0
+    },
+    {
+      "text": "gpu",
+      "score": 1.0
+    },
+    {
+      "text": "gpt",
+      "score": 1.0
+    },
+    {
+      "text": "word excel power point",
+      "score": 1.0
+    },
+    {
+      "text": "copilot",
+      "score": 1.0
+    },
+    {
+      "text": "satya nadella",
+      "score": 1.0
+    },
+    {
+      "text": "activision blizzard",
+      "score": 1.0
+    },
+    {
+      "text": "strawberry",
+      "score": 1.0
+    },
+    {
+      "text": "sam altman",
+      "score": 1.0
+    },
+    {
+      "text": "max woolf",
+      "score": 1.0
+    },
+    {
+      "text": "api",
+      "score": 1.0
+    },
+    {
+      "text": "hacker news",
+      "score": 1.0
+    },
+    {
+      "text": "reddit",
+      "score": 1.0
+    },
+    {
+      "text": "henrik kniberg",
+      "score": 1.0
+    },
+    {
+      "text": "karthik kannan",
+      "score": 1.0
+    },
+    {
+      "text": "sasha yanshin",
+      "score": 1.0
+    },
+    {
+      "text": "mississippi",
+      "score": 1.0
+    },
+    {
+      "text": "north carolina",
+      "score": 1.0
+    },
+    {
+      "text": "north dakota",
+      "score": 1.0
+    },
+    {
+      "text": "english",
+      "score": 1.0
+    },
+    {
+      "text": "altman",
+      "score": 1.0
+    },
+    {
+      "text": "runway",
+      "score": 1.0
+    },
+    {
+      "text": "nvidia",
+      "score": 1.0
+    },
+    {
+      "text": "midjourney",
+      "score": 1.0
+    },
+    {
+      "text": "meta",
+      "score": 1.0
+    },
+    {
+      "text": "gemini",
+      "score": 1.0
+    },
+    {
+      "text": "claude gemini",
+      "score": 1.0
+    },
+    {
+      "text": "marshall plan",
+      "score": 1.0
+    },
+    {
+      "text": "hyperscaler",
+      "score": 1.0
+    },
+    {
+      "text": "llm",
+      "score": 1.0
+    },
+    {
+      "text": "claude",
+      "score": 1.0
+    },
+    {
+      "text": "amazon web services",
+      "score": 1.0
+    },
+    {
+      "text": "orion",
+      "score": 1.0
+    },
+    {
+      "text": "microsoft amazon",
+      "score": 1.0
+    },
+    {
+      "text": "jensen huang",
+      "score": 1.0
+    },
+    {
+      "text": "lehman brothers",
+      "score": 1.0
+    },
+    {
+      "text": "big tech",
+      "score": 1.0
+    },
+    {
+      "text": "amazon microsoft",
+      "score": 1.0
+    },
+    {
+      "text": "prabhakar raghavan",
+      "score": 1.0
+    },
+    {
+      "text": "google search",
+      "score": 1.0
+    },
+    {
+      "text": "sundar pichai",
+      "score": 1.0
+    },
+    {
+      "text": "mark zuckerberg",
+      "score": 1.0
+    },
+    {
+      "text": "cnn",
+      "score": 1.0
+    },
+    {
+      "text": "cbs news",
+      "score": 1.0
+    },
+    {
+      "text": "casey newton",
+      "score": 1.0
+    },
+    {
+      "text": "redmond",
+      "score": 1.0
+    },
+    {
+      "text": "satya",
+      "score": 1.0
+    },
+    {
+      "text": "microsoft google",
+      "score": 1.0
+    },
+    {
+      "text": "don",
+      "score": 1.0
+    },
+    {
+      "text": "google cloud",
+      "score": 1.0
+    },
+    {
+      "text": "jim covello",
+      "score": 1.0
+    },
+    {
+      "text": "goldman sachs",
+      "score": 1.0
+    },
+    {
+      "text": "salesforce microsoft box",
+      "score": 1.0
+    },
+    {
+      "text": "box ibm",
+      "score": 1.0
+    },
+    {
+      "text": "gartner",
+      "score": 1.0
+    },
+    {
+      "text": "microsoft apple",
+      "score": 1.0
+    },
+    {
+      "text": "coinbase open sea blur",
+      "score": 1.0
+    },
+    {
+      "text": "andreessen horowitz",
+      "score": 1.0
+    },
+    {
+      "text": "horizon",
+      "score": 1.0
+    },
+    {
+      "text": "salesforce",
+      "score": 1.0
+    },
+    {
+      "text": "agentforce",
+      "score": 1.0
+    },
+    {
+      "text": "edward zitron view",
+      "score": 0.76
+    }
+  ],
+  "relationships": [
+    {
+      "source_id": "kw_1ec736b9fada8e69",
+      "target_id": "kw_6da76b85af1d2e08",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: microsoft ~ microsoft amazon",
+            "confidence": 0.8392865124225692,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8392865124225692
+            }
+          },
+          {
+            "sentence": "And I\u2019ll get to generative AI in a minute Everything is about further monetization \u2014 about increasing the dollar per head value of each customer be it through keeping them doing stuff on the platform to show them more advertising upselling them new features that are only kind of useful or creating some new monopoly or oligopoly where only those with the massive warchests of big tech can really play \u2014 and very little is about delivering real value Real utility Generative AI is so exciting at least for a specific type of person because Big Tech sees it as the next great monetizer \u2014 a means of creating a toll on every single product from consumer tech to the enterprise because the majority of generative compute goes through either Open AI or Anthropic which in turn flows back to either Microsoft Amazon or Google creating cloud compute revenue for them to continue expressing growth The biggest innovation here isn\u2019t what Generative AI does or can do",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: microsoft contains/related to microsoft amazon",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.011098",
+        "updated_at": "2025-01-23T01:12:23.051410"
+      }
+    },
+    {
+      "source_id": "kw_3ef80a543f73e965",
+      "target_id": "kw_6da76b85af1d2e08",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: microsoft ~ amazon microsoft",
+            "confidence": 0.8392865124225692,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8392865124225692
+            }
+          },
+          {
+            "sentence": "Wall Street will begin punishing big tech for the sin of lust and said punishment will savage these companies far more harshly than NVIDIA which despite Huang s bluster and empty platitudes ia the only company in the market that can actually point to how AI is increasing revenue I worry somewhat that option 2 is far more possible that these companies are deeply committed to the idea that AI is the future and their cultures are so thoroughly disconnected from the creation of software that solves the problems that real people face that they ll burn the entire company to the ground I deeply worry about the prospect of mass layoffs being used to fund the movement and nothing about the last few years makes me think they\u2019ll do the right thing and walk away from AI Big tech has become thoroughly poisoned by management consultants \u2014 Amazon Microsoft and Google are all run by MBAs \u2014 and in turn have surrounded them with similarly specious ghouls like Google s Prabhakar Raghavan who chased out the people that actually built Google Search so that he could run it These people do not really face human problems and have created cultures dedicated to solving the imagined problems that software can fix Generative AI must seem kind of magical when your entire life is either being in a meeting or reading an email and I imagine the winning mindset of Satya Nadella mostly comes down to having the tech people sort it out Sundar Pichai could ve ended the entire generative AI boom in an instant if he simply looked at Microsoft s investment in Open AI and laughed \u2014 but no he had to follow because none of these men have any actual ideas and these companies are not run by people that experience problems let alone people that might actually know how to fix them",
+            "confidence": 0.125,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.125
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: microsoft contains/related to amazon microsoft",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.011134",
+        "updated_at": "2025-01-23T01:12:23.051435"
+      }
+    },
+    {
+      "source_id": "kw_6da76b85af1d2e08",
+      "target_id": "kw_e6b6b538e07b8714",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: microsoft ~ microsoft google",
+            "confidence": 0.8145133415848325,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8145133415848325
+            }
+          },
+          {
+            "sentence": "What if \u2014 and this is a crazy idea \u2014 Microsoft Google and Amazon built out these massive data centers to capture demand that may never arrive I realize I sound a little crazy suggesting this but back in March I made the point that I could find no companies that had integrated generative AI in a way that has truly benefited their bottom line and just under six months later I m still looking The best that big companies appear to have is stapling AI functionality onto existing products and hoping that lets them sell more of them something that doesn t appear to be working for anybody or like Microsoft offering AI upgrades that don t seem to provide any real business value While there may be companies integrating AI that are driving some degree of spend on Microsoft",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: microsoft contains/related to microsoft google",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.011185",
+        "updated_at": "2025-01-23T01:12:23.051477"
+      }
+    },
+    {
+      "source_id": "kw_05613b52e76cb6ac",
+      "target_id": "kw_c36e23b075b63b85",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: google ~ google search",
+            "confidence": 0.8289822466885752,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8289822466885752
+            }
+          },
+          {
+            "sentence": "Wall Street will begin punishing big tech for the sin of lust and said punishment will savage these companies far more harshly than NVIDIA which despite Huang s bluster and empty platitudes ia the only company in the market that can actually point to how AI is increasing revenue I worry somewhat that option 2 is far more possible that these companies are deeply committed to the idea that AI is the future and their cultures are so thoroughly disconnected from the creation of software that solves the problems that real people face that they ll burn the entire company to the ground I deeply worry about the prospect of mass layoffs being used to fund the movement and nothing about the last few years makes me think they\u2019ll do the right thing and walk away from AI Big tech has become thoroughly poisoned by management consultants \u2014 Amazon Microsoft and Google are all run by MBAs \u2014 and in turn have surrounded them with similarly specious ghouls like Google s Prabhakar Raghavan who chased out the people that actually built Google Search so that he could run it These people do not really face human problems and have created cultures dedicated to solving the imagined problems that software can fix Generative AI must seem kind of magical when your entire life is either being in a meeting or reading an email and I imagine the winning mindset of Satya Nadella mostly comes down to having the tech people sort it out Sundar Pichai could ve ended the entire generative AI boom in an instant if he simply looked at Microsoft s investment in Open AI and laughed \u2014 but no he had to follow because none of these men have any actual ideas and these companies are not run by people that experience problems let alone people that might actually know how to fix them",
+            "confidence": 0.005780346820809248,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.005780346820809248
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: google contains/related to google search",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.011450",
+        "updated_at": "2025-01-23T01:12:23.051721"
+      }
+    },
+    {
+      "source_id": "kw_05613b52e76cb6ac",
+      "target_id": "kw_e6b6b538e07b8714",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: google ~ microsoft google",
+            "confidence": 0.8498105163720673,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8498105163720673
+            }
+          },
+          {
+            "sentence": "What if \u2014 and this is a crazy idea \u2014 Microsoft Google and Amazon built out these massive data centers to capture demand that may never arrive I realize I sound a little crazy suggesting this but back in March I made the point that I could find no companies that had integrated generative AI in a way that has truly benefited their bottom line and just under six months later I m still looking The best that big companies appear to have is stapling AI functionality onto existing products and hoping that lets them sell more of them something that doesn t appear to be working for anybody or like Microsoft offering AI upgrades that don t seem to provide any real business value While there may be companies integrating AI that are driving some degree of spend on Microsoft",
+            "confidence": 0.09090909090909091,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.09090909090909091
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: google contains/related to microsoft google",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.011490",
+        "updated_at": "2025-01-23T01:12:23.051757"
+      }
+    },
+    {
+      "source_id": "kw_a5149ce4effbd8c5",
+      "target_id": "kw_d348dec2ba96695f",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: apple ~ microsoft apple",
+            "confidence": 0.8281321503357238,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8281321503357238
+            }
+          },
+          {
+            "sentence": "Well it\u2019s the natural result of a tech industry that\u2019s become entirely focused on making each customer more valuable rather than providing more value to the customer Or for that matter actually understand who their customers are and what they need The products you\u2019re being sold today almost certainly try to wed you to a particular ecosystem \u2014 one owned by Microsoft Apple Amazon or Google as a consumer at least \u2014 and in turn increase the burden of leaving said ecosystem Even cryptocurrency \u2014 ostensibly a \u201cdecentralized\u201d technology \u2014 quickly abandoned its free wheeling libertarian ideas and sought to consolidate users on one of a few big platforms like Coinbase Open Sea Blur or Uniswap all backed by the same venture capital firms like Andreessen Horowitz Rather than being flag bearers for a new radically independent online economic system they were all only able to scale through the funds and connections of the same people that funded every other recent era of the internet",
+            "confidence": 0.09090909090909091,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.09090909090909091
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: apple contains/related to microsoft apple",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.012352",
+        "updated_at": "2025-01-23T01:12:23.052507"
+      }
+    },
+    {
+      "source_id": "kw_1ec736b9fada8e69",
+      "target_id": "kw_f87d52ea5aa90728",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: amazon ~ microsoft amazon",
+            "confidence": 0.8859829464666164,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8859829464666164
+            }
+          },
+          {
+            "sentence": "And I\u2019ll get to generative AI in a minute Everything is about further monetization \u2014 about increasing the dollar per head value of each customer be it through keeping them doing stuff on the platform to show them more advertising upselling them new features that are only kind of useful or creating some new monopoly or oligopoly where only those with the massive warchests of big tech can really play \u2014 and very little is about delivering real value Real utility Generative AI is so exciting at least for a specific type of person because Big Tech sees it as the next great monetizer \u2014 a means of creating a toll on every single product from consumer tech to the enterprise because the majority of generative compute goes through either Open AI or Anthropic which in turn flows back to either Microsoft Amazon or Google creating cloud compute revenue for them to continue expressing growth The biggest innovation here isn\u2019t what Generative AI does or can do",
+            "confidence": 0.09090909090909091,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.09090909090909091
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: amazon contains/related to microsoft amazon",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.014126",
+        "updated_at": "2025-01-23T01:12:23.054157"
+      }
+    },
+    {
+      "source_id": "kw_3ef80a543f73e965",
+      "target_id": "kw_f87d52ea5aa90728",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: amazon ~ amazon microsoft",
+            "confidence": 0.8859829464666164,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8859829464666164
+            }
+          },
+          {
+            "sentence": "Wall Street will begin punishing big tech for the sin of lust and said punishment will savage these companies far more harshly than NVIDIA which despite Huang s bluster and empty platitudes ia the only company in the market that can actually point to how AI is increasing revenue I worry somewhat that option 2 is far more possible that these companies are deeply committed to the idea that AI is the future and their cultures are so thoroughly disconnected from the creation of software that solves the problems that real people face that they ll burn the entire company to the ground I deeply worry about the prospect of mass layoffs being used to fund the movement and nothing about the last few years makes me think they\u2019ll do the right thing and walk away from AI Big tech has become thoroughly poisoned by management consultants \u2014 Amazon Microsoft and Google are all run by MBAs \u2014 and in turn have surrounded them with similarly specious ghouls like Google s Prabhakar Raghavan who chased out the people that actually built Google Search so that he could run it These people do not really face human problems and have created cultures dedicated to solving the imagined problems that software can fix Generative AI must seem kind of magical when your entire life is either being in a meeting or reading an email and I imagine the winning mindset of Satya Nadella mostly comes down to having the tech people sort it out Sundar Pichai could ve ended the entire generative AI boom in an instant if he simply looked at Microsoft s investment in Open AI and laughed \u2014 but no he had to follow because none of these men have any actual ideas and these companies are not run by people that experience problems let alone people that might actually know how to fix them",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: amazon contains/related to amazon microsoft",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.014150",
+        "updated_at": "2025-01-23T01:12:23.054179"
+      }
+    },
+    {
+      "source_id": "kw_0ae274b9db763f10",
+      "target_id": "kw_b4da8701cc0673cc",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9448905990859818,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: kate clark ~ sam altman",
+            "confidence": 0.9448905990859818,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.9448905990859818
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.014551",
+        "updated_at": "2025-01-23T01:12:09.014554"
+      }
+    },
+    {
+      "source_id": "kw_9f19da8d3a12e621",
+      "target_id": "kw_b4da8701cc0673cc",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9448905990859818,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: kate clark ~ cnn",
+            "confidence": 0.9448905990859818,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.9448905990859818
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.014687",
+        "updated_at": "2025-01-23T01:12:09.014689"
+      }
+    },
+    {
+      "source_id": "kw_3881bb55d9415570",
+      "target_id": "kw_b4da8701cc0673cc",
+      "type": "related",
+      "properties": {
+        "confidence": 0.923623336868462,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: kate clark ~ jim covello",
+            "confidence": 0.923623336868462,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.923623336868462
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.014726",
+        "updated_at": "2025-01-23T01:12:09.014728"
+      }
+    },
+    {
+      "source_id": "kw_1cc7c8957391efc4",
+      "target_id": "kw_98981cb338475e68",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: chat gpt ~ gpt",
+            "confidence": 0.8689037865704584,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.8689037865704584
+            }
+          },
+          {
+            "sentence": "The company has in recent years altered that rule to allow for a 20 percent yearly increase in the cap starting from 2025 Given Open AI\u2019s existing profit sharing deals with Microsoft \u2014 not to mention its deep deep unprofitability \u2014 any such returns are at the best theoretical At the risk of sounding glib 500 of nothing is still nothing Reuters also added that any transition to a for profit structure and thus a higher valuation than its most recent 80bn would also force Open AI to renegotiate with existing investors who would see their stakes diluted Separately the Financial Times reports that investors have to sign up to an operating agreement that states It would be wise to view any investment in Open AI s for profit subsidiary in the spirit of a donation and that Open AI may never make a profit a truly insane thing to sign that makes any investor in Open AI fully deserving of any horrible fate that follows such a ridiculous investment In effect investors aren t getting a piece of Open AI or any kind of control over Open AI but rather shares in the future profits of a company that loses over five billion dollars a year and will likely lose more in 2025 if it makes it that far Open AI\u2019s models and products \u2014 and we ll get into their utility in a bit \u2014 are deeply unprofitable to operate with the Information reporting that Open AI is paying Microsoft an estimated 4 billion in 2024 to power Chat GPT and its underlying models and that s with Microsoft giving it a discounted 1 30 per GPU an hour cost as opposed to the regular 3 40 to 4 that other customers pay This means that Open AI would likely be burning more like 6 billion a year on server costs if it wasn\u2019t so deeply wedded to Microsoft \u2014 and that s before you get into costs like staffing 1 5 billion a year and as I ve discussed training costs that are currently 3 billion for the year and will almost certainly increase While The Information reported that Open AI s revenue is 3 5 to 4 5 billion a year in July The New York Times reported last week that Open AI s annual revenues have now topped 2 billion which would mean that the end of year numbers will likely trend toward the lower end of the estimate In short Open AI is burning money will only burn more money and to continue burning more money it will have to raise money from investors that are signing a document that says we may never make a profit As I ve written about previously Open AI s other problem is that generative AI and by extension the model GPT and the product Chat GPT doesn t solve the complex problems that would justify its massive costs It has massive intractable problems as a result of these models being probabilistic meaning that they don t know anything they re just generating an answer or an image or a translation or a summary based on training data something that model developers are running out of at an incredible pace Hallucinations \u2014 which occur when models authoritatively states something that isn t true or in the case of an image or a video makes something that looks wrong \u2014 are impossible to resolve without new branches of mathematics and while you might be able to reduce or mitigate them their existence makes it hard for business critical applications to truly rely on generative AI",
+            "confidence": 0.16666666666666666,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.16666666666666666
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: chat gpt contains/related to gpt",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.015454",
+        "updated_at": "2025-01-23T01:12:23.055238"
+      }
+    },
+    {
+      "source_id": "kw_7474dd581c8f1879",
+      "target_id": "kw_9021996772f2ee3a",
+      "type": "synonym",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 3,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: satya nadella ~ satya",
+            "confidence": 1.0000000263740656,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 1.0000000263740656
+            }
+          },
+          {
+            "sentence": "And how much is Microsoft charging for these inessential features A whopping 30 a seat on top of what you\u2019re already paying or as much as 50 a month extra for \u201c Copilots for Sales \u201d They\u2019re effectively asking customers to double their spend and by the way that\u2019s an annual commitment for products that don\u2019t seem to be that helpful As a note Microsoft is such a clusterfuck that it will likely require its own newsletter in the future This is the current state of generative AI the literal leader in productivity and business software cannot seem to find a product that people will pay for in part because the results are so mediocre and in part because the costs are so burdensome that it\u2019s hard to justify them If Microsoft needs to charge this much it\u2019s either because Satya Nadella wants to hit 500 billion in revenue by 2030 as revealed as part of a memo included in a public hearing over Microsoft\u2019s acquisition of Activision Blizzard the costs are too high to charge much less or some combination of the two",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: satya nadella contains/related to satya",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.016636",
+        "updated_at": "2025-01-23T01:12:23.056247"
+      }
+    },
+    {
+      "source_id": "kw_0ae274b9db763f10",
+      "target_id": "kw_9f19da8d3a12e621",
+      "type": "synonym",
+      "properties": {
+        "confidence": 0.99999986048518,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: sam altman ~ cnn",
+            "confidence": 0.99999986048518,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.99999986048518
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.017211",
+        "updated_at": "2025-01-23T01:12:09.017213"
+      }
+    },
+    {
+      "source_id": "kw_7ff3e55b6f78d9bf",
+      "target_id": "kw_8e8ee46d55dc2367",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: north carolina ~ north dakota",
+            "confidence": 0.9311674039418311,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 0.9311674039418311
+            }
+          },
+          {
+            "sentence": "On Twitter Henrik Kniberg a startup founder and former game developer asked o1 to write a python program that multiplied two numbers and then calculated the expected output of said program While it wrote the code correctly although said code could have been more succinct using one line instead of two the actual result was wildly incorrect Karthik Kannan himself a founder of an AI company tried a programming task on o1 where it also hallucinated a non existent command for the API he was using Another person Sasha Yanshin tried to play a game of chess with o1 and it hallucinated an entire piece onto the board And then lost Because I\u2019m a little shit I also tried asking o1 to list the number of states with \u201cA\u201d in the name After contemplating for eighteen seconds it provided the names of 37 states including Mississippi The correct number by the way is 36 When asked to list the states with the letter \u201cW\u201d in the name it pondered for eleven seconds and included North Carolina and North Dakota I also asked o1 to count the number of times the letter \u201cR\u201d appears in the word strawberry \u2014 its pre release codename It said two Open AI claims that o1 \u201cperforms similarly to Ph D students on challenging benchmark tasks in physics chemistry and biology \u201d Just not in geography it seems",
+            "confidence": 0.05,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.05
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.018671",
+        "updated_at": "2025-01-23T01:12:21.898012"
+      }
+    },
+    {
+      "source_id": "kw_1ec736b9fada8e69",
+      "target_id": "kw_3ef80a543f73e965",
+      "type": "synonym",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Semantic relationship: microsoft amazon ~ amazon microsoft",
+            "confidence": 1.0000000791072876,
+            "metadata": {
+              "detection_method": "semantic_similarity",
+              "nlp_score": 1.0000000791072876
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:09.020695",
+        "updated_at": "2025-01-23T01:12:09.020697"
+      }
+    },
+    {
+      "source_id": "kw_1bb4a973896351c5",
+      "target_id": "kw_61925c893f25278b",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "but rather the creation of an ecosystem that\u2019s hopelessly dependent upon a handful of hyperscalers and has no prospect of ever shaking its dependence Generative AI may not be super useful but it is really easy to integrate into stuff and make \u201cnew things\u201d happen creating all sorts of new things that a company could theoretically charge for both for consumer apps and enterprise software companies that make millions or billions upselling as many customers as possible Sam Altman was smart enough to realize that the tech industry needed a new \u201cthing\u201d \u2014 a new technology that everybody could take a piece of and sell \u2014 and while he might not really understand technology Altman understands the growth lust of the larger economy and productized transformer based architecture as something that everybody could sell a magical tool that could plug into most things and make something different",
+            "confidence": 0.2,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.2
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: things contains/related to new things",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:18.468255",
+        "updated_at": "2025-01-23T01:12:23.049239"
+      }
+    },
+    {
+      "source_id": "kw_6da76b85af1d2e08",
+      "target_id": "kw_d2abb505d5e24b7e",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "I hypothesize a lot of this demand is driven by investor sentiment with companies \u201cinvesting in AI\u201d to keep the markets happy rather than any cost benefit analysis or actual utility Nevertheless these companies have spent a great deal of time and money baking in generative AI features to their products and I hypothesize they will face one of a few different scenarios After developing and launching these features they find customers don t want to pay for them as Microsoft has found with its 365 Copilot and if they can t find a way to make them pay for it now during the AI boom they re going to be hard pressed to once people s bosses stop asking them to get in on AI After developing and launching these features they can t seem to find a way to get users to pay for them or at least pay extra for them which means that they ll have to bake AI into their existing products with no extra margin effectively turning them into a parasite that eats away at revenue This was a point raised by Jim Covello in Goldman Sachs generative AI report \u2014 that if AI s benefits are efficiency improvements such as being able to analyze documents faster that s something that your competition can do too If you look carefully almost every generative AI integration is the same \u2014 some sort of copilot that can answer questions for customers or internally Salesforce Microsoft Box content creation Box IBM code generation Cognizant Github Copilot and soon agents the latest bullshit that will mean customizable chatbots that can connect to other parts of websites This point also illustrates one of the biggest problems with generative AI \u2014 that while powerful in some vague way said power mostly boils down to generates stuff based on other stuff rather than any intelligence",
+            "confidence": 0.0011389521640091116,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.0011389521640091116
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: microsoft contains/related to salesforce microsoft box",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.CONCEPT"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:19.363910",
+        "updated_at": "2025-01-23T01:12:23.051503"
+      }
+    },
+    {
+      "source_id": "kw_6da76b85af1d2e08",
+      "target_id": "kw_d348dec2ba96695f",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "Well it\u2019s the natural result of a tech industry that\u2019s become entirely focused on making each customer more valuable rather than providing more value to the customer Or for that matter actually understand who their customers are and what they need The products you\u2019re being sold today almost certainly try to wed you to a particular ecosystem \u2014 one owned by Microsoft Apple Amazon or Google as a consumer at least \u2014 and in turn increase the burden of leaving said ecosystem Even cryptocurrency \u2014 ostensibly a \u201cdecentralized\u201d technology \u2014 quickly abandoned its free wheeling libertarian ideas and sought to consolidate users on one of a few big platforms like Coinbase Open Sea Blur or Uniswap all backed by the same venture capital firms like Andreessen Horowitz Rather than being flag bearers for a new radically independent online economic system they were all only able to scale through the funds and connections of the same people that funded every other recent era of the internet",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: microsoft contains/related to microsoft apple",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:19.368688",
+        "updated_at": "2025-01-23T01:12:23.051523"
+      }
+    },
+    {
+      "source_id": "kw_05613b52e76cb6ac",
+      "target_id": "kw_e52ab7bedd839b44",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "Azure Amazon Web Services and Google Cloud",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: google contains/related to google cloud",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:19.478664",
+        "updated_at": "2025-01-23T01:12:23.051774"
+      }
+    },
+    {
+      "source_id": "kw_9e9dd175e65c5c3f",
+      "target_id": "kw_e3f1a9a23399f75c",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "None of what I write in this newsletter is about sowing doubt or hating but a sober evaluation of where we are today and where we may end up on the current path I believe that the artificial intelligence boom \u2014 which would be better described as a generative AI boom \u2014 is as I ve said before unsustainable and will ultimately collapse I also fear that said collapse could be ruinous to big tech deeply damaging to the startup ecosystem and will further sour public support for the tech industry The reason I m writing this today is that it feels like the tides are rapidly turning and multiple pale horses of the AI apocalypse have emerged a big stupid magic trick \u201d in the form of Open AI s rushed launch of its o1 codenamed strawberry model rumored price increases for future Open AI models and elsewhere layoffs at Scale AI and leaders fleeing Open AI These are all signs that things are beginning to collapse As a result I think it\u2019s important to explain how precarious things are and why we are in a trough of magical thinking I want to express my concerns about the fragility of this movement and the obsessiveness and directionlessness that brought us here and I want some of us to do better I also \u2014 and this perhaps is something I haven\u2019t focused on as much as I should have \u2014 want to highlight the potential human cost of an AI bubble implosion Whether Microsoft and Google and the other big generative AI backers slowly wind down their positions or cannibalize their companies to keep Open AI and Anthropic as well as their own generative AI efforts alive I\u2019m convinced that the end result will be the same I fear tens of thousands of people will lose their jobs and much of the tech industry will suffer as they realize that the only thing that can grow forever is cancer There won\u2019t be much levity in this piece I\u2019m going to paint you a bleak picture \u2014 not just for the big AI players but for tech more widely and for the people who work at tech companies \u2014 and tell you why I think the conclusion to this sordid saga as brutal and damaging as it will be is coming sooner than you think Let s begin How Does Generative AI Survive As we speak Open AI \u2014 the ostensible non profit that may soon become a for profit \u2014 is currently raising a funding round at a valuation of at least 150 billion and is expected to raise at least 6 5 billion \u2014 but potentially as much as 7 billion \u2014 led by Josh Kushner s Thrive Capital with rumored participation from both NVIDIA and Apple As I ve explained in agonizing detail in the past Open AI will have to continue to raise more money than any startup has ever raised in history in perpetuity to survive Worse still Open AI also is trying to raise 5 billion in debt from banks \u201cin the form of a revolving credit facility\u201d according to Bloomberg and the terms on revolving credit facilities tend to have higher rates of interest The Information also reports that Open AI is in talks with MGX a 100 billion investment fund backed by the United Arab Emirates to invest primarily in AI and semiconductor companies as well as potentially raising from the Abu Dhabi Investment Authority This should be the biggest warning sign that things are going poorly because absolutely nobody raises from the UAE or Saudis because they want to They\u2019re the place you go if you need a lot of money and you\u2019re not confident anybody else will give it to you Sidenote as CNBC points out one of the foundational partners of MGX Mubadala owns around 500m in Anthropic equity which it acquired from the bankruptcy of FTX\u2019s assets I\u2019m sure Amazon and Google are thrilled about that conflict of interest As I discussed at the end of July Open AI needs to raise at least 3 billion \u2014 but more like 10 billion to survive as it is on course to lose 5 billion in 2024 a number that s likely to increase as more complex models demand more compute and more training data with Anthropic CEO Dario Amodei predicting that future models may cost as much as 100 billion to train As an aside a 150 billion valuation in this case refers to how Open AI is pricing shares in the company for investors \u2014 though shares is even a fuzzy term in this case For example an investment of 1 5 billion at a 150 billion valuation in a normal company would get you 1 of the company though as I ll get to in Open AI s case things are a lot weirder Open AI has already tried to raise at a 100 billion valuation earlier in the year with some investors balking at the price tag in part because",
+            "confidence": 0.0005414185165132648,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.0005414185165132648
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: thrive capital contains/related to api",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:19.617283",
+        "updated_at": "2025-01-23T01:12:23.052133"
+      }
+    },
+    {
+      "source_id": "kw_0692373a911ee3f8",
+      "target_id": "kw_f87d52ea5aa90728",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "Azure Amazon Web Services and Google Cloud",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: amazon contains/related to amazon web services",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.CONCEPT"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:20.431030",
+        "updated_at": "2025-01-23T01:12:23.054142"
+      }
+    },
+    {
+      "source_id": "kw_0ae274b9db763f10",
+      "target_id": "kw_946036c511cb32f2",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "And boy was it underwhelming A Big Stupid Magic Trick Open AI launched o1 \u2014 codenamed Strawberry \u2014 on Thursday night with all the excitement of a dentist\u2019s appointment Across a series of tweets Sam Altman described o1 as Open Ai\u2019s \u201cmost capable and aligned models yet \u201d",
+            "confidence": 0.2,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.2
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: sam altman contains/related to altman",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:21.414650",
+        "updated_at": "2025-01-23T01:12:23.056669"
+      }
+    },
+    {
+      "source_id": "kw_d8f216fc663c0080",
+      "target_id": "kw_df1aee4ef2e1f8be",
+      "type": "related",
+      "properties": {
+        "confidence": 0.9,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "The prices are not decreasing the software is not becoming more useful and the next generation model that we\u2019ve been hearing about since last November has turned out to be a dud These models are also desperate for training data to the point that almost every Large Language Model has ingested some sort of copyrighted material This desperation led Runway one of the largest generative video players to create a \u201ccompany wide effort\u201d to collect thousands of You Tube videos and pirated content to train their models and a federal lawsuit filed in August alleges that NVIDIA did the same to numerous creators to train its Cosmos AI software The legal strategy at this point is sheer force of will hoping that none of these lawsuits reach the point where any legal precedent is set that might define training these models as a form of copyright infringement which is exactly what a multidisciplinary study out of the Copyright Initiative recently found was the case These lawsuits are progressing with a judge in August granting plaintiffs further claims of copyright infringement against Stability AI and Deviant Art which uses its models as well as both copyright and trademark infringement claims against Midjourney If any of these lawsuits prevail it would be calamitous for Open AI and Anthropic and even more so for Google and Meta whose Gemini and Llama models use datasets including millions of artists work mostly because it s virtually impossible for AI models to forget training data meaning that they d need to be retrained from scratch which would cost billions of dollars and dramatically reduce their efficacy at tasks they re already not particularly good at I am deeply concerned that this entire industry is built on sand Large Language Models at the scale of Chat GPT Claude Gemini and Llama are unsustainable and do not appear to have a path to profitability due to the compute intensive nature of generative AI Training them necessitates spending hundreds of millions \u2014 if not billions \u2014 of dollars and requires such a large amount of training data that these companies have effectively stolen from millions of artists and writers and hoped they d get away with it",
+            "confidence": 0.0022522522522522522,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 0.0022522522522522522
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: gemini contains/related to claude gemini",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:22.275444",
+        "updated_at": "2025-01-23T01:12:23.058954"
+      }
+    },
+    {
+      "source_id": "kw_ab26f7baa024da0b",
+      "target_id": "kw_df1aee4ef2e1f8be",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 2,
+        "evidence": [
+          {
+            "sentence": "The prices are not decreasing the software is not becoming more useful and the next generation model that we\u2019ve been hearing about since last November has turned out to be a dud These models are also desperate for training data to the point that almost every Large Language Model has ingested some sort of copyrighted material This desperation led Runway one of the largest generative video players to create a \u201ccompany wide effort\u201d to collect thousands of You Tube videos and pirated content to train their models and a federal lawsuit filed in August alleges that NVIDIA did the same to numerous creators to train its Cosmos AI software The legal strategy at this point is sheer force of will hoping that none of these lawsuits reach the point where any legal precedent is set that might define training these models as a form of copyright infringement which is exactly what a multidisciplinary study out of the Copyright Initiative recently found was the case These lawsuits are progressing with a judge in August granting plaintiffs further claims of copyright infringement against Stability AI and Deviant Art which uses its models as well as both copyright and trademark infringement claims against Midjourney If any of these lawsuits prevail it would be calamitous for Open AI and Anthropic and even more so for Google and Meta whose Gemini and Llama models use datasets including millions of artists work mostly because it s virtually impossible for AI models to forget training data meaning that they d need to be retrained from scratch which would cost billions of dollars and dramatically reduce their efficacy at tasks they re already not particularly good at I am deeply concerned that this entire industry is built on sand Large Language Models at the scale of Chat GPT Claude Gemini and Llama are unsustainable and do not appear to have a path to profitability due to the compute intensive nature of generative AI Training them necessitates spending hundreds of millions \u2014 if not billions \u2014 of dollars and requires such a large amount of training data that these companies have effectively stolen from millions of artists and writers and hoped they d get away with it",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          },
+          {
+            "sentence": "Hierarchical relationship: claude gemini contains/related to claude",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.TERM",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:22.319209",
+        "updated_at": "2025-01-23T01:12:23.059082"
+      }
+    },
+    {
+      "source_id": "kw_4422aff73e6443df",
+      "target_id": "kw_d2abb505d5e24b7e",
+      "type": "related",
+      "properties": {
+        "confidence": 1.0,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "I hypothesize a lot of this demand is driven by investor sentiment with companies \u201cinvesting in AI\u201d to keep the markets happy rather than any cost benefit analysis or actual utility Nevertheless these companies have spent a great deal of time and money baking in generative AI features to their products and I hypothesize they will face one of a few different scenarios After developing and launching these features they find customers don t want to pay for them as Microsoft has found with its 365 Copilot and if they can t find a way to make them pay for it now during the AI boom they re going to be hard pressed to once people s bosses stop asking them to get in on AI After developing and launching these features they can t seem to find a way to get users to pay for them or at least pay extra for them which means that they ll have to bake AI into their existing products with no extra margin effectively turning them into a parasite that eats away at revenue This was a point raised by Jim Covello in Goldman Sachs generative AI report \u2014 that if AI s benefits are efficiency improvements such as being able to analyze documents faster that s something that your competition can do too If you look carefully almost every generative AI integration is the same \u2014 some sort of copilot that can answer questions for customers or internally Salesforce Microsoft Box content creation Box IBM code generation Cognizant Github Copilot and soon agents the latest bullshit that will mean customizable chatbots that can connect to other parts of websites This point also illustrates one of the biggest problems with generative AI \u2014 that while powerful in some vague way said power mostly boils down to generates stuff based on other stuff rather than any intelligence",
+            "confidence": 1.0,
+            "metadata": {
+              "detection_method": "sentence_proximity",
+              "distance_score": 1.0
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:23.004223",
+        "updated_at": "2025-01-23T01:12:23.004225"
+      }
+    },
+    {
+      "source_id": "kw_d2abb505d5e24b7e",
+      "target_id": "kw_4422aff73e6443df",
+      "type": "hierarchical",
+      "properties": {
+        "confidence": 0.8,
+        "evidence_count": 1,
+        "evidence": [
+          {
+            "sentence": "Hierarchical relationship: salesforce microsoft box contains/related to salesforce",
+            "confidence": 0.8,
+            "metadata": {
+              "detection_method": "substring_hierarchy",
+              "source_type": "KeywordType.CONCEPT",
+              "target_type": "KeywordType.TERM"
+            }
+          }
+        ],
+        "created_at": "2025-01-23T01:12:23.060875",
+        "updated_at": "2025-01-23T01:12:23.060877"
+      }
+    }
+  ],
+  "pipeline_metrics": {
+    "stage_times": {},
+    "component_times": {},
+    "total_components": 0,
+    "errors": [],
+    "stage_sequence": []
+  },
+  "final_status": "active",
+  "errors": []
+}

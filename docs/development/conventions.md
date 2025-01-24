@@ -1,7 +1,6 @@
 # Development Conventions
 
 ## Project Structure
-### Browser Extension Structure
 ```
 marvin/
 ├── extension/           # Browser extension files
@@ -15,14 +14,28 @@ marvin/
 │   ├── knowledge/     # Knowledge graph operations
 │   ├── llm/          # LLM service integration
 │   ├── tools/        # Tools available to LLM agent
-│   │   ├── search/   # Web search functionality
-│   │   └── other/    # Future tools
+│   │   ├── content/   # Content analysis tools
+│   │   └── metadata/  # Metadata extraction tools
 │   └── tasks/        # Task execution engine
 │
 ├── utils/            # Development utilities and scripts
 ├── tests/           # Test files mirroring src structure
 ├── docs/            # Documentation
 ```
+
+
+## Logging 
+#### Error: Used for unrecoverable errors
+self.logger.error("Failed to process entity", exc_info=True)
+
+### Warning: Used for recoverable errors
+self.logger.warning(f"Invalid entity mention: {mention.text}")
+
+### Info: Used for significant state changes
+self.logger.info(f"Initialized keyword extraction with {len(self.stopwords)} stopwords")
+
+### Debug: Used for detailed operation tracking
+self.logger.debug(f"Processing entity: {entity.text} ({entity.type})")
 
 ## Code Style
 ### Python
