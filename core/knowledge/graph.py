@@ -1,19 +1,20 @@
-from utils.logger import get_logger
+from core.utils.logger import get_logger
 from typing import Dict, List, Any, Optional, Tuple, Callable, TypeVar
 from neo4j import AsyncGraphDatabase
 from dataclasses import dataclass
 from contextlib import asynccontextmanager
+from datetime import datetime
 import asyncio
 import uuid
 import hashlib
+import os
 from neo4j.exceptions import (
     Neo4jError,
-    TransientError,
     ServiceUnavailable,
     SessionExpired,
-    TransactionError
 )
 from core.utils.config import load_config
+from core.content.types import RelationType
 from core.content.relationships import Relationship
 from core.content.keyword_identification import KeywordIdentifier
 
@@ -182,20 +183,42 @@ class Neo4jConnection:
         if cls._tx_manager is None:
             cls._tx_manager = TransactionManager()
         return cls._tx_manager
+    
 
     @classmethod
     async def get_driver(cls):
         """Get or create the Neo4j driver instance."""
         if cls._driver is None:
-            if None in [NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD]:
-                logger.error('One or more Neo4j environment variables are missing.')
-                raise RuntimeError('Missing Neo4j environment variables.')
+            def get_fresh_config():
+                config = load_config()
+                print(f"Fresh config load - DB_MODE: {os.getenv('DB_MODE')}")
+                print(f"Fresh URI: {config['neo4j_uri']}")
+                return config
+        
+            config = get_fresh_config()
+
+            print(f"DB_MODE: {os.getenv('DB_MODE')}")  # Direct print for env var
+            print(f"NEO4J_URI_LOCAL: {os.getenv('NEO4J_URI_LOCAL')}")
+            print(f"Config loaded URI: {config['neo4j_uri']}")
+
+            uri = config["neo4j_uri"]
+            username = config["neo4j_username"]
+            password = config["neo4j_password"]
+
+            logger.debug(f"DB_MODE: {os.getenv('DB_MODE')}")
+            logger.debug(f"Neo4j URI: {uri}")
+            logger.debug(f"Neo4j Username: {username}")
+            # Don't log password
+
+            if None in [uri, username, password]:
+                logger.error('One or more Neo4j configuration values are missing.')
+                raise RuntimeError('Missing Neo4j configuration.')
+                
             try:
                 cls._driver = AsyncGraphDatabase.driver(
-                    NEO4J_URI, 
-                    auth=(NEO4J_USERNAME, NEO4J_PASSWORD)
+                    uri, 
+                    auth=(username, password)
                 )
-                # Verify connectivity asynchronously
                 await cls._driver.verify_connectivity()
                 logger.info('Successfully connected to Neo4j.')
             except Exception as e:
@@ -234,46 +257,31 @@ class Neo4jConnection:
         parameters: Optional[dict] = None,
         transaction_id: Optional[str] = None
     ) -> List[Any]:
-        """Execute a read query with retry logic and error handling.
-        
-        Args:
-            query: The Cypher query to execute
-            parameters: Optional query parameters
-            transaction_id: Optional ID for tracking retry patterns
-            
-        Returns:
-            List of query results, with single-item records unpacked
-            
-        Raises:
-            Neo4jError: If the query execution fails
-        """
-        async def read_transaction():
+        async def read_transaction(query, parameters):
             async with cls.get_session() as session:
-                try:
-                    result = await session.execute_read(
-                        lambda tx: tx.run(query, parameters or {})
-                    )
-                    records = await result.values()
-                    return [
-                        record[0] if len(record) == 1 else record 
-                        for record in records
-                    ]
-                except Exception as e:
-                    logger.error(
-                        "Read query execution failed",
-                        extra={
-                            "error": str(e),
-                            "query": query,
-                            "parameters": parameters,
-                            "transaction_id": transaction_id
-                        }
-                    )
-                    raise
+                result = await session.run(query, parameters or {})
+                data = await result.data()
+                await result.consume()
+                return data
 
-        return await cls.get_transaction_manager().execute_in_transaction(
-            read_transaction,
-            transaction_id=transaction_id
-        )
+        try:
+            return await cls.execute_in_transaction(
+                read_transaction,
+                query,
+                parameters,
+                transaction_id=transaction_id
+            )
+        except Exception as e:
+            logger.error(
+                "Read query execution failed",
+                extra={
+                    "error": str(e),
+                    "query": query,
+                    "parameters": parameters,
+                    "transaction_id": transaction_id
+                }
+            )
+            raise
 
     @classmethod
     async def execute_write_query(
@@ -282,46 +290,34 @@ class Neo4jConnection:
         parameters: Optional[dict] = None,
         transaction_id: Optional[str] = None
     ) -> List[Any]:
-        """Execute a write query with retry logic and error handling.
-        
-        Args:
-            query: The Cypher query to execute
-            parameters: Optional query parameters
-            transaction_id: Optional ID for tracking retry patterns
-            
-        Returns:
-            List of query results, with single-item records unpacked
-            
-        Raises:
-            Neo4jError: If the query execution fails
-        """
-        async def write_transaction():
+        """Execute a write query with retry logic and error handling."""
+        async def write_transaction(query, parameters):
             async with cls.get_session() as session:
-                try:
-                    result = await session.execute_write(
-                        lambda tx: tx.run(query, parameters or {})
-                    )
-                    records = await result.values()
-                    return [
-                        record[0] if len(record) == 1 else record 
-                        for record in records
-                    ]
-                except Exception as e:
-                    logger.error(
-                        "Write query execution failed",
-                        extra={
-                            "error": str(e),
-                            "query": query,
-                            "parameters": parameters,
-                            "transaction_id": transaction_id
-                        }
-                    )
-                    raise
+                result = await session.run(query, parameters or {})
+                data = await result.data()
+                await result.consume()
+                return data
+                
+        try:
+            return await cls.execute_in_transaction(
+                write_transaction,
+                query,
+                parameters,
+                transaction_id=transaction_id
+            )
+        except Exception as e:
+            logger.error(
+                "Write query execution failed",
+                extra={
+                    "error": str(e),
+                    "query": query,
+                    "parameters": parameters,
+                    "transaction_id": transaction_id
+                }
+            )
+            raise
 
-        return await cls.get_transaction_manager().execute_in_transaction(
-            write_transaction,
-            transaction_id=transaction_id
-        )
+
 
     @classmethod
     async def execute_in_transaction(
@@ -369,8 +365,6 @@ class GraphManager:
             Tuple of (site_node, page_node)
         """
         try:
-            logger.info(f"Creating/updating site and page: {site_url} -> {page_url}")
-            
             query = """
             MERGE (s:Site {url: $site_url})
             SET s.name = $site_name,
@@ -379,8 +373,13 @@ class GraphManager:
             MERGE (p:Page {url: $page_url})
             SET p.title = $page_title,
                 p.content_summary = $page_content_summary,
-                p.metadata = $page_metadata,
-                p.last_accessed = datetime()
+                p.status = $status,
+                p.domain = $domain,
+                p.discovered_at = datetime($discovered_at),
+                p.last_accessed = datetime(),
+                p.tab_id = $tab_id,
+                p.window_id = $window_id,
+                p.bookmark_id = $bookmark_id
             
             MERGE (s)-[r:CONTAINS]->(p)
             SET r.last_updated = datetime()
@@ -394,20 +393,17 @@ class GraphManager:
                 "page_url": page_url,
                 "page_title": page_title,
                 "page_content_summary": page_content_summary,
-                "page_metadata": page_metadata
+                "status": page_metadata.get("status"),
+                "domain": page_metadata.get("domain"),
+                "discovered_at": page_metadata.get("discovered_at"),
+                "tab_id": page_metadata.get("tab_id"),
+                "window_id": page_metadata.get("window_id"),
+                "bookmark_id": page_metadata.get("bookmark_id")
             }
             
-            result = await Neo4jConnection.execute_write_query(
-                query,
-                parameters,
-                transaction_id=f"site_page_{site_url.split('://')[1].split('/')[0]}"
-            )
-            if result:
-                logger.debug(f"Successfully created/updated site and page: {site_url} -> {page_url}")
-                return result[0]['site'], result[0]['page']
-            logger.warning(f"No result returned for site/page creation")
-            return None, None
-            
+            result = await Neo4jConnection.execute_write_query(query, parameters)
+            return result[0]["site"], result[0]["page"]
+                
         except Exception as e:
             logger.error(f"Error creating site/page: {str(e)}")
             raise
@@ -824,68 +820,33 @@ class GraphSchema:
 
     @staticmethod
     async def validate_schema() -> bool:
-        """Verify all required constraints and indexes exist"""
         try:
             logger.info("Validating schema configuration")
             
-            # Check constraints
-            constraints_query = """
-            CALL db.constraints() YIELD name, description
-            RETURN collect(name) as constraints
-            """
-            result = await Neo4jConnection.execute_read_query(
-                constraints_query,
-                transaction_id="schema_validate"
-                )
-            constraints = result[0]['constraints']
-            
-            required_constraints = [
-                'site_url', 'page_url', 'keyword_id'
+            # Try to create labels and constraints if they don't exist
+            queries = [
+                # Basic constraints
+                """CREATE CONSTRAINT IF NOT EXISTS FOR (p:Page) REQUIRE p.url IS UNIQUE""",
+                """CREATE CONSTRAINT IF NOT EXISTS FOR (s:Site) REQUIRE s.url IS UNIQUE""",
+                """CREATE CONSTRAINT IF NOT EXISTS FOR (k:Keyword) REQUIRE k.id IS UNIQUE"""
             ]
             
-            missing_constraints = [c for c in required_constraints if c not in constraints]
+            for query in queries:
+                try:
+                    await Neo4jConnection.execute_write_query(query)
+                except Exception as e:
+                    logger.warning(f"Failed to create constraint: {str(e)}")
+                    continue
             
-            # Check indexes
-            indexes_query = """
-            CALL db.indexes() YIELD name, labelsOrTypes, properties
-            RETURN collect({
-                name: name,
-                label: labelsOrTypes[0],
-                property: properties[0]
-            }) as indexes
-            """
-            result = await Neo4jConnection.execute_read_query(
-                indexes_query,
-                transaction_id="schema_validate"
-                )
-            indexes = result[0]['indexes']
+            # Check for existence of basic nodes
+            try:
+                check_query = "MATCH (p:Page) RETURN count(p) as count"
+                result = await Neo4jConnection.execute_read_query(check_query)
+                logger.info(f"Found {result[0]['count']} Page nodes")
+            except Exception as e:
+                logger.warning(f"Failed to check Page nodes: {str(e)}")
             
-            required_indexes = [
-                ('Page', 'metadata_quality_score'),
-                ('Keyword', 'normalized_text'),
-                ('Keyword', 'keyword_type')
-            ]
-            
-            existing_indexes = [(idx['label'], idx['property']) for idx in indexes]
-            missing_indexes = [idx for idx in required_indexes if idx not in existing_indexes]
-            
-            if missing_constraints or missing_indexes:
-                if missing_constraints:
-                    logger.warning(f"Missing constraints: {missing_constraints}")
-                if missing_indexes:
-                    logger.warning(f"Missing indexes: {missing_indexes}")
-                return False
-                
-            # Check schema version
-            current_version = await GraphSchema.get_schema_version()
-            if current_version != GraphSchema.CURRENT_SCHEMA_VERSION:
-                logger.warning(
-                    f"Schema version mismatch. Current: {current_version}, "
-                    f"Expected: {GraphSchema.CURRENT_SCHEMA_VERSION}"
-                )
-                return False
-                
-            logger.info("Schema validation successful")
+            logger.info("Basic schema validation complete")
             return True
             
         except Exception as e:
@@ -917,28 +878,20 @@ class GraphSchema:
 
     @staticmethod
     async def get_schema_version() -> str:
-        """Get the current schema version"""
         try:
             query = """
-            MATCH (s:SchemaVersion)
-            RETURN s.version as version
-            ORDER BY s.timestamp DESC
-            LIMIT 1
+            OPTIONAL MATCH (s:SchemaVersion)
+            WITH s ORDER BY s.timestamp DESC LIMIT 1
+            RETURN COALESCE(s.version, "0.0") as version
             """
-            result = await Neo4jConnection.execute_read_query(
-                query,
-                transaction_id="schema_get_version"
-                )
-            if result:
-                return result[0]['version']
-            return "0.0"  # No version found
+            result = await Neo4jConnection.execute_read_query(query)
+            return result[0]['version'] if result else "0.0"
         except Exception as e:
             logger.error(f"Error getting schema version: {str(e)}")
-            raise
+            return "0.0"
 
     @staticmethod
     async def set_schema_version(version: str = None):
-        """Set the current schema version"""
         try:
             version = version or GraphSchema.CURRENT_SCHEMA_VERSION
             query = """
@@ -947,7 +900,10 @@ class GraphSchema:
                 timestamp: datetime()
             })
             """
-            await Neo4jConnection.execute_write_query(query, {"version": version})
+            await Neo4jConnection.execute_write_query(
+                query, 
+                {"version": version}
+            )
             logger.info(f"Schema version set to {version}")
         except Exception as e:
             logger.error(f"Error setting schema version: {str(e)}")

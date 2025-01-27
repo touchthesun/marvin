@@ -9,7 +9,7 @@ class PageStatus(Enum):
     DISCOVERED = "discovered"  # URL known but not yet processed
     IN_PROGRESS = "processing"  # Currently being processed
     ACTIVE = "active"         # Successfully processed and active
-    ARCHIVED = "archived"     # Marked as archived by user
+    HISTORY = "history"     # In browser history only
     ERROR = "error"          # Processing failed
 
 class RelationType(Enum):
@@ -67,7 +67,7 @@ class Page:
     id: UUID = field(default_factory=uuid4)
     
     # Browser context
-    browser_context: BrowserContext = BrowserContext.BACKGROUND
+    browser_contexts: Set[BrowserContext] = field(default_factory=set)
     tab_id: Optional[str] = None
     window_id: Optional[str] = None
     bookmark_id: Optional[str] = None
@@ -125,7 +125,7 @@ class Page:
     
     def record_visit(self, tab_id: Optional[str] = None, window_id: Optional[str] = None):
         """Record a page visit with browser context."""
-        now = datetime.utcnow()
+        now = datetime.now()
         self.metrics.last_visited = now
         self.metrics.visit_count += 1
         
@@ -134,21 +134,27 @@ class Page:
             self.window_id = window_id
             self.last_active = now
 
-    def update_browser_context(self, context: BrowserContext, 
-                             tab_id: Optional[str] = None,
-                             window_id: Optional[str] = None,
-                             bookmark_id: Optional[str] = None):
-        """Update the browser context of the page."""
-        self.browser_context = context
+    def update_browser_contexts(self, context: BrowserContext, 
+                              tab_id: Optional[str] = None,
+                              window_id: Optional[str] = None,
+                              bookmark_id: Optional[str] = None):
+        """Add or update a browser context."""
+        self.browser_contexts.add(context)
         
+        # Update context-specific IDs
         if context in (BrowserContext.ACTIVE_TAB, BrowserContext.OPEN_TAB):
             self.tab_id = tab_id
             self.window_id = window_id
-            self.last_active = datetime.utcnow()
+            self.last_active = datetime.now()
         elif context == BrowserContext.BOOKMARKED:
             self.bookmark_id = bookmark_id
             
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
+
+    def remove_browser_context(self, context: BrowserContext):
+        """Remove a browser context."""
+        self.browser_contexts.discard(context)
+        self.updated_at = datetime.now()
     
     def mark_processed(self, processing_time: float = None):
         """Mark the page as processed and record metrics."""
@@ -159,7 +165,6 @@ class Page:
             self.metrics.processing_time = processing_time
     
     def to_dict(self) -> Dict:
-        """Convert page to dictionary format for storage."""
         return {
             'id': str(self.id),
             'url': self.url,
@@ -180,13 +185,11 @@ class Page:
                 }
                 for r in self.relationships
             ],
-            'browser_context': {
-                'status': self.browser_context.value,
-                'tab_id': self.tab_id,
-                'window_id': self.window_id,
-                'bookmark_id': self.bookmark_id,
-                'last_active': self.last_active.isoformat() if self.last_active else None
-            },
+            'browser_contexts': self.browser_contexts,
+            'tab_id': self.tab_id,
+            'window_id': self.window_id,
+            'bookmark_id': self.bookmark_id,
+            'last_active': self.last_active.isoformat() if self.last_active else None,
             'metrics': {
                 'quality_score': self.metrics.quality_score,
                 'relevance_score': self.metrics.relevance_score,

@@ -7,6 +7,16 @@
   - Bookmark access
   - Basic UI shell
 
+- **Python Backend**
+  - Content extraction and analysis pipeline
+  - Data models and abstractions
+  - Prepare output for Knowledge Graph
+
+- **API Setup**
+  - Core setup
+  - REST Endpoints
+  - Websocket implementation
+
 - **Knowledge Graph Foundation**
   - Neo4j setup and integration
   - Basic content storage
