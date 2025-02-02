@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any
 from pydantic import BaseModel, HttpUrl
 
-from ...core.services.pipeline_service import PipelineService
-from ..dependencies import get_pipeline_service
+from core.services.content.pipeline_service import PipelineService
+from api.dependencies import get_pipeline_service
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)

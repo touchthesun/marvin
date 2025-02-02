@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List, Set
 from datetime import datetime
 from uuid import UUID
-from core.content.page import PageStatus, BrowserContext
+from core.domain.content.models.page import PageStatus, BrowserContext
 
 class BaseResponse(BaseModel):
     success: bool

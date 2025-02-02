@@ -1,7 +1,7 @@
 from pydantic import BaseModel, HttpUrl
 from typing import List, Optional, Set
 from pydantic import Field
-from core.content.page import BrowserContext, PageStatus
+from core.domain.content.models.page import BrowserContext, PageStatus
 
 class PageCreate(BaseModel):
     """Model for creating a single page"""

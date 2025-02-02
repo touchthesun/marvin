@@ -1,48 +1,83 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from api.services.pipeline_service import PipelineService
+
+from core.services.content.pipeline_service import PipelineService
+from core.infrastructure.database.db_connection import DatabaseConnection, ConnectionConfig
+from core.infrastructure.database.schema import SchemaManager
 from api.config import settings
-from api.routers import test
-from api.routers.pages import router as pages_router
-from api.routers.analysis import router as analysis_router 
-from api.routers.graph import router as graph_router
+from api.routes import test
+from api.routes.pages import router as pages_router
+from api.routes.analysis import router as analysis_router 
+from api.routes.graph import router as graph_router
 from core.utils.logger import get_logger
-from core.knowledge.graph import GraphSchema
+from core.utils.config import load_config
 
 # Configure logger
 logger = get_logger(__name__)
 
-# Global pipeline service instance. This is initialized in the lifespan
-# context manager and accessed via dependency injection in the routers.
-# We use a global variable to ensure the same instance is shared across
-# all requests and is properly cleaned up on application shutdown.
+class AppState:
+    """Container for application state."""
+    def __init__(self):
+        self.pipeline_service: PipelineService = None
+        self.db_connection: DatabaseConnection = None
+        self.schema_manager: SchemaManager = None
 
-pipeline_service: PipelineService = None
+    async def initialize(self):
+        """Initialize application services."""
+        # Initialize database connection
+        config = load_config()
+        db_config = ConnectionConfig(
+            uri=config["neo4j_uri"],
+            username=config["neo4j_username"],
+            password=config["neo4j_password"]
+        )
+        self.db_connection = DatabaseConnection(db_config)
+        await self.db_connection.initialize()
+
+        # Initialize schema manager
+        self.schema_manager = SchemaManager(self.db_connection)
+        await self.schema_manager.initialize()
+
+        # Initialize other services
+        # TODO: Initialize pipeline service
+
+    async def cleanup(self):
+        """Cleanup application services."""
+        if self.db_connection:
+            await self.db_connection.shutdown()
+        if self.pipeline_service:
+            # Assuming PipelineService has a cleanup method
+            await self.pipeline_service.cleanup()
+
+app_state = AppState()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager for FastAPI application.
-    
-    Handles initialization and cleanup of services.
-    """
-    # Startup
-    logger.info("Initializing services...")
-    global pipeline_service
-    await GraphSchema.initialize_schema()
-    pipeline_service = PipelineService(max_concurrent=5)
-    
-    yield
-    
-    # Shutdown
-    logger.info("Cleaning up services...")
-    if pipeline_service:
-        await pipeline_service.cleanup()
-
+    """Lifespan context manager for FastAPI application."""
+    try:
+        # Startup
+        logger.info("Initializing services...")
+        await app_state.initialize()
+        logger.info("Services initialized successfully")
+        
+        yield
+        
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise
+    finally:
+        # Shutdown
+        logger.info("Cleaning up services...")
+        try:
+            await app_state.cleanup()
+            logger.info("Services cleaned up successfully")
+        except Exception as e:
+            logger.error(f"Error cleaning up services: {e}")
 
 def create_application() -> FastAPI:
-    """Create FastAPI application with configuration"""
-    
+    """Create and configure the FastAPI application."""
     logger.info("Initializing FastAPI application")
     
     app = FastAPI(
@@ -52,7 +87,7 @@ def create_application() -> FastAPI:
         lifespan=lifespan
     )
 
-    # Set up CORS middleware
+    # Set up CORS
     logger.debug("Configuring CORS middleware with origins: %s", settings.BACKEND_CORS_ORIGINS)
     app.add_middleware(
         CORSMiddleware,
@@ -62,18 +97,24 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Include routers
-    app.include_router(pages_router, prefix="/api/v1")
-    app.include_router(analysis_router, prefix="/api/v1")
-    app.include_router(graph_router, prefix="/api/v1")
-
+    # Include routers with versioned prefix
+    prefix = settings.API_V1_STR
+    app.include_router(pages_router, prefix=prefix)
+    app.include_router(analysis_router, prefix=prefix)
+    app.include_router(graph_router, prefix=prefix)
 
     @app.get("/health")
     async def health_check():
+        """Health check endpoint with service status."""
         return {
             "status": "healthy",
-            "version": "0.1.0",
-            "environment": "development" if settings.DEBUG else "production"
+            "version": settings.VERSION,
+            "environment": "development" if settings.DEBUG else "production",
+            "services": {
+                "pipeline": "running" if app_state.pipeline_service else "not_initialized",
+                "database": "running" if app_state.db_connection else "not_initialized",
+                "schema": "initialized" if app_state.schema_manager else "not_initialized"
+            }
         }
 
     return app

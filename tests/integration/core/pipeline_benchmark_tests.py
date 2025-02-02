@@ -5,7 +5,7 @@ from typing import Dict, List
 import json
 from datetime import datetime
 
-from core.pipeline.pipeline import (
+from core.domain.content.pipeline import (
     PipelineOrchestrator,
     ComponentType,
     ProcessingStage,
