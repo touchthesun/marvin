@@ -19,7 +19,7 @@ class Transaction:
         self._neo4j_tx = None
         self._operations = []
         self._rollback_handlers = []
-        self.logger = logger
+        self.logger = get_logger(__name__)
 
     async def commit(self):
         """Commit the transaction."""

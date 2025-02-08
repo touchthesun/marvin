@@ -3,6 +3,7 @@ from typing import List, Optional, Set, Dict, Any
 from enum import Enum
 from urllib.parse import urlparse
 from core.domain.content.models.page import Page, PageStatus, BrowserContext, RelationType
+from core.services.base import BaseService
 
 class ValidationLevel(Enum):
     """Levels at which validation can occur"""
@@ -53,14 +54,27 @@ class ValidationResult:
                     message: str, details: Optional[Dict[str, Any]] = None):
         self.warnings.append(ValidationError(level, type, message, details))
 
-class ValidationRunner:
+class ValidationRunner(BaseService):
     """Coordinates validation across different layers and types"""
     
     def __init__(self):
+        super().__init__()  # Get the logger and base functionality
         self.url_validator = URLValidator()
         self.state_validator = PageStateValidator()
         self.relationship_validator = RelationshipValidator()
         self.schema_validator = SchemaValidator()
+
+    async def initialize(self) -> None:
+        """Initialize validation resources if needed."""
+        await super().initialize()
+
+    async def cleanup(self) -> None:
+        """Cleanup validation resources if needed."""
+        try:
+            # Currently no cleanup needed, just for consistency
+            pass
+        finally:
+            await super().cleanup()
     
     async def validate_page(self, page: Page, levels: Set[ValidationLevel]) -> ValidationResult:
         """Validate a page at specified levels"""

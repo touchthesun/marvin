@@ -11,12 +11,14 @@ from core.domain.content.pipeline import (
     ProcessingEvent,
     ProcessingStage
 )
+from core.infrastructure.database.transactions import Transaction
+from core.services.base import BaseService
 from core.domain.content.models.page import Page, BrowserContext, PageStatus
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class PipelineService:
+class PipelineService(BaseService):
     def __init__(
         self,
         state_manager: DefaultStateManager,
@@ -105,9 +107,28 @@ class PipelineService:
         return stage_weights.get(stage, 0.0)
 
     async def enqueue_urls(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Add URLs to the processing queue."""
+        """Add URLs to the processing queue with transaction support."""
         task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
         
+        try:
+            result = await self.execute_in_transaction(
+                "_enqueue_urls_operation",
+                items,
+                task_id
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to enqueue URLs: {str(e)}")
+            raise
+
+
+    async def _enqueue_urls_operation(
+        self,
+        tx: Transaction,
+        items: List[Dict[str, Any]],
+        task_id: str
+    ) -> Dict[str, Any]:
+        """Transaction-aware URL enqueuing operation."""
         for item in items:
             url = str(item.get("url"))
             context = item.get("context")
@@ -134,6 +155,11 @@ class PipelineService:
             
             self.processed_urls[url] = status_entry
             
+            # Add rollback handler for this URL
+            tx.add_rollback_handler(
+                lambda u=url: self._handle_enqueue_rollback(u)
+            )
+            
         self.logger.info(f"Enqueued {len(items)} URLs for processing under task {task_id}")
         
         return {
@@ -144,19 +170,34 @@ class PipelineService:
             "queued_at": datetime.now().isoformat()
         }
 
-    async def _process_url(
+
+    async def _handle_enqueue_rollback(self, url: str):
+        """Handle rollback for enqueued URL."""
+        if url in self.processed_urls:
+            del self.processed_urls[url]
+        # Attempt to remove from queue if possible
+        try:
+            while not self.url_queue.empty():
+                item = self.url_queue.get_nowait()
+                if item["url"] != url:
+                    await self.url_queue.put(item)
+        except asyncio.QueueEmpty:
+            pass
+
+    async def _process_url_operation(
         self,
+        tx: Transaction,
         url: str,
         metadata: Dict[str, Any],
         task_id: str,
         start_time: datetime
-    ):
-        """Process a single URL through the pipeline."""
+    ) -> None:
+        """Internal transaction-aware URL processing."""
         try:
             self.logger.info(f"Starting processing of URL {url} for task {task_id}")
             self.logger.debug(f"Processing metadata: {metadata}")
             
-            # Update status to processing
+            # Update status to processing within transaction
             self.processed_urls[url].update({
                 "status": "processing",
                 "started_at": start_time.isoformat()
@@ -168,12 +209,16 @@ class PipelineService:
             window_id = metadata.get("window_id")
             bookmark_id = metadata.get("bookmark_id")
             
-            self.logger.debug(f"Set up browser context: {context} (tab: {tab_id}, window: {window_id})")
+            # Add rollback handler for status update
+            tx.add_rollback_handler(
+                lambda: self.processed_urls[url].update({
+                    "status": "error",
+                    "error": "Transaction rolled back"
+                })
+            )
             
             # Process through pipeline
-            self.logger.debug(f"Calling pipeline.process_page for {url}")
             result: Page = await self.pipeline.process_page(url, None)
-            self.logger.debug(f"Pipeline returned Page object: {result.id}")
             
             # Update browser context on the resulting Page object
             result.update_browser_contexts(
@@ -182,14 +227,12 @@ class PipelineService:
                 window_id=window_id,
                 bookmark_id=bookmark_id
             )
-            self.logger.debug(f"Updated browser contexts: {result.browser_contexts}")
             
             # Record visit if it's an active tab
             if context in [BrowserContext.ACTIVE_TAB, BrowserContext.OPEN_TAB]:
                 result.record_visit(tab_id=tab_id, window_id=window_id)
-                self.logger.debug(f"Recorded visit with metrics: {result.metrics}")
             
-            # Update final status with Page object details
+            # Update final status within transaction
             status_update = {
                 "status": "completed",
                 "completed_at": datetime.now().isoformat(),
@@ -205,15 +248,33 @@ class PipelineService:
                     "processing_time": result.metrics.processing_time
                 }
             }
-            self.logger.debug(f"Updating final status: {status_update}")
             self.processed_urls[url].update(status_update)
-            
+
         except Exception as e:
-            error_msg = f"Error processing URL {url}: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            self.logger.error(f"Error processing URL {url}: {str(e)}", exc_info=True)
+            raise
+
+    async def process_url(
+        self,
+        url: str,
+        metadata: Dict[str, Any],
+        task_id: str,
+        start_time: datetime
+    ) -> None:
+        """Process a single URL through the pipeline."""
+        try:
+            await self.execute_in_transaction(
+                "_process_url_operation",
+                url,
+                metadata,
+                task_id,
+                start_time
+            )
+        except Exception as e:
+            # Handle error and update status outside transaction
             self.processed_urls[url].update({
                 "status": "error",
-                "error": error_msg,
+                "error": str(e),
                 "completed_at": datetime.now().isoformat(),
                 "progress": 0.0,
                 "page_status": PageStatus.ERROR.value
@@ -255,16 +316,42 @@ class PipelineService:
                 self.logger.error(f"Error in queue processor: {str(e)}")
                 await asyncio.sleep(1)
 
-    def _cleanup_tasks(self):
-        """Remove completed tasks from active tasks dict."""
+    async def _cleanup_tasks(self):
+        """Remove completed tasks from active tasks dict with transaction support."""
+        try:
+            await self.execute_in_transaction("_cleanup_tasks_operation")
+        except Exception as e:
+            self.logger.error(f"Error in task cleanup: {str(e)}")
+
+    async def _cleanup_tasks_operation(self, tx: Transaction):
+        """Transaction-aware task cleanup operation."""
         completed = [url for url, task in self.active_tasks.items() if task.done()]
         for url in completed:
             task = self.active_tasks.pop(url)
             if task.exception():
                 self.logger.error(f"Task for {url} failed: {task.exception()}")
+                # Add task failure information to transaction context
+                tx.add_rollback_handler(
+                    lambda: self._handle_task_failure(url, task.exception())
+                )
 
     async def get_status(self, task_id: str) -> Dict[str, Any]:
-        """Get processing status for a task."""
+        """Get processing status for a task with transaction support."""
+        try:
+            return await self.execute_in_transaction(
+                "_get_status_operation",
+                task_id
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get status for task {task_id}: {str(e)}")
+            raise
+
+    async def _get_status_operation(
+        self,
+        tx: Transaction,
+        task_id: str
+    ) -> Dict[str, Any]:
+        """Transaction-aware status retrieval operation."""
         task_urls = {
             url: status for url, status in self.processed_urls.items()
             if status.get("task_id") == task_id

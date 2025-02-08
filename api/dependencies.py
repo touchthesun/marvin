@@ -1,3 +1,13 @@
+"""
+FastAPI dependency providers for Marvin services.
+
+This module provides dependencies in several categories:
+- Base component providers: Basic building blocks like DB connections
+- Service lifecycle managers: Context managers for service lifecycles
+- Individual service providers: FastAPI dependencies for each service
+- Compound service provider: Combined service context for routes
+"""
+
 from typing import AsyncGenerator
 from fastapi import Depends
 from contextlib import asynccontextmanager
