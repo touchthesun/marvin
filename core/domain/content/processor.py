@@ -1,7 +1,6 @@
 import asyncio
 from datetime import datetime
 from dataclasses import dataclass
-import math
 
 from typing import List, Dict, Optional
 from .types import (
@@ -29,7 +28,7 @@ from core.domain.content.pipeline import (
     ComponentError,
     ValidationError
 )
-from core.content.page import Page
+from core.domain.content.models.page import Page
 from core.utils.logger import get_logger
 
 

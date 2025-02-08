@@ -4,8 +4,8 @@ import asyncio
 import time
 from datetime import datetime
 from core.utils.logger import get_logger
+from core.infrastructure.database.transactions import Transaction
 from .types import ProcessingStatus, ProcessingError, DocumentMetadata, BatchMetadata
-from .keyword_identifier import KeywordIdentifier
 from .models.context import ProcessingContext
 from .processor import ContentProcessor
 
@@ -160,39 +160,35 @@ class BatchProcessor:
         # End batch processing
         self.processing_context.end_batch(batch_id)
 
-    async def _process_document(self,
-                              doc: Dict[str, Any],
-                              doc_meta: DocumentMetadata,
-                              batch_id: str) -> Dict[str, Any]:
-        """Process a single document.
-        
-        Args:
-            doc: Document to process
-            doc_meta: Document metadata
-            batch_id: ID of containing batch
-            
-        Returns:
-            Processing results
-        """
-        retries = 0
-        last_error = None
-        
-        while retries < self.config.max_retries:
+    async def _process_document(
+        self,
+        doc: Dict[str, Any],
+        doc_meta: DocumentMetadata,
+        batch_id: str,
+        tx: Optional[Transaction] = None
+    ) -> Dict[str, Any]:
+        """Process a single document with optional transaction support."""
+        for retry in range(self.config.max_retries):
             try:
-                # Process the document
                 content = doc.get('content', '')
                 if not content:
                     raise ValueError("Empty document content")
                 
-                # Process content
-                result = await self.content_processor.process_content(content)
+                # Process content with transaction context
+                result = await self.content_processor.process_content(
+                    content,
+                    tx=tx  # Pass through transaction context
+                )
                 
-                # Format result
+                # Add rollback handler if using transaction
+                if tx:
+                    tx.add_rollback_handler(
+                        lambda: self._cleanup_processed_content(doc_meta.doc_id)
+                    )
+                
                 return {
                     'doc_id': doc_meta.doc_id,
-                    'keywords': [
-                        kw.to_dict() for kw in result['keywords']
-                    ],
+                    'keywords': [kw.to_dict() for kw in result['keywords']],
                     'relationships': result['relationships'],
                     'status': ProcessingStatus.COMPLETED,
                     'batch_id': batch_id,
@@ -200,24 +196,21 @@ class BatchProcessor:
                 }
                 
             except Exception as e:
-                retries += 1
-                last_error = str(e)
                 self.logger.warning(
-                    f"Processing attempt {retries} failed for document "
-                    f"{doc_meta.doc_id}: {e}"
+                    f"Processing attempt {retry + 1} failed for document {doc_meta.doc_id}: {e}"
                 )
-                if retries < self.config.max_retries:
-                    await asyncio.sleep(1)  # Brief delay before retry
-        
-        # All retries failed
-        return {
-            'doc_id': doc_meta.doc_id,
-            'keywords': [],
-            'relationships': [],
-            'status': ProcessingStatus.FAILED,
-            'batch_id': batch_id,
-            'error': last_error
-        }
+                if retry < self.config.max_retries - 1:
+                    await asyncio.sleep(1)
+                else:
+                    # Return error result on final retry
+                    return {
+                        'doc_id': doc_meta.doc_id,
+                        'keywords': [],
+                        'relationships': [],
+                        'status': ProcessingStatus.FAILED,
+                        'batch_id': batch_id,
+                        'error': str(e)
+                    }
 
     async def get_batch_status(self, batch_id: str) -> BatchMetadata:
         """Get current status of a batch.
