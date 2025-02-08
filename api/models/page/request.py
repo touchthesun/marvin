@@ -4,7 +4,7 @@ from pydantic import Field
 from core.domain.content.models.page import BrowserContext, PageStatus
 
 class PageCreate(BaseModel):
-    """Model for creating a single page"""
+    """Model for creating a single page."""
     url: HttpUrl
     context: BrowserContext
     tab_id: Optional[str] = None
@@ -13,18 +13,18 @@ class PageCreate(BaseModel):
     browser_contexts: Set[BrowserContext] = Field(default_factory=set)
 
 class BatchPageCreate(BaseModel):
-    """Model for creating multiple pages"""
+    """Model for creating multiple pages."""
     pages: List[PageCreate]
 
 class PageUpdate(BaseModel):
-    """Model for updating page context"""
+    """Model for updating page context."""
     context: BrowserContext
     tab_id: Optional[str] = None
     window_id: Optional[str] = None
     bookmark_id: Optional[str] = None
 
 class PageQuery(BaseModel):
-    """Model for querying pages"""
+    """Model for querying pages."""
     context: Optional[BrowserContext] = None
     status: Optional[PageStatus] = None
     domain: Optional[str] = None

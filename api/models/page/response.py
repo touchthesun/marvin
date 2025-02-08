@@ -3,14 +3,10 @@ from typing import Optional, Dict, Any, List, Set
 from datetime import datetime
 from uuid import UUID
 from core.domain.content.models.page import PageStatus, BrowserContext
+from api.models.common import APIResponse
 
-class BaseResponse(BaseModel):
-    success: bool
-    message: Optional[str] = None
-    error: Optional[str] = None
-
-
-class PageMetricsResponse(BaseModel):
+class PageMetrics(BaseModel):
+    """Core metrics for a page."""
     quality_score: float = 0.0
     relevance_score: float = 0.0
     last_visited: Optional[datetime] = None
@@ -18,14 +14,15 @@ class PageMetricsResponse(BaseModel):
     processing_time: Optional[float] = None
     keyword_count: int = 0
 
-class PageRelationshipResponse(BaseModel):
+class PageRelationship(BaseModel):
+    """Relationship between pages."""
     target_id: UUID
     type: str
     strength: float
-    metadata: Dict
+    metadata: Dict[str, Any]
 
-class PageResponse(BaseModel):
-    success: bool
+class PageData(BaseModel):
+    """Core page data model."""
     id: UUID
     url: str
     domain: str
@@ -34,33 +31,23 @@ class PageResponse(BaseModel):
     processed_at: Optional[datetime]
     updated_at: Optional[datetime]
     title: Optional[str]
-    metadata: Dict
+    metadata: Dict[str, Any]
     keywords: Dict[str, float]
-    relationships: List[PageRelationshipResponse]
+    relationships: List[PageRelationship]
     browser_contexts: Set[BrowserContext]
     tab_id: Optional[str]
     window_id: Optional[str]
     bookmark_id: Optional[str]
     last_active: Optional[datetime]
-    metrics: PageMetricsResponse
+    metrics: PageMetrics
 
-class BatchPageResponse(BaseResponse):
-    pages: List[PageResponse]
+class BatchPageData(BaseModel):
+    """Data for batch page operations."""
+    pages: List[PageData]
     total_count: int
     success_count: int
     error_count: int
 
-class TaskResponse(BaseResponse):
-    task_id: str
-    status: str
-    progress: Optional[float] = None
-    result: Optional[Dict[str, Any]] = None
-
-class GraphResponse(BaseResponse):
-    nodes: List[Dict[str, Any]]
-    relationships: List[Dict[str, Any]]
-    metadata: Optional[Dict[str, Any]] = None
-
-class ValidationResponse(BaseResponse):
-    validation_errors: List[Dict[str, Any]]
-    validation_warnings: List[Dict[str, Any]]
+# Type aliases for different response types
+PageResponse = APIResponse[PageData]
+BatchPageResponse = APIResponse[BatchPageData]

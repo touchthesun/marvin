@@ -5,22 +5,13 @@ from core.services.content.pipeline_service import PipelineService
 from api.dependencies import get_pipeline_service
 from api.models.request import PageCreate
 from api.models.response import TaskResponse
+from api.models.common import APIResponse
+from api.utils.errors import NotFoundError, BadRequestError
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
-
-
-class PageCreate(BaseModel):
-    url: HttpUrl
-    context: str = "ACTIVE_TAB"  # Default context
-
-class TaskResponse(BaseModel):
-    success: bool
-    task_id: str
-    status: str
-    progress: float
 
 
 @router.post("/analyze", response_model=TaskResponse)
