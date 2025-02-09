@@ -27,6 +27,14 @@ class BrowserContext(Enum):
     BOOKMARKED = "bookmarked"      # Saved in bookmarks
     HISTORY = "history"            # In browser history only
 
+class PageStatus(Enum):
+    """Represents the current status of a page in the system."""
+    DISCOVERED = "discovered"  # URL known but not yet processed
+    IN_PROGRESS = "processing"  # Currently being processed
+    ACTIVE = "active"         # Successfully processed and active
+    HISTORY = "history"       # In browser history only
+    ERROR = "error"          # Processing failed
+
 
 @dataclass
 class PageRelationship:
@@ -60,33 +68,6 @@ class PageMetrics:
             'keyword_count': self.keyword_count
         }
 
-@dataclass
-class PageMetadata:
-    """Metadata associated with a webpage."""
-    discovered_at: datetime
-    browser_contexts: Set[BrowserContext] = field(default_factory=set)
-    tab_id: Optional[str] = None
-    window_id: Optional[str] = None
-    bookmark_id: Optional[str] = None
-    last_active: Optional[datetime] = None
-    processed_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    metrics: PageMetrics = field(default_factory=PageMetrics)
-    custom_metadata: Dict = field(default_factory=dict)
-
-    def to_dict(self) -> Dict:
-        return {
-            'discovered_at': self.discovered_at.isoformat(),
-            'browser_contexts': [ctx.value for ctx in self.browser_contexts],
-            'tab_id': self.tab_id,
-            'window_id': self.window_id,
-            'bookmark_id': self.bookmark_id,
-            'last_active': self.last_active.isoformat() if self.last_active else None,
-            'processed_at': self.processed_at.isoformat() if self.processed_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'metrics': self.metrics.to_dict(),
-            **self.custom_metadata
-        }
 
 class EntityType(str, Enum):
     """Types of entities that are recognized."""
@@ -262,14 +243,6 @@ class BatchMetadata:
     error: Optional[str] = None
 
 
-class PageStatus(Enum):
-    """Represents the current status of a page in the system."""
-    DISCOVERED = "discovered"  # URL known but not yet processed
-    IN_PROGRESS = "processing"  # Currently being processed
-    ACTIVE = "active"         # Successfully processed and active
-    HISTORY = "history"       # In browser history only
-    ERROR = "error"          # Processing failed
-
 @dataclass
 class PageMetadata:
     """Metadata associated with a webpage.
@@ -278,15 +251,19 @@ class PageMetadata:
     that isn't part of its core content but is useful for processing
     and analysis.
     """
+    # Required fields
     discovered_at: datetime
-    last_accessed: Optional[datetime] = None
+    
+    # Optional fields with defaults
     status: PageStatus = PageStatus.DISCOVERED
     metadata_quality_score: float = 0.0
+    last_accessed: Optional[datetime] = None
     
     # Browser context
     tab_id: Optional[str] = None
     window_id: Optional[str] = None
     bookmark_id: Optional[str] = None
+    browser_contexts: Set[BrowserContext] = field(default_factory=set)
     
     # Content quality metrics
     word_count: Optional[int] = None
@@ -299,8 +276,28 @@ class PageMetadata:
     published_date: Optional[datetime] = None
     modified_date: Optional[datetime] = None
     
-    # Custom metadata
+    # Collections that need their own instances
     custom_metadata: Dict[str, Any] = field(default_factory=dict)
+    metrics: PageMetrics = field(
+        default_factory=lambda: PageMetrics(
+            quality_score=0.0,
+            relevance_score=0.0,
+            visit_count=0
+        )
+    )
+
+    def __post_init__(self):
+        """Ensure all collections are properly initialized."""
+        if not hasattr(self, 'browser_contexts'):
+            self.browser_contexts = set()
+        if not hasattr(self, 'custom_metadata'):
+            self.custom_metadata = {}
+        if not hasattr(self, 'metrics'):
+            self.metrics = PageMetrics(
+                quality_score=0.0,
+                relevance_score=0.0,
+                visit_count=0
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metadata to dictionary format."""
@@ -312,6 +309,7 @@ class PageMetadata:
             "tab_id": self.tab_id,
             "window_id": self.window_id,
             "bookmark_id": self.bookmark_id,
+            "browser_contexts": [context.value for context in self.browser_contexts],
             "word_count": self.word_count,
             "reading_time_minutes": self.reading_time_minutes,
             "language": self.language,
@@ -319,51 +317,45 @@ class PageMetadata:
             "author": self.author,
             "published_date": self.published_date.isoformat() if self.published_date else None,
             "modified_date": self.modified_date.isoformat() if self.modified_date else None,
-            **self.custom_metadata
+            "metrics": self.metrics.to_dict() if self.metrics else None,
+            "custom_metadata": self.custom_metadata
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'PageMetadata':
         """Create PageMetadata instance from dictionary."""
         # Handle datetime fields
-        discovered_at = datetime.fromisoformat(data.pop('discovered_at'))
-        last_accessed = datetime.fromisoformat(data.pop('last_accessed')) if data.get('last_accessed') else None
-        published_date = datetime.fromisoformat(data.pop('published_date')) if data.get('published_date') else None
-        modified_date = datetime.fromisoformat(data.pop('modified_date')) if data.get('modified_date') else None
+        discovered_at = datetime.fromisoformat(data.get('discovered_at')) if data.get('discovered_at') else datetime.now()
+        last_accessed = datetime.fromisoformat(data['last_accessed']) if data.get('last_accessed') else None
+        published_date = datetime.fromisoformat(data['published_date']) if data.get('published_date') else None
+        modified_date = datetime.fromisoformat(data['modified_date']) if data.get('modified_date') else None
         
         # Handle status enum
-        status = PageStatus(data.pop('status')) if data.get('status') else PageStatus.NEW
+        status = PageStatus(data['status']) if data.get('status') else PageStatus.DISCOVERED
         
-        # Extract known fields
-        known_fields = {
-            'metadata_quality_score',
-            'tab_id',
-            'window_id',
-            'bookmark_id',
-            'word_count',
-            'reading_time_minutes',
-            'language',
-            'source_type',
-            'author'
-        }
+        # Handle browser contexts
+        browser_contexts = {BrowserContext(c) for c in data.get('browser_contexts', [])}
         
-        # Separate known fields from custom metadata
-        standard_metadata = {
-            k: data[k] for k in known_fields 
-            if k in data
-        }
-        
-        custom_metadata = {
-            k: v for k, v in data.items() 
-            if k not in known_fields
-        }
+        # Handle metrics
+        metrics_data = data.get('metrics', {})
+        metrics = PageMetrics(**metrics_data) if metrics_data else None
         
         return cls(
             discovered_at=discovered_at,
             last_accessed=last_accessed,
             status=status,
+            metadata_quality_score=data.get('metadata_quality_score', 0.0),
+            tab_id=data.get('tab_id'),
+            window_id=data.get('window_id'),
+            bookmark_id=data.get('bookmark_id'),
+            browser_contexts=browser_contexts,
+            word_count=data.get('word_count'),
+            reading_time_minutes=data.get('reading_time_minutes'),
+            language=data.get('language'),
+            source_type=data.get('source_type'),
+            author=data.get('author'),
             published_date=published_date,
             modified_date=modified_date,
-            custom_metadata=custom_metadata,
-            **standard_metadata
+            custom_metadata=data.get('custom_metadata', {}),
+            metrics=metrics
         )

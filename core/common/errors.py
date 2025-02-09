@@ -39,20 +39,39 @@ class TimeoutError(PipelineError):
     """Pipeline timeout error."""
     pass
 
-# DB errors
 class DatabaseError(Exception):
-    """Base exception for database operations."""
+    """Exception raised for database-related errors.
+    
+    Attributes:
+        message: Error message
+        query: Optional query that caused the error
+        parameters: Optional query parameters
+        details: Optional additional error details
+        cause: Optional underlying exception
+    """
+    
     def __init__(
         self,
         message: str,
         query: Optional[str] = None,
         parameters: Optional[Dict] = None,
+        details: Optional[Dict] = None,
         cause: Optional[Exception] = None
     ):
-        super().__init__(message)
+        self.message = message
         self.query = query
         self.parameters = parameters
+        self.details = details or {}
         self.cause = cause
+        super().__init__(self.message)
+    
+    def __str__(self) -> str:
+        error_parts = [self.message]
+        if self.details:
+            error_parts.append(f"Details: {self.details}")
+        if self.cause:
+            error_parts.append(f"Caused by: {str(self.cause)}")
+        return " ".join(error_parts)
 
 
 # Service Errors

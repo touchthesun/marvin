@@ -49,7 +49,17 @@ class PageService(BaseService):
                 tx, "get_page_by_url", url
             )
             if graph_page:
-                page = Page.from_dict(graph_page)
+                # Handle based on type of returned data
+                if isinstance(graph_page, Page):
+                    page = graph_page
+                elif isinstance(graph_page, dict):
+                    page = Page.from_dict(graph_page)
+                elif hasattr(graph_page, 'properties'):  # Neo4j Node
+                    page = self._create_page_from_node(graph_page)
+                else:
+                    self.logger.error(f"Unexpected type from graph service: {type(graph_page)}, data: {graph_page}")
+                    raise ValueError(f"Unexpected type from graph service: {type(graph_page)}")
+                    
                 self._url_to_page[url] = page
                 tx.add_rollback_handler(lambda: self._url_to_page.pop(url, None))
             elif create_if_missing:
@@ -60,6 +70,26 @@ class PageService(BaseService):
             else:
                 raise ValueError(f"Page not found: {url}")
         return page
+    
+    def _create_page_from_node(self, node: Any) -> Page:
+        """Create a Page instance from a Neo4j Node.
+        
+        Args:
+            node: Neo4j Node object
+            
+        Returns:
+            Page instance
+        """
+        # Extract data from Neo4j Node
+        data = dict(node.properties)
+        if hasattr(node, 'id'):
+            data['id'] = str(node.id)
+            
+        # Convert Neo4j types to Python types as needed
+        if 'discovered_at' in data and hasattr(data['discovered_at'], 'to_native'):
+            data['discovered_at'] = data['discovered_at'].to_native()
+            
+        return Page.from_dict(data)
 
     async def get_or_create_page(
         self,
@@ -168,28 +198,40 @@ class PageService(BaseService):
     async def query_pages(
         self,
         tx: Transaction,
-        context: Optional[BrowserContext] = None,
-        status: Optional[PageStatus] = None,
+        context: Optional[str] = None,
+        status: Optional[str] = None,
         domain: Optional[str] = None
     ) -> List[Page]:
-        """Query pages based on filters."""
+        """Query pages based on filters.
+        
+        Args:
+            tx: Transaction object
+            context: Optional browser context filter
+            status: Optional page status filter
+            domain: Optional domain filter
+            
+        Returns:
+            List of matching Page objects
+        """
         try:
             results = await self.graph_service.execute_in_transaction(
                 tx, "query_pages",
-                context=context.value if context else None,
                 status=status.value if status else None,
                 domain=domain
             )
             
             pages = []
             for result in results:
-                page = Page.from_dict(result)
+                page = self._reconstruct_page_from_node(result)
+                # Filter by context if specified
+                if context and context not in page.browser_contexts:
+                    continue
+                pages.append(page)
                 self._url_to_page[page.url] = page
                 tx.add_rollback_handler(lambda url=page.url: self._url_to_page.pop(url, None))
-                pages.append(page)
-                
+                    
             return pages
-            
+                
         except Exception as e:
             self.logger.error(f"Error querying pages: {str(e)}")
             raise

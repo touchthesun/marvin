@@ -3,8 +3,8 @@ from pydantic import BaseModel, HttpUrl
 from fastapi import APIRouter, Depends
 from core.services.content.pipeline_service import PipelineService
 from api.dependencies import get_pipeline_service
-from api.models.request import PageCreate
-from api.models.response import TaskResponse
+from api.models.page.request import PageCreate
+from api.models.analysis.response import TaskResponse
 from api.models.common import APIResponse
 from api.utils.errors import NotFoundError, BadRequestError
 from core.utils.logger import get_logger

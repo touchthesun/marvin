@@ -1,11 +1,13 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 from urllib.parse import urlparse
- 
-from core.domain.content.models.page import Page
+from uuid import UUID, uuid4
 from core.domain.content.types import PageMetadata
+from core.domain.content.models.page import Page
+from core.domain.content.types import PageMetadata, BrowserContext, PageMetrics, PageStatus
 from core.domain.content.models.site import Site
 from core.infrastructure.database.graph_operations import GraphOperationManager
+from core.infrastructure.database.transactions import Transaction
 from core.common.errors import ValidationError, ServiceError
 from core.utils.logger import get_logger
 from core.services.base import BaseService
@@ -185,6 +187,104 @@ class GraphService(BaseService):
                 details={"url": url},
                 cause=e
             )
+        
+    
+    async def _get_page_by_url(self, tx: Transaction, url: str) -> Optional[Page]:
+        """Get a page by URL using the provided transaction.
+        
+        Args:
+            tx: Transaction object
+            url: URL to look up
+            
+        Returns:
+            Page instance if found, None otherwise
+        """
+        try:
+            self.logger.debug(f"Attempting to get page with URL: {url}")
+            
+            node = await self.graph_operations.get_node_by_property(
+                label="Page",
+                property_name="url",
+                property_value=url,
+                transaction=tx
+            )
+            
+            # Handle the None case explicitly
+            if node is None:
+                self.logger.debug(f"No page found for URL: {url}")
+                return None
+                
+            self.logger.debug(f"Retrieved page node: {node}")
+            
+            # Convert node to Page object
+            if hasattr(node, 'properties'):
+                node_data = dict(node.properties)
+                node_data['id'] = str(node.id) if hasattr(node, 'id') else None
+                return self._reconstruct_page_from_node(node_data)
+            
+            return node
+            
+        except Exception as e:
+            self.logger.error(f"Error getting page by URL: {str(e)}")
+            raise ServiceError(
+                message="Failed to get page by URL",
+                details={"url": url},
+                cause=e
+            )
+        
+
+    async def _create_or_update_page(self, tx: Transaction, page: Page) -> Dict[str, Any]:
+        """Create or update a page in the graph."""
+        try:
+            # Ensure metadata has discovered_at
+            if not hasattr(page.metadata, 'discovered_at'):
+                page.metadata.discovered_at = datetime.now()
+
+            # Convert page to dict for storage
+            page_data = self._prepare_page_data(page)
+            
+            # Create/update the page node
+            page_node = await self.graph_operations.create_or_update_node(
+                labels=["Page"],
+                properties=page_data,
+                match_properties=['url'],  # Match on URL when updating
+                transaction=tx
+            )
+            
+            # Check if this is a new node - convert Node to dict if needed
+            node_data = dict(page_node.properties) if hasattr(page_node, 'properties') else page_node
+            is_new_node = node_data.get("created", False) if isinstance(node_data, dict) else False
+            
+            # If we're creating a new page, also create site relationship
+            if is_new_node:
+                site = self._extract_site_info(page)
+                site_node = await self.graph_operations.create_or_update_node(
+                    labels=["Site"],
+                    properties=site.to_dict(),
+                    transaction=tx
+                )
+                
+                # Handle Node objects for site node as well
+                site_id = site_node.id if hasattr(site_node, 'id') else site_node.get('id')
+                page_id = page_node.id if hasattr(page_node, 'id') else node_data.get('id')
+                
+                await self.graph_operations.create_relationship(
+                    start_node_id=str(site_id),
+                    end_node_id=str(page_id),
+                    relationship_type="CONTAINS",
+                    properties={"last_updated": datetime.now().isoformat()},
+                    transaction=tx
+                )
+            
+            return node_data
+                
+        except Exception as e:
+            self.logger.error(f"Error creating/updating page: {str(e)}")
+            raise ServiceError(
+                message="Failed to create/update page",
+                details={"url": page.url},
+                cause=e
+            )
 
     # Helper methods
     def _validate_page(self, page: Page) -> bool:
@@ -204,16 +304,154 @@ class GraphService(BaseService):
             name=page.domain
         )
 
-    def _prepare_page_data(
-        self,
-        page: Page,
-        metadata: PageMetadata
-    ) -> Dict[str, Any]:
-        """Prepare page data for storage."""
-        page_dict = page.to_dict()
-        page_dict.update(metadata.to_dict())
-        page_dict["last_updated"] = datetime.now().isoformat()
-        return page_dict
+    def _prepare_page_data(self, page: Page) -> Dict[str, Any]:
+        """Prepare page data for Neo4j storage by flattening nested structures.
+        
+        Args:
+            page: Page object to prepare
+            
+        Returns:
+            Dict of flattened page data suitable for Neo4j
+        """
+        # Start with basic page fields
+        page_data = {
+            'url': str(page.url),
+            'domain': str(page.domain),
+            'status': str(page.status.value),  # Convert enum to string
+            'title': str(page.title) if page.title else None,
+        }
+        
+        # Handle keywords - ensure they're primitive types
+        if page.keywords:
+            page_data['keywords'] = {str(k): float(v) for k, v in page.keywords.items()}
+        
+        # Flatten metadata
+        if page.metadata:
+            metadata_dict = {
+                'discovered_at': page.metadata.discovered_at.isoformat() if page.metadata.discovered_at else None,
+                'last_accessed': page.metadata.last_accessed.isoformat() if page.metadata.last_accessed else None,
+                'metadata_quality_score': float(page.metadata.metadata_quality_score),
+                'tab_id': str(page.metadata.tab_id) if page.metadata.tab_id else None,
+                'window_id': str(page.metadata.window_id) if page.metadata.window_id else None,
+                'bookmark_id': str(page.metadata.bookmark_id) if page.metadata.bookmark_id else None,
+                'word_count': int(page.metadata.word_count) if page.metadata.word_count is not None else None,
+                'reading_time_minutes': float(page.metadata.reading_time_minutes) if page.metadata.reading_time_minutes is not None else None,
+                'language': str(page.metadata.language) if page.metadata.language else None,
+                'source_type': str(page.metadata.source_type) if page.metadata.source_type else None,
+                'author': str(page.metadata.author) if page.metadata.author else None,
+                'published_date': page.metadata.published_date.isoformat() if page.metadata.published_date else None,
+                'modified_date': page.metadata.modified_date.isoformat() if page.metadata.modified_date else None,
+                'browser_contexts': [str(context.value) for context in page.metadata.browser_contexts] if page.metadata.browser_contexts else []
+            }
+            page_data.update(metadata_dict)
+            
+            # Handle custom metadata - ensure primitive types
+            if page.metadata.custom_metadata:
+                for key, value in page.metadata.custom_metadata.items():
+                    if isinstance(value, (int, float, str, bool)):
+                        page_data[f'custom_{str(key)}'] = value
+                    else:
+                        page_data[f'custom_{str(key)}'] = str(value)
+        
+        # Flatten metrics
+        if hasattr(page.metadata, 'metrics') and page.metadata.metrics:
+            metrics_dict = {
+                'metric_quality_score': float(page.metadata.metrics.quality_score),
+                'metric_relevance_score': float(page.metadata.metrics.relevance_score),
+                'metric_visit_count': int(page.metadata.metrics.visit_count),
+                'metric_keyword_count': int(page.metadata.metrics.keyword_count),
+                'metric_processing_time': float(page.metadata.metrics.processing_time) if page.metadata.metrics.processing_time is not None else None,
+                'metric_last_visited': page.metadata.metrics.last_visited.isoformat() if page.metadata.metrics.last_visited else None
+            }
+            page_data.update(metrics_dict)
+        
+        # Remove any None values as Neo4j doesn't handle them well
+        return {k: v for k, v in page_data.items() if v is not None}
+    
+
+    def _reconstruct_page_from_node(self, node_data: Dict[str, Any]) -> Page:
+        """Reconstruct a Page object from flattened Neo4j data."""
+        try:
+            self.logger.debug(f"Reconstructing page from node data: {node_data}")
+            
+            # Handle ID conversion
+            page_id = node_data.get('id')
+            self.logger.debug(f"Raw ID value: {page_id}, type: {type(page_id)}")
+            
+            if page_id:
+                try:
+                    # If it's already a UUID string
+                    if isinstance(page_id, str) and len(page_id) == 36:
+                        id_value = UUID(page_id)
+                    # If it's a Neo4j internal ID (integer)
+                    elif isinstance(page_id, (int, str)):
+                        id_value = uuid4()  # Generate new UUID for Neo4j IDs
+                    else:
+                        id_value = uuid4()
+                except ValueError:
+                    self.logger.warning(f"Could not parse UUID from: {page_id}, generating new one")
+                    id_value = uuid4()
+            else:
+                id_value = uuid4()
+                
+            self.logger.debug(f"Final ID value: {id_value}")
+            
+            # Rest of the reconstruction code...
+            discovered_time = self._parse_datetime(node_data.get('discovered_at')) or datetime.now()
+            
+            metadata = PageMetadata(
+                discovered_at=discovered_time,
+                last_accessed=self._parse_datetime(node_data.get('last_accessed')),
+                metadata_quality_score=float(node_data.get('metadata_quality_score', 0.0)),
+                tab_id=node_data.get('tab_id'),
+                window_id=node_data.get('window_id'),
+                bookmark_id=node_data.get('bookmark_id'),
+                word_count=node_data.get('word_count'),
+                reading_time_minutes=node_data.get('reading_time_minutes'),
+                language=node_data.get('language'),
+                source_type=node_data.get('source_type'),
+                author=node_data.get('author'),
+                published_date=self._parse_datetime(node_data.get('published_date')),
+                modified_date=self._parse_datetime(node_data.get('modified_date')),
+                browser_contexts={BrowserContext(c) for c in node_data.get('browser_contexts', [])}
+            )
+            
+            # Create page with the properly handled ID
+            return Page(
+                url=node_data['url'],
+                domain=node_data['domain'],
+                id=id_value,
+                status=PageStatus(node_data.get('status', 'discovered')),
+                title=node_data.get('title'),
+                keywords=node_data.get('keywords', {}),
+                metadata=metadata
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error reconstructing page: {str(e)}", exc_info=True)
+            raise
+                
+    def _parse_datetime(self, value: Any) -> Optional[datetime]:
+        """Safely parse a datetime value from various formats.
+        
+        Args:
+            value: Value to parse into datetime
+            
+        Returns:
+            Parsed datetime or None if parsing fails
+        """
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                self.logger.warning(f"Could not parse datetime from string: {value}")
+                return None
+        self.logger.warning(f"Unexpected datetime value type: {type(value)}")
+        return None
 
     def _format_related_results(
         self,
@@ -267,20 +505,51 @@ class GraphService(BaseService):
         """Enrich analysis results with additional metadata."""
         pass
 
-# Example usage:
-# async def main():
-#     # Initialize layers
-#     config = ConnectionConfig(uri="neo4j://localhost:7687", username="neo4j", password="password")
-#     connection = DatabaseConnection(config)
-#     await connection.initialize()
-    
-#     graph_ops = GraphOperationManager(connection)
-#     service = GraphService(graph_ops)
-    
-#     # Use service layer for business operations
-#     async with connection.transaction() as tx:
-#         page = Page(url="https://example.com", title="Example")
-#         metadata = PageMetadata(discovered_at=datetime.now())
-#         result = await service.add_page_to_graph(page, metadata)
-    
-#     await connection.shutdown()
+
+    async def _query_pages(
+        self,
+        tx: Transaction,
+        status: Optional[str] = None,
+        domain: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Query pages based on criteria.
+        
+        Args:
+            tx: Transaction object
+            status: Optional status filter
+            domain: Optional domain filter
+            
+        Returns:
+            List of page data dictionaries
+        """
+        try:
+            # Build query conditions
+            conditions = {}
+            if status:
+                conditions['status'] = status
+            if domain:
+                conditions['domain'] = domain
+                
+            nodes = await self.graph_operations.query_nodes(
+                label="Page",
+                conditions=conditions,
+                transaction=tx
+            )
+            
+            # Convert nodes to dictionary format
+            pages = []
+            for node in nodes:
+                if hasattr(node, 'properties'):
+                    node_data = dict(node.properties)
+                    node_data['id'] = str(node.id) if hasattr(node, 'id') else None
+                    pages.append(node_data)
+            
+            return pages
+            
+        except Exception as e:
+            self.logger.error(f"Error querying pages: {str(e)}")
+            raise ServiceError(
+                message="Failed to query pages",
+                details={"status": status, "domain": domain},
+                cause=e
+            )

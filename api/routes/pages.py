@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional, List
+from core.infrastructure.database.transactions import Transaction
 
 from core.services.content.page_service import PageService
-from core.services.validation_service import ValidationRunner
+from core.services.validation_service import ValidationRunner, ValidationLevel
 from api.dependencies import get_page_service, get_validation_runner
-from api.models.request import PageCreate, BatchPageCreate
-from api.models.response import PageResponse, BatchPageResponse
+from api.models.page.request import PageCreate, BatchPageCreate
+from api.models.page.response import PageResponse, BatchPageResponse
 
 from core.domain.content.models.page import Page
 from core.utils.logger import get_logger
@@ -20,23 +21,37 @@ async def create_page(
     validator: ValidationRunner = Depends(get_validation_runner)
 ):
     """Create a new page."""
+    tx = Transaction()
     try:
-        validation = await validator.validate_page(page)
+        # Validate at API level
+        validation = await validator.validate_page(
+            page, 
+            levels={ValidationLevel.API}
+        )
+        
         if not validation.is_valid:
             raise HTTPException(
                 status_code=422, 
                 detail=[error.to_dict() for error in validation.errors]
             )
         
+        # Create page within transaction
         result = await page_service.get_or_create_page(
+            tx=tx,
             url=str(page.url),
             context=page.context,
             tab_id=page.tab_id,
             window_id=page.window_id,
             bookmark_id=page.bookmark_id
         )
+        
+        # Commit transaction
+        await tx.commit()
+        
         return PageResponse(success=True, **result.to_dict())
     except Exception as e:
+        # Ensure rollback on any error
+        await tx.rollback()
         logger.error(f"Error creating page: {str(e)}", exc_info=True)
         raise
 

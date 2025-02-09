@@ -349,29 +349,39 @@ class GraphOperationManager:
             labels_str = ':'.join(labels)
             match_properties = match_properties or []
             
-            # Build MERGE matching criteria
-            match_clause = ""
-            if match_properties:
-                criteria = [
-                    f"n.{prop} = ${prop}"
-                    for prop in match_properties
-                    if prop in properties
-                ]
-                if criteria:
-                    match_clause = f"WHERE {' AND '.join(criteria)}"
+            # Build match criteria for MERGE
+            match_dict = {
+                prop: properties[prop]
+                for prop in match_properties
+                if prop in properties
+            }
             
-            query = f"""
-            MERGE (n:{labels_str} {match_clause})
-            SET n = $properties
-            RETURN n, id(n) as node_id, labels(n) as node_labels
-            """
+            # Build MERGE pattern with properties in the node pattern
+            if match_dict:
+                match_pattern = "{"
+                match_pattern += ", ".join(f"{k}: ${k}" for k in match_dict.keys())
+                match_pattern += "}"
+                query = f"""
+                MERGE (n:{labels_str} {match_pattern})
+                SET n = $all_properties
+                RETURN n, id(n) as node_id, labels(n) as node_labels
+                """
+                parameters = {
+                    **match_dict,
+                    "all_properties": properties
+                }
+            else:
+                # If no match properties, create new node
+                query = f"""
+                CREATE (n:{labels_str})
+                SET n = $properties
+                RETURN n, id(n) as node_id, labels(n) as node_labels
+                """
+                parameters = {"properties": properties}
             
             result = await self.connection.execute_query(
                 query,
-                parameters={
-                    "properties": properties,
-                    **{prop: properties[prop] for prop in match_properties if prop in properties}
-                },
+                parameters=parameters,
                 transaction=transaction
             )
             
@@ -388,7 +398,7 @@ class GraphOperationManager:
                 labels=node_data["node_labels"],
                 properties=dict(node_data["n"])
             )
-            
+                
         except Exception as e:
             self.logger.error(f"Error creating/updating node: {str(e)}")
             raise GraphOperationError(

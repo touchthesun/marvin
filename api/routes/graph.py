@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
 from core.services.graph.graph_service import GraphService
 from api.dependencies import get_graph_service
-from api.models.response import GraphResponse
+from api.models.graph.response import GraphResponse
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)

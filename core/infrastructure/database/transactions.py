@@ -1,8 +1,9 @@
 import asyncio
 from dataclasses import dataclass
 from typing import Optional, Dict, Callable, T
-from uuid import UUID
+import neo4j
 from datetime import datetime
+from neo4j import AsyncSession
 from neo4j.exceptions import (
     Neo4jError,
     ServiceUnavailable,
@@ -17,39 +18,74 @@ class Transaction:
     
     def __init__(self):
         self._neo4j_tx = None
+        self._neo4j_session = None
         self._operations = []
         self._rollback_handlers = []
         self.logger = get_logger(__name__)
+
+    @property
+    def db_transaction(self):
+        """Get the underlying database transaction."""
+        if self._neo4j_tx is None:
+            self.logger.warning("Attempting to access uninitialized database transaction")
+        return self._neo4j_tx
+    
+    async def initialize_db_transaction(self, session: AsyncSession):
+        """Initialize with a new database session and transaction."""
+        self._neo4j_session = session
+        self._neo4j_tx = await session.begin_transaction()
+        self.logger.debug(f"Initialized new database transaction: {self._neo4j_tx}")
+
+    async def set_db_transaction(self, tx: neo4j.AsyncTransaction):
+        """Set the underlying database transaction."""
+        self.logger.debug(f"Setting database transaction of type: {type(tx)}")
+        if tx is None:
+            raise ValueError("Cannot set None as database transaction")
+        self._neo4j_tx = tx
 
     async def commit(self):
         """Commit the transaction."""
         try:
             if self._neo4j_tx:
+                self.logger.debug("Committing database transaction")
                 await self._neo4j_tx.commit()
         except Exception as e:
-            self.logger.error(f"Commit failed: {str(e)}", exc_info=True)
+            self.logger.error(f"Error during commit: {str(e)}")
             await self.rollback()
             raise
+        finally:
+            await self._cleanup()
 
     async def rollback(self):
-        """Rollback the transaction."""
+        """Rollback the transaction with handlers."""
         try:
-            # Execute rollback handlers in reverse order
+            if self._neo4j_tx:
+                self.logger.debug("Rolling back database transaction")
+                await self._neo4j_tx.rollback()
+        except Exception as e:
+            self.logger.error(f"Error during transaction rollback: {str(e)}")
+        finally:
             for handler in reversed(self._rollback_handlers):
                 try:
                     await handler()
                 except Exception as e:
-                    self.logger.error(f"Rollback handler failed: {str(e)}", exc_info=True)
-            
-            if self._neo4j_tx:
-                await self._neo4j_tx.rollback()
+                    self.logger.error(f"Error in rollback handler: {str(e)}")
+            await self._cleanup()
+
+    async def _cleanup(self):
+        """Clean up database resources."""
+        try:
+            if self._neo4j_session:
+                await self._neo4j_session.close()
+                self._neo4j_session = None
+            self._neo4j_tx = None
         except Exception as e:
-            self.logger.error(f"Rollback failed: {str(e)}", exc_info=True)
-            raise
+            self.logger.error(f"Error during cleanup: {str(e)}")
 
     def add_rollback_handler(self, handler):
         """Add a rollback handler to be called on transaction failure."""
         self._rollback_handlers.append(handler)
+
 
 
 

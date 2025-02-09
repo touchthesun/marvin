@@ -1,7 +1,7 @@
-from typing import Dict, List, Optional, AsyncContextManager
-import neo4j
+from typing import Dict, List, Optional, AsyncContextManager, AsyncIterator
 from contextlib import asynccontextmanager
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
+import neo4j
+from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession, AsyncTransaction
 from neo4j.exceptions import (
     Neo4jError,
     ServiceUnavailable,
@@ -9,7 +9,7 @@ from neo4j.exceptions import (
 )
 from core.common.errors import DatabaseError
 from core.utils.logger import get_logger
-from core.infrastructure.database.transactions import TransactionManager, TransactionConfig
+from core.infrastructure.database.transactions import Transaction, TransactionManager, TransactionConfig
 
 
 class ConnectionConfig:
@@ -97,7 +97,7 @@ class DatabaseConnection:
                 )
     
     @asynccontextmanager
-    async def session(self) -> AsyncContextManager[AsyncSession]:
+    async def session(self) -> AsyncIterator[AsyncSession]:
         """Get a database session."""
         if not self._driver:
             await self.initialize()
@@ -111,12 +111,14 @@ class DatabaseConnection:
                 await session.close()
     
     @asynccontextmanager
-    async def transaction(self) -> AsyncContextManager[neo4j.AsyncTransaction]:
+    async def transaction(self) -> AsyncIterator[Transaction]:
         """Get a managed database transaction."""
         async with self.session() as session:
-            tx = None
+            tx = Transaction()
+            neo4j_tx = None
             try:
-                tx = await session.begin_transaction()
+                neo4j_tx = await session.begin_transaction()
+                await tx.set_db_transaction(neo4j_tx)
                 yield tx
                 await tx.commit()
             except Exception as e:
@@ -131,29 +133,27 @@ class DatabaseConnection:
         self,
         query: str,
         parameters: Optional[Dict] = None,
-        transaction: Optional[neo4j.AsyncTransaction] = None,
+        transaction: Optional[Transaction] = None,
         read_only: bool = False,
         transaction_id: Optional[str] = None
     ) -> List[Dict]:
-        """Execute a database query with retry support.
+        """Execute a database query with retry support."""
         
-        Args:
-            query: The Cypher query to execute
-            parameters: Optional query parameters
-            transaction: Optional existing transaction
-            read_only: Whether this is a read-only query
-            transaction_id: Optional ID for tracking retries
-            
-        Returns:
-            List of query result records as dictionaries
-            
-        Raises:
-            DatabaseError: If query execution fails
-        """
-        
-        async def run_query(tx: neo4j.AsyncTransaction) -> List[Dict]:
+        async def run_query(tx: Transaction) -> List[Dict]:
             try:
-                result = await tx.run(query, parameters or {})
+                # Verify we have a valid transaction
+                if not isinstance(tx, Transaction):
+                    raise DatabaseError(
+                        message="Invalid transaction type",
+                        details={"tx_type": str(type(tx))}
+                    )
+                
+                if tx.db_transaction is None:
+                    # Create a new session and initialize the transaction
+                    session = self._driver.session()
+                    await tx.initialize_db_transaction(session)
+                
+                result = await tx.db_transaction.run(query, parameters or {})
                 data = await result.data()
                 await result.consume()
                 return data
@@ -175,19 +175,22 @@ class DatabaseConnection:
         
         try:
             if transaction:
-                # Use existing transaction
+                # Use existing transaction or initialize it if needed
                 return await run_query(transaction)
             else:
-                # Execute with retry logic through transaction manager
+                # Create new transaction through context manager
                 async def wrapped_query():
-                    async with self.transaction() as tx:
+                    tx = Transaction()
+                    try:
                         return await run_query(tx)
+                    finally:
+                        await tx.commit()  # This will also clean up resources
                 
                 return await self._tx_manager.execute_in_transaction(
                     wrapped_query,
                     transaction_id=transaction_id
                 )
-                
+                    
         except Exception as e:
             if isinstance(e, DatabaseError):
                 raise
@@ -206,17 +209,30 @@ class DatabaseConnection:
                 parameters=parameters,
                 cause=e
             )
+    
 
     async def execute_read_query(
         self,
         query: str,
         parameters: Optional[Dict] = None,
+        transaction: Optional[neo4j.AsyncTransaction] = None,
         transaction_id: Optional[str] = None
     ) -> List[Dict]:
-        """Execute a read-only query."""
+        """Execute a read-only query.
+        
+        Args:
+            query: The Cypher query to execute
+            parameters: Optional query parameters
+            transaction: Optional existing transaction
+            transaction_id: Optional ID for tracking retries
+            
+        Returns:
+            List of query result records as dictionaries
+        """
         return await self.execute_query(
             query,
             parameters,
+            transaction=transaction,
             read_only=True,
             transaction_id=transaction_id
         )
