@@ -2,9 +2,11 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
+from neo4j.graph import Node
+
 from core.domain.content.types import PageMetadata
 from core.domain.content.models.page import Page
-from core.domain.content.types import PageMetadata, BrowserContext, PageMetrics, PageStatus
+from core.domain.content.types import PageMetadata, BrowserContext, PageStatus
 from core.domain.content.models.site import Site
 from core.infrastructure.database.graph_operations import GraphOperationManager
 from core.infrastructure.database.transactions import Transaction
@@ -553,3 +555,4 @@ class GraphService(BaseService):
                 details={"status": status, "domain": domain},
                 cause=e
             )
+

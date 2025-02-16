@@ -1,13 +1,39 @@
 import os
 from dotenv import load_dotenv
-
-dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
-load_dotenv(dotenv_path)
+from pathlib import Path
 
 def load_config():
     """
     Loads and returns the application configuration based on environment variables.
     """
+    # Get the project root directory
+    root_dir = Path(__file__).parent.parent.parent
+    
+    # Define paths
+    env_path = root_dir / '.env'
+    template_path = root_dir / '.env.template'
+    
+    print(f"Looking for .env at: {env_path}")
+    print(f"Looking for .env.template at: {template_path}")
+    
+    # First try to load .env
+    if env_path.exists():
+        print(f"Loading .env file")
+        # override=True means it will override existing env vars
+        load_dotenv(env_path, override=True)
+    else:
+        print(f".env file not found")
+        # Only load template if .env doesn't exist
+        if template_path.exists():
+            print(f"Loading .env.template file")
+            load_dotenv(template_path)
+        else:
+            print(f".env.template file not found")
+    
+    # Debug environment state
+    print(f"Raw LOGGING_LEVEL env var: {os.getenv('LOGGING_LEVEL')}")
+    
+
     config = {
         # Existing settings
         "logging_level": os.getenv("LOGGING_LEVEL"),

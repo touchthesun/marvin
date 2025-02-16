@@ -95,6 +95,71 @@ class GraphOperationManager:
                 cause=e
             )
         
+    
+    async def query_nodes(
+        self,
+        label: str,
+        conditions: Optional[Dict[str, Any]] = None,
+        transaction: Optional[neo4j.AsyncTransaction] = None
+    ) -> List[Node]:
+        """Query nodes based on label and conditions.
+        
+        Args:
+            label: Node label to match
+            conditions: Optional dictionary of property conditions
+            transaction: Optional existing transaction
+            
+        Returns:
+            List of matching nodes
+        """
+        try:
+            # Build WHERE clause from conditions
+            where_clauses = []
+            parameters = {}
+            
+            if conditions:
+                for key, value in conditions.items():
+                    if value is not None:
+                        where_clauses.append(f"n.{key} = ${key}")
+                        parameters[key] = value
+            
+            # Construct query
+            query = f"MATCH (n:{label})"
+            if where_clauses:
+                query += f" WHERE {' AND '.join(where_clauses)}"
+            query += " RETURN n, id(n) as node_id, labels(n) as node_labels"
+            
+            # Execute query
+            result = await self.connection.execute_query(
+                query,
+                parameters=parameters,
+                transaction=transaction
+            )
+            
+            # Convert results to Node objects
+            nodes = []
+            for record in result:
+                node = Node(
+                    id=str(record["node_id"]),
+                    labels=record["node_labels"],
+                    properties=dict(record["n"])
+                )
+                nodes.append(node)
+                
+            return nodes
+            
+        except Exception as e:
+            self.logger.error(f"Error querying nodes: {str(e)}")
+            raise GraphOperationError(
+                message="Failed to query nodes",
+                operation="query_nodes",
+                details={
+                    "label": label,
+                    "conditions": conditions
+                },
+                cause=e
+            )
+        
     async def get_node_by_id(
         self,
         node_id: str,

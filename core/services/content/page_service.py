@@ -195,6 +195,7 @@ class PageService(BaseService):
         
         return page
 
+
     async def query_pages(
         self,
         tx: Transaction,
@@ -202,33 +203,51 @@ class PageService(BaseService):
         status: Optional[str] = None,
         domain: Optional[str] = None
     ) -> List[Page]:
-        """Query pages based on filters.
-        
-        Args:
-            tx: Transaction object
-            context: Optional browser context filter
-            status: Optional page status filter
-            domain: Optional domain filter
-            
-        Returns:
-            List of matching Page objects
-        """
+        """Query pages based on filters."""
         try:
+            self.logger.info("Starting page query...")
             results = await self.graph_service.execute_in_transaction(
                 tx, "query_pages",
                 status=status.value if status else None,
                 domain=domain
             )
             
+            self.logger.debug(f"Raw query results: {results}")
+            
             pages = []
+            url_cache_updates = {}  # Track updates to apply or rollback
+            
             for result in results:
-                page = self._reconstruct_page_from_node(result)
+                self.logger.debug(f"Processing result: {result}")
+                # Convert Node to dict if needed
+                if hasattr(result, 'properties'):
+                    self.logger.debug("Converting Node to dict")
+                    node_data = dict(result.properties)
+                    if hasattr(result, 'id'):
+                        node_data['id'] = str(result.id)
+                else:
+                    node_data = result
+                    
+                self.logger.debug(f"Node data: {node_data}")
+                    
+                # Create Page object
+                page = Page.from_dict(node_data)
+                self.logger.debug(f"Created page object: {page}")
+                
                 # Filter by context if specified
-                if context and context not in page.browser_contexts:
+                if context and context not in {c.value for c in page.browser_contexts}:
+                    self.logger.debug(f"Filtering out page {page.url} due to context")
                     continue
+                    
                 pages.append(page)
-                self._url_to_page[page.url] = page
-                tx.add_rollback_handler(lambda url=page.url: self._url_to_page.pop(url, None))
+                url_cache_updates[page.url] = page
+            
+            # Update cache and add rollback handler
+            self.logger.debug(f"Found {len(pages)} pages total")
+            self._url_to_page.update(url_cache_updates)
+            tx.add_rollback_handler(
+                lambda: self._url_to_page.update({url: None for url in url_cache_updates})
+            )
                     
             return pages
                 
