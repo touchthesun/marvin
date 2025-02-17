@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 import asyncio
+from uuid import uuid4
 from datetime import datetime
 from core.domain.content.pipeline import (
     DefaultPipelineOrchestrator,
@@ -106,69 +107,94 @@ class PipelineService(BaseService):
         }
         return stage_weights.get(stage, 0.0)
 
-    async def enqueue_urls(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Add URLs to the processing queue with transaction support."""
-        task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
-        
+
+    async def enqueue_urls(
+        self,
+        urls: List[Dict[str, Any]],
+        tx: Optional[Transaction] = None
+    ) -> Dict[str, Any]:
+        """Enqueue URLs for processing."""
         try:
+            if tx is None:
+                tx = Transaction()
+                
             result = await self.execute_in_transaction(
-                "_enqueue_urls_operation",
-                items,
-                task_id
+                tx,
+                "enqueue_urls_operation",  # Operation name
+                urls=urls  # Pass URLs as argument
             )
+            
+            if tx is None:
+                await tx.commit()
+                
             return result
         except Exception as e:
-            self.logger.error(f"Failed to enqueue URLs: {str(e)}")
+            if tx is not None:
+                await tx.rollback()
+            self.logger.error(f"Error enqueuing URLs: {str(e)}")
             raise
 
 
     async def _enqueue_urls_operation(
         self,
         tx: Transaction,
-        items: List[Dict[str, Any]],
-        task_id: str
+        urls: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Transaction-aware URL enqueuing operation."""
-        for item in items:
-            url = str(item.get("url"))
-            context = item.get("context")
+        """Transaction-aware URL enqueuing operation.
+        
+        Args:
+            tx: Active transaction context
+            urls: List of URL dictionaries containing url and context info
             
-            # Initialize status tracking with browser context info
-            status_entry = {
-                "url": url,
-                "status": "queued",
+        Returns:
+            Dict with enqueuing results including task_id and status
+        """
+        task_id = str(uuid4())
+        try:
+            for item in urls:
+                url = str(item.get("url"))
+                
+                # Initialize status tracking
+                status_entry = {
+                    "url": url,
+                    "status": "queued", 
+                    "task_id": task_id,
+                    "progress": 0.0,
+                    "queued_at": datetime.now().isoformat(),
+                    "browser_context": item.get("context"),
+                    "tab_id": item.get("tab_id"),
+                    "window_id": item.get("window_id"),
+                    "bookmark_id": item.get("bookmark_id")
+                }
+                
+                # Queue for processing
+                await self.url_queue.put({
+                    "url": url,
+                    "metadata": item,
+                    "task_id": task_id
+                })
+                
+                self.processed_urls[url] = status_entry
+                
+                # Add rollback handler
+                tx.add_rollback_handler(
+                    lambda u=url: self._handle_enqueue_rollback(u)
+                )
+                
+            self.logger.info(f"Enqueued {len(urls)} URLs for processing under task {task_id}")
+            
+            return {
                 "task_id": task_id,
-                "progress": 0.0,
-                "queued_at": datetime.now().isoformat(),
-                "browser_context": context,
-                "tab_id": item.get("tab_id"),
-                "window_id": item.get("window_id"),
-                "bookmark_id": item.get("bookmark_id")
+                "urls_enqueued": len(urls),
+                "status": "enqueued",
+                "queue_size": self.url_queue.qsize(),
+                "queued_at": datetime.now().isoformat()
             }
             
-            # Queue for processing
-            await self.url_queue.put({
-                "url": url,
-                "metadata": item,
-                "task_id": task_id
-            })
-            
-            self.processed_urls[url] = status_entry
-            
-            # Add rollback handler for this URL
-            tx.add_rollback_handler(
-                lambda u=url: self._handle_enqueue_rollback(u)
-            )
-            
-        self.logger.info(f"Enqueued {len(items)} URLs for processing under task {task_id}")
-        
-        return {
-            "task_id": task_id,
-            "urls_enqueued": len(items),
-            "status": "enqueued",
-            "queue_size": self.url_queue.qsize(),
-            "queued_at": datetime.now().isoformat()
-        }
+        except Exception as e:
+            self.logger.error(f"Error in _enqueue_urls_operation: {str(e)}")
+            raise
+
 
 
     async def _handle_enqueue_rollback(self, url: str):

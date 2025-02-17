@@ -6,6 +6,13 @@ nav:
   - Overview: architecture/overview.md
   - Decisions: architecture/decisions.md
   - Roadmap: architecture/roadmap.md
+  - API: 
+    - Overview: api/api-docs.md
+    - Routes: api/route-docs.md
+    - Models:
+      - Models: api/models/index.md
+      - Analysis: api/models/analysis.md
+      - Page: api/models/page.md
   - Components:
     - Knowledge Graph: architecture/components/knowledge-graph.md
     - LLM Service: architecture/components/llm-service.md
@@ -16,6 +23,8 @@ nav:
   - Conventions: development/conventions.md
   - Testing: development/testing.md
   - Security: development/security.md
+  - Roadmap:
+    - LLM: development/llm/phase1.md
 - User Guide:
   - Installation: user/installation.md
   - Getting Started: user/getting-started.md
