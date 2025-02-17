@@ -299,6 +299,21 @@ class PageMetadata:
                 visit_count=0
             )
 
+    @staticmethod
+    def _parse_datetime(value: Any) -> Optional[datetime]:
+        """Helper to parse various datetime formats."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if hasattr(value, 'to_native'):  # Neo4j datetime
+            return value.to_native()
+        if isinstance(value, str):
+            return datetime.fromisoformat(value)
+        return None
+
+
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert metadata to dictionary format."""
         return {
@@ -321,14 +336,15 @@ class PageMetadata:
             "custom_metadata": self.custom_metadata
         }
 
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'PageMetadata':
         """Create PageMetadata instance from dictionary."""
         # Handle datetime fields
-        discovered_at = datetime.fromisoformat(data.get('discovered_at')) if data.get('discovered_at') else datetime.now()
-        last_accessed = datetime.fromisoformat(data['last_accessed']) if data.get('last_accessed') else None
-        published_date = datetime.fromisoformat(data['published_date']) if data.get('published_date') else None
-        modified_date = datetime.fromisoformat(data['modified_date']) if data.get('modified_date') else None
+        discovered_at = cls._parse_datetime(data.get('discovered_at')) or datetime.now()
+        last_accessed = cls._parse_datetime(data.get('last_accessed'))
+        published_date = cls._parse_datetime(data.get('published_date'))
+        modified_date = cls._parse_datetime(data.get('modified_date'))
         
         # Handle status enum
         status = PageStatus(data['status']) if data.get('status') else PageStatus.DISCOVERED
@@ -336,9 +352,16 @@ class PageMetadata:
         # Handle browser contexts
         browser_contexts = {BrowserContext(c) for c in data.get('browser_contexts', [])}
         
-        # Handle metrics
+        # Handle metrics - always create a metrics object
         metrics_data = data.get('metrics', {})
-        metrics = PageMetrics(**metrics_data) if metrics_data else None
+        metrics = PageMetrics(
+            quality_score=metrics_data.get('quality_score', 0.0),
+            relevance_score=metrics_data.get('relevance_score', 0.0),
+            last_visited=cls._parse_datetime(metrics_data.get('last_visited')),
+            visit_count=metrics_data.get('visit_count', 0),
+            processing_time=metrics_data.get('processing_time'),
+            keyword_count=metrics_data.get('keyword_count', 0)
+        )
         
         return cls(
             discovered_at=discovered_at,

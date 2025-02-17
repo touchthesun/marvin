@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from neo4j.graph import Node
-from typing import Dict, List, Optional, Set, Union
+from typing import Dict, List, Optional, Set, Union, Any
 from uuid import UUID, uuid4
 from core.domain.content.types import (
     PageStatus,
@@ -180,7 +180,21 @@ class Page:
             ],
             'errors': self.errors
         }
-    
+        
+
+
+    def _parse_datetime(value: Any) -> Optional[datetime]:
+        """Helper to parse various datetime formats."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if hasattr(value, 'to_native'):  # Neo4j datetime
+            return value.to_native()
+        if isinstance(value, str):
+            return datetime.fromisoformat(value)
+        return None
+
     @classmethod
     def from_dict(cls, data: Union[Dict, 'Node']) -> 'Page':
         """Create a Page instance from dictionary representation or Neo4j Node."""
@@ -214,22 +228,47 @@ class Page:
         if 'keywords' in properties:
             page.keywords = properties['keywords']
         
-        # Set metadata using from_dict method
+        # Handle both nested and flattened data structures
         if 'metadata' in properties:
+            # Handle nested structure
             page.metadata = PageMetadata.from_dict(properties['metadata'])
-                
-        # Set metrics separately since they're not part of PageMetadata
-        if 'metadata' in properties and 'metrics' in properties['metadata']:
-            metrics = properties['metadata']['metrics']
-            if metrics:
-                page.metadata.metrics = PageMetrics(
-                    quality_score=metrics.get('quality_score', 0.0),
-                    relevance_score=metrics.get('relevance_score', 0.0),
-                    last_visited=datetime.fromisoformat(metrics['last_visited']) if 'last_visited' in metrics else None,
-                    visit_count=metrics.get('visit_count', 0),
-                    processing_time=metrics.get('processing_time'),
-                    keyword_count=metrics.get('keyword_count', 0)
-                )
+        else:
+            # Handle flattened structure from Neo4j
+            metadata_dict = {
+                'discovered_at': cls._parse_datetime(properties.get('discovered_at')),
+                'last_accessed': cls._parse_datetime(properties.get('last_accessed')),
+                'status': properties.get('status', 'discovered'),
+                'metadata_quality_score': properties.get('metadata_quality_score', 0.0),
+                'tab_id': properties.get('tab_id'),
+                'window_id': properties.get('window_id'),
+                'bookmark_id': properties.get('bookmark_id'),
+                'browser_contexts': properties.get('browser_contexts', []),
+                'word_count': properties.get('word_count'),
+                'reading_time_minutes': properties.get('reading_time_minutes'),
+                'language': properties.get('language'),
+                'source_type': properties.get('source_type'),
+                'author': properties.get('author'),
+                'published_date': cls._parse_datetime(properties.get('published_date')),
+                'modified_date': cls._parse_datetime(properties.get('modified_date')),
+                'custom_metadata': properties.get('custom_metadata', {})
+            }
+            
+            # Create metrics dict from prefixed properties
+            metrics_dict = {
+                'quality_score': properties.get('metric_quality_score', 0.0),
+                'relevance_score': properties.get('metric_relevance_score', 0.0),
+                'last_visited': cls._parse_datetime(properties.get('metric_last_visited')),
+                'visit_count': properties.get('metric_visit_count', 0),
+                'processing_time': properties.get('metric_processing_time'),
+                'keyword_count': properties.get('metric_keyword_count', 0)
+            }
+            
+            # Create PageMetadata instance
+            page.metadata = PageMetadata.from_dict(metadata_dict)
+            
+            # Set metrics
+            if any(metrics_dict.values()):  # Only set if we have any non-default values
+                page.metadata.metrics = PageMetrics(**metrics_dict)
         
         # Set relationships
         if 'relationships' in properties:
