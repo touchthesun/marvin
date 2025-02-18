@@ -19,13 +19,11 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
         Configured logger instance
     """
     # Get logging level from config, arguments, or default
-    print(f"Config logging level: {config.get('logging_level')}")
     log_level = (level or 
                 config.get("logging_level") or 
                 DEFAULT_LOGGING_LEVEL)
     
     if isinstance(log_level, str):
-        print(f"Converting string level: {log_level}")  # Debug line
         log_level = getattr(logging, log_level.upper())
     
     # Configure root logger if not already configured
@@ -39,7 +37,6 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     
     # Get or create logger
     logger = logging.getLogger(name)
-    print(f"Setting logger level to: {log_level}")  # Debug line
     logger.setLevel(log_level)
     
     # Add handler with custom formatting if none exist

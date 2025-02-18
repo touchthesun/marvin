@@ -7,7 +7,6 @@ This module provides dependencies in several categories:
 - Individual service providers: FastAPI dependencies for each service
 - Compound service provider: Combined service context for routes
 """
-
 from typing import AsyncGenerator
 from fastapi import Depends
 from contextlib import asynccontextmanager
@@ -22,6 +21,7 @@ from core.domain.content.pipeline import (
     DefaultStateManager, DefaultComponentCoordinator,
     DefaultEventSystem, PipelineConfig
 )
+from api.state import get_app_state, AppState
 from core.utils.config import load_config
 
 # Base component providers
@@ -73,28 +73,27 @@ async def manage_graph_service(
     finally:
         await service.cleanup()
 
-@asynccontextmanager
-async def manage_page_service(
-    graph_service: GraphService
-) -> AsyncGenerator[PageService, None]:
-    """Manage PageService lifecycle."""
-    service = PageService(graph_service)
-    try:
-        await service.initialize()
-        yield service
-    finally:
-        await service.cleanup()
+async def get_app_db_connection(
+    app_state: AppState = Depends(get_app_state)
+) -> DatabaseConnection:
+    """Get database connection from app state."""
+    if not app_state.db_connection:
+        raise RuntimeError("Database connection not initialized")
+    return app_state.db_connection
+
 
 @asynccontextmanager
 async def manage_pipeline_service(
-    config: PipelineConfig = Depends(get_pipeline_config)
+    config: PipelineConfig = Depends(get_pipeline_config),
+    db_connection: DatabaseConnection = Depends(get_app_db_connection)
 ) -> AsyncGenerator[PipelineService, None]:
     """Manage PipelineService lifecycle."""
     components = {
-        "state_manager": DefaultStateManager(),
+        "state_manager": DefaultStateManager(config),
         "component_coordinator": DefaultComponentCoordinator(config),
-        "event_system": DefaultEventSystem(),
-        "config": config
+        "event_system": DefaultEventSystem(config),
+        "config": config,
+        "db_connection": db_connection
     }
     service = PipelineService(**components)
     try:
@@ -115,15 +114,29 @@ async def get_page_service(
     graph_service: GraphService = Depends(get_graph_service)
 ) -> AsyncGenerator[PageService, None]:
     """Provide PageService with lifecycle management."""
-    async with manage_page_service(graph_service) as service:
+    async with manage_page_service(graph_service=graph_service) as service:
         yield service
 
-async def get_pipeline_service(
-    config: PipelineConfig = Depends(get_pipeline_config)
-) -> AsyncGenerator[PipelineService, None]:
-    """Provide PipelineService with lifecycle management."""
-    async with manage_pipeline_service(config) as service:
+
+@asynccontextmanager
+async def manage_page_service(
+    graph_service: GraphService = Depends(get_graph_service)
+) -> AsyncGenerator[PageService, None]:
+    """Manage PageService lifecycle."""
+    service = PageService(graph_service)
+    try:
+        await service.initialize()
         yield service
+    finally:
+        await service.cleanup()
+
+async def get_pipeline_service(
+    config: PipelineConfig = Depends(get_pipeline_config),
+    db_connection: DatabaseConnection = Depends(get_app_db_connection)
+) -> AsyncGenerator[PipelineService, None]:  # Changed return type
+    """Provide PipelineService with lifecycle management."""
+    async with manage_pipeline_service(config=config, db_connection=db_connection) as service:
+        yield service  # Now this matches the return type
 
 # Compound service provider
 class ServiceContext:

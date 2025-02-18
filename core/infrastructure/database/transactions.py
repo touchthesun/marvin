@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Optional, Dict, Callable, T
 import neo4j
+import uuid
 from datetime import datetime
 from neo4j import AsyncSession
 from neo4j.exceptions import (

@@ -23,6 +23,17 @@ class TaskDetails(TaskData):
     """Detailed task information including results."""
     result: Optional[TaskResult] = None
 
+class TaskResponseData(BaseModel):
+    """Response data for task operations."""
+    task_id: str
+    status: str
+    progress: float
+    message: Optional[str] = None
+    success: bool = True
+    error: Optional[str] = None
+
 # Type aliases for different response types
-TaskResponse = APIResponse[TaskData]
+# TaskResponse = APIResponse[TaskData]
+
+TaskResponse = APIResponse[TaskResponseData]
 TaskDetailResponse = APIResponse[TaskDetails]

@@ -1,12 +1,8 @@
-from typing import Dict, Any
-from pydantic import BaseModel, HttpUrl
 from fastapi import APIRouter, Depends
 from core.services.content.pipeline_service import PipelineService
 from api.dependencies import get_pipeline_service
 from api.models.page.request import PageCreate
-from api.models.analysis.response import TaskResponse
-from api.models.common import APIResponse
-from api.utils.errors import NotFoundError, BadRequestError
+from api.models.analysis.response import TaskResponseData, TaskResponse
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,19 +35,25 @@ async def analyze_page(
         if not result or "task_id" not in result:
             return TaskResponse(
                 success=False,
-                message="Failed to enqueue analysis task",
-                error="Invalid pipeline service response",
-                task_id="error",
-                status="error",
-                progress=0.0
+                data=TaskResponseData(
+                    success=False,
+                    task_id="error",
+                    status="error",
+                    progress=0.0,
+                    message="Failed to enqueue analysis task",
+                    error="Invalid pipeline service response"
+                )
             )
             
         return TaskResponse(
             success=True,
-            task_id=result["task_id"],
-            status="enqueued",
-            progress=0.0,
-            message="Task successfully enqueued"
+            data=TaskResponseData(
+                success=True,
+                task_id=result["task_id"],
+                status="enqueued",
+                progress=0.0,
+                message="Task successfully enqueued"
+            )
         )
     except Exception as e:
         logger.error(f"Error analyzing page: {str(e)}", exc_info=True)
@@ -73,11 +75,14 @@ async def get_analysis_status(
             logger.warning(msg)
             return TaskResponse(
                 success=False,
-                message=msg,
-                error="Task not found",
-                task_id=task_id,
-                status="error",
-                progress=0.0
+                data=TaskResponseData(
+                    success=False,
+                    task_id=task_id,
+                    status="error",
+                    progress=0.0,
+                    message=msg,
+                    error="Task not found"
+                )
             )
         
         # Extract error message if status is error
@@ -88,20 +93,26 @@ async def get_analysis_status(
             
         return TaskResponse(
             success=status.get("status") not in ["error", "not_found"],
-            message=status.get("message", f"Task is {status.get('status', 'unknown')}"),
-            error=error_msg,
-            task_id=task_id,
-            status=status.get("status", "unknown"),
-            progress=float(status.get("progress", 0.0))
+            data=TaskResponseData(
+                success=status.get("status") not in ["error", "not_found"],
+                task_id=task_id,
+                status=status.get("status", "unknown"),
+                progress=float(status.get("progress", 0.0)),
+                message=status.get("message", f"Task is {status.get('status', 'unknown')}"),
+                error=error_msg
+            )
         )
         
     except Exception as e:
         logger.error(f"Error checking task status {task_id}: {str(e)}")
         return TaskResponse(
             success=False,
-            message="Status check failed",
-            error=str(e),
-            task_id=task_id,
-            status="error",
-            progress=0.0
+            data=TaskResponseData(
+                success=False,
+                task_id=task_id,
+                status="error",
+                progress=0.0,
+                message="Status check failed",
+                error=str(e)
+            )
         )

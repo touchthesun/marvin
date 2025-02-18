@@ -333,10 +333,11 @@ def parse_url(url: str) -> Tuple[str, str]:
 class DefaultStateManager(StateManager):
     """Default implementation of pipeline state management."""
     
-    def __init__(self):
+    def __init__(self, config: PipelineConfig):
         self._pages: Dict[str, Page] = {}
         self._stage_history: Dict[str, List[ProcessingStage]] = {}
         self.logger = get_logger(__name__)
+        self.config = config
         
     async def initialize_page(self, tx: Optional[Transaction], url: str) -> Page:
         """Create and initialize a new Page object."""
@@ -690,8 +691,11 @@ class DefaultComponentCoordinator(ComponentCoordinator):
 class DefaultEventSystem(EventSystem):
     """Default implementation of pipeline event system."""
     
-    def __init__(self):
+    def __init__(self, config: PipelineConfig):
         self._handlers: Set[Callable[[ProcessingEvent], None]] = set()
+        self.config = config
+        self.logger = get_logger(__name__)
+
         
     def emit_event(self, event: ProcessingEvent) -> None:
         """Emit a pipeline event."""
@@ -881,17 +885,25 @@ class DefaultPipelineOrchestrator(PipelineOrchestrator):
         if metadata is None:
             metadata = {}
             
+        # Get timings and validation results from custom_metadata
+        component_timings = page.metadata.custom_metadata.get('component_timings', {})
+        validation_results = page.metadata.custom_metadata.get('validation_results', {})
+            
         metadata.update({
             'page_id': page.id,
             'page_object': page,
             'stage': stage.value,
             'timestamp': datetime.now().isoformat(),
-            'component_timings': page.metadata.get('component_timings', {}),
-            'validation_results': page.metadata.get('validation_results', {}),
+            'component_timings': component_timings,
+            'validation_results': validation_results,
             'total_processing_time': sum(
-                timing 
-                for timing in page.metadata.get('component_timings', {}).values()
-            )
+                timing for timing in component_timings.values()
+            ),
+            # Add other metadata fields that might be useful
+            'status': page.metadata.status.value,
+            'quality_score': page.metadata.metadata_quality_score,
+            'last_accessed': page.metadata.last_accessed.isoformat() if page.metadata.last_accessed else None,
+            'browser_contexts': [ctx.value for ctx in page.metadata.browser_contexts]
         })
         
         event = ProcessingEvent(
@@ -903,4 +915,4 @@ class DefaultPipelineOrchestrator(PipelineOrchestrator):
             metadata=metadata
         )
         
-        self.context.event_system.emit_event(event) 
+        self.context.event_system.emit_event(event)

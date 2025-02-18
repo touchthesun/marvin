@@ -13,6 +13,7 @@ from core.domain.content.pipeline import (
     ProcessingStage
 )
 from core.infrastructure.database.transactions import Transaction
+from core.infrastructure.database.db_connection import DatabaseConnection
 from core.services.base import BaseService
 from core.domain.content.models.page import Page, BrowserContext, PageStatus
 from core.utils.logger import get_logger
@@ -25,7 +26,8 @@ class PipelineService(BaseService):
         state_manager: DefaultStateManager,
         component_coordinator: DefaultComponentCoordinator,
         event_system: DefaultEventSystem,
-        config: PipelineConfig
+        config: PipelineConfig,
+        db_connection: DatabaseConnection
     ):
         super().__init__()
         self.config = config
@@ -40,6 +42,8 @@ class PipelineService(BaseService):
         self.active_tasks: Dict[str, asyncio.Task] = {}
         self.processed_urls: Dict[str, Dict[str, Any]] = {}
         self.worker_task: Optional[asyncio.Task] = None
+        self.max_concurrent = self.config.max_concurrent_pages
+        self.db_connection = db_connection
 
     async def initialize(self) -> None:
         """Initialize pipeline service resources."""
@@ -116,22 +120,36 @@ class PipelineService(BaseService):
         """Enqueue URLs for processing."""
         try:
             if tx is None:
-                tx = Transaction()
+                async with self.db_connection.transaction() as tx:
+                    result = await self.execute_in_transaction(
+                        tx,
+                        "enqueue_urls_operation",
+                        urls=urls
+                    )
+                    return result
+            else:
+                return await self.execute_in_transaction(
+                    tx,
+                    "enqueue_urls_operation",
+                    urls=urls
+                )
                 
-            result = await self.execute_in_transaction(
-                tx,
-                "enqueue_urls_operation",  # Operation name
-                urls=urls  # Pass URLs as argument
-            )
-            
-            if tx is None:
-                await tx.commit()
-                
-            return result
         except Exception as e:
-            if tx is not None:
-                await tx.rollback()
             self.logger.error(f"Error enqueuing URLs: {str(e)}")
+            raise
+
+    async def get_status(self, task_id: str) -> Dict[str, Any]:
+        """Get processing status for a task with transaction support."""
+        try:
+            tx = Transaction()
+            
+            return await self.execute_in_transaction(
+                tx,
+                "get_status_operation",
+                task_id=task_id
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get status for task {task_id}: {str(e)}")
             raise
 
 
@@ -140,34 +158,68 @@ class PipelineService(BaseService):
         tx: Transaction,
         urls: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Transaction-aware URL enqueuing operation.
-        
-        Args:
-            tx: Active transaction context
-            urls: List of URL dictionaries containing url and context info
-            
-        Returns:
-            Dict with enqueuing results including task_id and status
-        """
+        """Transaction-aware URL enqueuing operation."""
         task_id = str(uuid4())
         try:
+            # Get the underlying Neo4j transaction
+            neo4j_tx = tx.db_transaction
+            
+            # Create task record
+            await neo4j_tx.run(
+                """
+                CREATE (t:Task {
+                    id: $task_id,
+                    created_at: datetime(),
+                    status: 'enqueued'
+                })
+                """,
+                {"task_id": task_id}
+            )
+
             for item in urls:
                 url = str(item.get("url"))
-                
-                # Initialize status tracking
+                queued_at = datetime.now().isoformat()
+                # Create status entry for processed_urls tracking
                 status_entry = {
                     "url": url,
-                    "status": "queued", 
+                    "status": "queued",
                     "task_id": task_id,
                     "progress": 0.0,
-                    "queued_at": datetime.now().isoformat(),
-                    "browser_context": item.get("context"),
+                    "queued_at": queued_at,
+                    "browser_context": item.get("context").value if item.get("context") else None,
                     "tab_id": item.get("tab_id"),
                     "window_id": item.get("window_id"),
                     "bookmark_id": item.get("bookmark_id")
                 }
-                
-                # Queue for processing
+
+                await neo4j_tx.run(
+                    """
+                    MATCH (t:Task {id: $task_id})
+                    CREATE (u:URL {
+                        url: $url,
+                        status: $status,
+                        task_id: $task_id,
+                        progress: $progress,
+                        queued_at: $queued_at,
+                        browser_context: $browser_context,
+                        tab_id: $tab_id,
+                        window_id: $window_id,
+                        bookmark_id: $bookmark_id
+                    })-[:PART_OF]->(t)
+                    """,
+                    {
+                        "task_id": task_id,
+                        "url": url,
+                        "status": "queued",
+                        "progress": 0.0,
+                        "queued_at": datetime.now().isoformat(),
+                        "browser_context": item.get("context").value if item.get("context") else None,
+                        "tab_id": item.get("tab_id"),
+                        "window_id": item.get("window_id"),
+                        "bookmark_id": item.get("bookmark_id")
+                    }
+                )
+                            
                 await self.url_queue.put({
                     "url": url,
                     "metadata": item,
@@ -176,7 +228,6 @@ class PipelineService(BaseService):
                 
                 self.processed_urls[url] = status_entry
                 
-                # Add rollback handler
                 tx.add_rollback_handler(
                     lambda u=url: self._handle_enqueue_rollback(u)
                 )
@@ -265,13 +316,13 @@ class PipelineService(BaseService):
                 "progress": 1.0,
                 "page_status": result.status.value,
                 "browser_contexts": [ctx.value for ctx in result.browser_contexts],
-                "last_active": result.last_active.isoformat() if result.last_active else None,
+                "last_accessed": result.metadata.last_accessed.isoformat() if result.metadata.last_accessed else None,
                 "title": result.title,
                 "metrics": {
-                    "quality_score": result.metrics.quality_score,
-                    "relevance_score": result.metrics.relevance_score,
-                    "visit_count": result.metrics.visit_count,
-                    "processing_time": result.metrics.processing_time
+                    "quality_score": result.metadata.metrics.quality_score,
+                    "relevance_score": result.metadata.metrics.relevance_score,
+                    "visit_count": result.metadata.metrics.visit_count,
+                    "processing_time": result.metadata.metrics.processing_time
                 }
             }
             self.processed_urls[url].update(status_update)
@@ -289,12 +340,14 @@ class PipelineService(BaseService):
     ) -> None:
         """Process a single URL through the pipeline."""
         try:
+            tx = Transaction()
             await self.execute_in_transaction(
-                "_process_url_operation",
-                url,
-                metadata,
-                task_id,
-                start_time
+                tx,
+                "process_url_operation",
+                url=url,                   
+                metadata=metadata,
+                task_id=task_id,
+                start_time=start_time
             )
         except Exception as e:
             # Handle error and update status outside transaction
@@ -314,7 +367,7 @@ class PipelineService(BaseService):
         while True:
             try:
                 # Clean up completed tasks
-                self._cleanup_tasks()
+                await self._cleanup_tasks()
                 
                 # Check if we can process more URLs
                 if len(self.active_tasks) >= self.max_concurrent:
@@ -333,7 +386,7 @@ class PipelineService(BaseService):
                 
                 # Create task for URL processing
                 task = asyncio.create_task(
-                    self._process_url(url, metadata, task_id, start_time),
+                    self.process_url(url, metadata, task_id, start_time),
                     name=f"{task_id}_{start_time.isoformat()}"
                 )
                 self.active_tasks[url] = task
@@ -345,32 +398,29 @@ class PipelineService(BaseService):
     async def _cleanup_tasks(self):
         """Remove completed tasks from active tasks dict with transaction support."""
         try:
-            await self.execute_in_transaction("_cleanup_tasks_operation")
+            tx = Transaction()
+            await self.execute_in_transaction(
+                tx,
+                "cleanup_tasks_operation"
+                )
+            
         except Exception as e:
             self.logger.error(f"Error in task cleanup: {str(e)}")
 
-    async def _cleanup_tasks_operation(self, tx: Transaction):
+    async def _cleanup_tasks_operation(
+        self,
+        tx: Transaction,
+    ) -> None:
         """Transaction-aware task cleanup operation."""
         completed = [url for url, task in self.active_tasks.items() if task.done()]
         for url in completed:
             task = self.active_tasks.pop(url)
             if task.exception():
                 self.logger.error(f"Task for {url} failed: {task.exception()}")
-                # Add task failure information to transaction context
                 tx.add_rollback_handler(
                     lambda: self._handle_task_failure(url, task.exception())
                 )
 
-    async def get_status(self, task_id: str) -> Dict[str, Any]:
-        """Get processing status for a task with transaction support."""
-        try:
-            return await self.execute_in_transaction(
-                "_get_status_operation",
-                task_id
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to get status for task {task_id}: {str(e)}")
-            raise
 
     async def _get_status_operation(
         self,
@@ -378,41 +428,91 @@ class PipelineService(BaseService):
         task_id: str
     ) -> Dict[str, Any]:
         """Transaction-aware status retrieval operation."""
-        task_urls = {
-            url: status for url, status in self.processed_urls.items()
-            if status.get("task_id") == task_id
-        }
-        
-        if not task_urls:
-            return {
-                "task_id": task_id,
-                "status": "not_found",
-                "progress": 0.0,
-                "message": "Task not found"
+        try:
+            # Register rollback handler
+            tx.add_rollback_handler(lambda: self.logger.warning(f"Rolling back status check for task {task_id}"))
+            
+            # First check in-memory status
+            task_urls = {
+                url: status for url, status in self.processed_urls.items()
+                if status.get("task_id") == task_id
             }
             
-        # Calculate overall task status
-        statuses = [info["status"] for info in task_urls.values()]
-        if "error" in statuses:
-            task_status = "error"
-        elif all(s == "completed" for s in statuses):
-            task_status = "completed"
-        elif any(s == "processing" for s in statuses):
-            task_status = "processing"
-        else:
-            task_status = "queued"
+            if not task_urls:
+                # TODO: If not in memory, could check persistent storage here
+                # Example:
+                # stored_status = await tx.execute_query(
+                #     "MATCH (t:Task {id: $task_id}) RETURN t",
+                #     {"task_id": task_id}
+                # )
+                return {
+                    "status": "not_found",
+                    "progress": 0.0,
+                    "message": "Task not found"
+                }
+                
+            # Calculate overall task status
+            url_statuses = [info["status"] for info in task_urls.values()]
             
-        # Calculate progress
-        progress = sum(
-            info.get("progress", 0.0) for info in task_urls.values()
-        ) / len(task_urls)
-        
-        return {
-            "task_id": task_id,
-            "status": task_status,
-            "progress": progress,
-            "urls": task_urls
-        }
+            # Track this status check in the transaction
+            await tx.execute_query(
+                """
+                MATCH (t:Task {id: $task_id})
+                SET t.last_checked = datetime(),
+                    t.current_status = $status
+                """,
+                {
+                    "task_id": task_id,
+                    "status": url_statuses
+                }
+            )
+            
+            if "error" in url_statuses:
+                task_status = "error"
+                message = next((info.get("error", "Unknown error") 
+                            for info in task_urls.values() 
+                            if info["status"] == "error"), 
+                            "Task failed")
+            elif all(s == "completed" for s in url_statuses):
+                task_status = "completed"
+                message = "Task completed successfully"
+            elif any(s == "processing" for s in url_statuses):
+                task_status = "processing"
+                message = "Task is being processed"
+            else:
+                task_status = "queued"
+                message = "Task is queued for processing"
+                
+            # Calculate progress
+            progress = sum(
+                info.get("progress", 0.0) for info in task_urls.values()
+            ) / len(task_urls)
+            
+            # Record the status check in the transaction
+            status_data = {
+                "status": task_status,
+                "progress": progress,
+                "message": message,
+                "checked_at": datetime.now().isoformat()
+            }
+            
+            await tx.execute_query(
+                """
+                MATCH (t:Task {id: $task_id})
+                SET t.last_status = $status_data
+                """,
+                {
+                    "task_id": task_id,
+                    "status_data": status_data
+                }
+            )
+            
+            return status_data
+            
+        except Exception as e:
+            self.logger.error(f"Error in status operation: {str(e)}")
+            # Transaction will be rolled back by caller
+            raise
 
     async def cleanup(self) -> None:
         """Cleanup pipeline service resources."""
