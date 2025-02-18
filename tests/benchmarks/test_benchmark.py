@@ -14,7 +14,7 @@ from core.content.processor import (
 from core.content.keyword_identification import (
     KeywordNormalizer, VariantManager
 )
-from core.pipeline.pipeline import (
+from core.domain.content.pipeline import (
     ProcessingEvent,
     ProcessingStage,
     PipelineConfig,

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, List
 from bs4 import BeautifulSoup
 
-from core.pipeline.pipeline import (
+from core.domain.content.pipeline import (
     PipelineOrchestrator,
     ComponentType,
     ProcessingStage,

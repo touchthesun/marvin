@@ -74,7 +74,7 @@ ENABLE_METADATA_COMPARISON=False
 3. Open the marvin project folder
 
 ### Cursor Rules
-Create a `.cursorrules` file in your project root:
+Use the .cursorrules file included with this repository. As these represent implrementation suggestions in line with the coding standards of this project, it is recommended to follow them.
 
 ```
 Project Overview:

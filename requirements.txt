@@ -25,6 +25,13 @@ tavily-python
 pytest-asyncio
 psutil
 matplotlib
+pandas
+plotly
+requests
+fastapi
+uvicorn
+pydantic-settings
+jinja2
 
 pycountry
 python-us

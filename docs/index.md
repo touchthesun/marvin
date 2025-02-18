@@ -10,6 +10,7 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 - [Development Roadmap](architecture/roadmap.md)
 
 #### Core Components
+- [API](api/api-docs.md)
 - [Knowledge Graph](architecture/components/knowledge-graph.md)
 - [LLM Service](architecture/components/llm-service.md)
 - [Task Engine](architecture/components/task-engine.md)

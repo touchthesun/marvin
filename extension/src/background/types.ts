@@ -10,7 +10,7 @@ export enum PageStatus {
     DISCOVERED = "discovered",  // URL known but not yet processed
     IN_PROGRESS = "processing", // Currently being processed
     ACTIVE = "active",         // Successfully processed and active
-    ARCHIVED = "archived",     // Marked as archived by user
+    HISTORY = "history",     // In browser history only
     ERROR = "error"           // Processing failed
 }
 
