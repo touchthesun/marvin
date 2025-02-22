@@ -169,53 +169,119 @@ Requires more disciplined coding approach
 
 
 
-### Implementation Plan
+# LLM Provider Architecture
 
-**Phase 1: Foundation**
+## Overview
+The LLM Provider subsystem is designed to provide a flexible, maintainable interface for interacting with various Large Language Model providers. This document outlines the key architectural decisions and patterns used in its implementation.
 
-Create base types and interfaces
+## Core Design Decisions
 
-AbstractBaseClasses for major components
-Type definitions
-Configuration classes
+### Single Client with Method-Specific Models
 
+**Decision**: Implement LLM provider interactions using a single client class with endpoint-specific request and response models.
 
-Implement context management
+**Rationale**:
+- Provides a unified point of HTTP communication while maintaining clear separation of endpoint concerns
+- Enables strong type safety through endpoint-specific models
+- Simplifies testing and mocking by centralizing HTTP interactions
+- Allows for consistent error handling and logging across all endpoints
+- Makes it easier to implement provider-specific optimizations
 
-Remove singleton pattern
-Create context hierarchy
-Implement different context types
+**Trade-offs**:
+- More boilerplate code compared to generic request/response handling
+- Requires careful maintenance of model synchronization with provider APIs
+- Slightly increased initial development time for new endpoints
 
+**Implementation Pattern**:
+```python
+# Base models for consistency
+class OllamaRequest:
+    def to_json(self) -> dict: ...
 
+class OllamaResponse:
+    @classmethod
+    def from_json(cls, data: dict) -> "OllamaResponse": ...
 
-**Phase 2: Component Refactoring**
+# Endpoint-specific models
+class GenerateRequest(OllamaRequest):
+    """Request parameters for /api/generate endpoint"""
 
-Update processor components
+class GenerateResponse(OllamaResponse):
+    """Response from /api/generate endpoint"""
 
-Refactor for DI
-Add factory classes
-Update tests
+# Single client implementation
+class OllamaClient:
+    async def generate(self, request: GenerateRequest) -> AsyncIterator[GenerateResponse]: ...
+    async def chat(self, request: ChatRequest) -> AsyncIterator[ChatResponse]: ...
+```
 
+### Extension Guidelines
+When adding new endpoints:
+1. Create request/response models inheriting from base classes
+2. Implement JSON serialization/deserialization
+3. Add typed method to client class
+4. Include comprehensive tests for new models and methods
 
-Update batch processing
+## LLM Provider Abstraction
 
-Add context management
-Implement resource tracking
-Update async handling
+### Architecture Requirements
 
+1. **Provider Agnosticism**
+   - Abstract base classes defining common LLM operations
+   - Provider-specific implementations hidden behind common interface
+   - Standardized error handling across providers
+   - Unified configuration management
 
+2. **Local and Remote Support**
+   - Abstract network transport layer
+   - Support for both HTTP and local process communication
+   - Consistent interface regardless of model location
+   - Resource management appropriate to model type
 
-**Phase 3: Integration**
+3. **Runtime Flexibility**
+   - Dynamic model loading and unloading
+   - Hot-swapping between different models
+   - State management for active models
+   - Resource cleanup for inactive models
 
-Create factory system
+### Implementation Structure
 
-Main factory class
-Configuration management
-Component lifecycle
+```plaintext
+core/
+├── llm/
+│   ├── providers/
+│   │   ├── base.py        # Abstract base classes
+│   │   ├── ollama.py      # Ollama implementation
+│   │   └── openai.py      # OpenAI implementation
+│   ├── models.py          # Shared model definitions
+│   └── manager.py         # Provider management
+```
 
+### Key Components
 
-Update pipeline
+1. **Provider Interface**
+   - Model management (load, unload, status)
+   - Request handling (generate, chat, embeddings)
+   - Resource management
+   - Error handling
 
-New orchestration
-Error handling
-Monitoring
+2. **Configuration Management**
+   - Provider-specific settings
+   - Model parameters
+   - Resource limits
+   - Performance tuning
+
+3. **State Management**
+   - Active model tracking
+   - Resource allocation
+   - Performance metrics
+   - Health monitoring
+
+### Provider Requirements
+
+Each provider implementation must:
+1. Implement all abstract methods from base classes
+2. Handle provider-specific error cases
+3. Manage resources appropriately
+4. Support hot-reloading of configuration
+5. Implement proper cleanup on shutdown

@@ -1,21 +1,14 @@
 import aiohttp
-import asyncio
 import json
-from typing import Optional, Dict, Any, AsyncIterator
+from typing import Optional, Dict, Any
 from datetime import datetime
-import logging
+from core.utils.logger import get_logger
 
-from .base import BaseLLMProvider
-from .models import (
-    ProviderConfig,
-    QueryRequest,
-    QueryResponse,
-    TokenUsage,
-    ProviderStatus,
-    ModelCapability
-)
+from core.llm.providers.base.provider import ProviderConfig, QueryRequest, QueryResponse, TokenUsage, ProviderStatus, ModelCapability
+from core.llm.factory.factory import BaseLLMProvider
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 class OllamaProvider(BaseLLMProvider):
     """Ollama-specific LLM provider implementation"""
