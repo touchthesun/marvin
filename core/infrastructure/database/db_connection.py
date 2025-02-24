@@ -1,7 +1,7 @@
-from typing import Dict, List, Optional, AsyncContextManager, AsyncIterator
+from typing import Dict, List, Optional, AsyncIterator
 from contextlib import asynccontextmanager
 import neo4j
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession, AsyncTransaction
+from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
 from neo4j.exceptions import (
     Neo4jError,
     ServiceUnavailable,

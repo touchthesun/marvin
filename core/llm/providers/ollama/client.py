@@ -1,14 +1,19 @@
 import aiohttp
 import json
-from typing import Optional, Dict, Any
 from datetime import datetime
-from core.utils.logger import get_logger
+from typing import Optional, Dict, Any, List, AsyncIterator
 
-from core.llm.providers.base.provider import ProviderConfig, QueryRequest, QueryResponse, TokenUsage, ProviderStatus, ModelCapability
-from core.llm.factory.factory import BaseLLMProvider
+from core.utils.logger import get_logger
+from core.llm.providers.base.provider_base import BaseLLMProvider
+from core.llm.providers.base.provider import QueryRequest, QueryResponse, TokenUsage, ProviderStatus, ModelCapability
+from core.llm.providers.ollama.models.request import GenerateRequest
+from core.llm.providers.ollama.models.response import GenerateResponse
+from core.llm.providers.base.config import ProviderConfig
+
 
 
 logger = get_logger(__name__)
+
 
 class OllamaProvider(BaseLLMProvider):
     """Ollama-specific LLM provider implementation"""
@@ -49,9 +54,10 @@ class OllamaProvider(BaseLLMProvider):
     
     async def shutdown(self) -> None:
         """Cleanup Ollama provider resources"""
-        if self.session:
+        if self.session and not self.session.closed:
             await self.session.close()
         self._status = ProviderStatus.DISABLED
+
     
     async def _pull_model(self) -> None:
         """Pull the specified model if not already available"""
@@ -169,3 +175,70 @@ class OllamaProvider(BaseLLMProvider):
                 break
                 
         return full_response
+    
+    async def list_local_models(self) -> List[str]:
+        """List available local models"""
+        if not self.session:
+            raise RuntimeError("Provider not initialized")
+            
+        try:
+            async with self.session.get("/api/tags") as response:
+                if response.status != 200:
+                    raise RuntimeError(f"Failed to list models: {response.status}")
+                    
+                data = await response.json()
+                return [model['name'] for model in data['models']]
+                
+        except Exception as e:
+            logger.error(f"Failed to list models: {str(e)}")
+            raise
+
+    async def generate(self, request: GenerateRequest) -> AsyncIterator[GenerateResponse]:
+        """Generate text from the model"""
+        if not self.session:
+            raise RuntimeError("Provider not initialized")
+            
+        payload = {
+            "model": request.model,
+            "prompt": request.prompt,
+            "stream": True,
+            "options": {
+                "temperature": request.temperature if request.temperature is not None else 0.7,
+                "top_p": request.top_p if request.top_p is not None else 1.0,
+            }
+        }
+        
+        if request.max_tokens:
+            payload["options"]["num_predict"] = request.max_tokens
+            
+        response_text = ""
+        try:
+            async with self.session.post("/api/generate", json=payload) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"Generation failed with status {response.status}")
+                    
+                async for line in response.content:
+                    chunk = json.loads(line)
+                    logger.debug(f"Received chunk: {chunk}")
+                    
+                    if "error" in chunk:
+                        raise RuntimeError(f"Generation error: {chunk['error']}")
+                        
+                    response_text += chunk.get("response", "")
+                    yield GenerateResponse(
+                        model=request.model,
+                        created_at=datetime.now(),
+                        done=chunk.get("done", False),
+                        response=response_text,
+                        context=chunk.get("context"),
+                        total_duration=chunk.get("total_duration"),
+                        load_duration=chunk.get("load_duration"),
+                        prompt_eval_count=chunk.get("prompt_eval_count"),
+                        prompt_eval_duration=chunk.get("prompt_eval_duration"),
+                        eval_count=chunk.get("eval_count")
+                    )
+        finally:
+            if self.session and not self.session.closed:
+                await self.session.close()
+
+

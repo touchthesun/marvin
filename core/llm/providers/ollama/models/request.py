@@ -1,30 +1,39 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 from .options import OllamaOptions
 
 @dataclass
 class OllamaRequest:
-    """Base class for all Ollama requests"""
-    model: str
+    """Common parameters for Ollama requests"""
+    model: str = field(default=None)
+    temperature: float = field(default=0.7)
+    top_p: float = field(default=1.0)
 
     def to_json(self) -> dict:
         """Convert to API request format"""
         return {"model": self.model}
 
 @dataclass
-class GenerateRequest(OllamaRequest):
+class GenerationRequest(OllamaRequest):
+    """Base class for generation-type requests"""
+    prompt: str = field(default=None)
+
+
+@dataclass
+class GenerateRequest(GenerationRequest):
     """Request parameters for /api/generate endpoint"""
-    prompt: str
-    system: Optional[str] = None
-    template: Optional[str] = None
-    context: Optional[List[int]] = None
-    stream: bool = True
-    raw: bool = False
-    format: Optional[Union[str, dict]] = None
-    options: Optional[OllamaOptions] = None
-    keep_alive: Optional[str] = None
-    images: Optional[List[str]] = None
+    max_tokens: Optional[int] = field(default=None)
+    system: Optional[str] = field(default=None)
+    template: Optional[str] = field(default=None)
+    context: Optional[List[int]] = field(default=None)
+    stream: bool = field(default=True)
+    raw: bool = field(default=False)
+    format: Optional[Union[str, dict]] = field(default=None)
+    options: Optional[OllamaOptions] = field(default=None)
+    keep_alive: Optional[str] = field(default=None)
+    images: Optional[List[str]] = field(default=None)
+
 
     def to_json(self) -> dict:
         data = super().to_json()
@@ -52,12 +61,12 @@ class GenerateRequest(OllamaRequest):
         return data
 
 
-# Copy Model
 @dataclass
-class CopyRequest(OllamaRequest):
-    """Request to copy a model"""
+class CopyRequest:
+    """Request for copy operations"""
     source: str
     destination: str
+    model: str
 
     def to_json(self) -> dict:
         return {

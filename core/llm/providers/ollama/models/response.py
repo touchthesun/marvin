@@ -8,9 +8,11 @@ from .metadata import ModelDetails, ModelInfo, DurationMetrics
 @dataclass
 class OllamaResponse:
     """Base class for all Ollama responses"""
+    # Required fields first
     model: str
     created_at: datetime
     done: bool
+    # Optional fields last
     done_reason: Optional[str] = None
 
     @classmethod
@@ -26,7 +28,6 @@ class OllamaResponse:
 @dataclass
 class PullResponse(OllamaResponse):
     """Response from pull request"""
-    status: str
     digest: Optional[str] = None
     total: Optional[int] = None
     completed: Optional[int] = None
@@ -47,17 +48,23 @@ class PullResponse(OllamaResponse):
     
 
 @dataclass
-class ShowResponse(OllamaResponse):
+class ShowResponse:
     """Response containing model information"""
+    # Required fields from both OllamaResponse and ShowResponse
+    model: str
+    created_at: datetime
+    done: bool
+    details: ModelDetails
+    model_info: ModelInfo
     modelfile: str
     parameters: str
     template: str
-    details: ModelDetails
-    model_info: ModelInfo
+    # Optional fields last
+    done_reason: Optional[str] = None
 
     @classmethod
     def from_json(cls, data: dict) -> "ShowResponse":
-        base = super().from_json(data)
+        base = OllamaResponse.from_json(data)
         return cls(
             model=base.model,
             created_at=base.created_at,
@@ -67,19 +74,30 @@ class ShowResponse(OllamaResponse):
             parameters=data["parameters"],
             template=data["template"],
             details=ModelDetails(**data["details"]),
-            model_info=ModelInfo(**{k.split('.')[-1]: v for k, v in data["model_info"].items()})
+            model_info=ModelInfo(**data["model_info"])
         )
-    
 
 @dataclass
-class GenerateResponse(OllamaResponse, DurationMetrics):
+class GenerateResponse:
     """Response from /api/generate endpoint"""
-    response: str = ""
+    # Required fields first
+    model: str
+    created_at: datetime
+    done: bool
+    response: str
+    
+    # Optional fields from both parent classes
+    done_reason: Optional[str] = None
     context: Optional[List[int]] = None
+    total_duration: Optional[int] = None
+    load_duration: Optional[int] = None
+    prompt_eval_count: Optional[int] = None
+    prompt_eval_duration: Optional[int] = None
+    eval_count: Optional[int] = None
 
     @classmethod
     def from_json(cls, data: dict) -> "GenerateResponse":
-        base = super().from_json(data)
+        base = OllamaResponse.from_json(data)
         return cls(
             model=base.model,
             created_at=base.created_at,
@@ -91,7 +109,5 @@ class GenerateResponse(OllamaResponse, DurationMetrics):
             load_duration=data.get("load_duration"),
             prompt_eval_count=data.get("prompt_eval_count"),
             prompt_eval_duration=data.get("prompt_eval_duration"),
-            eval_count=data.get("eval_count"),
-            eval_duration=data.get("eval_duration")
+            eval_count=data.get("eval_count")
         )
-    

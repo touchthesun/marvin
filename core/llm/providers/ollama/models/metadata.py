@@ -104,4 +104,5 @@ class DurationMetrics:
     prompt_eval_count: Optional[int] = None
     prompt_eval_duration: Optional[int] = None  # nanoseconds
     eval_count: Optional[int] = None
-    eval_duration: Optional[int] = None   # nanoseconds
+    sample_count: Optional[int] = None
+    sample_duration: Optional[int] = None

@@ -1,105 +1,85 @@
 import asyncio
-import uuid
+from pathlib import Path
 
-from core.llm.providers.base.provider import (
-    ProviderConfig,
-    ProviderType,
-    ModelCapability,
-    QueryRequest
-)
+from core.llm.providers.ollama.models.config import OllamaProviderConfig
+from core.llm.providers.config.config_manager import ConfigManagerSingleton
+from core.llm.providers.base.config import ProviderType
+from core.llm.providers.ollama.validator import OllamaConfigValidator
+from core.llm.providers.ollama.models.request import GenerateRequest
 from core.llm.factory.factory import LLMProviderFactory
-from core.llm.providers.ollama.client import OllamaProvider
+from core.llm.providers.base.provider import ModelCapability
 
 from core.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-async def test_ollama_provider():
-    logger.info("Starting Ollama provider test...")
-    
-    # Create factory and register Ollama provider
-    factory = LLMProviderFactory()
-    factory.register_provider(ProviderType.OLLAMA, OllamaProvider)
-    
-    # Log the provider registry for debugging
-    logger.info(f"Provider registry: {factory._provider_registry}")
-    
-    # Configure provider for testing
-    config = ProviderConfig(
-        provider_type=ProviderType.OLLAMA,
-        model_name="llama2",  # Change this to a model you have available
-        capabilities=[
-            ModelCapability.COMPLETION,
-            ModelCapability.CHAT,
-            ModelCapability.STREAMING
-        ],
-        max_tokens=2000,
-        timeout_seconds=30,
-        auth_config={
-            "base_url": "http://localhost:11434"
-        }
-    )
-    
-    # Log the config for debugging
-    logger.info(f"Provider type from config: {config.provider_type}")
-    logger.info(f"Provider type value from config: {config.provider_type.value}")
+
+test_config = OllamaProviderConfig(
+    model_name="llama2:latest",
+    capabilities=[
+        ModelCapability.COMPLETION,
+        ModelCapability.CHAT,
+        ModelCapability.STREAMING
+    ],
+    max_tokens=2048
+)
+
+async def test_ollama_connection():
+    """Test Ollama provider connection and basic operations"""
+    config_path = Path("config/llm_providers.json")
     
     try:
-        # Test provider creation and initialization
-        logger.info("Initializing provider...")
-        provider = await factory.create_provider(config)
+        # Get and initialize singleton config manager instance
+        logger.info("Getting config manager instance")
+        config_manager = await ConfigManagerSingleton.get_instance(config_path)
         
-        # Check provider status
-        logger.info("Checking provider status...")
-        status = await provider.get_status()
-        logger.info(f"Provider status: {status.status}")
-        logger.info(f"Model capabilities: {status.capabilities}")
+        logger.info(f"Using config manager instance {id(config_manager)}")
         
-        # Test basic query
-        logger.info("Testing basic query...")
-        request = QueryRequest(
-            query_id=uuid.uuid4(),
-            prompt="Explain what makes a good test case in three sentences.",
-            max_tokens=100,
-            temperature=0.7,
-            stream=False
-        )
+        # Register validator only once
+        logger.info("Registering Ollama validator")
+        validator = OllamaConfigValidator()
+        await config_manager.register_validator(ProviderType.OLLAMA, validator)
         
-        response = await provider.query(request)
+        # Add Ollama provider configuration
+        logger.info("Adding Ollama provider")
+        await config_manager.add_provider("local-ollama", test_config)
         
-        logger.info("Query Results:")
-        logger.info(f"Response content: {response.content}")
-        logger.info(f"Latency: {response.latency_ms:.2f}ms")
-        logger.info(f"Token usage: {response.token_usage}")
+        # Create factory and provider
+        logger.info("Creating LLM provider factory")
+        factory = LLMProviderFactory(config_manager)
         
-        # Test streaming query
-        logger.info("Testing streaming query...")
-        streaming_request = QueryRequest(
-            query_id=uuid.uuid4(),
-            prompt="Count from 1 to 5 slowly.",
-            max_tokens=50,
-            temperature=0.7,
-            stream=True
-        )
+        logger.info("Getting provider config")
+        config = await config_manager.get_provider_config("local-ollama")
+        if not config:
+            raise ValueError("Failed to retrieve provider configuration")
+        logger.debug(f"Retrieved config: {config}")
         
-        streaming_response = await provider.query(streaming_request)
-        logger.info(f"Streaming response: {streaming_response.content}")
+        logger.info("Creating provider through factory")
+        provider = await factory.create_provider("local-ollama")
         
-        # Check final metrics
-        final_status = await provider.get_status()
-        logger.info("Final provider metrics:")
-        logger.info(f"Total requests: {final_status.metrics.total_requests}")
-        logger.info(f"Successful requests: {final_status.metrics.successful_requests}")
-        logger.info(f"Average latency: {final_status.metrics.average_latency_ms:.2f}ms")
+        # Test operations
+        logger.info("Testing basic model operations")
+        models = await provider.list_local_models()
+        logger.info(f"Available models: {models}")
+        
+        logger.info("Testing simple generation")
+        final_response = None
+        async for response in provider.generate(
+            GenerateRequest(
+                model="llama2:latest",
+                prompt="Hello, how are you?"
+            )
+        ):
+            final_response = response
+            if response.done:
+                break
+        logger.info(f"Final response: {final_response.response}")
+
         
     except Exception as e:
-        logger.error(f"Error during testing: {str(e)}")
+        logger.error(f"Test failed: {str(e)}", exc_info=True)
         raise
-    
-    finally:
-        # Cleanup
-        logger.info("Shutting down provider...")
-        await factory.shutdown_all()
+
 
 if __name__ == "__main__":
-    asyncio.run(test_ollama_provider())
+    asyncio.run(test_ollama_connection())

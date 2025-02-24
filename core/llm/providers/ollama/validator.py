@@ -1,13 +1,16 @@
 from typing import Dict, Any, Optional, List
 from enum import Enum
 import aiohttp
-from pydantic import BaseModel, HttpUrl, Field, validator
+import json
+from pydantic import BaseModel, HttpUrl, Field, field_validator
 import logging
 from pathlib import Path
 
-from .config_manager import ProviderConfigValidator
+from core.llm.providers.base.config import ProviderType
+from core.llm.providers.config.config_manager import ProviderConfigValidator
 
 logger = logging.getLogger(__name__)
+
 
 
 class KVCacheType(str, Enum):
@@ -29,8 +32,9 @@ class OllamaEnvironmentConfig(BaseModel):
     flash_attention: Optional[bool] = Field(None, description="Enable Flash Attention")
     kv_cache_type: Optional[KVCacheType] = Field(None, description="K/V cache quantization type")
 
-    @validator('keep_alive')
-    def validate_keep_alive(cls, v):
+    @field_validator('keep_alive')
+    @classmethod
+    def validate_keep_alive(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
             # Validate duration string format (e.g., "10m", "24h") or number
             if not (v.isdigit() or 
@@ -47,14 +51,16 @@ class OllamaModelConfig(BaseModel):
     num_thread: Optional[int] = Field(None, ge=0, description="Number of CPU threads")
     keep_alive: Optional[str] = Field(None, description="Model-specific retention time")
     
-    @validator('num_ctx')
-    def validate_context_size(cls, v):
+    @field_validator('num_ctx')
+    @classmethod
+    def validate_context_size(cls, v: Optional[int]) -> Optional[int]:
         if v is not None and v % 32 != 0:
             raise ValueError("Context size must be a multiple of 32")
         return v
     
-    @validator('keep_alive')
-    def validate_keep_alive(cls, v):
+    @field_validator('keep_alive')
+    @classmethod
+    def validate_keep_alive(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
             if not (v.isdigit() or 
                    (v.startswith('-') and v[1:].isdigit()) or
@@ -72,14 +78,16 @@ class OllamaConfigValidator(ProviderConfigValidator):
     async def validate(self, config: Dict[str, Any]) -> bool:
         """Validate Ollama provider configuration"""
         try:
+            logger.debug(f"Validating config type: {type(config)}")
+            logger.debug(f"Config content: {config}")
             # Check required fields
             missing_fields = self.REQUIRED_FIELDS - set(config.keys())
             if missing_fields:
                 logger.error(f"Missing required fields: {missing_fields}")
                 return False
             
-            # Validate provider type
-            if config['provider_type'] != 'ollama':
+            # Validate provider type matches
+            if config['provider_type'] != ProviderType.OLLAMA.value:  # Compare with enum value
                 logger.error("Invalid provider_type, must be 'ollama'")
                 return False
             
@@ -131,9 +139,9 @@ class OllamaConfigValidator(ProviderConfigValidator):
                     available_models = {model['name'] for model in models['models']}
                     
                     if model_name not in available_models:
-                        logger.warning(f"Model {model_name} not found in available models")
-                        # We could optionally try to pull the model here
-                        return False
+                        # Don't fail validation for missing models - they can be pulled later
+                        logger.info(f"Model {model_name} not found in available models. Will be pulled during initialization.")
+                        return True
                     
                     return True
                     
@@ -247,3 +255,20 @@ class OllamaConfigValidator(ProviderConfigValidator):
                 }
             }
         }
+    
+    async def check_dependencies(self) -> bool:
+        """Verify Ollama dependencies are satisfied"""
+        try:
+            # Check if Ollama server is running
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.DEFAULT_BASE_URL}/api/tags") as response:
+                    if response.status != 200:
+                        logger.error("Ollama server is not running")
+                        return False
+                    return True
+        except aiohttp.ClientError as e:
+            logger.error(f"Failed to connect to Ollama server: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error checking Ollama dependencies: {str(e)}")
+            return False
