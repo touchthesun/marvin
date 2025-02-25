@@ -9,15 +9,14 @@ DEFAULT_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 DEFAULT_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
-    """Creates and returns a configured logger.
+    """Creates and returns a configured logger."""
+    logger = logging.getLogger(name)
     
-    Args:
-        name: Name of the logger, usually __name__ to reflect the module's name
-        level: Optional override for log level
-        
-    Returns:
-        Configured logger instance
-    """
+    # Debug logging configuration
+    logger.debug(f"Configuring logger {name}")
+    logger.debug(f"Current handlers: {logger.handlers}")
+    logger.debug(f"Root logger handlers: {logging.getLogger().handlers}")
+    
     # Get logging level from config, arguments, or default
     log_level = (level or 
                 config.get("logging_level") or 
@@ -26,8 +25,10 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     if isinstance(log_level, str):
         log_level = getattr(logging, log_level.upper())
     
-    # Configure root logger if not already configured
-    if not logging.getLogger().handlers:
+    # Configure root logger ONLY if it has no handlers
+    root = logging.getLogger()
+    if not root.handlers:
+        logger.debug("Configuring root logger")
         logging.basicConfig(
             level=log_level,
             format=DEFAULT_FORMAT,
@@ -35,12 +36,11 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
             encoding='utf-8'
         )
     
-    # Get or create logger
-    logger = logging.getLogger(name)
+    # Set level but DON'T add handlers if root is configured
     logger.setLevel(log_level)
     
-    # Add handler with custom formatting if none exist
-    if not logger.handlers:
+    if not logger.handlers and not root.handlers:
+        logger.debug("Adding handler to logger")
         handler = logging.StreamHandler()
         formatter = logging.Formatter(
             DEFAULT_FORMAT,
