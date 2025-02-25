@@ -40,7 +40,7 @@ The API is built using FastAPI and follows a modular architecture with these key
 
 ## Authentication
 
-*Documentation pending implementation*
+Authentication docs are found [here](auth.md).
 
 ## Common Response Format
 
