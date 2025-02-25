@@ -95,6 +95,7 @@ class AppState:
         """Initialize the auth provider configuration."""
         try:
             config_dir = os.path.join(self.config_dir, "auth")
+            os.makedirs(config_dir, exist_ok=True)  # Ensure directory exists
             self._auth_config = get_auth_provider_config(config_dir)
             
             # Ensure we can get the local provider
@@ -102,10 +103,15 @@ class AppState:
             self.logger.info("Auth provider configuration initialized")
         except Exception as e:
             self.logger.error(f"Failed to initialize auth provider configuration: {str(e)}")
+            if "Master key not found" in str(e):
+                self.logger.error(
+                    "Please set SECRET_KEY environment variable for secure credential storage"
+                )
+            # Still raise to prevent partial initialization
             raise
 
 app_state = AppState()
 
-async def get_app_state() -> AppState:
+def get_app_state() -> AppState:
     """Dependency to get the global app state."""
     return app_state

@@ -15,7 +15,7 @@ from core.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/providers", response_model=CredentialResponse, status_code=status.HTTP_201_CREATED)

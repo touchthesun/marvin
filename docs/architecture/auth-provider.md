@@ -22,7 +22,7 @@ class AuthProviderInterface:
 
 
 API Endpoints
-/api/v1/providers/auth
+/api/v1/auth/providers/
 ├── POST /configure   # Initial provider setup
 ├── PUT /update      # Update credentials
 └── DELETE /remove   # Remove provider credentials

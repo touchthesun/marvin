@@ -27,6 +27,10 @@ from core.domain.content.pipeline import (
 )
 from api.state import get_app_state, AppState
 from core.utils.config import load_config
+from core.utils.logger import get_logger
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 # Base component providers
@@ -174,7 +178,7 @@ async def get_service_context(
 
 # Auth Dependencies
 
-async def get_auth_config() -> AuthProviderConfig:
+def get_auth_config() -> AuthProviderConfig:
     """
     Get the auth provider configuration.
     
@@ -182,16 +186,16 @@ async def get_auth_config() -> AuthProviderConfig:
         AuthProviderConfig: The auth provider configuration
     """
     app_state = get_app_state()
-    config_dir = os.path.join(app_state.config_dir, "auth")
     
-    try:
-        return get_auth_provider_config(config_dir)
-    except ConfigurationError as e:
-        logger.error(f"Failed to get auth config: {str(e)}")
+    # Check if auth config is initialized
+    if not app_state.auth_config:
+        logger.error("Auth provider configuration not initialized")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to initialize auth provider configuration"
+            detail="Auth provider not initialized"
         )
+    
+    return app_state.auth_config
 
 
 async def get_auth_provider(

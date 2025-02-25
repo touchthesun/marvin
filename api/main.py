@@ -14,6 +14,7 @@ from core.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI application."""

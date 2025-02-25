@@ -55,6 +55,7 @@ def load_config():
 
         # Security settings
         "secret_key": os.getenv('SECRET_KEY', 'development_key_change_in_production'),
+        "admin_token": os.getenv('ADMIN_TOKEN', 'development_key_change_in_production'),
         "access_token_expire_minutes": int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '1440')),  # 24 hours default
         "encryption_key": os.getenv('ENCRYPTION_KEY'),
         "jwt_algorithm": os.getenv('JWT_ALGORITHM', 'HS256'),
