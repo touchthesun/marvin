@@ -37,7 +37,7 @@ class LocalAuthProvider(AuthProviderInterface):
         self.session_expiry_seconds = session_expiry_seconds
         
         # Read admin token from environment if not provided
-        self.admin_token = admin_token or os.environ.get("MARVIN_ADMIN_TOKEN")
+        self.admin_token = admin_token or os.environ.get("ADMIN_TOKEN")
         
         # Active sessions with expiry timestamps
         self.active_sessions: Dict[str, float] = {}

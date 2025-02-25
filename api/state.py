@@ -12,8 +12,6 @@ from core.domain.content.pipeline import (
     PipelineConfig
 )
 
-# Configure logger
-logger = get_logger(__name__)
 
 class AppState:
     """Container for application state."""
@@ -21,6 +19,9 @@ class AppState:
         self.pipeline_service: PipelineService = None
         self.db_connection: DatabaseConnection = None
         self.schema_manager: SchemaManager = None
+        self.logger = get_logger(__name__)
+        self._auth_config = None
+        
 
     async def initialize(self):
         """Initialize application services."""
@@ -59,6 +60,13 @@ class AppState:
             db_connection=self.db_connection
         )
         await self.pipeline_service.initialize()
+        
+        # Initialize auth config
+        self.logger.info("Initializing auth provider configuration")
+        await self.initialize_auth_config()
+        
+        self.logger.info("Application state initialized successfully")
+
 
     async def cleanup(self):
         """Cleanup application services."""
@@ -71,7 +79,6 @@ class AppState:
     @property
     def config_dir(self) -> str:
         """Get the configuration directory."""
-        import os
         return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config")
 
     # Property for auth_config
@@ -86,38 +93,16 @@ class AppState:
     # Method to initialize auth config
     async def initialize_auth_config(self):
         """Initialize the auth provider configuration."""
-        config_dir = os.path.join(self.config_dir, "auth")
-        self._auth_config = get_auth_provider_config(config_dir)
-        
-        # Ensure we can get the local provider
-        self._auth_config.get_provider("local")
-        self.logger.info("Auth provider configuration initialized")
-
-    # Update initialize method to call initialize_auth_config
-    async def initialize(self):
-        """Initialize all application services."""
-        # Initialize database connection
-        self.logger.info("Initializing database connection")
-        await self.initialize_database()
-        
-        # Initialize schema manager
-        self.logger.info("Initializing schema manager")
-        await self.initialize_schema_manager()
-        
-        # Initialize graph operations
-        self.logger.info("Initializing graph operations")
-        await self.initialize_graph_operations()
-        
-        # Initialize pipeline service
-        self.logger.info("Initializing pipeline service")
-        await self.initialize_pipeline_service()
-        
-        # Initialize auth config
-        self.logger.info("Initializing auth provider configuration")
-        await self.initialize_auth_config()
-        
-        self.initialized = True
-        self.logger.info("Application state initialized successfully")
+        try:
+            config_dir = os.path.join(self.config_dir, "auth")
+            self._auth_config = get_auth_provider_config(config_dir)
+            
+            # Ensure we can get the local provider
+            self._auth_config.get_provider("local")
+            self.logger.info("Auth provider configuration initialized")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize auth provider configuration: {str(e)}")
+            raise
 
 app_state = AppState()
 

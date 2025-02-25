@@ -1,7 +1,7 @@
 import os
 import json
 import base64
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any
 from pathlib import Path
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -18,7 +18,7 @@ class SecureStorage:
     using Fernet symmetric encryption to protect sensitive data.
     """
     
-    def __init__(self, storage_path: str, master_key_env_var: str = "MARVIN_MASTER_KEY"):
+    def __init__(self, storage_path: str, master_key_env_var: str = "SECRET_KEY"): 
         """
         Initialize secure storage.
         
