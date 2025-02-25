@@ -7,10 +7,14 @@ This module provides dependencies in several categories:
 - Individual service providers: FastAPI dependencies for each service
 - Compound service provider: Combined service context for routes
 """
-from typing import AsyncGenerator
-from fastapi import Depends
+import os
+from typing import AsyncGenerator, Optional
+from fastapi import Depends, Header, HTTPException, status
 from contextlib import asynccontextmanager
-
+from core.infrastructure.auth.config import get_auth_provider_config, AuthProviderConfig
+from core.infrastructure.auth.errors import ConfigurationError
+from api.models.auth.request import SessionAuth
+from core.infrastructure.auth.providers.base import AuthProviderInterface
 from core.infrastructure.database.db_connection import DatabaseConnection, ConnectionConfig
 from core.infrastructure.database.graph_operations import GraphOperationManager
 from core.services.graph.graph_service import GraphService
@@ -23,6 +27,7 @@ from core.domain.content.pipeline import (
 )
 from api.state import get_app_state, AppState
 from core.utils.config import load_config
+
 
 # Base component providers
 
@@ -166,3 +171,114 @@ async def get_service_context(
         pipeline_service=pipeline_service,
         validation_runner=validation_runner
     )
+
+# Auth Dependencies
+
+async def get_auth_config() -> AuthProviderConfig:
+    """
+    Get the auth provider configuration.
+    
+    Returns:
+        AuthProviderConfig: The auth provider configuration
+    """
+    app_state = get_app_state()
+    config_dir = os.path.join(app_state.config_dir, "auth")
+    
+    try:
+        return get_auth_provider_config(config_dir)
+    except ConfigurationError as e:
+        logger.error(f"Failed to get auth config: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initialize auth provider configuration"
+        )
+
+
+async def get_auth_provider(
+    provider_type: str = "local",
+    config: AuthProviderConfig = Depends(get_auth_config)
+) -> AuthProviderInterface:
+    """
+    Get an auth provider instance.
+    
+    Args:
+        provider_type: Type of provider to get
+        config: Auth provider configuration
+        
+    Returns:
+        AuthProviderInterface: The auth provider instance
+    """
+    try:
+        return config.get_provider(provider_type)
+    except ConfigurationError as e:
+        logger.error(f"Failed to get auth provider: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported provider type: {provider_type}"
+        )
+
+
+async def validate_session(
+    session_auth: SessionAuth,
+    provider_type: str = "local",
+    auth_provider: AuthProviderInterface = Depends(get_auth_provider)
+) -> bool:
+    """
+    Validate a session token.
+    
+    Args:
+        session_auth: Session authentication data
+        provider_type: Type of provider to use
+        auth_provider: Auth provider instance
+        
+    Returns:
+        bool: True if session is valid
+        
+    Raises:
+        HTTPException: If session is invalid
+    """
+    try:
+        valid = await auth_provider.validate_session(session_auth.session_token)
+        if not valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired session token"
+            )
+        return True
+    except Exception as e:
+        logger.error(f"Session validation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session validation failed"
+        )
+
+
+async def get_session_token(
+    authorization: Optional[str] = Header(None)
+) -> str:
+    """
+    Extract session token from Authorization header.
+    
+    Args:
+        authorization: Authorization header
+        
+    Returns:
+        str: Session token
+        
+    Raises:
+        HTTPException: If token is missing or invalid
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is required"
+        )
+    
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization format. Use 'Bearer {token}'"
+        )
+    
+    return parts[1]
