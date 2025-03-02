@@ -6,9 +6,11 @@ nav:
   - Overview: architecture/overview.md
   - Decisions: architecture/decisions.md
   - Roadmap: architecture/roadmap.md
+  - Auth Provider: architecture/auth-provider.md
   - API: 
     - Overview: api/api-docs.md
     - Routes: api/route-docs.md
+    - Auth: api/auth.md
     - Models:
       - Models: api/models/index.md
       - Analysis: api/models/analysis.md
@@ -23,6 +25,7 @@ nav:
   - Conventions: development/conventions.md
   - Testing: development/testing.md
   - Security: development/security.md
+  - Auth Provider Implementation: development/auth-provider.md
   - Roadmap:
     - LLM: development/llm/phase1.md
 - User Guide:

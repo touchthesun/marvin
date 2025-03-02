@@ -7,10 +7,15 @@ This module provides dependencies in several categories:
 - Individual service providers: FastAPI dependencies for each service
 - Compound service provider: Combined service context for routes
 """
-from typing import AsyncGenerator
-from fastapi import Depends
-from contextlib import asynccontextmanager
 
+from typing import AsyncGenerator, Optional
+from fastapi import Depends, Header, HTTPException, status, Request
+from contextlib import asynccontextmanager
+from core.infrastructure.auth.config import AuthProviderConfig
+from core.infrastructure.auth.errors import ConfigurationError
+from api.models.auth.request import SessionAuth
+from core.infrastructure.auth.config import AuthProviderConfig, get_auth_provider_config
+from core.infrastructure.auth.providers.base_auth_provider import AuthProviderInterface
 from core.infrastructure.database.db_connection import DatabaseConnection, ConnectionConfig
 from core.infrastructure.database.graph_operations import GraphOperationManager
 from core.services.graph.graph_service import GraphService
@@ -23,6 +28,11 @@ from core.domain.content.pipeline import (
 )
 from api.state import get_app_state, AppState
 from core.utils.config import load_config
+from core.utils.logger import get_logger
+
+# Initialize logger
+logger = get_logger(__name__)
+
 
 # Base component providers
 
@@ -165,4 +175,112 @@ async def get_service_context(
         graph_service=graph_service,
         pipeline_service=pipeline_service,
         validation_runner=validation_runner
+    )
+
+# Auth Dependencies
+
+def get_auth_config() -> AuthProviderConfig:
+    """
+    Get the auth provider configuration.
+    
+    Returns:
+        AuthProviderConfig: The auth provider configuration
+    """
+    app_state = get_app_state()
+    
+    # Check if auth config is initialized
+    if not app_state.auth_config:
+        logger.error("Auth provider configuration not initialized")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Auth provider not initialized"
+        )
+    
+    return app_state.auth_config
+
+
+async def get_auth_provider(
+    provider_type: str = "local",
+    config: AuthProviderConfig = Depends(get_auth_config)
+) -> AuthProviderInterface:
+    """
+    Get an auth provider instance.
+    
+    Args:
+        provider_type: Type of provider to get
+        config: Auth provider configuration
+        
+    Returns:
+        AuthProviderInterface: The auth provider instance
+    """
+    config = load_config()
+    env = config.get("environment", "development")
+    config_dir = config.get("config_dir", "./config")
+    
+    # Get auth config
+    auth_config = get_auth_provider_config(config_dir)
+    
+    if env == "production":
+        # Use strict auth provider in production
+        return auth_config.get_provider("local")
+    else:
+        # Use development auth provider locally
+        return auth_config.get_provider("dev")
+
+
+async def validate_session(
+    session_auth: SessionAuth,
+    provider_type: str = "local",
+    auth_provider: AuthProviderInterface = Depends(get_auth_provider)
+) -> bool:
+    """
+    Validate a session token.
+    
+    Args:
+        session_auth: Session authentication data
+        provider_type: Type of provider to use
+        auth_provider: Auth provider instance
+        
+    Returns:
+        bool: True if session is valid
+        
+    Raises:
+        HTTPException: If session is invalid
+    """
+    try:
+        valid = await auth_provider.validate_session(session_auth.session_token)
+        if not valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired session token"
+            )
+        return True
+    except Exception as e:
+        logger.error(f"Session validation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session validation failed"
+        )
+
+
+async def get_session_token(
+    request: Request,
+    authorization: Optional[str] = Header(None)
+) -> str:
+    """Extract session token from Authorization header or fallback to dev token"""
+    config = load_config()
+    env = config.get("environment", "development")
+    
+    # Try to get from header first
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+    
+    # If in development, use a default token
+    if env == "development":
+        return config.get("admin_token", "dev-token")
+    
+    # In production, require proper authorization
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authorization header is required"
     )

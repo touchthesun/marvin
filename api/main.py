@@ -6,10 +6,14 @@ from api.state import app_state, get_app_state
 from api.routes.pages import router as pages_router
 from api.routes.analysis import router as analysis_router 
 from api.routes.graph import router as graph_router
+from api.routes.auth import router as auth_router
+from api.routes.llm import router as llm_router
 from core.utils.logger import get_logger
+
 
 # Configure logger
 logger = get_logger(__name__)
+
 
 
 @asynccontextmanager
@@ -62,6 +66,8 @@ def create_application() -> FastAPI:
     app.include_router(pages_router, prefix=prefix)
     app.include_router(analysis_router, prefix=prefix)
     app.include_router(graph_router, prefix=prefix)
+    app.include_router(auth_router, prefix=prefix)
+    app.include_router(llm_router, prefix=prefix)
 
     @app.get("/health")
     async def health_check():
@@ -73,7 +79,9 @@ def create_application() -> FastAPI:
             "services": {
                 "pipeline": "running" if app_state.pipeline_service else "not_initialized",
                 "database": "running" if app_state.db_connection else "not_initialized",
-                "schema": "initialized" if app_state.schema_manager else "not_initialized"
+                "schema": "initialized" if app_state.schema_manager else "not_initialized",
+                "auth": "running" if app_state.auth_config else "not_initialized",
+                "llm": "running" if app_state.llm_factory else "not_initialized"  # Add this line
             }
         }
 

@@ -1,16 +1,14 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional, Dict, Any, Generic, TypeVar, List
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Any, List
 
-# Type variable for generic response content
-T = TypeVar('T')
+
 
 @dataclass
 class BaseLLMRequest(ABC):
     """Base class for all LLM provider requests"""
     model: str
-    stream: bool = True
+    stream: bool = field(default=True)
     
     @abstractmethod
     def to_json(self) -> dict:
@@ -24,10 +22,21 @@ class BaseLLMRequest(ABC):
 @dataclass
 class BaseGenerateRequest(BaseLLMRequest):
     """Base class for text generation requests"""
-    prompt: str
+    prompt: Optional[str] = None
     system: Optional[str] = None
-    context: Optional[List[Any]] = None  # Provider-specific context
-    options: Optional[Dict[str, Any]] = None  # Provider-specific options
+    context: Optional[List[Any]] = None
+    options: Optional[Dict[str, Any]] = None
+
+    def to_json(self) -> dict:
+        """Convert request to provider-specific format"""
+        json = super().to_json()
+        json.update({
+            "prompt": self.prompt,
+            "system": self.system,
+            "context": self.context,
+            "options": self.options
+        })
+        return json
 
 
 @dataclass
