@@ -7,14 +7,15 @@ This module provides dependencies in several categories:
 - Individual service providers: FastAPI dependencies for each service
 - Compound service provider: Combined service context for routes
 """
-import os
+
 from typing import AsyncGenerator, Optional
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status, Request
 from contextlib import asynccontextmanager
-from core.infrastructure.auth.config import get_auth_provider_config, AuthProviderConfig
+from core.infrastructure.auth.config import AuthProviderConfig
 from core.infrastructure.auth.errors import ConfigurationError
 from api.models.auth.request import SessionAuth
-from core.infrastructure.auth.providers.base import AuthProviderInterface
+from core.infrastructure.auth.config import AuthProviderConfig, get_auth_provider_config
+from core.infrastructure.auth.providers.base_auth_provider import AuthProviderInterface
 from core.infrastructure.database.db_connection import DatabaseConnection, ConnectionConfig
 from core.infrastructure.database.graph_operations import GraphOperationManager
 from core.services.graph.graph_service import GraphService
@@ -212,14 +213,19 @@ async def get_auth_provider(
     Returns:
         AuthProviderInterface: The auth provider instance
     """
-    try:
-        return config.get_provider(provider_type)
-    except ConfigurationError as e:
-        logger.error(f"Failed to get auth provider: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported provider type: {provider_type}"
-        )
+    config = load_config()
+    env = config.get("environment", "development")
+    config_dir = config.get("config_dir", "./config")
+    
+    # Get auth config
+    auth_config = get_auth_provider_config(config_dir)
+    
+    if env == "production":
+        # Use strict auth provider in production
+        return auth_config.get_provider("local")
+    else:
+        # Use development auth provider locally
+        return auth_config.get_provider("dev")
 
 
 async def validate_session(
@@ -258,31 +264,23 @@ async def validate_session(
 
 
 async def get_session_token(
+    request: Request,
     authorization: Optional[str] = Header(None)
 ) -> str:
-    """
-    Extract session token from Authorization header.
+    """Extract session token from Authorization header or fallback to dev token"""
+    config = load_config()
+    env = config.get("environment", "development")
     
-    Args:
-        authorization: Authorization header
-        
-    Returns:
-        str: Session token
-        
-    Raises:
-        HTTPException: If token is missing or invalid
-    """
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header is required"
-        )
+    # Try to get from header first
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
     
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization format. Use 'Bearer {token}'"
-        )
+    # If in development, use a default token
+    if env == "development":
+        return config.get("admin_token", "dev-token")
     
-    return parts[1]
+    # In production, require proper authorization
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authorization header is required"
+    )

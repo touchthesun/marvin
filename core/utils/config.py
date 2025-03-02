@@ -35,7 +35,9 @@ def load_config():
     
 
     config = {
-        # Existing settings
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "config_dir": os.getenv("CONFIG_DIR", "./config"),
+        "storage_path": os.getenv("STORAGE_PATH", "./storage"),
         "logging_level": os.getenv("LOGGING_LEVEL"),
         "enable_metadata_comparison": os.getenv("ENABLE_METADATA_COMPARISON", "False").lower() in ("true", "1", "t"),
         "openai_api_key": os.getenv('OPENAI_API_KEY'),

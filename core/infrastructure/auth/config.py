@@ -1,11 +1,14 @@
 import os
 import logging
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Optional, Type
 from pathlib import Path
 
-from .providers.base import AuthProviderInterface
-from .providers.local_provider import LocalAuthProvider
+from core.infrastructure.auth.providers.anthropic_auth_provider import AnthropicAuthProvider
+from .providers.base_auth_provider import AuthProviderInterface
+from .providers.local_auth_provider import LocalAuthProvider
+from .providers.dev_auth_provider import DevAuthProvider
 from .errors import ConfigurationError
+
 
 
 logger = logging.getLogger(__name__)
@@ -19,9 +22,11 @@ class AuthProviderConfig:
     a factory for creating auth provider instances.
     """
     
-    # Registry of available provider implementations
+    # Registry of available provider implementations - add Anthropic
     _provider_registry: Dict[str, Type[AuthProviderInterface]] = {
         "local": LocalAuthProvider,
+        "anthropic": AnthropicAuthProvider,
+        "dev": DevAuthProvider,
         # Add more provider implementations here as they're developed
     }
     
@@ -65,12 +70,13 @@ class AuthProviderConfig:
         """
         return str(self.config_dir / f"{provider_type}_credentials")
     
-    def get_provider(self, provider_type: str) -> AuthProviderInterface:
+    def get_provider(self, provider_type: str, **kwargs) -> AuthProviderInterface:
         """
         Get an auth provider instance for the specified type.
         
         Args:
             provider_type: Type of provider to get
+            **kwargs: Additional arguments to pass to the provider constructor
             
         Returns:
             AuthProviderInterface: Provider instance
@@ -91,7 +97,9 @@ class AuthProviderConfig:
         storage_path = self.get_storage_path(provider_type)
         
         try:
-            provider_instance = provider_class(storage_path=storage_path)
+            # Pass any additional arguments to the constructor
+            # This allows us to pass a session_validator to cloud providers
+            provider_instance = provider_class(storage_path=storage_path, **kwargs)
             self._provider_instances[provider_type] = provider_instance
             logger.info(f"Created auth provider instance for type: {provider_type}")
             return provider_instance

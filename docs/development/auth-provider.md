@@ -103,7 +103,7 @@ class LocalAuthProvider(AuthProviderInterface):
     ):
         self.secure_storage = SecureStorage(storage_path)
         self.session_expiry_seconds = session_expiry_seconds
-        self.admin_token = admin_token or os.environ.get("MARVIN_ADMIN_TOKEN")
+        self.admin_token = admin_token or os.environ.get("ADMIN_TOKEN")
         self.active_sessions: Dict[str, float] = {}
 ```
 
@@ -119,7 +119,7 @@ The `SecureStorage` class handles encryption and persistence:
 
 ```python
 class SecureStorage:
-    def __init__(self, storage_path: str, master_key_env_var: str = "MARVIN_MASTER_KEY"):
+    def __init__(self, storage_path: str, master_key_env_var: str = "SECRET_KEY"):
         self.storage_path = Path(storage_path)
         self.master_key_env_var = master_key_env_var
         self._ensure_storage_path()
@@ -292,8 +292,8 @@ To support different storage backends:
 The system requires these environment variables:
 
 ```
-MARVIN_MASTER_KEY=your-secure-encryption-key
-MARVIN_ADMIN_TOKEN=your-admin-token
+SECRET_KEY=your-secure-encryption-key
+ADMIN_TOKEN=your-admin-token
 ```
 
 ### Directory Structure
@@ -344,7 +344,7 @@ Key unit tests for the Auth Provider system:
 ```python
 async def test_admin_token_validation(auth_provider):
     """Test validation with admin token."""
-    admin_token = os.environ["MARVIN_ADMIN_TOKEN"]
+    admin_token = os.environ["ADMIN_TOKEN"]
     assert await auth_provider.validate_session(admin_token) is True
     
 async def test_credential_operations(auth_provider):

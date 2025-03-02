@@ -1,13 +1,9 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, TypeVar, List
+from typing import Optional, Dict, Any, List
 
 from core.llm.common.types import BaseModelInfo
-
-# Type variable for generic response content
-T = TypeVar('T')
-
 
 
 @dataclass
@@ -40,11 +36,11 @@ class BaseGenerateResponse(BaseLLMResponse):
 @dataclass
 class BaseModelManagementResponse(BaseLLMResponse):
     """Base class for model management responses"""
-    status: str
+    status: str ="unknown"
     error: Optional[str] = None
 
 @dataclass
 class BaseModelInfoResponse(BaseLLMResponse):
     """Base class for model information responses"""
-    model_info: BaseModelInfo
-    raw_model_data: Dict[str, Any]  # Provider-specific raw data
+    model_info: BaseModelInfo = field(default_factory=lambda: BaseModelInfo())
+    raw_model_data: Dict[str, Any] = field(default_factory=dict)

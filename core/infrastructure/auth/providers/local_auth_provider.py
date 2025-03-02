@@ -3,7 +3,7 @@ import time
 import logging
 from typing import Dict, Any, Optional
 
-from .base import AuthProviderInterface
+from .base_auth_provider import AuthProviderInterface
 from ..errors import AuthorizationError, CredentialNotFoundError, StorageError
 from ..storage import SecureStorage
 

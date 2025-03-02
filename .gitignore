@@ -166,3 +166,10 @@ neo4j/*
 
 # ignore package related files
 marvin.egg-info/*
+
+# Ignore dev lods
+logs/*
+
+# Ignore local auth storage path
+config/auth/*
+storage/*
