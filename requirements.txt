@@ -33,7 +33,7 @@ uvicorn
 pydantic-settings
 jinja2
 cryptography
-
+mkdocs-mermaid2-plugin
 pycountry
 python-us
 # python -m spacy download en_core_web_sm

@@ -10,6 +10,7 @@ The Auth Provider system manages secure credential storage and access for LLM pr
 - **Extensible**: Support for multiple provider types with a consistent interface
 - **Flexible Authentication**: Session-based authentication with admin token support
 - **API Driven**: Complete RESTful API for credential management
+- **Development Mode**: Simplified authentication for local development
 
 ## Architecture
 
@@ -19,16 +20,20 @@ The Auth Provider system consists of several core components that work together 
 graph TD
     A[API Endpoints] -->|Authenticated Requests| B[Auth Provider Interface]
     B -->|Provider Implementation| C[Local Auth Provider]
-    C -->|Secure Storage| D[Encrypted File Storage]
+    B -->|Development Mode| D[Dev Auth Provider]
+    C -->|Secure Storage| E[Encrypted File Storage]
+    D -->|Secure Storage| E
     
-    E[External Services] -->|Use Credentials| F[LLM Provider]
-    F -->|Request Credentials| B
+    F[External Services] -->|Use Credentials| G[LLM Provider]
+    G -->|Request Credentials| B
 ```
-
+ 
 ### Component Responsibilities
 
 1. **Auth Provider Interface**: Defines the contract for credential management
 2. **Provider Implementations**: Concrete implementations for different storage mechanisms
+   1. **Local Auth Provider**: Production-ready provider with strict authentication
+   2. **Dev Auth Provider**: Simplified provider for development environments
 3. **Secure Storage**: Handles encryption and persistent storage of credentials
 4. **API Endpoints**: RESTful interface for credential management
 
@@ -70,6 +75,14 @@ The `LocalAuthProvider` implements the `AuthProviderInterface` for local storage
 - Includes admin token for initial setup and access
 - Manages credential metadata
 
+### Dev Auth Provider
+The `DevAuthProvider` implements the `AuthProviderInterface` for development environments:
+
+- Simplifies authentication for local development
+- Uses the same secure storage system
+- Accepts any token for validation (simplifies testing)
+- Maintains API compatibility with production providers
+
 ### Secure Storage
 
 The `SecureStorage` class handles the secure storage and retrieval of credentials:
@@ -91,6 +104,20 @@ The Auth Provider system exposes the following RESTful API endpoints:
 | DELETE | /api/v1/auth/providers/{id}    | Remove provider credentials           | Bearer Token  |
 | GET    | /api/v1/auth/provider-types    | List available provider types         | None          |
 | POST   | /api/v1/auth/validate          | Validate authentication token         | None          |
+| GET    | /api/v1/auth/diagnostic        | System diagnostic information         | None          |
+
+## Diagnostic Endpoints
+
+During development, additional diagnostic endpoints are available:
+
+| Method | Endpoint                         | Description                                  | Authentication |
+|--------|----------------------------------|----------------------------------------------|---------------|
+| GET    | /api/v1/auth/storage-diagnostic  | Check storage configuration and contents     | None          |
+| GET    | /api/v1/auth/debug-headers       | Debug request headers                        | None          |
+| POST   | /api/v1/auth/direct-storage-test | Test secure storage directly                 | None          |
+| POST   | /api/v1/auth/add-anthropic-direct| Add Anthropic credentials directly           | None          |
+| GET    | /api/v1/auth/get-anthropic-direct | Get stored Anthropic credentials            | None          |
+
 
 ### Request/Response Examples
 
@@ -163,19 +190,23 @@ The Auth Provider system requires the following environment variables:
 
 | Variable            | Description                                        | Required |
 |--------------------|----------------------------------------------------|----------|
-| MARVIN_MASTER_KEY  | Master encryption key for credential storage       | Yes      |
-| MARVIN_ADMIN_TOKEN | Admin token for initial setup and authentication   | Yes      |
+| SECRET_KEY         | Master encryption key for credential storage       | Yes      |
+| ADMIN_TOKEN        | Admin token for initial setup and authentication   | Yes      |
+
+These variables are managed by the central configuration utility in core.utils.config
 
 ### Directory Structure
 
 The Auth Provider stores its configuration and encrypted credentials in:
 
 ```
-config/
-└── auth/
-    └── local_credentials/
-        └── {provider_id}.enc
+{config_dir}/
+├── {provider_id}.enc
+├── anthropic-main.enc
+└── ...
 ```
+The config_dir is specified in the application configuration, defaulting to ./config.
+
 
 ## Security Considerations
 
@@ -183,6 +214,30 @@ config/
 2. **Key Management**: Master encryption key should be stored securely
 3. **Session Management**: Session tokens have configurable expiration
 4. **Admin Access**: Admin token provides initial access and setup capability
+5. **Development Mode**: The DevAuthProvider simplifies authentication for development but should not be used in production
+
+## Integration with Application State
+
+The Auth Provider is integrated with the application state and initialized during application startup:
+
+```python
+# In AppState.initialize()
+async def initialize(self):
+    # ...
+    # Initialize Auth Config
+    config = load_config()
+    config_dir = config.get("config_dir", "./config")
+    self.auth_config = get_auth_provider_config(config_dir)
+    
+    # For development, use DevAuthProvider
+    if config.get("environment") == "development":
+        self.auth_provider = self.auth_config.get_provider("dev")
+    else:
+        self.auth_provider = self.auth_config.get_provider("local")
+    # ...
+```
+
+
 
 ## Integration with LLM Providers
 
@@ -191,6 +246,25 @@ The Auth Provider system integrates with the LLM Provider system by:
 1. Providing secure credential storage
 2. Supporting multiple provider types (Anthropic, OpenAI, local models, etc.)
 3. Enabling runtime credential retrieval for API calls
+
+LLM Providers can retrieve credentials directly in their initialization:
+
+```python
+# In AnthropicProvider.initialize()
+async def initialize(self) -> None:
+    """Initialize the Anthropic provider."""
+    try:
+        # Get credentials from storage
+        credentials = await self.auth_provider.get_credentials(
+            "dev-token",  # In development mode
+            "anthropic-main"  # Provider ID
+        )
+        
+        # Extract API key
+        self.api_key = credentials.get("api_key")
+        # ...
+    # ...
+```
 
 ## Error Handling
 
@@ -204,6 +278,14 @@ The system uses specialized exceptions for different error conditions:
 | EncryptionError          | Encryption/decryption failure                 |
 | ValidationError          | Credential validation failure                 |
 | ConfigurationError       | Auth provider configuration issue             |
+
+## Data Model Considerations
+
+When extending the system with new provider classes, be aware of Python dataclass field ordering requirements:
+
+   1. Fields without default values must come before fields with default values
+   2. When inheriting from another dataclass, all non-default fields in the child class must be given default values if the parent class has any default field values
+   3. Use field(default_factory=...) for mutable default values
 
 ## Extending the System
 

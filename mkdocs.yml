@@ -1,3 +1,10 @@
+plugins:
+  - search
+  - mermaid2
+
+extra_javascript:
+  - https://unpkg.com/mermaid@8.13.10/dist/mermaid.min.js
+
 site_name: Marvin Documentation
 theme: mkdocs
 nav:
@@ -38,3 +45,4 @@ nav:
   - Schemas: reference/schemas/
   - Interfaces: reference/interfaces/
   - Glossary: reference/glossary.md
+
