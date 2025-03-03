@@ -1,0 +1,21 @@
+{
+  "providers": [
+    {
+      "provider_id": "test-anthropic",
+      "provider_type": "anthropic",
+      "credentials": {
+        "api_key": "test-api-key-1",
+        "api_base": "https://api.anthropic.com/v1",
+        "model": "claude-3-opus-20240229"
+      }
+    },
+    {
+      "provider_id": "test-ollama",
+      "provider_type": "ollama",
+      "credentials": {
+        "api_base": "http://localhost:11434",
+        "model": "llama2"
+      }
+    }
+  ]
+}
