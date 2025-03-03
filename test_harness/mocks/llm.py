@@ -1,13 +1,14 @@
-# marvin_test_harness/mocks/llm.py
 import os
 import json
 import time
 import asyncio
+import traceback
 from typing import Dict, Any, List
 from aiohttp import web
 from core.utils.logger import get_logger
 from test_harness.utils.helpers import find_free_port
-from test_harness.mocks.api import BaseMockService
+from test_harness.mocks.base import BaseMockService
+
 
 class LLMMockService(BaseMockService):
     """
@@ -29,6 +30,8 @@ class LLMMockService(BaseMockService):
         self.site = None
         self.port = None
         self.url = None
+        
+        self.logger.debug(f"LLMMockService initialized with config: {config}")
     
     async def initialize(self):
         """
@@ -39,25 +42,37 @@ class LLMMockService(BaseMockService):
         """
         await super().initialize()
         
-        # Load mock responses
-        await self._load_mock_responses()
-        
-        # Start HTTP server if configured
-        if self.config.get("use_http_server", True):
-            await self._start_server()
-        
-        return self
+        try:
+            # Load mock responses
+            self.logger.info("Loading mock LLM responses")
+            await self._load_mock_responses()
+            
+            # Start HTTP server if configured
+            if self.config.get("use_http_server", True):
+                self.logger.info("Starting HTTP server for LLM mock")
+                await self._start_server()
+            else:
+                self.logger.info("HTTP server disabled (use_http_server=False)")
+            
+            return self
+        except Exception as e:
+            self.logger.error(f"Failed to initialize LLM mock service: {str(e)}")
+            self.logger.error(traceback.format_exc())
+            raise
     
     async def shutdown(self):
         """Shut down the LLM mock service."""
         self.logger.info("Shutting down LLM mock service")
         
         if self.site:
+            self.logger.debug("Stopping site")
             await self.site.stop()
         
         if self.runner:
+            self.logger.debug("Cleaning up runner")
             await self.runner.cleanup()
         
+        self.logger.debug("LLM mock service shutdown complete")
         await super().shutdown()
     
     async def _start_server(self):

@@ -4,31 +4,12 @@ import asyncio
 import re
 import docker
 from typing import Dict, Any, Optional
+import traceback
 
 from core.utils.logger import get_logger
+from test_harness.mocks.base import BaseMockService
 from test_harness.utils.helpers import wait_for_service, find_free_port
 
-class BaseMockService:
-    """Base class for all mock services."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the mock service.
-        
-        Args:
-            config: Service configuration
-        """
-        self.config = config
-        self.logger = get_logger(f"test.mock.{self.__class__.__name__}")
-        
-    async def initialize(self):
-        """Initialize the service."""
-        self.logger.info(f"Initializing {self.__class__.__name__}")
-        return self
-        
-    async def shutdown(self):
-        """Shutdown the service."""
-        self.logger.info(f"Shutting down {self.__class__.__name__}")
 
 class MockNeo4jService(BaseMockService):
     """
@@ -50,35 +31,45 @@ class MockNeo4jService(BaseMockService):
         self.uri = "mock://localhost:7687"
         self.username = "neo4j"
         self.password = "password"
-    
+        
     async def initialize(self):
-        """
-        Initialize the mock Neo4j service.
-        
-        Returns:
-            Self for method chaining
-        """
-        await super().initialize()
-        
-        # Load initial data if specified
-        initial_data = self.config.get("initial_data")
-        if initial_data:
-            await self.load_test_data(initial_data)
+            """
+            Initialize the mock Neo4j service.
             
-        return self
+            Returns:
+                Self for method chaining
+            """
+            await super().initialize()
+            
+            # Load initial data if specified
+            initial_data = self.config.get("initial_data")
+            if initial_data:
+                self.logger.info(f"Loading initial data from: {initial_data}")
+                await self.load_test_data(initial_data)
+            else:
+                self.logger.debug("No initial data specified")
+                
+            return self
     
     async def shutdown(self):
         """Shut down the mock Neo4j service."""
+        self.logger.info("Shutting down mock Neo4j service")
+        self.logger.debug(f"Clearing data with {len(self.data.get('nodes', {}))} nodes and {len(self.data.get('relationships', []))} relationships")
+        await self.clear_data()
         await super().shutdown()
-        self.clear_data()
     
     async def clear_data(self):
         """Clear all data in the mock database."""
         self.logger.info("Clearing mock Neo4j data")
+        node_count = len(self.data.get("nodes", {}))
+        rel_count = len(self.data.get("relationships", []))
+        self.logger.debug(f"Clearing {node_count} nodes and {rel_count} relationships")
+        
         self.data = {
             "nodes": {},
             "relationships": []
         }
+        self.logger.debug("Data cleared successfully")
     
     async def load_test_data(self, data_file: str):
         """
@@ -93,13 +84,21 @@ class MockNeo4jService(BaseMockService):
             with open(data_file, 'r') as f:
                 test_data = json.load(f)
             
+            node_count = len(test_data.get("nodes", {}))
+            rel_count = len(test_data.get("relationships", []))
+            
             self.data = test_data
-            self.logger.info(
-                f"Loaded {len(test_data.get('nodes', {}))} nodes and "
-                f"{len(test_data.get('relationships', []))} relationships"
-            )
-        except (FileNotFoundError, json.JSONDecodeError) as e:
+            self.logger.info(f"Loaded {node_count} nodes and {rel_count} relationships from {data_file}")
+        except FileNotFoundError:
+            self.logger.error(f"Test data file not found: {data_file}")
+            raise
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Error parsing JSON from {data_file}: {str(e)}")
+            raise
+        except Exception as e:
             self.logger.error(f"Failed to load test data: {str(e)}")
+            self.logger.error(traceback.format_exc())
+            raise
     
     async def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -113,19 +112,30 @@ class MockNeo4jService(BaseMockService):
             Query results
         """
         self.logger.debug(f"Executing query: {query}")
+        if params:
+            self.logger.debug(f"Query parameters: {params}")
         
         # Simple query interpreter for testing
-        if "MATCH" in query and "RETURN" in query:
-            return await self._handle_match_query(query, params)
-        elif "CREATE" in query:
-            return await self._handle_create_query(query, params)
-        elif "DELETE" in query:
-            return await self._handle_delete_query(query, params)
-        elif "MERGE" in query:
-            return await self._handle_merge_query(query, params)
-        else:
-            self.logger.warning(f"Unhandled query type: {query}")
-            return {"results": [], "summary": {"counters": {}}}
+        try:
+            if "MATCH" in query and "RETURN" in query:
+                self.logger.debug("Handling MATCH query")
+                return await self._handle_match_query(query, params)
+            elif "CREATE" in query:
+                self.logger.debug("Handling CREATE query")
+                return await self._handle_create_query(query, params)
+            elif "DELETE" in query:
+                self.logger.debug("Handling DELETE query")
+                return await self._handle_delete_query(query, params)
+            elif "MERGE" in query:
+                self.logger.debug("Handling MERGE query")
+                return await self._handle_merge_query(query, params)
+            else:
+                self.logger.warning(f"Unhandled query type: {query}")
+                return {"results": [], "summary": {"counters": {}}}
+        except Exception as e:
+            self.logger.error(f"Error executing query: {str(e)}")
+            self.logger.error(traceback.format_exc())
+            raise
     
     async def _handle_match_query(self, query: str, params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """

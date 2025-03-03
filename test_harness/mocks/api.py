@@ -1,7 +1,9 @@
 import re
+import os
 import json
 import uuid
 import asyncio
+import traceback
 import datetime
 from typing import Dict, Any, Optional, Callable
 from aiohttp import web
@@ -38,6 +40,9 @@ class MockAPIService(BaseMockService):
         self.app = None
         self.runner = None
         self.site = None
+
+        self.logger.debug(f"MockAPIService initialized with base URL: {self.base_url}")
+        self.logger.debug(f"Admin token: {self.state['auth']['admin_token']}")
         
     async def initialize(self):
         """
@@ -50,10 +55,15 @@ class MockAPIService(BaseMockService):
         
         # Set up routes
         self._setup_routes()
+        self.logger.debug(f"Set up routes for HTTP methods: {', '.join(self.routes.keys())}")
         
         # Start the HTTP server if configured
         if self.config.get("start_server", True):
+            self.logger.info("Starting HTTP server")
             await self._start_server()
+            self.logger.info(f"HTTP server started at {self.base_url}")
+        else:
+            self.logger.info("HTTP server not started (disabled in config)")
         
         return self
     
@@ -61,39 +71,54 @@ class MockAPIService(BaseMockService):
         """Start the HTTP server."""
         self.logger.info(f"Starting mock API server on port {self.port}")
         
-        self.app = web.Application()
-        
-        # Register routes with aiohttp
-        for method, path_handlers in self.routes.items():
-            for path_pattern, handler in path_handlers.items():
-                # Convert path pattern to aiohttp compatible
-                aiohttp_pattern = re.sub(r'{([^}]+)}', r'{\1}', path_pattern)
-                
-                # Add route
-                self.app.router.add_route(method, aiohttp_pattern, handler)
-        
-        # Start server
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        self.site = web.TCPSite(self.runner, 'localhost', self.port)
-        await self.site.start()
-        
-        self.logger.info(f"Mock API server running at {self.base_url}")
+        try:
+            self.app = web.Application()
+            
+            # Register routes with aiohttp
+            route_count = 0
+            for method, path_handlers in self.routes.items():
+                for path_pattern, handler in path_handlers.items():
+                    # Convert path pattern to aiohttp compatible
+                    aiohttp_pattern = re.sub(r'{([^}]+)}', r'{\1}', path_pattern)
+                    
+                    # Add route
+                    self.app.router.add_route(method, aiohttp_pattern, handler)
+                    route_count += 1
+                    self.logger.debug(f"Added route: {method} {aiohttp_pattern}")
+            
+            self.logger.info(f"Registered {route_count} routes")
+            
+            # Start server
+            self.runner = web.AppRunner(self.app)
+            await self.runner.setup()
+            self.site = web.TCPSite(self.runner, 'localhost', self.port)
+            await self.site.start()
+            
+            self.logger.info(f"Mock API server running at {self.base_url}")
+        except Exception as e:
+            self.logger.error(f"Failed to start API server: {str(e)}")
+            self.logger.error(traceback.format_exc())
+            raise
     
     async def shutdown(self):
         """Shut down the mock API service."""
         self.logger.info("Shutting down mock API server")
         
         if self.site:
+            self.logger.debug("Stopping site")
             await self.site.stop()
         
         if self.runner:
+            self.logger.debug("Cleaning up runner")
             await self.runner.cleanup()
         
+        self.logger.debug("API server shutdown complete")
         await super().shutdown()
     
     def _setup_routes(self):
         """Set up the mock API routes."""
+        self.logger.debug("Setting up API routes")
+        
         # Format: {method: {path: handler}}
         self.routes = {
             "GET": {
@@ -117,6 +142,13 @@ class MockAPIService(BaseMockService):
                 "/api/v1/auth/providers/{provider_id}": self._handle_delete_provider,
             }
         }
+        
+        # Log route counts
+        total_routes = sum(len(routes) for routes in self.routes.values())
+        self.logger.debug(f"Set up {total_routes} API routes")
+        
+        for method, routes in self.routes.items():
+            self.logger.debug(f"  {method}: {len(routes)} routes")
     
     async def send_request(self, method: str, path: str, data: Optional[Dict[str, Any]] = None, 
                            headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -133,11 +165,16 @@ class MockAPIService(BaseMockService):
             Response data
         """
         self.logger.debug(f"Mock API request: {method} {path}")
+        if data:
+            self.logger.debug(f"Request data: {json.dumps(data)[:300]}...")  # Truncate for readability
+        if headers:
+            self.logger.debug(f"Request headers: {headers}")
         
         # Find the handler for this route
         handler = self._get_route_handler(method, path)
         
         if not handler:
+            self.logger.warning(f"Route not found: {method} {path}")
             return {
                 "success": False,
                 "error": {
@@ -148,6 +185,8 @@ class MockAPIService(BaseMockService):
         
         # Process the request
         try:
+            self.logger.debug(f"Executing handler for {method} {path}")
+            
             if asyncio.iscoroutinefunction(handler):
                 # For aiohttp handlers
                 headers = headers or {}
@@ -157,14 +196,21 @@ class MockAPIService(BaseMockService):
                 if isinstance(response, web.Response):
                     # Convert aiohttp response to dict
                     body = response.body.decode('utf-8') if response.body else '{}'
-                    return json.loads(body)
+                    result = json.loads(body)
+                    self.logger.debug(f"Handler returned web.Response with status {response.status}")
+                    return result
+                
+                self.logger.debug("Handler returned dict response")
                 return response
             else:
                 # For direct function calls
-                return await handler(data, headers)
+                result = await handler(data, headers)
+                self.logger.debug("Handler executed successfully")
+                return result
                 
         except Exception as e:
             self.logger.error(f"Error handling request: {str(e)}")
+            self.logger.error(traceback.format_exc())
             return {
                 "success": False,
                 "error": {

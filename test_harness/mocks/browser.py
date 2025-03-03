@@ -3,10 +3,11 @@ import re
 import json
 import uuid
 import aiohttp
+import traceback
 from typing import Dict, Any, List, Optional
 
 from core.utils.logger import get_logger
-from test_harness.mocks.api import BaseMockService
+from test_harness.mocks.base import BaseMockService
 
 class BrowserSimulator(BaseMockService):
     """
@@ -27,6 +28,8 @@ class BrowserSimulator(BaseMockService):
         self.settings = {}
         self.current_tab_id = None
         self.current_window_id = "1"
+        
+        self.logger.debug(f"BrowserSimulator initialized with config: {config}")
     
     async def initialize(self):
         """
@@ -37,19 +40,27 @@ class BrowserSimulator(BaseMockService):
         """
         await super().initialize()
         
-        # Load test browser state if specified
-        browser_state = self.config.get("browser_state")
-        if browser_state:
-            await self.load_browser_state(browser_state)
-        else:
-            # Initialize with empty state
-            self._init_empty_state()
-        
-        return self
+        try:
+            # Load test browser state if specified
+            browser_state = self.config.get("browser_state")
+            if browser_state:
+                self.logger.info(f"Loading browser state from: {browser_state}")
+                await self.load_browser_state(browser_state)
+            else:
+                self.logger.info("Initializing with empty browser state")
+                self._init_empty_state()
+            
+            self.logger.info(f"Browser simulator initialized with {len(self.tabs)} tabs and {len(self.bookmarks)} bookmarks")
+            return self
+        except Exception as e:
+            self.logger.error(f"Failed to initialize browser simulator: {str(e)}")
+            self.logger.error(traceback.format_exc())
+            raise
     
     async def shutdown(self):
         """Shut down the browser simulator."""
         self.logger.info("Shutting down browser simulator")
+        self.logger.debug(f"Closing {len(self.tabs)} tabs and clearing state")
         await super().shutdown()
     
     def _init_empty_state(self):

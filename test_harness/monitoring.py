@@ -1,5 +1,6 @@
 import time
 import statistics
+import traceback
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
@@ -66,6 +67,8 @@ class PerformanceMonitor:
         self.start_times: Dict[str, float] = {}
         self.running = False
         self.start_time = 0.0
+
+        self.logger.debug("Performance monitor initialized")
     
     def start(self):
         """Start the performance monitoring session."""
@@ -81,13 +84,36 @@ class PerformanceMonitor:
             Dictionary of collected metrics
         """
         end_time = time.time()
+        duration = end_time - self.start_time
         self.running = False
         
         # Record total test duration
-        self.record_metric("test_duration", end_time - self.start_time)
+        self.record_metric("test_duration", duration)
         
-        self.logger.info("Performance monitoring stopped")
-        return self.get_metrics()
+        self.logger.info(f"Performance monitoring stopped (duration: {duration:.3f}s)")
+        self.logger.debug(f"Collected {len(self.timer_metrics)} timer metrics and {len(self.value_metrics)} value metrics")
+        
+        metrics = self.get_metrics()
+        
+        # Log summary statistics
+        if "timers" in metrics:
+            timer_count = len(metrics["timers"])
+            self.logger.info(f"Timer metrics: {timer_count}")
+            
+            # Log slowest operations
+            if timer_count > 0:
+                # Find slowest operation by total time
+                sorted_timers = sorted(
+                    [(name, data) for name, data in metrics["timers"].items()], 
+                    key=lambda x: x[1]["total_time"], 
+                    reverse=True
+                )
+                
+                if sorted_timers:
+                    slowest = sorted_timers[0]
+                    self.logger.info(f"Slowest operation: {slowest[0]} - {slowest[1]['total_time']:.3f}s total, {slowest[1]['avg_time']:.3f}s avg")
+        
+        return metrics
     
     def start_timer(self, name: str) -> str:
         """
@@ -100,10 +126,12 @@ class PerformanceMonitor:
             Timer name for reference
         """
         if not self.running:
-            self.logger.warning("Performance monitor not running, starting timer anyway")
+            self.logger.warning(f"Performance monitor not running, starting timer {name} anyway")
             
         self.start_times[name] = time.time()
+        self.logger.debug(f"Started timer: {name}")
         return name
+
     
     def end_timer(self, name: str) -> Optional[float]:
         """
@@ -135,6 +163,7 @@ class PerformanceMonitor:
         # Clean up start time
         del self.start_times[name]
         
+        self.logger.debug(f"Ended timer: {name} - duration: {duration:.3f}s")
         return duration
     
     def record_metric(self, name: str, value: Any):
@@ -146,7 +175,7 @@ class PerformanceMonitor:
             value: Metric value
         """
         if not self.running:
-            self.logger.warning("Performance monitor not running, recording metric anyway")
+            self.logger.warning(f"Performance monitor not running, recording metric {name} anyway")
             
         # Initialize metric if needed
         if name not in self.value_metrics:
@@ -155,57 +184,72 @@ class PerformanceMonitor:
         # Update metric
         self.value_metrics[name].count += 1
         self.value_metrics[name].values.append(value)
+        
+        self.logger.debug(f"Recorded metric: {name} = {value}")
     
     def get_metrics(self) -> Dict[str, Any]:
         """
         Get a dictionary of all recorded metrics.
         
-        Returns: Dictionary of metrics with statistics
+        Returns:
+            Dictionary of metrics with statistics
         """
-        metrics = {
-            "timers": {},
-            "values": {}
-        }
+        self.logger.debug("Generating metrics summary")
         
-        # Process timer metrics
-        for name, metric in self.timer_metrics.items():
-            metrics["timers"][name] = {
-                "count": metric.count,
-                "avg_time": metric.avg_time,
-                "median_time": metric.median_time,
-                "min_time": metric.min_time,
-                "max_time": metric.max_time,
-                "total_time": metric.total_time
+        try:
+            metrics = {
+                "timers": {},
+                "values": {}
             }
-        
-        # Process value metrics
-        for name, metric in self.value_metrics.items():
-            # Only include statistical calculations for numeric values
-            if all(isinstance(v, (int, float)) for v in metric.values):
-                metrics["values"][name] = {
+            
+            # Process timer metrics
+            for name, metric in self.timer_metrics.items():
+                metrics["timers"][name] = {
                     "count": metric.count,
-                    "avg_value": metric.avg_value,
-                    "min_value": metric.min_value,
-                    "max_value": metric.max_value
+                    "avg_time": metric.avg_time,
+                    "median_time": metric.median_time,
+                    "min_time": metric.min_time,
+                    "max_time": metric.max_time,
+                    "total_time": metric.total_time
                 }
-                
-                # Include standard deviation for numeric metrics
-                if len(metric.values) > 1:
-                    metrics["values"][name]["std_dev"] = statistics.stdev(metric.values)
-            else:
-                # For non-numeric metrics, just include the count
-                metrics["values"][name] = {
-                    "count": metric.count
-                }
-        
-        # Add overall metrics
-        metrics["overall"] = {
-            "total_timers": len(self.timer_metrics),
-            "total_value_metrics": len(self.value_metrics),
-            "test_duration": self._get_test_duration()
-        }
-        
-        return metrics
+            
+            # Process value metrics
+            for name, metric in self.value_metrics.items():
+                # Only include statistical calculations for numeric values
+                if all(isinstance(v, (int, float)) for v in metric.values):
+                    metrics["values"][name] = {
+                        "count": metric.count,
+                        "avg_value": metric.avg_value,
+                        "min_value": metric.min_value,
+                        "max_value": metric.max_value
+                    }
+                    
+                    # Include standard deviation for numeric metrics with > 1 value
+                    if len(metric.values) > 1:
+                        metrics["values"][name]["std_dev"] = statistics.stdev(metric.values)
+                else:
+                    # For non-numeric metrics, just include the count
+                    metrics["values"][name] = {
+                        "count": metric.count
+                    }
+            
+            # Add overall metrics
+            metrics["overall"] = {
+                "total_timers": len(self.timer_metrics),
+                "total_value_metrics": len(self.value_metrics),
+                "test_duration": self._get_test_duration()
+            }
+            
+            self.logger.debug(f"Generated metrics with {len(metrics['timers'])} timers and {len(metrics['values'])} values")
+            return metrics
+        except Exception as e:
+            self.logger.error(f"Error generating metrics: {str(e)}")
+            self.logger.error(traceback.format_exc())
+            return {
+                "error": str(e),
+                "timers": {},
+                "values": {}
+            }
     
 
     def _get_test_duration(self) -> float:
@@ -217,12 +261,16 @@ class PerformanceMonitor:
             return 0.0
         
         # If still running, calculate current duration
-        return time.time() - self.start_time
+        duration = time.time() - self.start_time
+        self.logger.debug(f"Current test duration: {duration:.3f}s")
+        return duration
     
     def reset(self):
         """Reset all metrics."""
+        self.logger.info("Resetting all performance metrics")
         self.timer_metrics = {}
         self.value_metrics = {}
         self.start_times = {}
         if self.running:
             self.start_time = time.time()
+            self.logger.debug("Reset timer start time")
