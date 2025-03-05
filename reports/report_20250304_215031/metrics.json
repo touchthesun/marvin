@@ -1,0 +1,129 @@
+{
+  "timers": {
+    "get_provider_types": {
+      "count": 1,
+      "avg_time": 0.00025272369384765625,
+      "median_time": 0.00025272369384765625,
+      "min_time": 0.00025272369384765625,
+      "max_time": 0.00025272369384765625,
+      "total_time": 0.00025272369384765625
+    },
+    "create_provider_test-anthropic": {
+      "count": 1,
+      "avg_time": 0.00039505958557128906,
+      "median_time": 0.00039505958557128906,
+      "min_time": 0.00039505958557128906,
+      "max_time": 0.00039505958557128906,
+      "total_time": 0.00039505958557128906
+    },
+    "create_provider_test-ollama": {
+      "count": 1,
+      "avg_time": 0.0006520748138427734,
+      "median_time": 0.0006520748138427734,
+      "min_time": 0.0006520748138427734,
+      "max_time": 0.0006520748138427734,
+      "total_time": 0.0006520748138427734
+    },
+    "list_providers": {
+      "count": 1,
+      "avg_time": 0.0002701282501220703,
+      "median_time": 0.0002701282501220703,
+      "min_time": 0.0002701282501220703,
+      "max_time": 0.0002701282501220703,
+      "total_time": 0.0002701282501220703
+    },
+    "get_provider_test-anthropic": {
+      "count": 1,
+      "avg_time": 0.0007369518280029297,
+      "median_time": 0.0007369518280029297,
+      "min_time": 0.0007369518280029297,
+      "max_time": 0.0007369518280029297,
+      "total_time": 0.0007369518280029297
+    },
+    "get_provider_test-ollama": {
+      "count": 1,
+      "avg_time": 0.0004410743713378906,
+      "median_time": 0.0004410743713378906,
+      "min_time": 0.0004410743713378906,
+      "max_time": 0.0004410743713378906,
+      "total_time": 0.0004410743713378906
+    },
+    "init_provider_test-anthropic": {
+      "count": 1,
+      "avg_time": 0.00037407875061035156,
+      "median_time": 0.00037407875061035156,
+      "min_time": 0.00037407875061035156,
+      "max_time": 0.00037407875061035156,
+      "total_time": 0.00037407875061035156
+    },
+    "init_provider_test-ollama": {
+      "count": 1,
+      "avg_time": 0.0004911422729492188,
+      "median_time": 0.0004911422729492188,
+      "min_time": 0.0004911422729492188,
+      "max_time": 0.0004911422729492188,
+      "total_time": 0.0004911422729492188
+    },
+    "validate_token": {
+      "count": 1,
+      "avg_time": 0.0003209114074707031,
+      "median_time": 0.0003209114074707031,
+      "min_time": 0.0003209114074707031,
+      "max_time": 0.0003209114074707031,
+      "total_time": 0.0003209114074707031
+    },
+    "validate_invalid_token": {
+      "count": 1,
+      "avg_time": 0.0003299713134765625,
+      "median_time": 0.0003299713134765625,
+      "min_time": 0.0003299713134765625,
+      "max_time": 0.0003299713134765625,
+      "total_time": 0.0003299713134765625
+    },
+    "remove_provider_test-anthropic": {
+      "count": 1,
+      "avg_time": 0.00021505355834960938,
+      "median_time": 0.00021505355834960938,
+      "min_time": 0.00021505355834960938,
+      "max_time": 0.00021505355834960938,
+      "total_time": 0.00021505355834960938
+    },
+    "remove_provider_test-ollama": {
+      "count": 1,
+      "avg_time": 0.00021314620971679688,
+      "median_time": 0.00021314620971679688,
+      "min_time": 0.00021314620971679688,
+      "max_time": 0.00021314620971679688,
+      "total_time": 0.00021314620971679688
+    },
+    "verify_removal": {
+      "count": 1,
+      "avg_time": 0.00022292137145996094,
+      "median_time": 0.00022292137145996094,
+      "min_time": 0.00022292137145996094,
+      "max_time": 0.00022292137145996094,
+      "total_time": 0.00022292137145996094
+    },
+    "scenario.auth_provider": {
+      "count": 1,
+      "avg_time": 0.0058519840240478516,
+      "median_time": 0.0058519840240478516,
+      "min_time": 0.0058519840240478516,
+      "max_time": 0.0058519840240478516,
+      "total_time": 0.0058519840240478516
+    }
+  },
+  "values": {
+    "test_duration": {
+      "count": 1,
+      "avg_value": 0.01992011070251465,
+      "min_value": 0.01992011070251465,
+      "max_value": 0.01992011070251465
+    }
+  },
+  "overall": {
+    "total_timers": 14,
+    "total_value_metrics": 1,
+    "test_duration": 0.01992011070251465
+  }
+}

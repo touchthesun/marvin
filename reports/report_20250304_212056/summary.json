@@ -1,0 +1,130 @@
+{
+  "total": 1,
+  "passed": 0,
+  "failed": 1,
+  "success_rate": "0.00%",
+  "timestamp": "2025-03-04T21:20:56.397291",
+  "scenarios": {
+    "auth_provider": {
+      "success": false,
+      "execution_time": 0.004392862319946289,
+      "assertions": {
+        "provider_types_available": {
+          "success": true,
+          "description": "Provider types should be available"
+        },
+        "anthropic_provider_type": {
+          "success": true,
+          "description": "Anthropic provider type should be available"
+        },
+        "create_provider_0": {
+          "success": true,
+          "description": "Provider test-anthropic should be created successfully"
+        },
+        "create_provider_1": {
+          "success": true,
+          "description": "Provider test-ollama should be created successfully"
+        },
+        "providers_listed": {
+          "success": true,
+          "description": "Providers should be listed"
+        },
+        "provider_in_list_0": {
+          "success": true,
+          "description": "Provider test-anthropic should be in the provider list"
+        },
+        "provider_in_list_1": {
+          "success": true,
+          "description": "Provider test-ollama should be in the provider list"
+        },
+        "get_provider_0": {
+          "success": false,
+          "description": "Provider test-anthropic details should be retrievable"
+        },
+        "credential_keys_0": {
+          "success": false,
+          "description": "Provider test-anthropic should have credential keys listed"
+        },
+        "credential_masking_0": {
+          "success": true,
+          "description": "API key for test-anthropic should not be returned directly"
+        },
+        "get_provider_1": {
+          "success": false,
+          "description": "Provider test-ollama details should be retrievable"
+        },
+        "credential_keys_1": {
+          "success": false,
+          "description": "Provider test-ollama should have credential keys listed"
+        },
+        "credential_masking_1": {
+          "success": true,
+          "description": "API key for test-ollama should not be returned directly"
+        },
+        "init_provider_0": {
+          "success": false,
+          "description": "Provider test-anthropic should initialize successfully"
+        },
+        "init_provider_1": {
+          "success": false,
+          "description": "Provider test-ollama should initialize successfully"
+        },
+        "valid_token": {
+          "success": false,
+          "description": "Valid admin token should be validated successfully"
+        },
+        "invalid_token": {
+          "success": true,
+          "description": "Invalid token should fail validation"
+        },
+        "remove_provider_0": {
+          "success": false,
+          "description": "Provider test-anthropic should be removed successfully"
+        },
+        "remove_provider_1": {
+          "success": false,
+          "description": "Provider test-ollama should be removed successfully"
+        },
+        "providers_removed": {
+          "success": false,
+          "description": "All providers should be removed"
+        }
+      }
+    }
+  },
+  "performance": {
+    "test_duration": 0.018976926803588867,
+    "slowest_operations": [
+      {
+        "name": "scenario.auth_provider",
+        "total_time": 0.004392862319946289,
+        "avg_time": 0.004392862319946289,
+        "count": 1
+      },
+      {
+        "name": "get_provider_test-anthropic",
+        "total_time": 0.0005099773406982422,
+        "avg_time": 0.0005099773406982422,
+        "count": 1
+      },
+      {
+        "name": "create_provider_test-ollama",
+        "total_time": 0.00044798851013183594,
+        "avg_time": 0.00044798851013183594,
+        "count": 1
+      },
+      {
+        "name": "create_provider_test-anthropic",
+        "total_time": 0.0003762245178222656,
+        "avg_time": 0.0003762245178222656,
+        "count": 1
+      },
+      {
+        "name": "init_provider_test-anthropic",
+        "total_time": 0.0002560615539550781,
+        "avg_time": 0.0002560615539550781,
+        "count": 1
+      }
+    ]
+  }
+}

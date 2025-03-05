@@ -1,9 +1,7 @@
 import asyncio
 import urllib.parse
 
-from core.utils.logger import get_logger
 from test_harness.scenarios.base import TestScenario
-from test_harness.assertions import Assertion
 
 class PageCaptureScenario(TestScenario):
     """
@@ -51,14 +49,23 @@ class PageCaptureScenario(TestScenario):
             browser_op = f"browser_capture_{len(results)}"
             with self.timed_operation(browser_op):
                 browser_data = await self.components["browser"].capture_page(test_url)
+
+            api_request_data = {
+                "url": browser_data["url"],
+                "title": browser_data.get("title", "Untitled"),
+                "context": browser_data.get("context", "ACTIVE_TAB"),
+                "tab_id": browser_data.get("tab_id"),
+                "window_id": browser_data.get("window_id"),
+                "browser_contexts": browser_data.get("browser_contexts", ["ACTIVE_TAB"])
+            }
             
             # 2. Send to API with auth token
             api_op = f"api_create_page_{len(results)}"
             with self.timed_operation(api_op):
                 api_response = await self.components["api"].send_request(
                     "POST", 
-                    "/api/v1/pages", 
-                    browser_data,
+                    "/pages",  # Path will be resolved by the API service
+                    api_request_data,  # Use the properly structured data
                     headers={"Authorization": f"Bearer {self.auth_token}"}
                 )
             
@@ -87,7 +94,7 @@ class PageCaptureScenario(TestScenario):
             with self.timed_operation(graph_op):
                 graph_response = await self.components["api"].send_request(
                     "GET",
-                    f"/api/v1/graph/related/{urllib.parse.quote(test_url)}",
+                    f"/graph/related/{urllib.parse.quote(test_url)}",  # No need to manually add prefix
                     headers={"Authorization": f"Bearer {self.auth_token}"}
                 )
             
@@ -101,6 +108,51 @@ class PageCaptureScenario(TestScenario):
             })
         
         return results
+    
+    async def _wait_for_task_completion(self, task_id, max_wait=10, interval=0.5):
+        """
+        Wait for a task to complete or reach processing state.
+        
+        Args:
+            task_id: Task ID to check
+            max_wait: Maximum wait time in seconds
+            interval: Polling interval in seconds
+            
+        Returns:
+            Final task status response
+        """
+        self.logger.info(f"Waiting for task {task_id} to complete")
+        
+        start_time = asyncio.get_event_loop().time()
+        last_status = None
+        
+        while asyncio.get_event_loop().time() - start_time < max_wait:
+            status_response = await self.components["api"].send_request(
+                "GET",
+                f"/analysis/status/{task_id}",  # No need to manually add prefix
+                headers={"Authorization": f"Bearer {self.auth_token}"}
+            )
+            
+            last_status = status_response
+            
+            if not status_response.get("success", False):
+                self.logger.warning(f"Error checking task status: {status_response}")
+                await asyncio.sleep(interval)
+                continue
+            
+            status = status_response.get("data", {}).get("status")
+            
+            if status in ["completed", "error"]:
+                self.logger.info(f"Task {task_id} finished with status: {status}")
+                return status_response
+            
+            progress = status_response.get("data", {}).get("progress", 0)
+            self.logger.debug(f"Task {task_id} in progress: {progress:.0%}")
+            
+            await asyncio.sleep(interval)
+        
+        self.logger.warning(f"Task {task_id} did not complete within {max_wait} seconds")
+        return last_status
     
     async def validate(self, results):
         """
@@ -164,47 +216,3 @@ class PageCaptureScenario(TestScenario):
         
         return assertions
     
-    async def _wait_for_task_completion(self, task_id, max_wait=10, interval=0.5):
-        """
-        Wait for a task to complete or reach processing state.
-        
-        Args:
-            task_id: Task ID to check
-            max_wait: Maximum wait time in seconds
-            interval: Polling interval in seconds
-            
-        Returns:
-            Final task status response
-        """
-        self.logger.info(f"Waiting for task {task_id} to complete")
-        
-        start_time = asyncio.get_event_loop().time()
-        last_status = None
-        
-        while asyncio.get_event_loop().time() - start_time < max_wait:
-            status_response = await self.components["api"].send_request(
-                "GET",
-                f"/api/v1/analysis/status/{task_id}",
-                headers={"Authorization": f"Bearer {self.auth_token}"}
-            )
-            
-            last_status = status_response
-            
-            if not status_response.get("success", False):
-                self.logger.warning(f"Error checking task status: {status_response}")
-                await asyncio.sleep(interval)
-                continue
-            
-            status = status_response.get("data", {}).get("status")
-            
-            if status in ["completed", "error"]:
-                self.logger.info(f"Task {task_id} finished with status: {status}")
-                return status_response
-            
-            progress = status_response.get("data", {}).get("progress", 0)
-            self.logger.debug(f"Task {task_id} in progress: {progress:.0%}")
-            
-            await asyncio.sleep(interval)
-        
-        self.logger.warning(f"Task {task_id} did not complete within {max_wait} seconds")
-        return last_status

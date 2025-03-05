@@ -1,9 +1,9 @@
 import traceback
 import json
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Optional
 
 from core.utils.logger import get_logger
+from test_harness.utils.paths import resolve_path
 from test_harness.config import load_test_config
 from test_harness.environment import TestEnvironmentManager
 from test_harness.monitoring import PerformanceMonitor
@@ -265,7 +265,7 @@ class TestHarnessController:
         """Get the scenario class by name."""
         try:
             # Import dynamically
-            module_name = f"marvin_test_harness.scenarios.{scenario_name}"
+            module_name = f"test_harness.scenarios.{scenario_name}"
             class_name = ''.join(word.capitalize() for word in scenario_name.split('_')) + 'Scenario'
             
             self.logger.debug(f"Loading scenario class: {class_name} from {module_name}")
@@ -278,23 +278,28 @@ class TestHarnessController:
             self.logger.error(traceback.format_exc())
             return None
     
+    
     def _load_scenario_data(self, scenario_name):
         """Load test data for a scenario."""
         try:
             
             # Construct the path to the scenario data file
-            fixtures_dir = Path(self.config.get("fixtures", {}).get("dir", "fixtures"))
-            data_file = fixtures_dir / f"{scenario_name}.json"
+            fixtures_dir = self.config.get("fixtures", {}).get("dir", "fixtures")
+            data_file_path = f"{fixtures_dir}/{scenario_name}.json"
             
-            self.logger.debug(f"Looking for scenario data at: {data_file}")
+            self.logger.debug(f"Looking for scenario data at: {data_file_path}")
             
-            if data_file.exists():
-                with open(data_file, 'r') as f:
+            try:
+                # Use our path resolution utility
+                resolved_path = resolve_path(data_file_path)
+                self.logger.debug(f"Resolved scenario data path: {resolved_path}")
+                
+                with open(resolved_path, 'r') as f:
                     data = json.load(f)
-                    self.logger.debug(f"Loaded scenario data from {data_file}")
+                    self.logger.debug(f"Loaded scenario data from {resolved_path}")
                     return data
-            else:
-                self.logger.warning(f"Scenario data file not found: {data_file}")
+            except FileNotFoundError:
+                self.logger.warning(f"Scenario data file not found: {data_file_path}")
                 return {}
         except Exception as e:
             self.logger.error(f"Error loading scenario data: {str(e)}")

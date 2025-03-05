@@ -2,10 +2,12 @@ import os
 import re
 import json
 import uuid
+import time
 import aiohttp
 import traceback
 from typing import Dict, Any, List, Optional
 
+from test_harness.utils.paths import resolve_path
 from core.utils.logger import get_logger
 from test_harness.mocks.base import BaseMockService
 
@@ -77,33 +79,36 @@ class BrowserSimulator(BaseMockService):
             }
         }
     
-    async def load_browser_state(self, state_file):
+    async def load_browser_state(self, state_file: str):
         """
         Load a browser state from a file.
         
         Args:
-            state_file: Path to JSON state file
+            state_file: Path to the browser state JSON file
         """
         self.logger.info(f"Loading browser state from {state_file}")
         
         try:
-            with open(state_file, 'r') as f:
+            # Resolve the path to the state file
+            resolved_path = resolve_path(state_file)
+            self.logger.debug(f"Resolved path: {resolved_path}")
+            
+            with open(resolved_path, 'r') as f:
                 state = json.load(f)
             
             self.tabs = state.get("tabs", [])
             self.bookmarks = state.get("bookmarks", [])
             self.history = state.get("history", [])
+            self.windows = state.get("windows", [])
             self.settings = state.get("settings", {})
             
-            # Set current tab if we have tabs
-            if self.tabs:
-                self.current_tab_id = self.tabs[0]["id"]
-                self.current_window_id = self.tabs[0].get("window_id", "1")
-            
             self.logger.info(f"Loaded browser state with {len(self.tabs)} tabs, {len(self.bookmarks)} bookmarks")
-        except (FileNotFoundError, json.JSONDecodeError) as e:
+        except FileNotFoundError:
+            self.logger.error(f"Error loading browser state: [Errno 2] No such file or directory: '{state_file}'")
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Error parsing browser state JSON: {str(e)}")
+        except Exception as e:
             self.logger.error(f"Error loading browser state: {str(e)}")
-            self._init_empty_state()
     
     async def capture_page(self, url: str) -> Dict[str, Any]:
         """
@@ -317,7 +322,6 @@ class BrowserSimulator(BaseMockService):
         Returns:
             Current timestamp in seconds
         """
-        import time
         return time.time()
     
     async def create_tab(self, url: str, window_id: Optional[str] = None) -> Dict[str, Any]:

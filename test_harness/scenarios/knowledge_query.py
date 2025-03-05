@@ -81,14 +81,21 @@ class KnowledgeQueryScenario(TestScenario):
             # 1. Send query to API
             query_op = f"agent_query_{len(results)}"
             with self.timed_operation(query_op):
+                # FIX 1: Remove the API prefix from the path - let the service handle it
+                # FIX 2: Ensure the request data structure is correct
+                query_data = {
+                    "task_type": "QUERY",
+                    "query": query["text"],
+                    "relevant_urls": query.get("urls", [])
+                }
+                
+                # Log the request data for debugging
+                self.logger.debug(f"Sending agent query request with data: {query_data}")
+                
                 query_response = await self.components["api"].send_request(
                     "POST", 
-                    "/api/v1/agent/query", 
-                    {
-                        "task_type": "QUERY",
-                        "query": query["text"],
-                        "relevant_urls": query.get("urls", [])
-                    },
+                    "/agent/query",  # Remove prefix, let the service handle it 
+                    query_data,
                     headers={"Authorization": f"Bearer {self.auth_token}"}
                 )
             
@@ -97,6 +104,7 @@ class KnowledgeQueryScenario(TestScenario):
             
             if not task_id:
                 self.logger.error(f"No task ID returned for query '{query['text']}'")
+                self.logger.error(f"Response: {query_response}")  # Added logging for debugging
                 results.append({
                     "query": query,
                     "query_response": query_response,
@@ -174,12 +182,12 @@ class KnowledgeQueryScenario(TestScenario):
         
         return assertions
     
-    async def _wait_for_task_completion(self, task_id, max_wait=15, interval=1):
+    async def _wait_for_task_completion(self, task_id, max_wait=10, interval=0.5):
         """
         Wait for a task to complete.
         
         Args:
-            task_id: Task ID to check
+            task_id: Task ID to track
             max_wait: Maximum wait time in seconds
             interval: Polling interval in seconds
             
@@ -192,9 +200,10 @@ class KnowledgeQueryScenario(TestScenario):
         last_status = None
         
         while asyncio.get_event_loop().time() - start_time < max_wait:
+            # FIX: Remove the API prefix from the path
             status_response = await self.components["api"].send_request(
                 "GET",
-                f"/api/v1/agent/status/{task_id}",
+                f"/agent/status/{task_id}",  # Remove prefix, let the service handle it
                 headers={"Authorization": f"Bearer {self.auth_token}"}
             )
             

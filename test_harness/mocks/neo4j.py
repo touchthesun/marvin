@@ -6,6 +6,7 @@ import docker
 from typing import Dict, Any, Optional
 import traceback
 
+from test_harness.utils.paths import resolve_path
 from core.utils.logger import get_logger
 from test_harness.mocks.base import BaseMockService
 from test_harness.utils.helpers import wait_for_service, find_free_port
@@ -78,17 +79,22 @@ class MockNeo4jService(BaseMockService):
         Args:
             data_file: Path to JSON data file
         """
+        
         self.logger.info(f"Loading test data from {data_file}")
         
         try:
-            with open(data_file, 'r') as f:
+            # Resolve the path to the data file
+            resolved_path = resolve_path(data_file)
+            self.logger.debug(f"Resolved path: {resolved_path}")
+            
+            with open(resolved_path, 'r') as f:
                 test_data = json.load(f)
             
             node_count = len(test_data.get("nodes", {}))
             rel_count = len(test_data.get("relationships", []))
             
             self.data = test_data
-            self.logger.info(f"Loaded {node_count} nodes and {rel_count} relationships from {data_file}")
+            self.logger.info(f"Loaded {node_count} nodes and {rel_count} relationships from {resolved_path}")
         except FileNotFoundError:
             self.logger.error(f"Test data file not found: {data_file}")
             raise

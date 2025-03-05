@@ -1,0 +1,353 @@
+[
+  {
+    "scenario": "auth_provider",
+    "success": false,
+    "execution_time": 0.0058519840240478516,
+    "assertions": [
+      {
+        "name": "provider_types_available",
+        "success": true,
+        "description": "Provider types should be available",
+        "details": {}
+      },
+      {
+        "name": "anthropic_provider_type",
+        "success": true,
+        "description": "Anthropic provider type should be available",
+        "details": {}
+      },
+      {
+        "name": "create_provider_0",
+        "success": true,
+        "description": "Provider test-anthropic should be created successfully",
+        "details": {}
+      },
+      {
+        "name": "create_provider_1",
+        "success": true,
+        "description": "Provider test-ollama should be created successfully",
+        "details": {}
+      },
+      {
+        "name": "providers_listed",
+        "success": true,
+        "description": "Providers should be listed",
+        "details": {}
+      },
+      {
+        "name": "provider_in_list_0",
+        "success": true,
+        "description": "Provider test-anthropic should be in the provider list",
+        "details": {}
+      },
+      {
+        "name": "provider_in_list_1",
+        "success": true,
+        "description": "Provider test-ollama should be in the provider list",
+        "details": {}
+      },
+      {
+        "name": "get_provider_0",
+        "success": true,
+        "description": "Provider test-anthropic details should be retrievable",
+        "details": {}
+      },
+      {
+        "name": "credential_keys_0",
+        "success": true,
+        "description": "Provider test-anthropic should have credential keys listed",
+        "details": {}
+      },
+      {
+        "name": "credential_masking_0",
+        "success": true,
+        "description": "API key for test-anthropic should not be returned directly",
+        "details": {}
+      },
+      {
+        "name": "get_provider_1",
+        "success": true,
+        "description": "Provider test-ollama details should be retrievable",
+        "details": {}
+      },
+      {
+        "name": "credential_keys_1",
+        "success": true,
+        "description": "Provider test-ollama should have credential keys listed",
+        "details": {}
+      },
+      {
+        "name": "credential_masking_1",
+        "success": true,
+        "description": "API key for test-ollama should not be returned directly",
+        "details": {}
+      },
+      {
+        "name": "init_provider_0",
+        "success": true,
+        "description": "Provider test-anthropic should initialize successfully",
+        "details": {}
+      },
+      {
+        "name": "init_provider_1",
+        "success": true,
+        "description": "Provider test-ollama should initialize successfully",
+        "details": {}
+      },
+      {
+        "name": "valid_token",
+        "success": true,
+        "description": "Valid admin token should be validated successfully",
+        "details": {}
+      },
+      {
+        "name": "invalid_token",
+        "success": true,
+        "description": "Invalid token should fail validation",
+        "details": {}
+      },
+      {
+        "name": "remove_provider_0",
+        "success": false,
+        "description": "Provider test-anthropic should be removed successfully",
+        "details": {}
+      },
+      {
+        "name": "remove_provider_1",
+        "success": false,
+        "description": "Provider test-ollama should be removed successfully",
+        "details": {}
+      },
+      {
+        "name": "providers_removed",
+        "success": false,
+        "description": "All providers should be removed",
+        "details": {}
+      }
+    ],
+    "assertion_summary": {
+      "total": 20,
+      "passed": 17,
+      "failed": 3
+    },
+    "data": {
+      "provider_types_response": {
+        "success": true,
+        "data": {
+          "local": "LocalAuthProvider",
+          "anthropic": "AnthropicAuthProvider",
+          "ollama": "OllamaAuthProvider"
+        },
+        "error": null,
+        "metadata": {
+          "timestamp": "N/A"
+        }
+      },
+      "create_responses": [
+        {
+          "provider": {
+            "provider_id": "test-anthropic",
+            "provider_type": "anthropic",
+            "credentials": {
+              "api_key": "test-api-key-1",
+              "api_base": "https://api.anthropic.com/v1",
+              "model": "claude-3-opus-20240229"
+            }
+          },
+          "response": {
+            "success": true,
+            "data": {
+              "provider_id": "test-anthropic"
+            },
+            "error": null,
+            "metadata": {
+              "timestamp": "N/A"
+            }
+          }
+        },
+        {
+          "provider": {
+            "provider_id": "test-ollama",
+            "provider_type": "ollama",
+            "credentials": {
+              "api_base": "http://localhost:11434",
+              "model": "llama2"
+            }
+          },
+          "response": {
+            "success": true,
+            "data": {
+              "provider_id": "test-ollama"
+            },
+            "error": null,
+            "metadata": {
+              "timestamp": "N/A"
+            }
+          }
+        }
+      ],
+      "list_response": {
+        "success": true,
+        "data": {
+          "test-anthropic": {
+            "provider_id": "test-anthropic",
+            "provider_type": "anthropic",
+            "created": 1741153831.873247,
+            "modified": 1741153831.873247,
+            "size": 108
+          },
+          "test-ollama": {
+            "provider_id": "test-ollama",
+            "provider_type": "ollama",
+            "created": 1741153831.873785,
+            "modified": 1741153831.873785,
+            "size": 57
+          }
+        },
+        "error": null,
+        "metadata": {
+          "timestamp": "N/A"
+        }
+      },
+      "get_responses": [
+        {
+          "provider_id": "test-anthropic",
+          "response": {
+            "success": true,
+            "data": {
+              "provider_id": "test-anthropic",
+              "provider_type": "anthropic",
+              "metadata": {
+                "created_at": 1741153831.873247,
+                "updated_at": 1741153831.873247
+              },
+              "credential_keys": [
+                "api_key",
+                "api_base",
+                "model"
+              ]
+            },
+            "error": null,
+            "metadata": {
+              "timestamp": "N/A"
+            }
+          }
+        },
+        {
+          "provider_id": "test-ollama",
+          "response": {
+            "success": true,
+            "data": {
+              "provider_id": "test-ollama",
+              "provider_type": "ollama",
+              "metadata": {
+                "created_at": 1741153831.873785,
+                "updated_at": 1741153831.873785
+              },
+              "credential_keys": [
+                "api_base",
+                "model"
+              ]
+            },
+            "error": null,
+            "metadata": {
+              "timestamp": "N/A"
+            }
+          }
+        }
+      ],
+      "init_responses": [
+        {
+          "provider_id": "test-anthropic",
+          "response": {
+            "success": true,
+            "data": {
+              "provider_id": "test-anthropic",
+              "status": "initialized",
+              "model": "mock-model"
+            },
+            "error": null,
+            "metadata": {
+              "timestamp": "N/A"
+            }
+          }
+        },
+        {
+          "provider_id": "test-ollama",
+          "response": {
+            "success": true,
+            "data": {
+              "provider_id": "test-ollama",
+              "status": "initialized",
+              "model": "mock-model"
+            },
+            "error": null,
+            "metadata": {
+              "timestamp": "N/A"
+            }
+          }
+        }
+      ],
+      "validate_response": {
+        "success": true,
+        "data": null,
+        "error": null,
+        "metadata": {
+          "timestamp": "N/A"
+        }
+      },
+      "invalid_validate_response": {
+        "success": false,
+        "error": {
+          "error_code": "AUTHORIZATION_ERROR",
+          "message": "Invalid session token"
+        }
+      },
+      "remove_responses": [
+        {
+          "provider_id": "test-anthropic",
+          "response": {
+            "success": false,
+            "error": {
+              "error_code": "AUTHORIZATION_ERROR",
+              "message": "Invalid or missing authentication token"
+            }
+          }
+        },
+        {
+          "provider_id": "test-ollama",
+          "response": {
+            "success": false,
+            "error": {
+              "error_code": "AUTHORIZATION_ERROR",
+              "message": "Invalid or missing authentication token"
+            }
+          }
+        }
+      ],
+      "verify_list_response": {
+        "success": true,
+        "data": {
+          "test-anthropic": {
+            "provider_id": "test-anthropic",
+            "provider_type": "anthropic",
+            "created": 1741153831.873247,
+            "modified": 1741153831.873247,
+            "size": 108
+          },
+          "test-ollama": {
+            "provider_id": "test-ollama",
+            "provider_type": "ollama",
+            "created": 1741153831.873785,
+            "modified": 1741153831.873785,
+            "size": 57
+          }
+        },
+        "error": null,
+        "metadata": {
+          "timestamp": "N/A"
+        }
+      }
+    }
+  }
+]

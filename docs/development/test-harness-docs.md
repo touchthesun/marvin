@@ -1721,19 +1721,19 @@ Example usage of the test harness CLI:
 
 ```
 # Run all scenarios
-python -m marvin_test_harness --config config/local.json
+python -m test_harness --config config/local.json
 
 # Run a specific scenario
-python -m marvin_test_harness --config config/local.json --scenario page_capture
+python -m test_harness --config config/local.json --scenario page_capture
 
 # Run with real API
-python -m marvin_test_harness --config config/local.json --use-real-api
+python -m test_harness --config config/local.json --use-real-api
 
 # Performance testing
-python -m marvin_test_harness --config config/performance.json --performance
+python -m test_harness --config config/performance.json --performance
 
 # Generate only report
-python -m marvin_test_harness --config config/local.json --report-only
+python -m test_harness --config config/local.json --report-only
 ```
 
 ### Helper Scripts
@@ -1759,7 +1759,7 @@ docker run --rm \
   cypher-shell -a bolt://localhost:7687 -u neo4j -p testpassword -f /reset.cypher
 
 # Initialize with test fixtures
-python -m marvin_test_harness.utils.init_fixtures
+python -m test_harness.utils.init_fixtures
 ```
 
 #### Generate Test Data

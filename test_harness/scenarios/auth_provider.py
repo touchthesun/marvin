@@ -1,6 +1,5 @@
 from core.utils.logger import get_logger
 from test_harness.scenarios.base import TestScenario
-from test_harness.assertions import Assertion
 
 class AuthProviderScenario(TestScenario):
     """
@@ -38,7 +37,7 @@ class AuthProviderScenario(TestScenario):
         with self.timed_operation("get_provider_types"):
             provider_types_response = await self.components["api"].send_request(
                 "GET", 
-                "/api/v1/auth/provider-types"
+                "/auth/provider-types"
             )
         
         results["provider_types_response"] = provider_types_response
@@ -64,12 +63,15 @@ class AuthProviderScenario(TestScenario):
             }
         ])
         
+        # IMPORTANT: Log the token we're using for debugging
+        self.logger.info(f"Using admin token for auth: {self.admin_token}")
+        
         create_responses = []
         for provider in test_providers:
             with self.timed_operation(f"create_provider_{provider['provider_id']}"):
                 create_response = await self.components["api"].send_request(
                     "POST", 
-                    "/api/v1/auth/providers", 
+                    "/auth/providers", 
                     provider,
                     headers={"Authorization": f"Bearer {self.admin_token}"}
                 )
@@ -85,7 +87,7 @@ class AuthProviderScenario(TestScenario):
         with self.timed_operation("list_providers"):
             list_response = await self.components["api"].send_request(
                 "GET", 
-                "/api/v1/auth/providers",
+                "/auth/providers",  # Remove /api/v1 prefix
                 headers={"Authorization": f"Bearer {self.admin_token}"}
             )
         
@@ -98,7 +100,7 @@ class AuthProviderScenario(TestScenario):
             with self.timed_operation(f"get_provider_{provider_id}"):
                 get_response = await self.components["api"].send_request(
                     "GET", 
-                    f"/api/v1/auth/providers/{provider_id}",
+                    f"/auth/providers/{provider_id}",  # Remove /api/v1 prefix
                     headers={"Authorization": f"Bearer {self.admin_token}"}
                 )
             
@@ -114,10 +116,14 @@ class AuthProviderScenario(TestScenario):
         for provider in test_providers:
             provider_id = provider["provider_id"]
             with self.timed_operation(f"init_provider_{provider_id}"):
+                # Make sure initialization data is correctly structured
+                init_data = {"provider_id": provider_id}
+                self.logger.debug(f"Initializing provider {provider_id} with data: {init_data}")
+                
                 init_response = await self.components["api"].send_request(
                     "POST", 
-                    "/api/v1/llm/initialize",
-                    {"provider_id": provider_id},
+                    "/llm/initialize",  # Remove /api/v1 prefix
+                    init_data,
                     headers={"Authorization": f"Bearer {self.admin_token}"}
                 )
             
@@ -130,20 +136,27 @@ class AuthProviderScenario(TestScenario):
         
         # 6. Token validation
         with self.timed_operation("validate_token"):
+            # Make sure validation data is correctly structured
+            validate_data = {"session_token": self.admin_token}
+            self.logger.debug("Validating token with data: {validate_data}")
+            
             validate_response = await self.components["api"].send_request(
                 "POST", 
-                "/api/v1/auth/validate",
-                {"session_token": self.admin_token}
+                "/auth/validate",  # Remove /api/v1 prefix
+                validate_data
             )
         
         results["validate_response"] = validate_response
         
         # 7. Invalid token validation
         with self.timed_operation("validate_invalid_token"):
+            # Make sure validation data is correctly structured
+            invalid_token_data = {"session_token": "invalid-token"}
+            
             invalid_validate_response = await self.components["api"].send_request(
                 "POST", 
-                "/api/v1/auth/validate",
-                {"session_token": "invalid-token"}
+                "/auth/validate",  # Remove /api/v1 prefix
+                invalid_token_data
             )
         
         results["invalid_validate_response"] = invalid_validate_response
@@ -155,7 +168,7 @@ class AuthProviderScenario(TestScenario):
             with self.timed_operation(f"remove_provider_{provider_id}"):
                 remove_response = await self.components["api"].send_request(
                     "DELETE", 
-                    f"/api/v1/auth/providers/{provider_id}",
+                    f"/auth/providers/{provider_id}",  # Remove /api/v1 prefix
                     headers={"Authorization": f"Bearer {self.admin_token}"}
                 )
             
@@ -170,7 +183,7 @@ class AuthProviderScenario(TestScenario):
         with self.timed_operation("verify_removal"):
             verify_list_response = await self.components["api"].send_request(
                 "GET", 
-                "/api/v1/auth/providers",
+                "/auth/providers",  # Remove /api/v1 prefix
                 headers={"Authorization": f"Bearer {self.admin_token}"}
             )
         

@@ -1,12 +1,15 @@
 import sys
+import os
 import asyncio
 import argparse
 import traceback
+import logging
 from typing import List, Optional
 
 from core.utils.logger import get_logger
 from test_harness.config import load_test_config
 from test_harness.controller import TestHarnessController
+from test_harness.utils.diagnostics import diagnose_request_handling
 
 logger = get_logger("test.cli")
 
@@ -49,6 +52,18 @@ async def run_tests(args: argparse.Namespace):
         logger.info("Initializing test harness controller")
         controller = TestHarnessController(args.config)
         await controller.initialize()
+
+        # Run diagnostics if requested
+        if args.diagnostics:
+            logger.info("Running diagnostics tests")
+            diagnostic_results = await run_diagnostics(controller.components)
+            logger.info("Diagnostics complete")
+            
+            # If only diagnostics were requested, exit now
+            if not args.scenario:
+                logger.info("Shutting down test harness after diagnostics")
+                await controller.shutdown()
+                return 0
         
         # Run scenarios
         if args.scenario:
@@ -68,6 +83,7 @@ async def run_tests(args: argparse.Namespace):
             passed = sum(1 for r in results if r.get("success", False))
             total = len(results)
             logger.info(f"Scenarios: {passed}/{total} passed")
+            
         
         # Shutdown and report
         logger.info("Shutting down test harness")
@@ -83,6 +99,33 @@ async def run_tests(args: argparse.Namespace):
         logger.error(f"Error running tests: {str(e)}")
         logger.error(traceback.format_exc())
         return 1
+    
+
+async def run_diagnostics(components):
+    """
+    Run diagnostic tests to help identify issues.
+    
+    Args:
+        components: Test components
+        
+    Returns:
+        Diagnostic results
+    """
+
+    logger = get_logger("test_harness.main")
+    logger.info("Running diagnostics...")
+    
+    results = await diagnose_request_handling(components.get("api"))
+    
+    # Log a summary of results
+    logger.info("Diagnostic results summary:")
+    for test, result in results.items():
+        if isinstance(result, dict) and "success" in result:
+            logger.info(f"  {test}: {'SUCCESS' if result['success'] else 'FAILURE'}")
+        else:
+            logger.info(f"  {test}: Completed")
+    
+    return results
 
 def main(argv: Optional[List[str]] = None):
     """
@@ -101,10 +144,16 @@ def main(argv: Optional[List[str]] = None):
         default="config/test.json",
         help="Path to test configuration file"
     )
+
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Run diagnostic tests to troubleshoot issues"
+    )
     
     parser.add_argument(
         "--scenario", 
-        help="Run a specific scenario"
+        help="Run a specific scenario (omit to run all or use with --diagnostics only)"
     )
     
     parser.add_argument(
@@ -130,10 +179,46 @@ def main(argv: Optional[List[str]] = None):
         help="Directory for test reports"
     )
     
+    parser.add_argument(
+        "--log-file",
+        help="Path to save logs (in addition to console output)"
+    )
+
+    parser.add_argument(
+        "--log-dir",
+        help="Directory for log files (default: logs)"
+    )
+        
     args = parser.parse_args(argv)
     
     # Configure initial logging
-    logger = get_logger("test")
+    log_level = args.log_level or "INFO"
+    logger = get_logger("test", log_level)
+    
+    # Configure file logging
+    log_dir = args.log_dir or "logs"
+    os.makedirs(log_dir, exist_ok=True)  # Create logs directory if it doesn't exist
+
+    # Generate default log filename if none specified
+    if not args.log_file:
+        # Create timestamped log filename
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.log_file = os.path.join(log_dir, f"test_harness_{timestamp}.log")
+
+    logger.info(f"Logging to file: {args.log_file}")
+
+    # Add file handler to root logger
+    log_handler = logging.FileHandler(args.log_file, mode='w', encoding='utf-8')
+    log_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    log_handler.setFormatter(log_formatter)
+    log_handler.setLevel(getattr(logging, log_level))
+    logging.getLogger().addHandler(log_handler)
+
+    
     logger.info("Marvin Test Harness starting")
     
     # Run the test harness

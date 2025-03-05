@@ -133,3 +133,5 @@ async def wait_for_service(host: str, port: int, timeout: int = 30) -> bool:
     elapsed = asyncio.get_event_loop().time() - start_time
     logger.warning(f"Timeout waiting for service at {host}:{port} after {elapsed:.2f}s")
     return False
+
+

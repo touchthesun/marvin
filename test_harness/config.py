@@ -5,6 +5,8 @@ from typing import Dict, Any, Optional
 
 from core.utils.config import load_config as load_app_config
 from core.utils.logger import get_logger
+from test_harness.utils.paths import resolve_path
+
 
 logger = get_logger(__name__)
 
@@ -37,7 +39,9 @@ def load_test_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         },
         
         "api": {
-            "base_url": "http://localhost:8000"
+            "base_url": "http://localhost:8000",
+            "api_v1_str": "/api/v1",  # Added API prefix
+            "health_endpoint": "/health"
         },
         
         "llm": {
@@ -71,27 +75,35 @@ def load_test_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     # If a config path is provided, load and merge it
     if config_path:
         try:
-            config_file = Path(config_path)
-            if config_file.exists():
-                logger.info(f"Loading test config from {config_path}")
+            # Use the resolve_path utility to find the config file
+            try:
+                config_file = resolve_path(config_path)
+                logger.info(f"Loading test config from {config_file}")
+                
                 with open(config_file, 'r') as f:
                     file_config = json.load(f)
                     
                 # Deep merge the configurations
                 test_config = deep_merge(test_config, file_config)
-            else:
+            except FileNotFoundError:
                 logger.warning(f"Config file {config_path} not found, using defaults")
         except Exception as e:
             logger.error(f"Error loading config file: {str(e)}")
     
     # Add test-specific overrides from environment variables
-    if bool(load_app_config.get("TEST_ENVIRONMENT")):
-        test_config["environment"] = load_app_config.get("TEST_ENVIRONMENT")
+    if bool(os.getenv("TEST_ENVIRONMENT")):
+        test_config["environment"] = os.getenv("TEST_ENVIRONMENT")
         
-    if bool(load_app_config.get("TEST_LOG_LEVEL")):
-        test_config["log_level"] = load_app_config.get("TEST_LOG_LEVEL")
+    if bool(os.getenv("TEST_LOG_LEVEL")):
+        test_config["log_level"] = os.getenv("TEST_LOG_LEVEL")
+    
+    # Ensure API prefix from environment if available
+    if bool(os.getenv("API_V1_STR")):
+        test_config["api"]["api_v1_str"] = os.getenv("API_V1_STR")
     
     logger.info(f"Test harness configuration loaded for environment: {test_config['environment']}")
+    logger.info(f"Using API prefix: {test_config['api']['api_v1_str']}")
+    
     return test_config
 
 def deep_merge(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
