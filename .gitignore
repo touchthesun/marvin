@@ -171,5 +171,8 @@ marvin.egg-info/*
 logs/*
 
 # Ignore local auth storage path
-config/auth/*
+config/*
 storage/*
+
+# Ignore logs and test reports
+reports/*
