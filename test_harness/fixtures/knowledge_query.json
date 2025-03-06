@@ -1,0 +1,12 @@
+{
+  "queries": [
+    {
+      "text": "What information do we have about Python?",
+      "expected_sources": ["docs.python.org"]
+    },
+    {
+      "text": "Summarize the key points from our research",
+      "expected_sources": ["test.org/research-paper"]
+    }
+  ]
+}

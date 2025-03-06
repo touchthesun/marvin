@@ -33,6 +33,7 @@ nav:
   - Testing: development/testing.md
   - Security: development/security.md
   - Auth Provider Implementation: development/auth-provider.md
+  - Testing Harness: development/test-harness-docs.md
   - Roadmap:
     - LLM: development/llm/phase1.md
 - User Guide:

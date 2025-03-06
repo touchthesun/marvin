@@ -1,0 +1,84 @@
+{
+  "environment": "development",
+  "log_level": "INFO",
+  "use_docker": false,
+  "use_real_api": false,
+  "allow_real_requests": false,
+  
+  "neo4j": {
+    "use_mock": true,
+    "initial_data": "fixtures/graph_data.json",
+    "uri": "mock://localhost:7687",
+    "username": "neo4j",
+    "password": "password"
+  },
+  
+  "api": {
+    "base_url": "http://localhost:8000",
+    "start_server": true,
+    "start_api_server": false,
+    "admin_token": "test-admin-token",
+    "api_v1_str": "/api/v1"
+  },
+  
+  "llm": {
+    "use_http_server": true,
+    "responses_dir": "fixtures/llm_responses",
+    "responses": {
+      "research": {
+        "id": "chatcmpl-research",
+        "object": "chat.completion",
+        "created": 1710000000,
+        "model": "claude-3-opus-20240229",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "I've researched the topic extensively and found several key insights. The main points to consider are: 1) Historical context is important, 2) Current trends show increasing adoption, and 3) Future projections suggest continued growth. Would you like me to explore any of these areas in more depth?"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 150,
+          "completion_tokens": 75,
+          "total_tokens": 225
+        }
+      }
+    }
+  },
+  
+  "browser": {
+    "browser_state": "fixtures/browser_state.json",
+    "fixtures_dir": "fixtures/pages",
+    "allow_real_requests": false
+  },
+  
+  "fixtures": {
+    "dir": "fixtures",
+    "pages_dir": "fixtures/pages",
+    "graph_data": "fixtures/graph_data.json"
+  },
+  
+  "scenarios": [
+    "page_capture",
+    "knowledge_query",
+    "auth_provider"
+  ],
+  
+  "reporting": {
+    "generate_html": true,
+    "report_dir": "reports",
+    "report_template": "templates/report.html"
+  },
+  
+  "real_api": {
+    "env_vars": {
+      "API_V1_STR": "/api/v1",
+      "PROJECT_NAME": "Marvin API (Test)",
+      "DEBUG": "true",
+      "SECRET_KEY": "test-secret-key-for-integration-tests"
+    }
+  }
+}

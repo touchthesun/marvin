@@ -22,6 +22,7 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 - [Coding Conventions](development/conventions.md)
 - [Librariess & Dependencies](development/dependencies.md)]
 - [Testing Strategy](development/testing.md)
+- [Testing Harness](development/test-harness-docs.md)
 - [Security Guidelines](development/security.md)
 
 ### 📚 User Guide

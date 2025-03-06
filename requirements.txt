@@ -36,4 +36,5 @@ cryptography
 mkdocs-mermaid2-plugin
 pycountry
 python-us
+docker
 # python -m spacy download en_core_web_sm

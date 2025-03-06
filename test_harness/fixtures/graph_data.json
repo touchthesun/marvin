@@ -1,0 +1,234 @@
+{
+    "nodes": {
+      "n1": {
+        "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://example.com",
+          "domain": "example.com",
+          "title": "Example Domain",
+          "status": "active",
+          "discovered_at": "2024-03-01T12:00:00Z",
+          "processed_at": "2024-03-01T12:05:00Z",
+          "updated_at": "2024-03-01T12:05:00Z",
+          "tab_id": "tab_1",
+          "window_id": "window_1",
+          "last_active": "2024-03-01T14:30:00Z",
+          "browser_contexts": ["ACTIVE_TAB", "BOOKMARKED"],
+          "bookmark_id": "bookmark_1",
+          "metadata_quality_score": 0.85,
+          "word_count": 250,
+          "reading_time_minutes": 1.25,
+          "language": "en",
+          "source_type": "webpage",
+          "metric_quality_score": 0.9,
+          "metric_relevance_score": 0.85,
+          "metric_last_visited": "2024-03-01T14:30:00Z",
+          "metric_visit_count": 5,
+          "metric_processing_time": 0.75,
+          "metric_keyword_count": 8,
+          "keywords": {
+            "example": 0.9,
+            "domain": 0.8,
+            "internet": 0.7,
+            "website": 0.85
+          }
+        }
+      },
+      "n2": {
+        "id": "563a7a6c-8d29-40a2-a9b7-e33f2d83cc2c",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://test.org/page1",
+          "domain": "test.org",
+          "title": "Test Page 1",
+          "status": "active",
+          "discovered_at": "2024-03-01T12:30:00Z",
+          "processed_at": "2024-03-01T12:35:00Z",
+          "updated_at": "2024-03-01T12:35:00Z",
+          "tab_id": "tab_2",
+          "window_id": "window_1",
+          "last_active": "2024-03-01T14:35:00Z",
+          "browser_contexts": ["OPEN_TAB"],
+          "metadata_quality_score": 0.78,
+          "word_count": 500,
+          "reading_time_minutes": 2.5,
+          "language": "en",
+          "source_type": "article",
+          "metric_quality_score": 0.82,
+          "metric_relevance_score": 0.75,
+          "metric_last_visited": "2024-03-01T14:35:00Z",
+          "metric_visit_count": 3,
+          "metric_processing_time": 0.85,
+          "metric_keyword_count": 12,
+          "keywords": {
+            "test": 0.95,
+            "methodology": 0.85,
+            "experiment": 0.8,
+            "analysis": 0.9,
+            "result": 0.75
+          }
+        }
+      },
+      "n3": {
+        "id": "7c8bb23e-5e93-4b24-9456-63a27e7c9c19",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://docs.python.org/3/tutorial/",
+          "domain": "docs.python.org",
+          "title": "Python Tutorial",
+          "status": "active",
+          "discovered_at": "2024-03-01T13:00:00Z",
+          "processed_at": "2024-03-01T13:05:00Z",
+          "updated_at": "2024-03-01T13:05:00Z",
+          "tab_id": "tab_3",
+          "window_id": "window_1",
+          "last_active": "2024-03-01T14:40:00Z",
+          "browser_contexts": ["OPEN_TAB", "BOOKMARKED"],
+          "bookmark_id": "bookmark_2",
+          "metadata_quality_score": 0.92,
+          "word_count": 1500,
+          "reading_time_minutes": 7.5,
+          "language": "en",
+          "source_type": "documentation",
+          "metric_quality_score": 0.95,
+          "metric_relevance_score": 0.9,
+          "metric_last_visited": "2024-03-01T14:40:00Z",
+          "metric_visit_count": 10,
+          "metric_processing_time": 1.2,
+          "metric_keyword_count": 15,
+          "keywords": {
+            "python": 0.98,
+            "tutorial": 0.95,
+            "programming": 0.9,
+            "language": 0.85,
+            "code": 0.8,
+            "guide": 0.75
+          }
+        }
+      },
+      "n4": {
+        "id": "9d85c297-b0d1-4eb1-a211-6a9fd5f9971e",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://test.org/research-paper",
+          "domain": "test.org",
+          "title": "Research Paper on Test Methodologies",
+          "status": "active",
+          "discovered_at": "2024-03-01T13:30:00Z",
+          "processed_at": "2024-03-01T13:35:00Z",
+          "updated_at": "2024-03-01T13:35:00Z",
+          "browser_contexts": ["VISITED"],
+          "metadata_quality_score": 0.88,
+          "word_count": 3000,
+          "reading_time_minutes": 15.0,
+          "language": "en",
+          "source_type": "research",
+          "author": "Jane Doe",
+          "published_date": "2024-02-15T00:00:00Z",
+          "metric_quality_score": 0.9,
+          "metric_relevance_score": 0.85,
+          "metric_last_visited": "2024-03-01T15:30:00Z",
+          "metric_visit_count": 2,
+          "metric_processing_time": 1.5,
+          "metric_keyword_count": 20,
+          "keywords": {
+            "research": 0.95,
+            "methodology": 0.9,
+            "testing": 0.92,
+            "analysis": 0.88,
+            "experiment": 0.85,
+            "validation": 0.82,
+            "results": 0.8
+          }
+        }
+      },
+      "n5": {
+        "id": "a3c8b9e7-d2f1-4e63-b9a8-52c7df14c558",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://docs.python.org/3/tutorial/introduction.html",
+          "domain": "docs.python.org",
+          "title": "Python Introduction",
+          "status": "active",
+          "discovered_at": "2024-03-01T14:00:00Z",
+          "processed_at": "2024-03-01T14:05:00Z",
+          "updated_at": "2024-03-01T14:05:00Z",
+          "tab_id": "tab_4",
+          "window_id": "window_1",
+          "last_active": "2024-03-01T14:45:00Z",
+          "browser_contexts": ["ACTIVE_TAB"],
+          "metadata_quality_score": 0.9,
+          "word_count": 800,
+          "reading_time_minutes": 4.0,
+          "language": "en",
+          "source_type": "documentation",
+          "metric_quality_score": 0.92,
+          "metric_relevance_score": 0.88,
+          "metric_last_visited": "2024-03-01T14:45:00Z",
+          "metric_visit_count": 7,
+          "metric_processing_time": 0.9,
+          "metric_keyword_count": 12,
+          "keywords": {
+            "python": 0.98,
+            "introduction": 0.95,
+            "basics": 0.9,
+            "syntax": 0.88,
+            "getting started": 0.85
+          }
+        }
+      }
+    },
+    "relationships": [
+      {
+        "id": "r1",
+        "type": "LINKS_TO",
+        "startNode": "n1",
+        "endNode": "n2",
+        "properties": {
+          "created_at": "2024-03-01T14:30:00Z",
+          "strength": 0.8
+        }
+      },
+      {
+        "id": "r2",
+        "type": "SIMILAR_TO",
+        "startNode": "n2",
+        "endNode": "n4",
+        "properties": {
+          "created_at": "2024-03-01T14:32:00Z",
+          "strength": 0.9
+        }
+      },
+      {
+        "id": "r3",
+        "type": "LINKS_TO",
+        "startNode": "n3",
+        "endNode": "n5",
+        "properties": {
+          "created_at": "2024-03-01T14:34:00Z",
+          "strength": 0.95
+        }
+      },
+      {
+        "id": "r4",
+        "type": "RELATED_TO",
+        "startNode": "n1",
+        "endNode": "n3",
+        "properties": {
+          "created_at": "2024-03-01T14:36:00Z",
+          "strength": 0.6
+        }
+      },
+      {
+        "id": "r5",
+        "type": "SIMILAR_TO",
+        "startNode": "n4",
+        "endNode": "n5",
+        "properties": {
+          "created_at": "2024-03-01T14:38:00Z",
+          "strength": 0.5
+        }
+      }
+    ]
+  }
