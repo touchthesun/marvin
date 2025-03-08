@@ -109,7 +109,7 @@ class PageCaptureScenario(TestScenario):
         
         return results
     
-    async def _wait_for_task_completion(self, task_id, max_wait=10, interval=0.5):
+    async def _wait_for_task_completion(self, task_id, max_wait=5, interval=0.5):
         """
         Wait for a task to complete or reach processing state.
         
