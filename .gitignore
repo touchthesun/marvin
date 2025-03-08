@@ -175,4 +175,8 @@ config/*
 storage/*
 
 # Ignore logs and test reports
-reports/*
+reports
+
+# npm modules
+extension/node_modules
+

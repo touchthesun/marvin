@@ -87,7 +87,7 @@ class AuthProviderScenario(TestScenario):
         with self.timed_operation("list_providers"):
             list_response = await self.components["api"].send_request(
                 "GET", 
-                "/auth/providers",  # Remove /api/v1 prefix
+                "/auth/providers",
                 headers={"Authorization": f"Bearer {self.admin_token}"}
             )
         
@@ -100,7 +100,7 @@ class AuthProviderScenario(TestScenario):
             with self.timed_operation(f"get_provider_{provider_id}"):
                 get_response = await self.components["api"].send_request(
                     "GET", 
-                    f"/auth/providers/{provider_id}",  # Remove /api/v1 prefix
+                    f"/auth/providers/{provider_id}",
                     headers={"Authorization": f"Bearer {self.admin_token}"}
                 )
             
@@ -122,7 +122,7 @@ class AuthProviderScenario(TestScenario):
                 
                 init_response = await self.components["api"].send_request(
                     "POST", 
-                    "/llm/initialize",  # Remove /api/v1 prefix
+                    "/llm/initialize",
                     init_data,
                     headers={"Authorization": f"Bearer {self.admin_token}"}
                 )
@@ -142,7 +142,7 @@ class AuthProviderScenario(TestScenario):
             
             validate_response = await self.components["api"].send_request(
                 "POST", 
-                "/auth/validate",  # Remove /api/v1 prefix
+                "/auth/validate",
                 validate_data
             )
         
@@ -155,7 +155,7 @@ class AuthProviderScenario(TestScenario):
             
             invalid_validate_response = await self.components["api"].send_request(
                 "POST", 
-                "/auth/validate",  # Remove /api/v1 prefix
+                "/auth/validate",
                 invalid_token_data
             )
         
@@ -168,7 +168,7 @@ class AuthProviderScenario(TestScenario):
             with self.timed_operation(f"remove_provider_{provider_id}"):
                 remove_response = await self.components["api"].send_request(
                     "DELETE", 
-                    f"/auth/providers/{provider_id}",  # Remove /api/v1 prefix
+                    f"/auth/providers/{provider_id}",
                     headers={"Authorization": f"Bearer {self.admin_token}"}
                 )
             
@@ -183,7 +183,7 @@ class AuthProviderScenario(TestScenario):
         with self.timed_operation("verify_removal"):
             verify_list_response = await self.components["api"].send_request(
                 "GET", 
-                "/auth/providers",  # Remove /api/v1 prefix
+                "/auth/providers", 
                 headers={"Authorization": f"Bearer {self.admin_token}"}
             )
         
