@@ -4,7 +4,7 @@ from typing import Dict, Optional
 from bs4 import BeautifulSoup
 from datetime import datetime
 from core.utils.logger import get_logger
-from core.content.page import Page
+from core.domain.content.models.page import Page
 from core.domain.content.pipeline import (
     PipelineComponent,
     ComponentType,
