@@ -24,6 +24,8 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 - [Testing Strategy](development/testing.md)
 - [Testing Harness](development/test-harness-docs.md)
 - [Security Guidelines](development/security.md)
+- [Testing Harness - Lessons and Guide](development/test-harness-lessons-and-guide.md)
+- [Neo4J Implementation Guide](development/neo4j-integration.md)
 
 ### 📚 User Guide
 - [Installation](user/installation.md)
