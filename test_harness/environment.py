@@ -1,11 +1,13 @@
+import os
 import socket
 from typing import Dict, Any
 import traceback
 
 from core.utils.logger import get_logger
+from core.utils.config import load_config
 from test_harness.mocks.api import RealAPIService
-from test_harness.mocks.neo4j import DockerNeo4jService
-from test_harness.mocks.neo4j import MockNeo4jService
+from test_harness.mocks.mock_neo4j_svc import MockNeo4jService
+from test_harness.mocks.real_neo4j_svc import RealNeo4jService
 from test_harness.mocks.browser import BrowserSimulator
 from test_harness.mocks.llm import LLMMockService
 from test_harness.mocks.api import MockAPIService
@@ -109,20 +111,37 @@ class TestEnvironmentManager:
         self.active_services = []
         self.logger.info("Environment teardown complete")
     
+
     async def _start_neo4j(self):
-        """
-        Start a Neo4j test instance.
-        
-        Returns:
-            Neo4j service interface (mock or real)
-        """
+        """Start a Neo4j test instance based on configuration."""
         neo4j_config = self.config.get("neo4j", {})
         self.logger.debug(f"Starting Neo4j with config: {neo4j_config}")
         
-        if self.config.get("use_docker", False):
-            self.logger.info("Using Docker Neo4j service")
-            service = DockerNeo4jService(neo4j_config)
-            self.logger.debug("DockerNeo4jService created")
+        # Check if we should use real Neo4j (either local Desktop or remote Aurora)
+        if neo4j_config.get("use_real", False):
+            self.logger.info("Using real Neo4j service")
+            # Determine if we're using local or remote based on DB_MODE
+            db_mode = os.getenv('DB_MODE', 'LOCAL')
+            self.logger.info(f"DB mode: {db_mode}")
+            
+            # Use the same connection logic as the main application
+            if db_mode == 'LOCAL':
+                neo4j_config.update({
+                    "uri": os.getenv('NEO4J_URI_LOCAL'),
+                    "username": os.getenv('NEO4J_USERNAME_LOCAL'),
+                    "password": os.getenv('NEO4J_PASSWORD_LOCAL')
+                })
+                self.logger.info("Using local Neo4j Desktop connection")
+            else:
+                neo4j_config.update({
+                    "uri": os.getenv('NEO4J_URI_REMOTE', os.getenv('NEO4J_URI_LOCAL')),
+                    "username": os.getenv('NEO4J_USERNAME_REMOTE', os.getenv('NEO4J_USERNAME_LOCAL')),
+                    "password": os.getenv('NEO4J_PASSWORD_REMOTE', os.getenv('NEO4J_PASSWORD_LOCAL'))
+                })
+                self.logger.info("Using remote Neo4j Aurora connection")
+            
+            service = RealNeo4jService(neo4j_config)
+            self.logger.debug("RealNeo4jService created")
         else:
             # Use mock Neo4j implementation
             self.logger.info("Using mock Neo4j service")
