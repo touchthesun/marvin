@@ -5,6 +5,7 @@ from typing import Optional
 from core.utils.logger import get_logger
 from test_harness.utils.paths import resolve_path
 from test_harness.config import load_test_config
+from test_harness.config_model import TestConfig
 from test_harness.environment import TestEnvironmentManager
 from test_harness.monitoring import PerformanceMonitor
 from test_harness.reporting import TestReporter
@@ -23,9 +24,10 @@ class TestHarnessController:
         Args:
             config_path: Path to the test configuration file
         """
-        self.config = load_test_config(config_path)
-        self.logger = get_logger("test.controller", self.config.get("log_level"))
+        self.config: TestConfig = load_test_config(config_path)
+        self.logger = get_logger("test.controller", self.config.logging_level)
         self.logger.info(f"Initializing test controller with config from {config_path}")
+        
         self.results = []
         self.components = {}
         self.environment_manager = TestEnvironmentManager(self.config)
