@@ -5,6 +5,7 @@ import traceback
 
 from core.utils.logger import get_logger
 from core.utils.config import load_config
+from test_harness.config_model import TestConfig
 from test_harness.mocks.api import RealAPIService
 from test_harness.mocks.mock_neo4j_svc import MockNeo4jService
 from test_harness.mocks.real_neo4j_svc import RealNeo4jService
@@ -18,25 +19,19 @@ class TestEnvironmentManager:
     and stopping services needed for testing.
     """
     
-    def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the environment manager.
-        
-        Args:
-            config: Test configuration dictionary
-        """
+    def __init__(self, config: TestConfig):
+        """Initialize the environment manager."""
         self.config = config
-        self.logger = get_logger("test.environment", config.get("log_level"))
+        self.logger = get_logger("test.environment", config.logging_level)
         self.logger.info("Initializing test environment manager")
         self.active_services = []
         
         # Log configuration details
-        self.logger.debug(f"Environment mode: {self.config.get('environment', 'test')}")
-        self.logger.debug(f"Use Docker: {self.config.get('use_docker', False)}")
-        self.logger.debug(f"Use real API: {self.config.get('use_real_api', False)}")
+        self.logger.debug(f"Environment mode: {self.config.environment}")
+        self.logger.debug(f"Use real API: {self.config.use_real_api}")
         
-        neo4j_config = self.config.get("neo4j", {})
-        self.logger.debug(f"Neo4j configuration: use_mock={neo4j_config.get('use_mock', True)}")
+        neo4j_config = self.config.neo4j
+        self.logger.debug(f"Neo4j configuration: use_real={neo4j_config.get('use_real', False)}")
     
     async def setup_environment(self) -> Dict[str, Any]:
         """
@@ -114,32 +109,13 @@ class TestEnvironmentManager:
 
     async def _start_neo4j(self):
         """Start a Neo4j test instance based on configuration."""
-        neo4j_config = self.config.get("neo4j", {})
+        neo4j_config = self.config.neo4j
         self.logger.debug(f"Starting Neo4j with config: {neo4j_config}")
-        
-        # Check if we should use real Neo4j (either local Desktop or remote Aurora)
+
+        # Check if we should use real Neo4j
         if neo4j_config.get("use_real", False):
             self.logger.info("Using real Neo4j service")
-            # Determine if we're using local or remote based on DB_MODE
-            db_mode = os.getenv('DB_MODE', 'LOCAL')
-            self.logger.info(f"DB mode: {db_mode}")
-            
-            # Use the same connection logic as the main application
-            if db_mode == 'LOCAL':
-                neo4j_config.update({
-                    "uri": os.getenv('NEO4J_URI_LOCAL'),
-                    "username": os.getenv('NEO4J_USERNAME_LOCAL'),
-                    "password": os.getenv('NEO4J_PASSWORD_LOCAL')
-                })
-                self.logger.info("Using local Neo4j Desktop connection")
-            else:
-                neo4j_config.update({
-                    "uri": os.getenv('NEO4J_URI_REMOTE', os.getenv('NEO4J_URI_LOCAL')),
-                    "username": os.getenv('NEO4J_USERNAME_REMOTE', os.getenv('NEO4J_USERNAME_LOCAL')),
-                    "password": os.getenv('NEO4J_PASSWORD_REMOTE', os.getenv('NEO4J_PASSWORD_LOCAL'))
-                })
-                self.logger.info("Using remote Neo4j Aurora connection")
-            
+            # Neo4j config already has the right credentials from load_test_config
             service = RealNeo4jService(neo4j_config)
             self.logger.debug("RealNeo4jService created")
         else:
@@ -147,7 +123,7 @@ class TestEnvironmentManager:
             self.logger.info("Using mock Neo4j service")
             service = MockNeo4jService(neo4j_config)
             self.logger.debug("MockNeo4jService created")
-        
+
         try:
             self.logger.debug("Initializing Neo4j service")
             initialized_service = await service.initialize()
@@ -157,6 +133,7 @@ class TestEnvironmentManager:
             self.logger.error(f"Failed to initialize Neo4j service: {str(e)}")
             self.logger.error(traceback.format_exc())
             raise
+
     
     async def _start_api_server(self, neo4j):
         """

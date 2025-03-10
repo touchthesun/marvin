@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from api.config import settings
+from api.config.config import settings
 from api.state import app_state, get_app_state
 from api.routes.pages import router as pages_router
 from api.routes.analysis import router as analysis_router 
