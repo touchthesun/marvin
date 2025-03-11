@@ -1,0 +1,101 @@
+{
+  "tabs": [
+    {
+      "id": "tab_1",
+      "url": "https://test.org/page/1",
+      "title": "Test Page 1 on test.org",
+      "window_id": "1"
+    },
+    {
+      "id": "tab_2",
+      "url": "https://example.com/doc/2",
+      "title": "Test Page 2 on example.com",
+      "window_id": "1"
+    },
+    {
+      "id": "tab_3",
+      "url": "https://example.com/article/3",
+      "title": "Test Page 3 on example.com",
+      "window_id": "1"
+    },
+    {
+      "id": "tab_4",
+      "url": "https://docs.python.org/page/4",
+      "title": "Test Page 4 on docs.python.org",
+      "window_id": "1"
+    },
+    {
+      "id": "tab_5",
+      "url": "https://example.com/doc/5",
+      "title": "Test Page 5 on example.com",
+      "window_id": "1"
+    }
+  ],
+  "bookmarks": [
+    {
+      "id": "bookmark_1",
+      "url": "https://wikipedia.org/post/100",
+      "title": "Bookmark 1 on wikipedia.org",
+      "folder": "Research"
+    },
+    {
+      "id": "bookmark_2",
+      "url": "https://test.org/article/101",
+      "title": "Bookmark 2 on test.org",
+      "folder": "Research"
+    },
+    {
+      "id": "bookmark_3",
+      "url": "https://github.com/article/102",
+      "title": "Bookmark 3 on github.com",
+      "folder": "Work"
+    },
+    {
+      "id": "bookmark_4",
+      "url": "https://github.com/post/103",
+      "title": "Bookmark 4 on github.com",
+      "folder": "Personal"
+    },
+    {
+      "id": "bookmark_5",
+      "url": "https://github.com/article/104",
+      "title": "Bookmark 5 on github.com",
+      "folder": "Uncategorized"
+    },
+    {
+      "id": "bookmark_6",
+      "url": "https://test.org/doc/105",
+      "title": "Bookmark 6 on test.org",
+      "folder": "Work"
+    },
+    {
+      "id": "bookmark_7",
+      "url": "https://docs.python.org/article/106",
+      "title": "Bookmark 7 on docs.python.org",
+      "folder": "Uncategorized"
+    },
+    {
+      "id": "bookmark_8",
+      "url": "https://test.org/post/107",
+      "title": "Bookmark 8 on test.org",
+      "folder": "Personal"
+    },
+    {
+      "id": "bookmark_9",
+      "url": "https://test.org/page/108",
+      "title": "Bookmark 9 on test.org",
+      "folder": "Research"
+    },
+    {
+      "id": "bookmark_10",
+      "url": "https://example.com/doc/109",
+      "title": "Bookmark 10 on example.com",
+      "folder": "Work"
+    }
+  ],
+  "history": [],
+  "settings": {
+    "extension_enabled": true,
+    "auto_capture": true
+  }
+}

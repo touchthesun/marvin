@@ -1,0 +1,65 @@
+{
+  "default": {
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1741661521,
+    "model": "claude-3-opus-20240229",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "This is a default mock response from the test harness."
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 10,
+      "completion_tokens": 20,
+      "total_tokens": 30
+    }
+  },
+  "knowledge": {
+    "id": "chatcmpl-124",
+    "object": "chat.completion",
+    "created": 1741661521,
+    "model": "claude-3-opus-20240229",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Based on the knowledge graph, I found several related pages. The most relevant information indicates that this topic is related to software development best practices."
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 15,
+      "completion_tokens": 25,
+      "total_tokens": 40
+    }
+  },
+  "research": {
+    "id": "chatcmpl-125",
+    "object": "chat.completion",
+    "created": 1741661521,
+    "model": "claude-3-opus-20240229",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "I've researched this topic and found multiple sources discussing various approaches. The consensus appears to be that methodical testing and documentation are key factors for success."
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 20,
+      "completion_tokens": 30,
+      "total_tokens": 50
+    }
+  }
+}

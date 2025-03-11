@@ -110,7 +110,9 @@ class TestEnvironmentManager:
     async def _start_neo4j(self):
         """Start a Neo4j test instance based on configuration."""
         neo4j_config = self.config.neo4j
+        self.logger.info(f"Environment Neo4j config: {self.config.neo4j}")
         self.logger.debug(f"Starting Neo4j with config: {neo4j_config}")
+        self.logger.debug(f"Neo4j use_real setting: {neo4j_config.get('use_real', False)}")
 
         # Check if we should use real Neo4j
         if neo4j_config.get("use_real", False):

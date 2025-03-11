@@ -6,6 +6,7 @@ import traceback
 import logging
 from typing import List, Optional
 
+from test_harness.utils.generate_test_data import generate_test_data_files
 from core.utils.logger import get_logger
 from test_harness.config import load_test_config
 from test_harness.controller import TestHarnessController
@@ -35,22 +36,88 @@ async def run_tests(args: argparse.Namespace):
     # Set config overrides
     if args.use_real_api:
         logger.info("Using real API (command line override)")
-        config["use_real_api"] = True
+        config.use_real_api = True
     
     if args.use_docker:
         logger.info("Using Docker for services (command line override)")
-        config["use_docker"] = True
+        config.use_docker = True
     
+    # Handle Neo4j integration overrides
+    if args.use_real_neo4j:
+        logger.info("Using real Neo4j database (command line override)")
+        
+        # Initialize neo4j config dict if needed
+        if not hasattr(config, "neo4j") or config.neo4j is None:
+            config.neo4j = {}
+        
+        # Set use_real flag
+        config.neo4j["use_real"] = True
+        logger.debug(f"Set neo4j.use_real = {config.neo4j.get('use_real', False)}")
+        
+        # Ensure Neo4j credentials are copied to the neo4j dictionary
+        if hasattr(config, "neo4j_uri") and config.neo4j_uri:
+            config.neo4j["uri"] = config.neo4j_uri
+            logger.debug(f"Set neo4j.uri = {config.neo4j['uri']}")
+        if hasattr(config, "neo4j_username") and config.neo4j_username:
+            config.neo4j["username"] = config.neo4j_username
+            logger.debug(f"Set neo4j.username = {config.neo4j['username']}")
+        if hasattr(config, "neo4j_password") and config.neo4j_password:
+            config.neo4j["password"] = config.neo4j_password
+            logger.debug(f"Set neo4j.password = (password hidden)")
+        
+        # Update connection details if provided via command line
+        if args.neo4j_uri:
+            logger.info(f"Using Neo4j URI: {args.neo4j_uri}")
+            config.neo4j["uri"] = args.neo4j_uri
+            config.neo4j_uri = args.neo4j_uri  # Also update the base attribute
+            
+        if args.neo4j_username:
+            logger.info(f"Using Neo4j username: {args.neo4j_username}")
+            config.neo4j["username"] = args.neo4j_username
+            config.neo4j_username = args.neo4j_username
+            
+        if args.neo4j_password:
+            logger.info("Using provided Neo4j password")
+            config.neo4j["password"] = args.neo4j_password
+            config.neo4j_password = args.neo4j_password
+            
+        # Verify that we have the necessary credentials
+        if not config.neo4j.get("uri") or not config.neo4j.get("username") or not config.neo4j.get("password"):
+            logger.warning("Missing Neo4j credentials. Please provide URI, username, and password.")
+            if not config.neo4j.get("uri"):
+                logger.warning("Missing Neo4j URI")
+            if not config.neo4j.get("username"):
+                logger.warning("Missing Neo4j username")
+            if not config.neo4j.get("password"):
+                logger.warning("Missing Neo4j password")
+        else:
+            logger.debug(f"Neo4j connection details: URI={config.neo4j['uri']}, username={config.neo4j['username']}")
+
+    
+    # Set report directory if specified
     if args.report_dir:
         logger.info(f"Using custom report directory: {args.report_dir}")
-        if "reporting" not in config:
-            config["reporting"] = {}
-        config["reporting"]["report_dir"] = args.report_dir
+        if not hasattr(config, "reporting") or config.reporting is None:
+            config.reporting = {}
+        config.reporting["report_dir"] = args.report_dir
+
+    # Generate test data if requested
+    if args.generate_test_data:
+        logger.info(f"Generating test data in {args.fixtures_dir}")
+        try:
+
+            generate_test_data_files(args.fixtures_dir, args.num_pages)
+            logger.info("Test data generation complete")
+        except Exception as e:
+            logger.error(f"Error generating test data: {str(e)}")
+            logger.error(traceback.format_exc())
+            if args.fail_on_error:
+                return 1
 
     try:
         # Initialize controller
         logger.info("Initializing test harness controller")
-        controller = TestHarnessController(args.config)
+        controller = TestHarnessController(config)
         await controller.initialize()
 
         # Run diagnostics if requested
@@ -64,6 +131,32 @@ async def run_tests(args: argparse.Namespace):
                 logger.info("Shutting down test harness after diagnostics")
                 await controller.shutdown()
                 return 0
+        
+        # Verify Neo4j connection if using real Neo4j
+        if args.use_real_neo4j and args.verify_neo4j:
+            logger.info("Verifying Neo4j connection")
+            neo4j_component = controller.components.get("neo4j")
+            if neo4j_component:
+                try:
+                    # Run a simple query to verify connection
+                    result = await neo4j_component.execute_query("RETURN 1 as test")
+                    if result and len(result) > 0 and result[0].get("test") == 1:
+                        logger.info("Neo4j connection verified successfully")
+                    else:
+                        logger.error("Neo4j connection verification failed")
+                        if args.fail_on_error:
+                            await controller.shutdown()
+                            return 1
+                except Exception as e:
+                    logger.error(f"Error verifying Neo4j connection: {str(e)}")
+                    if args.fail_on_error:
+                        await controller.shutdown()
+                        return 1
+            else:
+                logger.error("Neo4j component not found in test harness")
+                if args.fail_on_error:
+                    await controller.shutdown()
+                    return 1
         
         # Run scenarios
         if args.scenario:
@@ -139,12 +232,14 @@ def main(argv: Optional[List[str]] = None):
     """
     parser = argparse.ArgumentParser(description="Marvin Test Harness")
     
+    # Configuration options
     parser.add_argument(
         "--config", 
         default="config/test.json",
         help="Path to test configuration file"
     )
 
+    # Test execution options
     parser.add_argument(
         "--diagnostics",
         action="store_true",
@@ -156,6 +251,7 @@ def main(argv: Optional[List[str]] = None):
         help="Run a specific scenario (omit to run all or use with --diagnostics only)"
     )
     
+    # Test service options
     parser.add_argument(
         "--use-real-api", 
         action="store_true",
@@ -168,6 +264,62 @@ def main(argv: Optional[List[str]] = None):
         help="Use Docker for services like Neo4j"
     )
     
+    # Neo4j integration options
+    parser.add_argument(
+        "--use-real-neo4j",
+        action="store_true",
+        help="Use real Neo4j database instead of mock"
+    )
+    
+    parser.add_argument(
+        "--neo4j-uri",
+        help="Neo4j database URI (e.g., bolt://localhost:7687)"
+    )
+    
+    parser.add_argument(
+        "--neo4j-username",
+        help="Neo4j database username"
+    )
+    
+    parser.add_argument(
+        "--neo4j-password",
+        help="Neo4j database password"
+    )
+    
+    parser.add_argument(
+        "--verify-neo4j",
+        action="store_true",
+        help="Verify Neo4j connection before running tests"
+    )
+    
+    # Test data options
+    parser.add_argument(
+        "--generate-test-data",
+        action="store_true",
+        help="Generate test data before running tests"
+    )
+    
+    parser.add_argument(
+        "--fixtures-dir",
+        default="fixtures",
+        help="Directory for test fixtures"
+    )
+    
+    parser.add_argument(
+        "--num-pages",
+        type=int,
+        default=15,
+        help="Number of pages to generate for test data"
+    )
+    
+    # Error handling option
+    parser.add_argument(
+        "--fail-on-error",
+        action="store_true",
+        help="Exit immediately on setup errors"
+    )
+    
+    # Logging options
     parser.add_argument(
         "--log-level", 
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
