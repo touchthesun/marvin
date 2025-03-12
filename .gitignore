@@ -182,3 +182,4 @@ extension/node_modules
 
 # test harness config files may contain credentials
 test_harness/config/*
+fixtures/*

@@ -348,7 +348,7 @@ def main(argv: Optional[List[str]] = None):
     logger = get_logger("test", log_level)
     
     # Configure file logging
-    log_dir = args.log_dir or "logs"
+    log_dir = args.log_dir or "test_harness/logs"
     os.makedirs(log_dir, exist_ok=True)  # Create logs directory if it doesn't exist
 
     # Generate default log filename if none specified

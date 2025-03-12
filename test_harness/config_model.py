@@ -1,6 +1,16 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from core.utils.config_model import BaseConfig
+
+@dataclass
+class ContentWorkflowConfig:
+    """Configuration for content workflow tests."""
+    urls: List[str] = field(default_factory=list)
+    url_file: Optional[str] = None
+    expected_results: Optional[str] = None
+    max_wait_time: int = 60  # seconds
+    batch_size: int = 5
+
 
 @dataclass
 class TestConfig(BaseConfig):
@@ -54,6 +64,9 @@ class TestConfig(BaseConfig):
     # Reporting
     reporting: Dict[str, Any] = field(default_factory=lambda: {
         "generate_html": True,
-        "report_dir": "reports",
+        "report_dir": "test_harness/reports",
         "report_template": "templates/report.html"
     })
+
+    # Content workflow config
+    content_workflow: ContentWorkflowConfig = field(default_factory=ContentWorkflowConfig)
