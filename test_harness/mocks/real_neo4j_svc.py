@@ -356,3 +356,44 @@ class RealNeo4jService:
         except Exception as e:
             self.logger.error(f"Error creating test node: {str(e)}")
             raise
+
+
+    async def apply_schema(self, schema_script):
+        """Apply schema definitions to the database.
+        
+        Args:
+            schema_script: Path to Cypher script with schema definitions
+            
+        Returns:
+            Boolean indicating success
+        """
+        self.logger.info(f"Applying schema from {schema_script}")
+        
+        try:
+            # Check if file exists
+            if not os.path.exists(schema_script):
+                self.logger.error(f"Schema script file not found: {schema_script}")
+                return False
+                
+            # Read schema script
+            with open(schema_script, 'r') as f:
+                schema_cypher = f.read()
+            
+            # Split into statements (assumes ; as separator)
+            statements = [s.strip() for s in schema_cypher.split(';') if s.strip()]
+            
+            # Execute each statement
+            for i, statement in enumerate(statements):
+                try:
+                    await self.execute_query(statement)
+                    self.logger.debug(f"Executed schema statement {i+1}/{len(statements)}")
+                except Exception as e:
+                    self.logger.error(f"Error executing schema statement {i+1}: {str(e)}")
+                    self.logger.error(f"Statement: {statement}")
+                    raise
+            
+            self.logger.info(f"Successfully applied schema with {len(statements)} statements")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error applying schema: {str(e)}")
+            return False

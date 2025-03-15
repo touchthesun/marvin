@@ -13,7 +13,6 @@ from test_harness.mocks.mock_neo4j_service import BaseMockService
 
 
 
-
 class MockRequest:
     """Simple request class for mocking aiohttp requests."""
     
@@ -66,58 +65,86 @@ class RealAPIService(BaseMockService):
         Args:
             config: API configuration with connection details
         """
-
-        # Ensure API configuration exists
-        if "api" not in config:
-            config["api"] = {}
-        
-        # Apply defaults
-        for key, value in DEFAULT_API_CONFIG.items():
-            if key not in config["api"]:
-                config["api"][key] = value
-
         super().__init__(config)
-        self.uri = f"http://localhost:{config.get('port', 8000)}"
+        
+        # Get API config
+        api_config = config.get("api", {})
+        
+        # Get the base URL - either from config or construct from host/port
+        self.base_url = api_config.get("base_url", "http://localhost:8000")
+        
+        # Extract port from base_url if not explicitly provided
+        if "port" not in api_config and "://" in self.base_url:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(self.base_url)
+            if parsed_url.port:
+                api_config["port"] = parsed_url.port
+            else:
+                # Default ports based on scheme
+                api_config["port"] = 443 if parsed_url.scheme == "https" else 80
+        
+        # Override base_url if port is explicitly provided
+        explicit_port = api_config.get("port")
+        if explicit_port:
+            from urllib.parse import urlparse, urlunparse
+            parsed_url = urlparse(self.base_url)
+            if parsed_url.port != explicit_port:
+                # Reconstruct URL with new port
+                netloc = parsed_url.netloc.split(':')[0] + f":{explicit_port}"
+                parts = list(parsed_url)
+                parts[1] = netloc
+                self.base_url = urlunparse(tuple(parts))
+        
         self.admin_token = config.get("admin_token", "test-admin-token")
         self.api_process = None
         self.session = None
         
-        self.logger.debug(f"RealAPIService initialized with URI: {self.uri}")
+        # Get API path prefix
+        self.api_prefix = api_config.get("api_v1_str", "/api/v1")
+        
+        self.logger.info(f"RealAPIService initialized with URL: {self.base_url}")
     
     async def initialize(self):
-        """
-        Initialize the real API service.
-        
-        Returns:
-            Self for method chaining
-        """
+        """Initialize the real API service."""
         await super().initialize()
         
         try:
             # Create a session for API requests
-            self.logger.info(f"Initializing connection to real API at {self.uri}")
+            self.logger.info(f"Initializing connection to real API at {self.base_url}")
             self.session = aiohttp.ClientSession()
             
-            # Check if we need to start the API server
-            if self.config.get("start_api_server", False):
-                await self._start_api_server()
-            else:
-                # Verify API is reachable
-                self.logger.info("Checking if API server is already running")
+            # Check if the API server is running
+            health_endpoint = self.config.get("api", {}).get("health_endpoint", "/health")
+            max_attempts = 3
+            retry_delay = 1
+            
+            for attempt in range(max_attempts):
                 try:
-                    # Use the proper health endpoint path from your API
-                    async with self.session.get(f"{self.uri}/health", timeout=5) as response:
-                        if response.status == 200:
-                            self.logger.info("API server is running and reachable")
-                            health_data = await response.json()
-                            self.logger.debug(f"Health check response: {health_data}")
+                    health_url = f"{self.base_url}{health_endpoint}"
+                    self.logger.info(f"Checking if API server is reachable at {health_url} (attempt {attempt+1}/{max_attempts})")
+                    
+                    async with self.session.get(health_url, timeout=5) as response:
+                        if 200 <= response.status < 300:
+                            try:
+                                health_data = await response.json()
+                                self.logger.info(f"API server is running and reachable: {health_data}")
+                            except:
+                                # If not JSON, just log the status
+                                self.logger.info(f"API server is running and reachable (status: {response.status})")
+                            return self
                         else:
                             self.logger.warning(f"API server returned unexpected status: {response.status}")
                 except Exception as e:
-                    self.logger.error(f"API server is not reachable: {str(e)}")
-                    raise RuntimeError(f"API server at {self.uri} is not reachable")
+                    self.logger.warning(f"API connection attempt {attempt+1} failed: {str(e)}")
+                    if attempt < max_attempts - 1:
+                        self.logger.info(f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
             
-            return self
+            # If we get here, we couldn't connect
+            self.logger.error(f"Could not connect to API server at {self.base_url} after {max_attempts} attempts")
+            raise RuntimeError(f"API server at {self.base_url} is not reachable")
+                
         except Exception as e:
             self.logger.error(f"Failed to initialize real API service: {str(e)}")
             self.logger.error(traceback.format_exc())
@@ -125,9 +152,7 @@ class RealAPIService(BaseMockService):
             # Clean up any resources
             if self.session:
                 await self.session.close()
-            
-            if self.api_process:
-                self._stop_api_server()
+                self.session = None
             
             raise
     
@@ -254,6 +279,17 @@ class RealAPIService(BaseMockService):
         Returns:
             Response data
         """
+        # Ensure path starts with the correct API prefix
+        if not path.startswith(self.api_prefix) and not path.startswith('/'):
+            path = f"{self.api_prefix}/{path}"
+        elif not path.startswith(self.api_prefix) and not path.startswith(self.api_prefix[1:]):
+            path = f"{self.api_prefix}{path}"
+        
+        url = f"{self.base_url}{path}"
+        headers = headers or {}
+        
+        self.logger.debug(f"Sending {method} request to {url}")
+
         resolved_path = resolve_api_path(path, self.config)
         
         if resolved_path != path:
@@ -304,3 +340,18 @@ class RealAPIService(BaseMockService):
                     "message": f"Request failed: {str(e)}"
                 }
             }
+        
+    async def setup_test_auth(self):
+        """
+        Set up authentication for testing.
+        
+        Returns:
+            Admin token for use in tests
+        """
+        self.logger.info("Setting up test authentication with admin token")
+        return self.admin_token
+    
+    @property
+    def uri(self):
+        """Alias for base_url for compatibility with MockAPIService."""
+        return self.base_url

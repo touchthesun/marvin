@@ -10,7 +10,6 @@ from neo4j.exceptions import (
     ServiceUnavailable,
     SessionExpired,
 )
-
 from core.utils.logger import get_logger
 
 
@@ -38,11 +37,16 @@ class Transaction:
         self.logger.debug(f"Initialized new database transaction: {self._neo4j_tx}")
 
     async def set_db_transaction(self, tx: neo4j.AsyncTransaction):
-        """Set the underlying database transaction."""
-        self.logger.debug(f"Setting database transaction of type: {type(tx)}")
-        if tx is None:
-            raise ValueError("Cannot set None as database transaction")
-        self._neo4j_tx = tx
+        """Set the underlying database transaction with enhanced error handling."""
+        try:
+            self.logger.debug(f"Setting database transaction of type: {type(tx)}")
+            if tx is None:
+                raise ValueError("Cannot set None as database transaction")
+            self._neo4j_tx = tx
+            self.logger.debug("Database transaction set successfully")
+        except Exception as e:
+            self.logger.error(f"Error setting database transaction: {str(e)}", exc_info=True)
+            raise
 
     async def commit(self):
         """Commit the transaction."""
@@ -74,20 +78,27 @@ class Transaction:
             await self._cleanup()
 
     async def _cleanup(self):
-        """Clean up database resources."""
+        """Clean up database resources with better error handling."""
         try:
+            if self._neo4j_tx:
+                self.logger.debug("Clearing transaction reference")
+                self._neo4j_tx = None
+                
             if self._neo4j_session:
-                await self._neo4j_session.close()
-                self._neo4j_session = None
-            self._neo4j_tx = None
+                self.logger.debug("Closing database session")
+                try:
+                    await self._neo4j_session.close()
+                    self.logger.debug("Session closed successfully")
+                except Exception as e:
+                    self.logger.error(f"Error closing session: {str(e)}")
+                finally:
+                    self._neo4j_session = None
         except Exception as e:
-            self.logger.error(f"Error during cleanup: {str(e)}")
+            self.logger.error(f"Error during resource cleanup: {str(e)}")
 
     def add_rollback_handler(self, handler):
         """Add a rollback handler to be called on transaction failure."""
         self._rollback_handlers.append(handler)
-
-
 
 
 @dataclass
@@ -232,3 +243,32 @@ class TransactionManager:
             })
 
         self.logger.error("Max retries exceeded in transaction", extra=extra)
+
+    async def get_transaction(self, read_only: bool = False, transaction_id: Optional[str] = None):
+        """Compatibility method for older code that expects get_transaction."""
+        self.logger.warning("Deprecated: get_transaction() called, use execute_in_transaction() instead")
+        
+        # Create a proper async context manager
+        class TransactionContext:
+            def __init__(self, tx_manager, read_only, tx_id):
+                self.tx_manager = tx_manager
+                self.read_only = read_only
+                self.tx_id = tx_id
+                self.tx = Transaction()
+                
+            async def __aenter__(self):
+                # Here we could create a real DB transaction if needed
+                # For now, just return a simple Transaction object
+                return self.tx
+                
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                # Handle cleanup here
+                if exc_type:
+                    # There was an exception, could handle rollback
+                    pass
+                else:
+                    # No exception, could handle commit
+                    pass
+                
+        # Return an instance of the context manager
+        return TransactionContext(self, read_only, transaction_id)

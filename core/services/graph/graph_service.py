@@ -556,3 +556,12 @@ class GraphService(BaseService):
                 cause=e
             )
 
+    async def check_task_exists(self, task_id):
+        """Check if a task exists in the database."""
+        result = await self.execute_query(
+            "MATCH (t:Task {id: $task_id}) RETURN count(t) as count",
+            {"task_id": task_id}
+        )
+        exists = result[0]["count"] > 0
+        self.logger.info(f"Task {task_id} exists in database: {exists}")
+        return exists

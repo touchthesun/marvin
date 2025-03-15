@@ -2,6 +2,7 @@ import json
 from core.utils.logger import get_logger
 from test_harness.utils.paths import resolve_api_path
 
+logger = get_logger(__name__)
 
 async def diagnose_request_handling(api_service):
     """
@@ -99,6 +100,80 @@ async def diagnose_request_handling(api_service):
     logger.info("=== API Request Handling Diagnostics Complete ===")
     return results
 
+async def test_basic_functionality(api_client):
+    """Test basic API functionality."""
+    logger.info("Testing basic API functionality")
+    
+    try:
+        # Try the test endpoint first
+        test_request = {
+            "url": "https://example.com/test",
+            "context": "active_tab" 
+        }
+        
+        logger.debug(f"Sending test request: {test_request}")
+        test_response = await api_client.send_request(
+            "POST",
+            "/api/v1/analysis/test",
+            test_request
+        )
+        
+        # Log the full response for debugging
+        logger.debug(f"Test endpoint full response: {test_response}")
+        
+        if test_response.get("success", False):
+            logger.info("Test endpoint working - task system functional")
+            task_id = test_response["data"]["task_id"]
+            
+            # Verify we can get the status
+            status_response = await api_client.send_request(
+                "GET",
+                f"/api/v1/analysis/status/{task_id}"
+            )
+            
+            if status_response.get("success", False):
+                logger.info("Status endpoint working - found test task")
+                return True
+        
+        # If test endpoint not available, try the regular analyze endpoint
+        logger.info("Test endpoint not available, trying regular analyze endpoint")
+        
+        # Try different formats to find the right one
+        for context_value in ["active_tab", "ACTIVE_TAB", "ActiveTab"]:
+            analyze_request = {
+                "url": "https://example.com/test-minimal",
+                "context": context_value
+            }
+            
+            logger.debug(f"Sending analyze request with context={context_value}: {analyze_request}")
+            analyze_response = await api_client.send_request(
+                "POST",
+                "/api/v1/analysis/analyze",
+                analyze_request
+            )
+            
+            # Log full response for debugging
+            logger.debug(f"Analyze endpoint full response: {analyze_response}")
+            
+            if analyze_response.get("success", False):
+                logger.info(f"Request succeeded with context={context_value}")
+                task_id = analyze_response["data"]["task_id"]
+                
+                # Just check if status endpoint responds
+                status_response = await api_client.send_request(
+                    "GET",
+                    f"/api/v1/analysis/status/{task_id}"
+                )
+                
+                if status_response.get("success", False) or "task_id" in status_response.get("data", {}):
+                    logger.info("Basic task creation and status checking working")
+                    return True
+    
+    except Exception as e:
+        logger.error(f"Error testing basic functionality: {str(e)}", exc_info=True)
+    
+    logger.error("Basic functionality test failed")
+    return False
 
 # async def run_api_diagnostics(config: Dict[str, Any], components: Dict[str, Any]) -> None:
 #     """

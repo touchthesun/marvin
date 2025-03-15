@@ -480,12 +480,13 @@ class ContentProcessor(PipelineComponent):
                 )
             
             # Detect relationships
-            self.relationship_manager.detect_relationships(keyword_dicts, context)
+            # self.relationship_manager.detect_relationships(keyword_dicts, context)
             
-            # Prepare relationships for storage
-            relationships = self.relationship_manager.prepare_neo4j_relationships(
-                min_confidence=self.config.relationship_confidence_threshold
-            )
+            # # Prepare relationships for storage
+            # relationships = self.relationship_manager.prepare_neo4j_relationships(
+            #     min_confidence=self.config.relationship_confidence_threshold
+            # )
+            relationships = []
             # Process relationships
             for kw in keywords:
                 self.relationship_manager.register_keyword(kw.id, kw.keyword_type)

@@ -11,6 +11,7 @@ from aiohttp import web
 from test_harness.utils.paths import resolve_api_path
 from test_harness.utils.helpers import find_free_port
 from test_harness.mocks.mock_neo4j_service import BaseMockService
+from test_harness.mocks.api.mock_request import MockRequest
 
 
 # Default configuration

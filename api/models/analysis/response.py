@@ -32,8 +32,6 @@ class TaskResponseData(BaseModel):
     success: bool = True
     error: Optional[str] = None
 
-# Type aliases for different response types
-# TaskResponse = APIResponse[TaskData]
 
 TaskResponse = APIResponse[TaskResponseData]
 TaskDetailResponse = APIResponse[TaskDetails]

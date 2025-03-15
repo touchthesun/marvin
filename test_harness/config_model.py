@@ -49,9 +49,9 @@ class TestConfig(BaseConfig):
     
     # Test fixtures
     fixtures: Dict[str, Any] = field(default_factory=lambda: {
-        "dir": "fixtures",
-        "pages_dir": "fixtures/pages",
-        "graph_data": "fixtures/graph_data.json"
+        "dir": "test_harness/fixtures",
+        "pages_dir": "test_harness/fixtures/pages",
+        "graph_data": "test_harness/fixtures/graph_data.json"
     })
     
     # Test scenarios

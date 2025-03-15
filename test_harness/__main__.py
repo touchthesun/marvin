@@ -204,11 +204,28 @@ async def run_diagnostics(components):
     Returns:
         Diagnostic results
     """
-
     logger = get_logger("test_harness.main")
     logger.info("Running diagnostics...")
     
+    # Start with existing diagnostics
     results = await diagnose_request_handling(components.get("api"))
+    
+    # Add basic functionality test
+    api_component = components.get("api")
+    if api_component:
+        logger.info("Running basic API functionality test...")
+        try:
+            functionality_result = await test_basic_functionality(api_component)
+            results["basic_functionality"] = {
+                "success": functionality_result,
+                "message": "API task system functional" if functionality_result else "API task system not working correctly"
+            }
+        except Exception as e:
+            logger.error(f"Error running basic functionality test: {str(e)}")
+            results["basic_functionality"] = {
+                "success": False,
+                "message": f"Error: {str(e)}"
+            }
     
     # Log a summary of results
     logger.info("Diagnostic results summary:")

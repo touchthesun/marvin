@@ -212,7 +212,7 @@ class PipelineConfig:
             'initialize': StageConfig(timeout_seconds=5.0),
             'metadata': StageConfig(timeout_seconds=30.0),
             'content': StageConfig(timeout_seconds=60.0),
-            'analysis': StageConfig(timeout_seconds=120.0),
+            'analysis': StageConfig(timeout_seconds=60.0),
             'storage': StageConfig(timeout_seconds=30.0)
         }
         for stage, config in default_stages.items():

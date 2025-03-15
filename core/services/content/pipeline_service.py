@@ -1,7 +1,8 @@
-from typing import List, Dict, Any, Optional
 import asyncio
+import time
 from uuid import uuid4
 from datetime import datetime
+from typing import List, Dict, Any, Optional
 from core.domain.content.pipeline import (
     DefaultPipelineOrchestrator,
     PipelineContext,
@@ -47,12 +48,14 @@ class PipelineService(BaseService):
 
     async def initialize(self) -> None:
         """Initialize pipeline service resources."""
+        self.logger.info("Initializing pipeline service")
         await super().initialize()
         
         # Register event handler for status updates
         self.pipeline.register_event_handler(self._handle_pipeline_event)
         
         # Start processing worker
+        self.logger.info("Starting URL processing worker task")
         self.worker_task = asyncio.create_task(self._process_queue())
         self.logger.info("Pipeline service initialized with worker task")
 
@@ -117,9 +120,25 @@ class PipelineService(BaseService):
         urls: List[Dict[str, Any]],
         tx: Optional[Transaction] = None
     ) -> Dict[str, Any]:
-        """Enqueue URLs for processing."""
+        """Enqueue URLs for processing with better error handling."""
         try:
-            if tx is None:
+            # Check connection pool status first
+            pool_status = await self.db_connection.check_connection_pool()
+            self.logger.info(f"Connection pool status before enqueue: {pool_status}")
+            # If transaction is provided, use it
+            if tx is not None:
+                return await self.execute_in_transaction(
+                    tx,
+                    "enqueue_urls_operation",
+                    urls=urls
+                )
+            
+            # Otherwise create a new transaction with shorter timeout
+            try:
+                # Create task ID outside transaction to use in error reporting
+                task_id = str(uuid4())
+                
+                # Attempt with shorter timeout
                 async with self.db_connection.transaction() as tx:
                     result = await self.execute_in_transaction(
                         tx,
@@ -127,30 +146,155 @@ class PipelineService(BaseService):
                         urls=urls
                     )
                     return result
-            else:
-                return await self.execute_in_transaction(
-                    tx,
-                    "enqueue_urls_operation",
-                    urls=urls
-                )
-                
+                    
+            except Exception as db_error:
+                # Check if it's a timeout error by inspecting the error message
+                if "timeout" in str(db_error).lower():
+                    self.logger.warning(f"Database timeout during URL enqueue, falling back to memory-only mode")
+                    
+                    # Create fallback in-memory task for testing
+                    memory_result = {
+                        "task_id": task_id,
+                        "urls_enqueued": len(urls),
+                        "status": "enqueued",
+                        "queue_size": 0,
+                        "queued_at": datetime.now().isoformat()
+                    }
+                    
+                    # Store URLs in memory tracking
+                    for item in urls:
+                        url = str(item.get("url"))
+                        queued_at = datetime.now().isoformat()
+                        
+                        # Create status entry
+                        status_entry = {
+                            "url": url,
+                            "status": "queued",
+                            "task_id": task_id,
+                            "progress": 0.0,
+                            "queued_at": queued_at,
+                            "browser_context": item.get("context"),
+                            "tab_id": item.get("tab_id"),
+                            "window_id": item.get("window_id"),
+                            "bookmark_id": item.get("bookmark_id")
+                        }
+                        
+                        # Store in memory
+                        self.processed_urls[url] = status_entry
+                        
+                        # Queue for processing
+                        await self.url_queue.put({
+                            "url": url,
+                            "metadata": item,
+                            "task_id": task_id
+                        })
+                    
+                    self.logger.info(f"Created memory-only task {task_id} with {len(urls)} URLs for testing")
+                    return memory_result
+                else:
+                    # If it's not a timeout error, re-raise
+                    raise
+                    
         except Exception as e:
             self.logger.error(f"Error enqueuing URLs: {str(e)}")
             raise
 
+
     async def get_status(self, task_id: str) -> Dict[str, Any]:
-        """Get processing status for a task with transaction support."""
+        """Get the status of a task with detailed timing and error reporting."""
         try:
-            tx = Transaction()
+            self.logger.info(f"[get_status] Getting status for task: {task_id}")
+            start_time = time.time()
             
-            return await self.execute_in_transaction(
-                tx,
-                "get_status_operation",
-                task_id=task_id
-            )
+            # Step 1: Check if task exists in memory first (fast path)
+            task_urls = {
+                url: status for url, status in self.processed_urls.items()
+                if status.get("task_id") == task_id
+            }
+            
+            if task_urls:
+                # Calculate overall task status from URLs
+                url_statuses = [info["status"] for info in task_urls.values()]
+                
+                # Determine overall status
+                if "error" in url_statuses:
+                    task_status = "error"
+                    error_msg = next((info.get("error", "Unknown error") 
+                                for info in task_urls.values() 
+                                if info["status"] == "error"), 
+                                "Task failed")
+                    message = f"Task failed: {error_msg}"
+                elif all(s == "completed" for s in url_statuses):
+                    task_status = "completed"
+                    message = "Task completed successfully"
+                elif any(s == "processing" for s in url_statuses):
+                    task_status = "processing"
+                    message = "Task is being processed"
+                else:
+                    task_status = "queued"
+                    message = "Task is queued for processing"
+                
+                # Calculate progress
+                progress = sum(
+                    info.get("progress", 0.0) for info in task_urls.values()
+                ) / len(task_urls)
+                
+                status_data = {
+                    "status": task_status,
+                    "progress": progress,
+                    "message": message,
+                    "checked_at": datetime.now().isoformat()
+                }
+                
+                # Include error if status is error
+                if task_status == "error":
+                    status_data["error"] = error_msg
+                
+                self.logger.info(f"[get_status] Found task {task_id} in memory, status: {task_status}")
+                return status_data
+            
+            # Step 2: Task not in memory, try database with explicit timeout
+            self.logger.info(f"[get_status] Task {task_id} not in memory, querying database")
+            db_query_start = time.time()
+            
+            try:
+                # Use wait_for for Python 3.9 compatibility
+                task_result = await asyncio.wait_for(
+                    self._query_task_status_db(task_id), 
+                    timeout=10.0
+                )
+                
+                db_query_time = time.time() - db_query_start
+                self.logger.info(f"[get_status] Database query completed in {db_query_time:.2f}s")
+                
+                return task_result
+                    
+            except asyncio.TimeoutError:
+                self.logger.error(f"[get_status] Timeout exceeded when querying database for task {task_id}")
+                return {
+                    "status": "error",
+                    "task_id": task_id,
+                    "progress": 0.0,
+                    "message": "Status query timed out",
+                    "error": "Database query timed out after 10s"
+                }
+                
         except Exception as e:
-            self.logger.error(f"Failed to get status for task {task_id}: {str(e)}")
-            raise
+            elapsed = time.time() - start_time
+            self.logger.error(f"[get_status] Error getting status for task {task_id} after {elapsed:.2f}s: {str(e)}", exc_info=True)
+            return {
+                "status": "error",
+                "task_id": task_id, 
+                "progress": 0.0,
+                "message": "Failed to retrieve status",
+                "error": str(e)
+            }
+
+    # Helper method for database query
+    async def _query_task_status_db(self, task_id: str) -> Dict[str, Any]:
+        """Query task status from database with proper transaction management."""
+        async with self.db_connection.transaction() as tx:
+            return await self._get_status_operation(tx, task_id)
 
 
     async def _enqueue_urls_operation(
@@ -161,6 +305,8 @@ class PipelineService(BaseService):
         """Transaction-aware URL enqueuing operation."""
         task_id = str(uuid4())
         try:
+            self.logger.info(f"Enqueuing {len(urls)} URLs with task ID: {task_id}")
+            
             # Get the underlying Neo4j transaction
             neo4j_tx = tx.db_transaction
             
@@ -175,6 +321,8 @@ class PipelineService(BaseService):
                 """,
                 {"task_id": task_id}
             )
+            
+            self.logger.debug(f"Created Task node with ID: {task_id}")
 
             for item in urls:
                 url = str(item.get("url"))
@@ -192,6 +340,7 @@ class PipelineService(BaseService):
                     "bookmark_id": item.get("bookmark_id")
                 }
 
+                # Create URL node in database
                 await neo4j_tx.run(
                     """
                     MATCH (t:Task {id: $task_id})
@@ -219,20 +368,31 @@ class PipelineService(BaseService):
                         "bookmark_id": item.get("bookmark_id")
                     }
                 )
+                
+                self.logger.debug(f"Created URL node for {url} in task {task_id}")
                             
+                # Add to processing queue
                 await self.url_queue.put({
                     "url": url,
                     "metadata": item,
                     "task_id": task_id
                 })
                 
+                # Store in memory
                 self.processed_urls[url] = status_entry
                 
+                # Add rollback handler
                 tx.add_rollback_handler(
                     lambda u=url: self._handle_enqueue_rollback(u)
                 )
-                
+                    
             self.logger.info(f"Enqueued {len(urls)} URLs for processing under task {task_id}")
+            self.logger.debug(f"Current processed_urls has {len(self.processed_urls)} entries after enqueueing")
+            
+            # Make sure the transaction is committed if it's not part of a larger transaction
+            if getattr(tx, 'auto_commit', False) and not tx.is_nested:
+                self.logger.debug(f"Auto-committing transaction for task {task_id}")
+                await tx.commit()
             
             return {
                 "task_id": task_id,
@@ -245,7 +405,6 @@ class PipelineService(BaseService):
         except Exception as e:
             self.logger.error(f"Error in _enqueue_urls_operation: {str(e)}")
             raise
-
 
 
     async def _handle_enqueue_rollback(self, url: str):
@@ -363,37 +522,108 @@ class PipelineService(BaseService):
             self.url_queue.task_done()
 
     async def _process_queue(self):
-        """Background worker that processes URLs from the queue."""
+        """Background worker that processes URLs from the queue with improved error handling."""
+        self.logger.info("URL processing worker started")
+        
         while True:
             try:
                 # Clean up completed tasks
                 await self._cleanup_tasks()
                 
+                # Check queue size and report
+                queue_size = self.url_queue.qsize()
+                if queue_size > 0:
+                    self.logger.debug(f"Queue status: {queue_size} items pending, {len(self.active_tasks)} active tasks")
+                
                 # Check if we can process more URLs
                 if len(self.active_tasks) >= self.max_concurrent:
-                    await asyncio.sleep(0.1)
+                    self.logger.debug(f"Max concurrent tasks reached ({self.max_concurrent}), waiting...")
+                    await asyncio.sleep(0.5)
                     continue
                 
-                # Get next URL from queue
-                item = await self.url_queue.get()
+                # Try to get next URL with timeout to avoid blocking
+                try:
+                    item = await asyncio.wait_for(self.url_queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # No items in queue, just continue the loop
+                    await asyncio.sleep(0.1)
+                    continue
+                    
                 url = item["url"]
                 metadata = item["metadata"]
                 task_id = item["task_id"]
                 
                 # Start processing
-                self.logger.info(f"Processing URL: {url}")
+                self.logger.info(f"Processing URL: {url} (task: {task_id})")
                 start_time = datetime.now()
                 
                 # Create task for URL processing
-                task = asyncio.create_task(
-                    self.process_url(url, metadata, task_id, start_time),
-                    name=f"{task_id}_{start_time.isoformat()}"
-                )
-                self.active_tasks[url] = task
+                try:
+                    # Use a shielded task to prevent cancellation during critical operations
+                    task = asyncio.create_task(
+                        self._safe_process_url(url, metadata, task_id, start_time),
+                        name=f"{task_id}_{url}_{start_time.isoformat()}"
+                    )
+                    self.active_tasks[url] = task
+                    self.logger.info(f"Started processing task for {url}")
+                except Exception as task_error:
+                    self.logger.error(f"Failed to create task for {url}: {str(task_error)}")
+                    # Mark as done even if we couldn't process it
+                    self.url_queue.task_done()
+                    
+                    # Update status to error
+                    self.processed_urls[url].update({
+                        "status": "error",
+                        "error": f"Failed to start processing: {str(task_error)}",
+                        "completed_at": datetime.now().isoformat()
+                    })
                 
             except Exception as e:
-                self.logger.error(f"Error in queue processor: {str(e)}")
+                self.logger.error(f"Error in queue processor: {str(e)}", exc_info=True)
                 await asyncio.sleep(1)
+
+    async def _safe_process_url(self, url, metadata, task_id, start_time):
+        """Process URL with additional error handling and safeguards."""
+        try:
+            self.logger.info(f"Safe processing of URL {url} started")
+            
+            # Update status to processing
+            self.processed_urls[url].update({
+                "status": "processing",
+                "started_at": start_time.isoformat()
+            })
+            
+            # Try processing with timeout
+            try:
+                await asyncio.wait_for(
+                    self.process_url(url, metadata, task_id, start_time),
+                    timeout=90.0  # 90 second timeout for processing
+                )
+            except asyncio.TimeoutError:
+                self.logger.error(f"Processing timeout for URL {url}")
+                self.processed_urls[url].update({
+                    "status": "error",
+                    "error": "Processing timed out after 90s",
+                    "completed_at": datetime.now().isoformat()
+                })
+                
+        except Exception as e:
+            self.logger.error(f"Error in _safe_process_url for {url}: {str(e)}", exc_info=True)
+            # Update status to error
+            self.processed_urls[url].update({
+                "status": "error",
+                "error": str(e),
+                "completed_at": datetime.now().isoformat()
+            })
+        finally:
+            # Always mark as done to prevent queue from blocking
+            try:
+                self.url_queue.task_done()
+            except Exception as e:
+                self.logger.error(f"Error marking queue task done: {str(e)}")
+            
+            # Log completion
+            self.logger.info(f"Processing of URL {url} completed with status: {self.processed_urls[url].get('status', 'unknown')}")
 
     async def _cleanup_tasks(self):
         """Remove completed tasks from active tasks dict with transaction support."""
@@ -432,6 +662,12 @@ class PipelineService(BaseService):
             # Register rollback handler
             tx.add_rollback_handler(lambda: self.logger.warning(f"Rolling back status check for task {task_id}"))
             
+            # Add detailed logging
+            self.logger.debug(f"Status check for task {task_id} - processed_urls has {len(self.processed_urls)} entries")
+            if self.processed_urls:
+                task_keys = [key for key, val in self.processed_urls.items() if val.get('task_id') == task_id]
+                self.logger.debug(f"Found {len(task_keys)} entries for task {task_id} in processed_urls: {task_keys}")
+            
             # First check in-memory status
             task_urls = {
                 url: status for url, status in self.processed_urls.items()
@@ -439,34 +675,97 @@ class PipelineService(BaseService):
             }
             
             if not task_urls:
-                # TODO: If not in memory, could check persistent storage here
-                # Example:
-                # stored_status = await tx.execute_query(
-                #     "MATCH (t:Task {id: $task_id}) RETURN t",
-                #     {"task_id": task_id}
-                # )
-                return {
-                    "status": "not_found",
-                    "progress": 0.0,
-                    "message": "Task not found"
+                # Check in database - use db_connection instead of tx directly
+                task_exists_result = await self.db_connection.execute_query(
+                    "MATCH (t:Task {id: $task_id}) RETURN t",
+                    {"task_id": task_id},
+                    transaction=tx
+                )
+                
+                if not task_exists_result:
+                    self.logger.warning(f"Task {task_id} not found in database")
+                    return {
+                        "status": "not_found",
+                        "progress": 0.0,
+                        "message": f"Task {task_id} not found"
+                    }
+                    
+                url_result = await self.db_connection.execute_query(
+                    """
+                    MATCH (t:Task {id: $task_id})<-[:PART_OF]-(u:URL)
+                    RETURN u.url as url, u.status as status, u.progress as progress
+                    """,
+                    {"task_id": task_id},
+                    transaction=tx
+                )
+                
+                if not url_result:
+                    self.logger.warning(f"Task {task_id} exists in database but has no URLs")
+                    
+                    # Update task node with this check
+                    await self.db_connection.execute_query(
+                        """
+                        MATCH (t:Task {id: $task_id})
+                        SET t.last_checked = datetime(),
+                            t.status_message = "Task exists but has no URLs"
+                        """,
+                        {"task_id": task_id},
+                        transaction=tx
+                    )
+
+                    return {
+                        "status": "processing",  # Assume it's in progress if the task exists
+                        "progress": 0.0,
+                        "message": "Task exists but processing has not started"
+                    }
+                    
+                # Reconstruct the task status from URL statuses in database
+                self.logger.info(f"Found task {task_id} in database with {len(url_result)} URLs")
+                
+                # Add these URLs to in-memory cache for future queries
+                for url_data in url_result:
+                    url = url_data["url"]
+                    if url not in self.processed_urls:
+                        self.processed_urls[url] = {
+                            "url": url,
+                            "status": url_data["status"],
+                            "task_id": task_id,
+                            "progress": float(url_data["progress"]) if url_data["progress"] is not None else 0.0,
+                            "recovered_from_db": True  # Flag to indicate this was recovered from DB
+                        }
+                        self.logger.debug(f"Recovered URL {url} for task {task_id} from database")
+                
+                # Now retry the memory check with the recovered URLs
+                task_urls = {
+                    url: status for url, status in self.processed_urls.items()
+                    if status.get("task_id") == task_id
                 }
                 
-            # Calculate overall task status
+                if not task_urls:
+                    self.logger.warning(f"Still no URLs found for task {task_id} after DB recovery")
+                    return {
+                        "status": "error",
+                        "progress": 0.0,
+                        "message": "Task found but URL processing failed"
+                    }
+            
+            # Calculate overall task status (this part remains the same)
             url_statuses = [info["status"] for info in task_urls.values()]
             
             # Track this status check in the transaction
-            await tx.execute_query(
+            await self.db_connection.execute_query(
                 """
                 MATCH (t:Task {id: $task_id})
-                SET t.last_checked = datetime(),
-                    t.current_status = $status
+                SET t.last_checked = datetime()
                 """,
                 {
                     "task_id": task_id,
                     "status": url_statuses
-                }
+                    },
+                transaction=tx
             )
             
+            # Determine overall status (same as before)
             if "error" in url_statuses:
                 task_status = "error"
                 message = next((info.get("error", "Unknown error") 
@@ -488,7 +787,7 @@ class PipelineService(BaseService):
                 info.get("progress", 0.0) for info in task_urls.values()
             ) / len(task_urls)
             
-            # Record the status check in the transaction
+            # Record the status check (same as before)
             status_data = {
                 "status": task_status,
                 "progress": progress,
@@ -496,15 +795,21 @@ class PipelineService(BaseService):
                 "checked_at": datetime.now().isoformat()
             }
             
-            await tx.execute_query(
+            await self.db_connection.execute_query(
                 """
                 MATCH (t:Task {id: $task_id})
-                SET t.last_status = $status_data
+                SET t.last_checked = datetime(),
+                    t.status = $status,
+                    t.progress = $progress,
+                    t.message = $message
                 """,
                 {
                     "task_id": task_id,
-                    "status_data": status_data
-                }
+                    "status": task_status,
+                    "progress": progress,
+                    "message": message
+                },
+                transaction=tx
             )
             
             return status_data

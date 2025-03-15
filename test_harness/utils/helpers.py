@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import asyncio
 import socket
 import traceback
@@ -135,3 +136,105 @@ async def wait_for_service(host: str, port: int, timeout: int = 30) -> bool:
     return False
 
 
+async def wait_for_task_completion(api_service, task_id, auth_token, max_wait=60, initial_interval=1):
+    """
+    Wait for a task to complete with improved error handling and backoff.
+    
+    Args:
+        api_service: API service to use for requests
+        task_id: Task ID to check
+        auth_token: Authentication token
+        max_wait: Maximum wait time in seconds
+        initial_interval: Initial polling interval in seconds
+        
+    Returns:
+        Final task status response
+    """
+    logger = get_logger("test.utils")
+    logger.info(f"Waiting for task {task_id} to complete (timeout: {max_wait}s)")
+    
+    start_time = time.time()
+    last_status = None
+    interval = initial_interval
+    not_found_count = 0
+    connection_error_count = 0
+    
+    while time.time() - start_time < max_wait:
+        try:
+            # Check task status using the correct API path
+            status_response = await api_service.send_request(
+                "GET",
+                f"/api/v1/analysis/status/{task_id}",
+                headers={"Authorization": f"Bearer {auth_token}"}
+            )
+            
+            # Reset connection error count on successful request
+            connection_error_count = 0
+            
+            last_status = status_response
+            
+            if not status_response.get("success", False):
+                # Check if this is a task not found error
+                data = status_response.get("data", {})
+                error_message = data.get("message", "")
+                
+                if "not found" in error_message.lower():
+                    not_found_count += 1
+                    if not_found_count >= 3:
+                        logger.error(f"Task {task_id} consistently not found after {not_found_count} attempts")
+                        return status_response
+                else:
+                    not_found_count = 0
+                
+                logger.warning(f"Error checking task status: {status_response}")
+                await asyncio.sleep(interval)
+                
+                # Increase interval with a cap
+                interval = min(interval * 1.5, 10)
+                continue
+            
+            # Reset not found counter on success
+            not_found_count = 0
+            
+            # Get status from response
+            data = status_response.get("data", {})
+            status = data.get("status")
+            
+            if status in ["completed", "error"]:
+                logger.info(f"Task {task_id} finished with status: {status}")
+                return status_response
+            
+            progress = data.get("progress", 0)
+            logger.debug(f"Task {task_id} in progress: {progress:.1%}")
+            
+            # Use progressive backoff for polling
+            await asyncio.sleep(interval)
+            interval = min(interval * 1.2, 10)  # More gradual backoff
+            
+        except Exception as e:
+            connection_error_count += 1
+            logger.warning(f"Connection error checking task status (attempt {connection_error_count}): {str(e)}")
+            
+            # If we've had multiple consecutive connection errors, 
+            # return a special response
+            if connection_error_count >= 3:
+                logger.error(f"Too many consecutive connection errors ({connection_error_count}), assuming API is unavailable")
+                return {
+                    "success": False,
+                    "error": {
+                        "error_code": "CONNECTION_ERROR",
+                        "message": f"API connection error: {str(e)}"
+                    }
+                }
+                
+            # Use shorter interval for connection errors
+            await asyncio.sleep(min(interval, 2))
+    
+    logger.warning(f"Timeout waiting for task {task_id} to complete after {max_wait}s")
+    return last_status or {
+        "success": False,
+        "error": {
+            "error_code": "TIMEOUT",
+            "message": f"Task {task_id} did not complete within {max_wait} seconds"
+        }
+    }
