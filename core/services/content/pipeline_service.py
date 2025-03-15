@@ -16,6 +16,7 @@ from core.domain.content.pipeline import (
 from core.infrastructure.database.transactions import Transaction
 from core.infrastructure.database.db_connection import DatabaseConnection
 from core.services.base import BaseService
+from core.infrastructure.storage.storage_components import Neo4jStorageComponent
 from core.domain.content.models.page import Page, BrowserContext, PageStatus
 from core.utils.logger import get_logger
 
@@ -47,17 +48,33 @@ class PipelineService(BaseService):
         self.db_connection = db_connection
 
     async def initialize(self) -> None:
-        """Initialize pipeline service resources."""
-        self.logger.info("Initializing pipeline service")
-        await super().initialize()
-        
-        # Register event handler for status updates
-        self.pipeline.register_event_handler(self._handle_pipeline_event)
-        
-        # Start processing worker
-        self.logger.info("Starting URL processing worker task")
-        self.worker_task = asyncio.create_task(self._process_queue())
-        self.logger.info("Pipeline service initialized with worker task")
+        """Initialize pipeline service resources with robust worker management."""
+        try:
+            self.logger.info("Initializing pipeline service")
+            await super().initialize()
+            
+            # Register event handler for status updates
+            self.pipeline.register_event_handler(self._handle_pipeline_event)
+
+            # Create and register the storage component
+            storage_component = Neo4jStorageComponent(self.db_connection)
+            self.context.component_coordinator.register_component(
+                storage_component, 
+                ProcessingStage.STORAGE
+            )
+            
+            # Start processing worker with monitoring
+            self.logger.info("Starting URL processing worker task")
+            self.worker_task = asyncio.create_task(self._process_queue())
+            
+            # Start worker monitor
+            self.logger.info("Starting worker monitor")
+            self.worker_monitor_task = asyncio.create_task(self._monitor_worker())
+            
+            self.logger.info("Pipeline service initialized with worker task and monitor")
+        except Exception as e:
+            self.logger.error(f"Error initializing pipeline service: {str(e)}", exc_info=True)
+            raise
 
     def _handle_pipeline_event(self, event: ProcessingEvent):
         """Handle pipeline events to update task status."""
@@ -78,15 +95,26 @@ class PipelineService(BaseService):
             "message": event.message,
             "page_status": page.status.value,
             "browser_contexts": [ctx.value for ctx in page.browser_contexts],
-            "last_active": page.last_active.isoformat() if page.last_active else None
+            "last_active": page.metadata.last_accessed.isoformat() if page.metadata.last_accessed else None
         }
         
         if event.stage == ProcessingStage.ERROR:
             status_update["error"] = event.message
             if page.errors:
                 status_update["page_errors"] = page.errors
-            
+
         self.processed_urls[url].update(status_update)
+
+        if event.stage == ProcessingStage.COMPLETE:
+            url = page.url
+            if url in self.processed_urls:
+                self.processed_urls[url].update({
+                    "status": "completed",
+                    "progress": 1.0,
+                    "message": "Processing complete"
+                })
+            
+
 
     def _map_stage_to_status(self, stage: ProcessingStage) -> str:
         """Map pipeline stages to task statuses."""
@@ -420,6 +448,70 @@ class PipelineService(BaseService):
         except asyncio.QueueEmpty:
             pass
 
+    async def _update_task_status_operation(
+        self,
+        tx: Transaction,
+        task_id: str
+    ) -> None:
+        """Update task status based on its URLs."""
+        try:
+            # Get all URLs for this task
+            urls_result = await self.db_connection.execute_query(
+                """
+                MATCH (t:Task {id: $task_id})<-[:PART_OF]-(u:URL)
+                RETURN u.url as url, u.status as status, u.progress as progress
+                """,
+                {"task_id": task_id},
+                transaction=tx
+            )
+            
+            if not urls_result:
+                self.logger.warning(f"No URLs found for task {task_id}")
+                return
+            
+            # Calculate task status based on URLs
+            statuses = [record["status"] for record in urls_result]
+            progresses = [float(record["progress"] or 0.0) for record in urls_result]
+            
+            overall_progress = sum(progresses) / len(progresses)
+            
+            if "error" in statuses:
+                task_status = "error"
+                message = "Error processing task"
+            elif all(s == "completed" for s in statuses):
+                task_status = "completed"
+                message = "Task completed successfully"
+            elif any(s == "processing" for s in statuses):
+                task_status = "processing"
+                message = "Task is being processed"
+            else:
+                task_status = "queued"
+                message = "Task is queued for processing"
+            
+            # Update task in database
+            await self.db_connection.execute_query(
+                """
+                MATCH (t:Task {id: $task_id})
+                SET t.status = $status,
+                    t.progress = $progress,
+                    t.message = $message,
+                    t.updated_at = datetime()
+                """,
+                {
+                    "task_id": task_id,
+                    "status": task_status,
+                    "progress": overall_progress,
+                    "message": message
+                },
+                transaction=tx
+            )
+            
+            self.logger.info(f"Updated task {task_id} status to {task_status} with progress {overall_progress:.2f}")
+            
+        except Exception as e:
+            self.logger.error(f"Error updating task status: {str(e)}")
+            raise
+
     async def _process_url_operation(
         self,
         tx: Transaction,
@@ -429,15 +521,28 @@ class PipelineService(BaseService):
         start_time: datetime
     ) -> None:
         """Internal transaction-aware URL processing."""
+        self.logger.warning(f"<<<< _process_url_operation CALLED for URL {url} >>>>")
+
         try:
             self.logger.info(f"Starting processing of URL {url} for task {task_id}")
             self.logger.debug(f"Processing metadata: {metadata}")
             
-            # Update status to processing within transaction
-            self.processed_urls[url].update({
-                "status": "processing",
-                "started_at": start_time.isoformat()
-            })
+            # Check if URL exists in processed_urls
+            if url not in self.processed_urls:
+                self.logger.warning(f"URL {url} not found in processed_urls, adding it now")
+                self.processed_urls[url] = {
+                    "url": url,
+                    "status": "processing",
+                    "task_id": task_id,
+                    "progress": 0.0,
+                    "started_at": start_time.isoformat()
+                }
+            else:
+                # Update status to processing within transaction
+                self.processed_urls[url].update({
+                    "status": "processing",
+                    "started_at": start_time.isoformat()
+                })
             
             # Set up browser context
             context = BrowserContext(metadata.get("context", "ACTIVE_TAB"))
@@ -450,42 +555,84 @@ class PipelineService(BaseService):
                 lambda: self.processed_urls[url].update({
                     "status": "error",
                     "error": "Transaction rolled back"
-                })
+                }) if url in self.processed_urls else None
             )
             
             # Process through pipeline
             result: Page = await self.pipeline.process_page(url, None)
             
             # Update browser context on the resulting Page object
+            self.logger.debug(f"Updating browser contexts for page {result.id} with context {context}")
             result.update_browser_contexts(
                 context=context,
                 tab_id=tab_id,
                 window_id=window_id,
                 bookmark_id=bookmark_id
             )
+            self.logger.debug(f"Browser contexts updated for page {result.id}")
+
             
             # Record visit if it's an active tab
             if context in [BrowserContext.ACTIVE_TAB, BrowserContext.OPEN_TAB]:
                 result.record_visit(tab_id=tab_id, window_id=window_id)
             
-            # Update final status within transaction
-            status_update = {
-                "status": "completed",
-                "completed_at": datetime.now().isoformat(),
-                "progress": 1.0,
-                "page_status": result.status.value,
-                "browser_contexts": [ctx.value for ctx in result.browser_contexts],
-                "last_accessed": result.metadata.last_accessed.isoformat() if result.metadata.last_accessed else None,
-                "title": result.title,
-                "metrics": {
-                    "quality_score": result.metadata.metrics.quality_score,
-                    "relevance_score": result.metadata.metrics.relevance_score,
-                    "visit_count": result.metadata.metrics.visit_count,
-                    "processing_time": result.metadata.metrics.processing_time
+            if url not in self.processed_urls:
+                self.logger.warning(f"URL {url} not found in processed_urls, re-adding it")
+                self.processed_urls[url] = {
+                    "url": url,
+                    "status": "processing",
+                    "task_id": task_id,
+                    "progress": 0.8,  # We're at storage stage
                 }
-            }
-            self.processed_urls[url].update(status_update)
 
+            url_update_tx = Transaction()
+            await url_update_tx.initialize_db_transaction(self.db_connection._driver.session())
+            
+            try:
+                # Update the URL status in the database with a fresh transaction
+                await self.db_connection.execute_query(
+                    """
+                    MATCH (u:URL {url: $url})
+                    SET u.status = 'completed',
+                        u.progress = 1.0,
+                        u.completed_at = datetime()
+                    """,
+                    {"url": url},
+                    transaction=url_update_tx
+                )
+                
+                # Update task status
+                await self._update_task_status_operation(url_update_tx, task_id)
+                
+                # Commit the transaction
+                await url_update_tx.commit()
+                
+                # Update final status within memory
+                status_update = {
+                    "status": "completed",
+                    "completed_at": datetime.now().isoformat(),
+                    "progress": 1.0,
+                    "page_status": result.status.value,
+                    "browser_contexts": [ctx.value for ctx in result.browser_contexts],
+                    "last_accessed": result.metadata.last_accessed.isoformat() if result.metadata.last_accessed else None,
+                    "title": result.title if hasattr(result, 'title') else "",
+                    "metrics": {
+                        "quality_score": result.metadata.metrics.quality_score,
+                        "relevance_score": result.metadata.metrics.relevance_score,
+                        "visit_count": result.metadata.metrics.visit_count,
+                        "processing_time": result.metadata.metrics.processing_time
+                    }
+                }
+                
+                if url in self.processed_urls:
+                    self.processed_urls[url].update(status_update)
+                
+            except Exception as tx_error:
+                # Rollback if something goes wrong
+                self.logger.error(f"Error updating URL status: {str(tx_error)}")
+                await url_update_tx.rollback()
+                raise
+                
         except Exception as e:
             self.logger.error(f"Error processing URL {url}: {str(e)}", exc_info=True)
             raise
@@ -518,112 +665,143 @@ class PipelineService(BaseService):
                 "page_status": PageStatus.ERROR.value
             })
             raise
-        finally:
-            self.url_queue.task_done()
 
     async def _process_queue(self):
-        """Background worker that processes URLs from the queue with improved error handling."""
-        self.logger.info("URL processing worker started")
-        
-        while True:
-            try:
-                # Clean up completed tasks
-                await self._cleanup_tasks()
-                
-                # Check queue size and report
-                queue_size = self.url_queue.qsize()
-                if queue_size > 0:
-                    self.logger.debug(f"Queue status: {queue_size} items pending, {len(self.active_tasks)} active tasks")
-                
-                # Check if we can process more URLs
-                if len(self.active_tasks) >= self.max_concurrent:
-                    self.logger.debug(f"Max concurrent tasks reached ({self.max_concurrent}), waiting...")
-                    await asyncio.sleep(0.5)
-                    continue
-                
-                # Try to get next URL with timeout to avoid blocking
-                try:
-                    item = await asyncio.wait_for(self.url_queue.get(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    # No items in queue, just continue the loop
-                    await asyncio.sleep(0.1)
-                    continue
-                    
-                url = item["url"]
-                metadata = item["metadata"]
-                task_id = item["task_id"]
-                
-                # Start processing
-                self.logger.info(f"Processing URL: {url} (task: {task_id})")
-                start_time = datetime.now()
-                
-                # Create task for URL processing
-                try:
-                    # Use a shielded task to prevent cancellation during critical operations
-                    task = asyncio.create_task(
-                        self._safe_process_url(url, metadata, task_id, start_time),
-                        name=f"{task_id}_{url}_{start_time.isoformat()}"
-                    )
-                    self.active_tasks[url] = task
-                    self.logger.info(f"Started processing task for {url}")
-                except Exception as task_error:
-                    self.logger.error(f"Failed to create task for {url}: {str(task_error)}")
-                    # Mark as done even if we couldn't process it
-                    self.url_queue.task_done()
-                    
-                    # Update status to error
-                    self.processed_urls[url].update({
-                        "status": "error",
-                        "error": f"Failed to start processing: {str(task_error)}",
-                        "completed_at": datetime.now().isoformat()
-                    })
-                
-            except Exception as e:
-                self.logger.error(f"Error in queue processor: {str(e)}", exc_info=True)
-                await asyncio.sleep(1)
-
-    async def _safe_process_url(self, url, metadata, task_id, start_time):
-        """Process URL with additional error handling and safeguards."""
+        """Background worker that processes URLs from the queue with improved error handling and logging."""
         try:
-            self.logger.info(f"Safe processing of URL {url} started")
+            self.logger.info("URL processing worker started")
             
-            # Update status to processing
-            self.processed_urls[url].update({
-                "status": "processing",
-                "started_at": start_time.isoformat()
-            })
+            while True:
+                try:
+                    # Clean up completed tasks - wrap in try/except to prevent failure
+                    try:
+                        await self._cleanup_tasks()
+                    except Exception as cleanup_error:
+                        self.logger.error(f"Error cleaning up tasks: {str(cleanup_error)}", exc_info=True)
+                    
+                    # Log queue status at a lower frequency to avoid log spam
+                    queue_size = self.url_queue.qsize()
+                    active_tasks_count = len(self.active_tasks)
+                    if queue_size > 0:
+                        self.logger.info(f"Queue status: {queue_size} items pending, {active_tasks_count} active tasks")
+                    
+                    # Check if we can process more URLs
+                    if active_tasks_count >= self.max_concurrent:
+                        self.logger.debug(f"Max concurrent tasks reached ({self.max_concurrent}), waiting...")
+                        await asyncio.sleep(0.5)
+                        continue
+                    
+                    # Try to get next URL with timeout to avoid blocking
+                    item = None
+                    try:
+                        # More explicit error handling with debug info
+                        self.logger.debug(f"Attempting to get item from queue (size: {queue_size})")
+                        item = await asyncio.wait_for(self.url_queue.get(), timeout=1.0)
+                        self.logger.debug(f"Got item from queue: {item.get('url', 'unknown')}")
+                    except asyncio.TimeoutError:
+                        # No items in queue, just continue
+                        await asyncio.sleep(0.1)
+                        continue
+                    except Exception as queue_error:
+                        self.logger.error(f"Error getting item from queue: {str(queue_error)}", exc_info=True)
+                        await asyncio.sleep(0.5)
+                        continue
+                    
+                    # Process item if we got one
+                    if item:
+                        url = item.get("url", "unknown")
+                        metadata = item.get("metadata", {})
+                        task_id = item.get("task_id", "unknown")
+                        is_recovered = item.get("recovered", False)
+                        self.logger.info(f"Processing {url} (recovered: {is_recovered}) from queue")
+                        
+                        self.logger.info(f"Dequeued item for processing: {url} (task: {task_id})")
+                        
+                        # Process the URL
+                        try:
+                            # Update status to processing
+                            if url in self.processed_urls:
+                                self.processed_urls[url].update({
+                                    "status": "processing",
+                                    "started_at": datetime.now().isoformat()
+                                })
+                            
+                            # Create task for URL processing
+                            task = asyncio.create_task(
+                                self._direct_process_url(url, metadata, task_id),  # New method that doesn't call task_done
+                                name=f"process_url_{task_id}_{url}"
+                            )
+                            self.active_tasks[url] = task
+                            self.logger.info(f"Created processing task for URL: {url}")
+                            
+                        except Exception as process_error:
+                            self.logger.error(f"Failed to create task for URL {url}: {str(process_error)}", exc_info=True)
+                            
+                            # Update status to error
+                            if url in self.processed_urls:
+                                self.processed_urls[url].update({
+                                    "status": "error",
+                                    "error": f"Failed to start processing: {str(process_error)}",
+                                    "completed_at": datetime.now().isoformat()
+                                })
+                        
+                        # CRITICAL: Always mark the task as done exactly once
+                        self.logger.debug(f"Marking URL {url} as done in queue")
+                        self.url_queue.task_done()
+                    
+                except Exception as worker_error:
+                    self.logger.error(f"Error in worker loop: {str(worker_error)}", exc_info=True)
+                    await asyncio.sleep(1)  # Shorter delay to recover faster
+                    # Continue the outer loop to keep the worker running
+        
+        except Exception as fatal_error:
+            # This should catch any unhandled exceptions in the outer loop
+            self.logger.critical(f"Fatal error in URL processor worker: {str(fatal_error)}", exc_info=True)
+            # Exit the method, allowing the monitor to restart it
+
+    async def _direct_process_url(self, url, metadata, task_id):
+        """Direct URL processing without queue management."""
+        start_time = datetime.now()
+        try:
+            is_recovered = metadata.get("recovered", False)
+            self.logger.info(f"Processing URL {url} for task {task_id} (recovered: {is_recovered})")
             
-            # Try processing with timeout
+            # Debug current status
+            if url in self.processed_urls:
+                current_status = self.processed_urls[url].get("status", "unknown")
+                self.logger.info(f"Current status before processing: {current_status}")
+            else:
+                self.logger.warning(f"URL {url} not in processed_urls at start of _direct_process_url")
+            
+            # Create a transaction and process
+            tx = Transaction()
+            
             try:
-                await asyncio.wait_for(
-                    self.process_url(url, metadata, task_id, start_time),
-                    timeout=90.0  # 90 second timeout for processing
+                # Let the operation method handle all the details
+                await self.execute_in_transaction(
+                    tx,
+                    "process_url_operation",
+                    url=url,                   
+                    metadata=metadata,
+                    task_id=task_id,
+                    start_time=start_time
                 )
-            except asyncio.TimeoutError:
-                self.logger.error(f"Processing timeout for URL {url}")
+                
+                self.logger.info(f"Successfully processed URL {url}")
+            except Exception as tx_error:
+                self.logger.error(f"Transaction failed for URL {url}: {str(tx_error)}", exc_info=True)
+                raise
+                    
+        except Exception as e:
+            self.logger.error(f"Error processing URL {url}: {str(e)}", exc_info=True)
+            
+            # Ensure status is updated to error if we have the URL
+            if url in self.processed_urls:
                 self.processed_urls[url].update({
                     "status": "error",
-                    "error": "Processing timed out after 90s",
+                    "error": str(e),
                     "completed_at": datetime.now().isoformat()
                 })
-                
-        except Exception as e:
-            self.logger.error(f"Error in _safe_process_url for {url}: {str(e)}", exc_info=True)
-            # Update status to error
-            self.processed_urls[url].update({
-                "status": "error",
-                "error": str(e),
-                "completed_at": datetime.now().isoformat()
-            })
-        finally:
-            # Always mark as done to prevent queue from blocking
-            try:
-                self.url_queue.task_done()
-            except Exception as e:
-                self.logger.error(f"Error marking queue task done: {str(e)}")
-            
-            # Log completion
-            self.logger.info(f"Processing of URL {url} completed with status: {self.processed_urls[url].get('status', 'unknown')}")
 
     async def _cleanup_tasks(self):
         """Remove completed tasks from active tasks dict with transaction support."""
@@ -657,16 +835,13 @@ class PipelineService(BaseService):
         tx: Transaction,
         task_id: str
     ) -> Dict[str, Any]:
-        """Transaction-aware status retrieval operation."""
+        """Transaction-aware status retrieval operation with read-only queries."""
         try:
             # Register rollback handler
             tx.add_rollback_handler(lambda: self.logger.warning(f"Rolling back status check for task {task_id}"))
             
             # Add detailed logging
             self.logger.debug(f"Status check for task {task_id} - processed_urls has {len(self.processed_urls)} entries")
-            if self.processed_urls:
-                task_keys = [key for key, val in self.processed_urls.items() if val.get('task_id') == task_id]
-                self.logger.debug(f"Found {len(task_keys)} entries for task {task_id} in processed_urls: {task_keys}")
             
             # First check in-memory status
             task_urls = {
@@ -675,8 +850,8 @@ class PipelineService(BaseService):
             }
             
             if not task_urls:
-                # Check in database - use db_connection instead of tx directly
-                task_exists_result = await self.db_connection.execute_query(
+                # Check in database using read-only queries
+                task_exists_result = await self.db_connection.execute_read_query(
                     "MATCH (t:Task {id: $task_id}) RETURN t",
                     {"task_id": task_id},
                     transaction=tx
@@ -690,7 +865,7 @@ class PipelineService(BaseService):
                         "message": f"Task {task_id} not found"
                     }
                     
-                url_result = await self.db_connection.execute_query(
+                url_result = await self.db_connection.execute_read_query(
                     """
                     MATCH (t:Task {id: $task_id})<-[:PART_OF]-(u:URL)
                     RETURN u.url as url, u.status as status, u.progress as progress
@@ -725,16 +900,34 @@ class PipelineService(BaseService):
                 # Add these URLs to in-memory cache for future queries
                 for url_data in url_result:
                     url = url_data["url"]
+                    status = url_data["status"]
                     if url not in self.processed_urls:
                         self.processed_urls[url] = {
                             "url": url,
-                            "status": url_data["status"],
+                            "status": status,
                             "task_id": task_id,
                             "progress": float(url_data["progress"]) if url_data["progress"] is not None else 0.0,
                             "recovered_from_db": True  # Flag to indicate this was recovered from DB
                         }
                         self.logger.debug(f"Recovered URL {url} for task {task_id} from database")
-                
+
+                        # If status is "queued", add to queue as well
+                    if status == "queued":
+                        self.logger.info(f"Requeueing recovered URL {url} for task {task_id}")
+                        await self.url_queue.put({
+                            "url": url,
+                            "metadata": {
+                                # Use proper BrowserContext enum
+                                "context": BrowserContext.RECOVERED,
+                                "task_id": task_id
+                            },
+                            "task_id": task_id,
+                            "recovered": True
+                        })
+
+                self.logger.info(f"Queue status after recovery: size={self.url_queue.qsize()}")
+                await self.debug_queue_state()
+                                
                 # Now retry the memory check with the recovered URLs
                 task_urls = {
                     url: status for url, status in self.processed_urls.items()
@@ -751,19 +944,6 @@ class PipelineService(BaseService):
             
             # Calculate overall task status (this part remains the same)
             url_statuses = [info["status"] for info in task_urls.values()]
-            
-            # Track this status check in the transaction
-            await self.db_connection.execute_query(
-                """
-                MATCH (t:Task {id: $task_id})
-                SET t.last_checked = datetime()
-                """,
-                {
-                    "task_id": task_id,
-                    "status": url_statuses
-                    },
-                transaction=tx
-            )
             
             # Determine overall status (same as before)
             if "error" in url_statuses:
@@ -786,6 +966,25 @@ class PipelineService(BaseService):
             progress = sum(
                 info.get("progress", 0.0) for info in task_urls.values()
             ) / len(task_urls)
+
+            # Record the status check
+            status_data = {
+                "status": task_status,
+                "progress": progress,
+                "message": message,
+                "checked_at": datetime.now().isoformat()
+            }
+
+            all_progress_complete = all(info.get("progress", 0.0) >= 0.99 for info in task_urls.values())
+            if all_progress_complete and task_status != "error":
+                task_status = "completed"  
+                message = "Task completed successfully"
+                
+                # Update the status in processed_urls to match
+                for url, info in task_urls.items():
+                    if info.get("status") != "completed":
+                        self.logger.info(f"Updating status for URL {url} from {info.get('status')} to completed based on 100% progress")
+                        self.processed_urls[url]["status"] = "completed"
             
             # Record the status check (same as before)
             status_data = {
@@ -794,23 +993,6 @@ class PipelineService(BaseService):
                 "message": message,
                 "checked_at": datetime.now().isoformat()
             }
-            
-            await self.db_connection.execute_query(
-                """
-                MATCH (t:Task {id: $task_id})
-                SET t.last_checked = datetime(),
-                    t.status = $status,
-                    t.progress = $progress,
-                    t.message = $message
-                """,
-                {
-                    "task_id": task_id,
-                    "status": task_status,
-                    "progress": progress,
-                    "message": message
-                },
-                transaction=tx
-            )
             
             return status_data
             
@@ -822,19 +1004,19 @@ class PipelineService(BaseService):
     async def cleanup(self) -> None:
         """Cleanup pipeline service resources."""
         try:
+            # Cancel worker monitor task if it exists
+            if hasattr(self, 'worker_monitor_task') and self.worker_monitor_task:
+                self.worker_monitor_task.cancel()
+                try:
+                    await self.worker_monitor_task
+                except asyncio.CancelledError:
+                    pass
+
             # Cancel worker task if it exists
             if self.worker_task:
                 self.worker_task.cancel()
                 try:
                     await self.worker_task
-                except asyncio.CancelledError:
-                    pass
-
-            # Cancel any active tasks
-            for task in self.active_tasks.values():
-                task.cancel()
-                try:
-                    await task
                 except asyncio.CancelledError:
                     pass
 
@@ -856,3 +1038,160 @@ class PipelineService(BaseService):
             raise
         finally:
             await super().cleanup()
+
+
+    async def _monitor_worker(self):
+        """Monitor worker task and restart if necessary with better diagnostics."""
+        try:
+            self.logger.info("Worker monitoring started")
+            
+            while True:
+                try:
+                    current_worker = self.worker_task
+                    
+                    if current_worker is None:
+                        self.logger.warning("No worker task found, starting a new one")
+                        self.worker_task = asyncio.create_task(self._process_queue())
+                        
+                    elif current_worker.done():
+                        # Get exception if there is one
+                        worker_exception = None
+                        try:
+                            worker_exception = current_worker.exception()
+                        except asyncio.InvalidStateError:
+                            # Task was cancelled, not an error
+                            self.logger.info("Previous worker was cancelled")
+                        
+                        if worker_exception:
+                            self.logger.error(f"Worker failed with error: {worker_exception}", exc_info=worker_exception)
+                        
+                        self.worker_task = asyncio.create_task(self._process_queue())
+                        self.logger.warning("Worker task has terminated, restarted with a new task")
+                        
+                    # Check queue health
+                    queue_size = self.url_queue.qsize()
+                    active_tasks = len(self.active_tasks)
+                    
+                    # Get URLs that are in queued state in processed_urls
+                    queued_urls = [url for url, info in self.processed_urls.items() 
+                                if info.get("status") == "queued"]
+                    
+                    self.logger.debug(f"Worker monitor: queue_size={queue_size}, active_tasks={active_tasks}, queued_urls={len(queued_urls)}")
+                    
+                    # If there are URLs marked as queued but queue is empty, there's a mismatch
+                    if queue_size == 0 and len(queued_urls) > 0:
+                        self.logger.warning(f"Queue counter mismatch detected: 0 items in queue but {len(queued_urls)} URLs in 'queued' state")
+                        await self.reset_queue()
+
+                    # If there are items in the queue but no active tasks, something might be wrong
+                    if queue_size > 0 and active_tasks == 0 and not self.worker_task.done():
+                        self.logger.warning(f"Potential stall detected: {queue_size} items in queue but no active tasks")
+                    
+                    # Check every 5 seconds
+                    await asyncio.sleep(5)
+                    
+                except Exception as monitor_error:
+                    self.logger.error(f"Error in worker monitor: {str(monitor_error)}", exc_info=True)
+                    await asyncio.sleep(5)  # Continue monitoring
+        
+        except Exception as fatal_error:
+            self.logger.critical(f"Fatal error in worker monitor: {str(fatal_error)}", exc_info=True)
+
+    async def debug_queue_state(self):
+        """Debug method to diagnose queue state."""
+        self.logger.info(f"Queue diagnostics:")
+        self.logger.info(f"Queue size: {self.url_queue.qsize()}")
+        self.logger.info(f"Active tasks: {len(self.active_tasks)}")
+        self.logger.info(f"Processed URLs: {len(self.processed_urls)}")
+        
+        # Try to inspect the queue's internal counter
+        try:
+            # This is implementation-specific and might not work
+            unfinished = getattr(self.url_queue, "_unfinished_tasks", None)
+            self.logger.info(f"Queue unfinished tasks: {unfinished}")
+        except:
+            self.logger.info("Could not access queue internals")
+        
+        # Check processed_urls that should be in the queue
+        queued_urls = [url for url, info in self.processed_urls.items() 
+                    if info.get("status") == "queued"]
+        self.logger.info(f"URLs in 'queued' state: {len(queued_urls)}")
+        
+        # Print the first few queued URLs
+        if queued_urls:
+            for i, url in enumerate(queued_urls[:3]):
+                self.logger.info(f"Queued URL {i}: {url}")
+        
+        # Check if worker is running
+        if self.worker_task:
+            self.logger.info(f"Worker task state: {'running' if not self.worker_task.done() else 'done'}")
+            if self.worker_task.done():
+                try:
+                    exc = self.worker_task.exception()
+                    if exc:
+                        self.logger.error(f"Worker exception: {exc}")
+                except:
+                    pass
+
+
+    async def reset_queue(self):
+        """Reset the queue to fix counter issues."""
+        self.logger.warning("Resetting queue due to potential counter mismatch")
+        
+        # Record the old queue for diagnostics
+        old_queue_size = self.url_queue.qsize()
+        
+        # Create a new queue
+        new_queue = asyncio.Queue()
+        
+        # Find all URLs in queued state
+        queued_urls = [(url, info) for url, info in self.processed_urls.items() 
+                    if info.get("status") == "queued"]
+        
+        self.logger.info(f"Found {len(queued_urls)} URLs to requeue (old queue size was {old_queue_size})")
+        
+        # Add them to the new queue
+        for url, info in queued_urls:
+            task_id = info.get("task_id")
+            # Reconstruct metadata from the processed_urls entry
+            metadata = {
+                "context": info.get("browser_context"),
+                "tab_id": info.get("tab_id"),
+                "window_id": info.get("window_id"),
+                "bookmark_id": info.get("bookmark_id")
+            }
+            
+            # Put in new queue
+            await new_queue.put({
+                "url": url,
+                "metadata": metadata,
+                "task_id": task_id
+            })
+        
+        # Optionally try to drain the old queue before replacing it
+        try:
+            while not self.url_queue.empty():
+                try:
+                    self.url_queue.get_nowait()
+                    self.url_queue.task_done()
+                except asyncio.QueueEmpty:
+                    break
+        except Exception as e:
+            self.logger.error(f"Error draining old queue: {str(e)}")
+        
+        # Replace the old queue
+        self.url_queue = new_queue
+        self.logger.info(f"Queue reset complete, new size: {new_queue.qsize()}")
+
+
+    def _handle_task_failure(self, url: str, exception: Exception):
+        """Handle a failed task."""
+        self.logger.error(f"Task for URL {url} failed with error: {str(exception)}")
+        
+        # Update status in processed_urls
+        if url in self.processed_urls:
+            self.processed_urls[url].update({
+                "status": "error",
+                "error": str(exception),
+                "completed_at": datetime.now().isoformat()
+            })

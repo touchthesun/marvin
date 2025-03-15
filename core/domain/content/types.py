@@ -26,6 +26,7 @@ class BrowserContext(Enum):
     BACKGROUND = "background"       # Not currently open
     BOOKMARKED = "bookmarked"      # Saved in bookmarks
     HISTORY = "history"            # In browser history only
+    RECOVERED = "recovered"      # Recovered from crash/restart
 
 class PageStatus(Enum):
     """Represents the current status of a page in the system."""

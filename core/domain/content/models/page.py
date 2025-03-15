@@ -3,6 +3,7 @@ from datetime import datetime
 from neo4j.graph import Node
 from typing import Dict, List, Optional, Set, Union, Any
 from uuid import UUID, uuid4
+from core.utils.logger import get_logger
 from core.domain.content.types import (
     PageStatus,
     PageMetrics,
@@ -55,6 +56,7 @@ class Page:
 
     def __post_init__(self):
         """Validate and initialize the page object."""
+        self.logger = get_logger(__name__)
         if not self.url:
             raise ValueError("URL is required")
         if not self.domain:
@@ -107,16 +109,10 @@ class Page:
     @property
     def browser_contexts(self) -> Set[BrowserContext]:
         """Get the page's browser contexts."""
-        print(f"\nAccessing browser_contexts for page {self.id}")
-        print(f"Page object id: {id(self)}")
-        print(f"Metadata object id: {id(self.metadata)}")
-        print(f"Metadata type: {type(self.metadata)}")
-        print(f"Metadata fields: {getattr(self.metadata, '__dataclass_fields__', 'Not a dataclass')}")
-        print(f"Metadata dict: {self.metadata.__dict__}")
+        self.logger.debug(f"Accessing browser_contexts for page {self.id}")
         
         if not hasattr(self.metadata, 'browser_contexts'):
-            print("WARNING: Metadata missing browser_contexts!")
-            print(f"Available attributes: {dir(self.metadata)}")
+            self.logger.warning(f"Metadata missing browser_contexts for page {self.id}")
             # Initialize it
             self.metadata.browser_contexts = set()
             
@@ -128,23 +124,31 @@ class Page:
         self.metadata.browser_contexts = contexts
 
     def update_browser_contexts(
-        self,
-        context: BrowserContext,
-        tab_id: Optional[str] = None,
-        window_id: Optional[str] = None,
-        bookmark_id: Optional[str] = None
-    ):
-        """Add or update a browser context."""
-        self.browser_contexts.add(context)
-        
-        if context in (BrowserContext.ACTIVE_TAB, BrowserContext.OPEN_TAB):
-            self.metadata.tab_id = tab_id
-            self.metadata.window_id = window_id
-            self.metadata.last_active = datetime.now()
-        elif context == BrowserContext.BOOKMARKED:
-            self.metadata.bookmark_id = bookmark_id
+            self,
+            context: BrowserContext,
+            tab_id: Optional[str] = None,
+            window_id: Optional[str] = None,
+            bookmark_id: Optional[str] = None
+        ):
+            """Add or update a browser context."""
+            self.logger.debug(f"Updating browser contexts for page {self.id}")
             
-        self.metadata.updated_at = datetime.now()
+            # Access the browser_contexts directly from metadata instead of using the property
+            if not hasattr(self.metadata, 'browser_contexts'):
+                self.metadata.browser_contexts = set()
+            
+            self.metadata.browser_contexts.add(context)
+            
+            if context in (BrowserContext.ACTIVE_TAB, BrowserContext.OPEN_TAB):
+                self.metadata.tab_id = tab_id
+                self.metadata.window_id = window_id
+                self.metadata.last_active = datetime.now()
+            elif context == BrowserContext.BOOKMARKED:
+                self.metadata.bookmark_id = bookmark_id
+                
+            self.metadata.updated_at = datetime.now()
+            self.logger.debug(f"Browser contexts updated successfully for page {self.id}")
+
 
     def remove_browser_context(self, context: BrowserContext):
         """Remove a browser context."""

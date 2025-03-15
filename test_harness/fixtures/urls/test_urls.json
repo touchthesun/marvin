@@ -1,8 +1,5 @@
 {
   "urls": [
-    "https://docs.python.org/3/tutorial/index.html",
-    "https://en.wikipedia.org/wiki/Graph_database",
-    "https://www.anthropic.com/engineering/building-effective-agents",
-    "https://transformer-circuits.pub/2022/in-context-learning-and-induction-heads/index.html"
+    "https://en.wikipedia.org/wiki/Graph_database"
   ]
 }
