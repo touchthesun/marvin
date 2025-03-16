@@ -332,7 +332,7 @@ page.update_keywords({
 })
 
 # Key pattern for storing relationships
-page.metadata['relationships'] = relationships
+page.metadata.['relationships'] = relationships
 ```
 
 #### 4. Test Page Requirements

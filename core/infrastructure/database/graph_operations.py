@@ -3,6 +3,7 @@ import time
 import uuid
 import traceback
 import statistics
+from enum import Enum, auto
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
@@ -27,6 +28,17 @@ class Relationship:
     start_node: Node
     end_node: Node
     properties: Dict
+
+class RelationshipType(Enum):
+    """Enum defining Neo4j relationship types."""
+    HAS_KEYWORD = "HAS_KEYWORD"
+    LINKS_TO = "LINKS_TO"
+    SIMILAR_TO = "SIMILAR_TO"
+    REFERENCES = "REFERENCES"
+    
+    def __str__(self):
+        """Return the string value of the enum."""
+        return self.value
 
 class GraphOperationError(Exception):
     """Base exception for graph operations."""

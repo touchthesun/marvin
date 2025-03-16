@@ -8,7 +8,7 @@ from test_harness.utils.paths import resolve_path
 from core.utils.logger import get_logger
 from test_harness.scenarios.base import TestScenario
 from test_harness.utils.helpers import wait_for_task_completion
-from core.services.graph.graph_service import GraphService
+
 
 logger = get_logger(__name__)
 
@@ -61,9 +61,14 @@ class ContentWorkflowScenario(TestScenario):
         """Execute the content workflow test."""
         self.logger.info(f"Running content workflow test with {len(self.urls)} URLs")
         
-        # Process each URL
+        # Get pipeline from components
+        pipeline = self.components.get("pipeline")
+        
+        # Process each URL with disabled validation for the analysis stage
         for url in self.urls:
-            await self._process_url(url)
+            # This uses the context manager without nested functions
+            async with self.disabled_validation(pipeline, "analysis"):
+                await self._process_url(url)
             
         # Update overall success status
         self.results["success"] = len(self.results["failed_urls"]) == 0

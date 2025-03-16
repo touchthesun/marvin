@@ -190,7 +190,7 @@ class TestPipelineOrchestrator:
         
         # Verify metadata quality
         assert 'quality' in page.metadata
-        assert page.metadata['quality']['score'] > 0
+        assert page.metadata.custom_metadata['quality']['score'] > 0
         
         # Verify content quality
         assert page.metrics.quality_score > 0

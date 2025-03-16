@@ -13,12 +13,18 @@ from core.domain.content.pipeline import (
     ProcessingEvent,
     ProcessingStage
 )
+from core.domain.content.models.page import Page, BrowserContext, PageStatus
+from core.domain.content.models.relationships import RelationshipManager
+from core.domain.content.keyword_identifier import KeywordNormalizer
+from core.domain.content.validation import KeywordValidator, ValidationConfig
+from core.domain.content.processor import ContentProcessor, ContentProcessorConfig
+from core.domain.content.abbreviations import AbbreviationService
 from core.infrastructure.database.transactions import Transaction
 from core.infrastructure.database.db_connection import DatabaseConnection
 from core.services.base import BaseService
 from core.infrastructure.storage.storage_components import Neo4jStorageComponent
-from core.domain.content.models.page import Page, BrowserContext, PageStatus
 from core.utils.logger import get_logger
+from core.utils.nlp import initialize_spacy_model
 
 logger = get_logger(__name__)
 
@@ -53,6 +59,13 @@ class PipelineService(BaseService):
             self.logger.info("Initializing pipeline service")
             await super().initialize()
             
+            # Initialize spaCy once
+            self.nlp = initialize_spacy_model()
+            if not self.nlp:
+                self.logger.warning("Failed to initialize spaCy model, keyword extraction will be limited")
+            else:
+                self.logger.info("Successfully initialized spaCy model")
+
             # Register event handler for status updates
             self.pipeline.register_event_handler(self._handle_pipeline_event)
 
@@ -63,13 +76,50 @@ class PipelineService(BaseService):
                 ProcessingStage.STORAGE
             )
             
+                    # Create and register content processor for ANALYSIS stage if spaCy is available
+            if self.nlp:
+                try:
+                    # Create necessary dependencies
+                    normalizer = KeywordNormalizer()
+
+                    validation_config = ValidationConfig()
+                    abbreviation_service = AbbreviationService()
+
+                    validator = KeywordValidator(
+                        nlp=self.nlp,
+                        config=validation_config,
+                        abbreviation_service=abbreviation_service
+                    )
+                    relationship_manager = RelationshipManager(nlp=self.nlp)
+                    
+                    # Create content processor
+                    content_processor = ContentProcessor(
+                        config=ContentProcessorConfig(),
+                        keyword_processor=None,  # Will be created internally
+                        relationship_manager=relationship_manager,
+                        normalizer=normalizer,
+                        validator=validator,
+                        nlp=self.nlp,
+                        debug_mode=True
+                    )
+                    
+                    # Register for ANALYSIS stage
+                    self.context.component_coordinator.register_component(
+                        content_processor,
+                        ProcessingStage.ANALYSIS
+                    )
+                    self.logger.info("ContentProcessor registered for ANALYSIS stage")
+                except Exception as e:
+                    self.logger.error(f"Error creating content processor: {str(e)}", exc_info=True)
+                    self.logger.warning("Keyword extraction will be disabled")
+            
             # Start processing worker with monitoring
             self.logger.info("Starting URL processing worker task")
             self.worker_task = asyncio.create_task(self._process_queue())
             
             # Start worker monitor
-            self.logger.info("Starting worker monitor")
-            self.worker_monitor_task = asyncio.create_task(self._monitor_worker())
+            # self.logger.info("Starting worker monitor")
+            # self.worker_monitor_task = asyncio.create_task(self._monitor_worker())
             
             self.logger.info("Pipeline service initialized with worker task and monitor")
         except Exception as e:
@@ -670,32 +720,37 @@ class PipelineService(BaseService):
         """Background worker that processes URLs from the queue with improved error handling and logging."""
         try:
             self.logger.info("URL processing worker started")
+            last_queue_size = 0
+            last_log_time = time.time()
             
             while True:
                 try:
-                    # Clean up completed tasks - wrap in try/except to prevent failure
+                    # Clean up completed tasks
                     try:
                         await self._cleanup_tasks()
                     except Exception as cleanup_error:
                         self.logger.error(f"Error cleaning up tasks: {str(cleanup_error)}", exc_info=True)
                     
-                    # Log queue status at a lower frequency to avoid log spam
+                    # Get current queue status
                     queue_size = self.url_queue.qsize()
                     active_tasks_count = len(self.active_tasks)
-                    if queue_size > 0:
-                        self.logger.info(f"Queue status: {queue_size} items pending, {active_tasks_count} active tasks")
+                    current_time = time.time()
                     
-                    # Check if we can process more URLs
-                    if active_tasks_count >= self.max_concurrent:
-                        self.logger.debug(f"Max concurrent tasks reached ({self.max_concurrent}), waiting...")
-                        await asyncio.sleep(0.5)
-                        continue
+                    # Only log when queue size changes or every 60 seconds
+                    if queue_size != last_queue_size or (current_time - last_log_time > 60):
+                        if queue_size > 0:
+                            self.logger.info(f"Queue status: {queue_size} items pending, {active_tasks_count} active tasks")
+                        else:
+                            self.logger.debug(f"Queue empty, {active_tasks_count} active tasks")
+                        last_queue_size = queue_size
+                        last_log_time = current_time
                     
                     # Try to get next URL with timeout to avoid blocking
                     item = None
                     try:
-                        # More explicit error handling with debug info
-                        self.logger.debug(f"Attempting to get item from queue (size: {queue_size})")
+                        # Only log if queue is not empty, to reduce noise
+                        if queue_size > 0:
+                            self.logger.debug(f"Attempting to get item from queue (size: {queue_size})")
                         item = await asyncio.wait_for(self.url_queue.get(), timeout=1.0)
                         self.logger.debug(f"Got item from queue: {item.get('url', 'unknown')}")
                     except asyncio.TimeoutError:
@@ -1040,62 +1095,62 @@ class PipelineService(BaseService):
             await super().cleanup()
 
 
-    async def _monitor_worker(self):
-        """Monitor worker task and restart if necessary with better diagnostics."""
-        try:
-            self.logger.info("Worker monitoring started")
+    # async def _monitor_worker(self):
+    #     """Monitor worker task and restart if necessary with better diagnostics."""
+    #     try:
+    #         self.logger.info("Worker monitoring started")
             
-            while True:
-                try:
-                    current_worker = self.worker_task
+    #         while True:
+    #             try:
+    #                 current_worker = self.worker_task
                     
-                    if current_worker is None:
-                        self.logger.warning("No worker task found, starting a new one")
-                        self.worker_task = asyncio.create_task(self._process_queue())
+    #                 if current_worker is None:
+    #                     self.logger.warning("No worker task found, starting a new one")
+    #                     self.worker_task = asyncio.create_task(self._process_queue())
                         
-                    elif current_worker.done():
-                        # Get exception if there is one
-                        worker_exception = None
-                        try:
-                            worker_exception = current_worker.exception()
-                        except asyncio.InvalidStateError:
-                            # Task was cancelled, not an error
-                            self.logger.info("Previous worker was cancelled")
+    #                 elif current_worker.done():
+    #                     # Get exception if there is one
+    #                     worker_exception = None
+    #                     try:
+    #                         worker_exception = current_worker.exception()
+    #                     except asyncio.InvalidStateError:
+    #                         # Task was cancelled, not an error
+    #                         self.logger.info("Previous worker was cancelled")
                         
-                        if worker_exception:
-                            self.logger.error(f"Worker failed with error: {worker_exception}", exc_info=worker_exception)
+    #                     if worker_exception:
+    #                         self.logger.error(f"Worker failed with error: {worker_exception}", exc_info=worker_exception)
                         
-                        self.worker_task = asyncio.create_task(self._process_queue())
-                        self.logger.warning("Worker task has terminated, restarted with a new task")
+    #                     self.worker_task = asyncio.create_task(self._process_queue())
+    #                     self.logger.warning("Worker task has terminated, restarted with a new task")
                         
-                    # Check queue health
-                    queue_size = self.url_queue.qsize()
-                    active_tasks = len(self.active_tasks)
+    #                 # Check queue health
+    #                 queue_size = self.url_queue.qsize()
+    #                 active_tasks = len(self.active_tasks)
                     
-                    # Get URLs that are in queued state in processed_urls
-                    queued_urls = [url for url, info in self.processed_urls.items() 
-                                if info.get("status") == "queued"]
+    #                 # Get URLs that are in queued state in processed_urls
+    #                 queued_urls = [url for url, info in self.processed_urls.items() 
+    #                             if info.get("status") == "queued"]
                     
-                    self.logger.debug(f"Worker monitor: queue_size={queue_size}, active_tasks={active_tasks}, queued_urls={len(queued_urls)}")
+    #                 # self.logger.debug(f"Worker monitor: queue_size={queue_size}, active_tasks={active_tasks}, queued_urls={len(queued_urls)}")
                     
-                    # If there are URLs marked as queued but queue is empty, there's a mismatch
-                    if queue_size == 0 and len(queued_urls) > 0:
-                        self.logger.warning(f"Queue counter mismatch detected: 0 items in queue but {len(queued_urls)} URLs in 'queued' state")
-                        await self.reset_queue()
+    #                 # If there are URLs marked as queued but queue is empty, there's a mismatch
+    #                 if queue_size == 0 and len(queued_urls) > 0:
+    #                     self.logger.warning(f"Queue counter mismatch detected: 0 items in queue but {len(queued_urls)} URLs in 'queued' state")
+    #                     await self.reset_queue()
 
-                    # If there are items in the queue but no active tasks, something might be wrong
-                    if queue_size > 0 and active_tasks == 0 and not self.worker_task.done():
-                        self.logger.warning(f"Potential stall detected: {queue_size} items in queue but no active tasks")
+    #                 # If there are items in the queue but no active tasks, something might be wrong
+    #                 if queue_size > 0 and active_tasks == 0 and not self.worker_task.done():
+    #                     self.logger.warning(f"Potential stall detected: {queue_size} items in queue but no active tasks")
                     
-                    # Check every 5 seconds
-                    await asyncio.sleep(5)
+    #                 # Check every 5 seconds
+    #                 await asyncio.sleep(5)
                     
-                except Exception as monitor_error:
-                    self.logger.error(f"Error in worker monitor: {str(monitor_error)}", exc_info=True)
-                    await asyncio.sleep(5)  # Continue monitoring
+    #             except Exception as monitor_error:
+    #                 self.logger.error(f"Error in worker monitor: {str(monitor_error)}", exc_info=True)
+    #                 await asyncio.sleep(5)  # Continue monitoring
         
-        except Exception as fatal_error:
-            self.logger.critical(f"Fatal error in worker monitor: {str(fatal_error)}", exc_info=True)
+    #     except Exception as fatal_error:
+    #         self.logger.critical(f"Fatal error in worker monitor: {str(fatal_error)}", exc_info=True)
 
     async def debug_queue_state(self):
         """Debug method to diagnose queue state."""

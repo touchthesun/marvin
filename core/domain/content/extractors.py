@@ -6,10 +6,10 @@ import uuid
 import spacy
 from core.utils.logger import get_logger
 from .types import (
-    KeywordType, ProcessingError, RawKeyword
+    KeywordType, RawKeyword
 )
 from .keyword_identifier import KeywordNormalizer
-
+from core.common.errors import ProcessingError
 
 @dataclass
 class ExtractorConfig:
@@ -354,7 +354,7 @@ class TfidfExtractor(BaseExtractor):
                 score = self._calculate_term_importance(term, freq, total_terms)
                 
                 # Apply filters
-                if score <= self.config.min_score:
+                if score <= self.config.min_keyword_score:
                     filtered_terms[term] = f"Low score: {score}"
                     filtered_counts['low_score'] += 1
                     continue

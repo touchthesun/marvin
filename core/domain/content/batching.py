@@ -4,8 +4,9 @@ import asyncio
 import time
 from datetime import datetime
 from core.utils.logger import get_logger
+from core.common.errors import ProcessingError
 from core.infrastructure.database.transactions import Transaction
-from .types import ProcessingStatus, ProcessingError, DocumentMetadata, BatchMetadata
+from .types import ProcessingStatus, DocumentMetadata, BatchMetadata
 from .models.context import ProcessingContext
 from .processor import ContentProcessor
 

@@ -37,6 +37,11 @@ class SchemaManager:
                     await self.migrate(current_version)
                 else:
                     self.logger.info("Schema already up to date")
+            
+            # Verify relationship types exist
+            rel_types_valid = await self.verify_relationship_types()
+            if not rel_types_valid:
+                self.logger.info("Created missing relationship types")
                     
         except Exception as e:
             self.logger.error("Schema initialization failed", extra={"error": str(e)})
@@ -55,7 +60,9 @@ class SchemaManager:
             """CREATE CONSTRAINT page_url IF NOT EXISTS
                FOR (p:Page) REQUIRE p.url IS UNIQUE""",
             """CREATE CONSTRAINT keyword_id IF NOT EXISTS
-               FOR (k:Keyword) REQUIRE k.id IS UNIQUE"""
+               FOR (k:Keyword) REQUIRE k.id IS UNIQUE""",
+            """CREATE CONSTRAINT keyword_text IF NOT EXISTS
+               FOR (k:Keyword) REQUIRE k.text IS UNIQUE"""
         ]
         
         indexes = [
@@ -66,6 +73,13 @@ class SchemaManager:
                FOR (k:Keyword) ON (k.normalized_text)""",
             """CREATE INDEX keyword_type IF NOT EXISTS
                FOR (k:Keyword) ON (k.keyword_type)"""
+        ]
+
+        relationship_indexes = [
+            """CREATE INDEX has_keyword_weight IF NOT EXISTS 
+            FOR ()-[r:HAS_KEYWORD]->() ON (r.weight)""",
+            """CREATE INDEX has_keyword_score IF NOT EXISTS 
+            FOR ()-[r:HAS_KEYWORD]->() ON (r.score)"""
         ]
         
         try:
@@ -78,7 +92,7 @@ class SchemaManager:
                         transaction_id="create_constraints"
                     )
                     
-                # Then create indexes
+                # Then create node indexes
                 for query in indexes:
                     await self.connection.execute_query(
                         query,
@@ -86,6 +100,30 @@ class SchemaManager:
                         transaction_id="create_indexes"
                     )
                     
+                # Create relationship indexes
+                for query in relationship_indexes:
+                    try:
+                        await self.connection.execute_query(
+                            query,
+                            transaction=tx,
+                            transaction_id="create_relationship_indexes"
+                        )
+                    except Exception as e:
+                        # Some Neo4j versions have different syntax for relationship indexes
+                        self.logger.warning(f"Failed to create relationship index with standard syntax: {str(e)}")
+                        
+                        # Try alternative syntax for older Neo4j versions
+                        alt_query = query.replace("FOR ()-[r:HAS_KEYWORD]->() ON", "ON")
+                        try:
+                            await self.connection.execute_query(
+                                alt_query,
+                                transaction=tx,
+                                transaction_id="create_relationship_indexes_alt"
+                            )
+                            self.logger.info("Created relationship index using alternative syntax")
+                        except Exception as alt_e:
+                            self.logger.error(f"Failed to create relationship index with alternative syntax: {str(alt_e)}")
+                
                 # Set schema version
                 await self.set_version(self.CURRENT_SCHEMA_VERSION, tx)
                 
@@ -225,3 +263,86 @@ class SchemaManager:
         """Get list of required migration functions."""
         # Add migration functions as needed
         return []
+
+    async def verify_relationship_types(self) -> bool:
+        """Verify that required relationship types exist in the database."""
+        required_types = ["HAS_KEYWORD", "LINKS_TO", "SIMILAR_TO"]
+        missing_types = []
+        
+        try:
+            # Check for relationship types
+            query = """
+            CALL db.relationshipTypes() YIELD relationshipType
+            RETURN collect(relationshipType) as types
+            """
+            
+            result = await self.connection.execute_read_query(query)
+            existing_types = result[0]['types'] if result else []
+            
+            for req_type in required_types:
+                if req_type not in existing_types:
+                    missing_types.append(req_type)
+                    
+            if missing_types:
+                self.logger.warning(
+                    "Missing relationship types in schema",
+                    extra={"missing_types": missing_types}
+                )
+                
+                # Create dummy relationships to ensure types exist
+                await self._create_dummy_relationship_types(missing_types)
+                return False
+            
+            self.logger.info("All required relationship types exist in schema")
+            return True
+            
+        except Exception as e:
+            self.logger.error(
+                "Failed to verify relationship types",
+                extra={"error": str(e)}
+            )
+            return False
+
+    async def _create_dummy_relationship_types(self, missing_types: List[str]) -> None:
+        """Create dummy relationships to ensure relationship types exist."""
+        self.logger.info(
+            "Creating dummy relationships for missing types",
+            extra={"types": missing_types}
+        )
+        
+        try:
+            async with self.connection.transaction() as tx:
+                # Create dummy nodes if needed
+                await self.connection.execute_query(
+                    """
+                    MERGE (source:_SchemaInit {id: 'source'})
+                    MERGE (target:_SchemaInit {id: 'target'})
+                    """,
+                    transaction=tx
+                )
+                
+                # Create dummy relationships for each missing type
+                for rel_type in missing_types:
+                    await self.connection.execute_query(
+                        f"""
+                        MATCH (source:_SchemaInit {{id: 'source'}}),
+                            (target:_SchemaInit {{id: 'target'}})
+                        CREATE (source)-[r:{rel_type} {{_schema_init: true}}]->(target)
+                        """,
+                        transaction=tx
+                    )
+                    
+                    self.logger.info(f"Created dummy relationship of type {rel_type}")
+                
+            self.logger.info("Successfully created dummy relationships for schema initialization")
+            
+        except Exception as e:
+            self.logger.error(
+                "Failed to create dummy relationships",
+                extra={"error": str(e)}
+            )
+            raise SchemaError(
+                message="Failed to create dummy relationships for schema initialization",
+                operation="_create_dummy_relationship_types",
+                cause=e
+            )
