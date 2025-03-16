@@ -76,7 +76,7 @@ class PipelineService(BaseService):
                 ProcessingStage.STORAGE
             )
             
-                    # Create and register content processor for ANALYSIS stage if spaCy is available
+            # Create and register content processor for ANALYSIS stage if spaCy is available
             if self.nlp:
                 try:
                     # Create necessary dependencies

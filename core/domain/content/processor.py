@@ -271,7 +271,7 @@ class ContentProcessorConfig:
         min_chars=3,
         max_words=4,
         min_frequency=1,
-        min_score=0.25,
+        min_keyword_score=0.25,
         score_threshold=0.5
     )
 

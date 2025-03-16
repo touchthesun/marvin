@@ -79,25 +79,43 @@ class Neo4jStorageComponent(PipelineComponent):
             self.logger.error(f"Error storing page in Neo4j: {str(e)}", exc_info=True)
             raise
     
-    async def _store_keywords(self, page: Page) -> None:
-        """Store page keywords in Neo4j."""
+    async def _store_keywords(self, page: Page, page_id: str) -> None:
+        """Store page keywords in Neo4j.
+        
+        Args:
+            page: The page containing keywords
+            page_id: String ID of the page for Neo4j
+        """
         self.logger.info(f"Storing keywords for page: {page.url}")
+        
+        # Default language - we can try to detect it from the page if available
+        default_language = "en"  # Default to English
+        if hasattr(page.metadata, 'language') and page.metadata.language:
+            default_language = page.metadata.language
         
         for keyword, score in page.keywords.items():
             query = """
             MATCH (p:Page {id: $page_id})
-            MERGE (k:Keyword {text: $keyword})
+            MERGE (k:Keyword {text: $keyword, language: $language})
             MERGE (p)-[r:HAS_KEYWORD]->(k)
             SET r.score = $score
             """
             
             params = {
-                "page_id": page.id,
+                "page_id": page_id,
                 "keyword": keyword,
+                "language": default_language,  # Add the required language property
                 "score": score
             }
             
-            await self.db_connection.execute_query(query, params)
+            try:
+                await self.db_connection.execute_query(query, params)
+                self.logger.debug(f"Stored keyword '{keyword}' with score {score}")
+            except Exception as e:
+                self.logger.error(f"Error storing keyword '{keyword}': {str(e)}")
+                # Continue with other keywords even if one fails
+        
+        self.logger.info(f"Finished storing {len(page.keywords)} keywords for page: {page.url}")
     
     async def validate(self, page: Page) -> bool:
         """Validate that this component can process the page."""

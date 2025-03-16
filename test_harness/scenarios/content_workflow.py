@@ -421,6 +421,7 @@ class ContentWorkflowScenario(TestScenario):
                 if 'url_file' in workflow_config and workflow_config['url_file']:
                     file_urls = await self._load_urls_from_file(workflow_config['url_file'])
                     urls.extend(file_urls)
+
         except Exception as e:
             self.logger.error(f"Error accessing content_workflow config: {str(e)}")
         

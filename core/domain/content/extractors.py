@@ -25,7 +25,7 @@ class ExtractorConfig:
     max_words: int = 4
     min_frequency: int = 1
     score_threshold: float = 0.5
-    min_score: float = 0.1  # Minimum score to include a keyword
+    min_keyword_score: float = 0.1  # Minimum score to include a keyword
     max_keywords: int = 500  # Maximum number of keywords to extract
     debug: bool = False  # Enable additional logging
 
