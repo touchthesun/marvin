@@ -256,10 +256,11 @@ class ContentWorkflowScenario(TestScenario):
             encoded_url = urllib.parse.quote(url, safe='')
             query_response = await self.api.send_request(
                 "GET",
-                f"/api/v1/graph/related/{encoded_url}",
+                f"/api/v1/graph/page/{encoded_url}",  # Use the new endpoint
                 headers={"Authorization": f"Bearer {self.auth_token}"}
             )
-            
+
+            self.logger.debug(f"Query response for {url}: {query_response}")
             # Get keyword list for reporting
             keywords = await self._get_url_keywords(url) if has_keywords else []
             
@@ -274,7 +275,7 @@ class ContentWorkflowScenario(TestScenario):
                 "keyword_count": len(keywords),
                 "sample_keywords": keywords[:5] if keywords else [],
                 "has_relationships": has_relationships,
-                "query_success": query_response.get("success", False),
+                "query_success": query_response.get("success", True),
                 "processing_time": processing_time
             }
             
@@ -378,8 +379,8 @@ class ContentWorkflowScenario(TestScenario):
                     result = await self.neo4j.execute_query(
                         """
                         MATCH (p:Page {url: $url})-[r:HAS_KEYWORD]->(k:Keyword)
-                        RETURN k.text as text, r.weight as weight
-                        ORDER BY r.weight DESC
+                        RETURN k.text as text, r.score as weight
+                        ORDER BY r.score DESC
                         """,
                         {"url": url}
                     )

@@ -127,11 +127,15 @@ class GraphService(BaseService):
                 )
                 
                 if not source_page:
+                    self.logger.warning(f"No page found with URL: {url}")
                     return []
                 
+                # Convert Neo4j Node object to dictionary if needed
+                source_id = source_page.id if hasattr(source_page, 'id') else source_page.get('id')
+
                 # Find related pages through various relationship types
                 related = await self.graph_operations.find_related_nodes(
-                    start_node_id=source_page["id"],
+                    start_node_id=str(source_id),
                     relationship_types=[
                         "SIMILAR_TO",
                         "LINKS_TO",
