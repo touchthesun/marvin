@@ -176,14 +176,14 @@ class GraphOperationManager:
             
             query = f"""
             MATCH (start)-[r{rel_filter}]->(related)
-            WHERE id(start) = $start_id
+            WHERE elementId(start) = $start_id
             AND r.score >= $min_score
             WITH related, r, r.score as score
             ORDER BY score DESC
             LIMIT $limit
             RETURN 
                 related,
-                id(related) as node_id,
+                elementId(related) as node_id,
                 labels(related) as node_labels,
                 type(r) as relationship_type,
                 r.score as score,
@@ -317,13 +317,13 @@ class GraphOperationManager:
         try:
             query = """
             MATCH (n)
-            WHERE id(n) = $node_id
-            RETURN n, id(n) as node_id, labels(n) as node_labels
+            WHERE elementId(n) = $node_id
+            RETURN n, elementId(n) as node_id, labels(n) as node_labels
             """
             
             result = await self.connection.execute_read_query(
                 query,
-                parameters={"node_id": int(node_id)},
+                parameters={"node_id": node_id},
                 transaction=transaction
             )
             
@@ -491,12 +491,12 @@ class GraphOperationManager:
         try:
                 query = f"""
                 MATCH (start), (end)
-                WHERE id(start) = $start_id AND id(end) = $end_id
+                WHERE elementId(start) = $start_id AND elementId(end) = $end_id
                 CREATE (start)-[r:{relationship_type}]->(end)
                 SET r = $properties
-                RETURN r, id(r) as rel_id,
-                    start, id(start) as start_id, labels(start) as start_labels,
-                    end, id(end) as end_id, labels(end) as end_labels
+                RETURN r, elementId(r) as rel_id,
+                    start, elementId(start) as start_id, labels(start) as start_labels,
+                    end, elementId(end) as end_id, labels(end) as end_labels
                 """
 
                 # Validate node labels before relationship creation
@@ -601,8 +601,8 @@ class GraphOperationManager:
     async def _get_node_labels(self, node_id: str, transaction: Optional[neo4j.AsyncTransaction] = None) -> List[str]:
         """Get labels for a node by ID."""
         result = await self.connection.execute_query(
-            "MATCH (n) WHERE id(n) = $node_id RETURN labels(n) as labels",
-            parameters={"node_id": int(node_id)},
+            "MATCH (n) WHERE elementId(n) = $node_id RETURN labels(n) as labels",
+            parameters={"node_id": node_id},
             transaction=transaction
         )
         return result[0]["labels"] if result else []
@@ -638,14 +638,14 @@ class GraphOperationManager:
 
             query = f"""
             MATCH (start)-[r{rel_filter}]->(related)
-            WHERE id(start) = $start_id
+            WHERE elementId(start) = $start_id
             AND r.score >= $min_score
             WITH related, r, r.score as score
             ORDER BY score DESC
             LIMIT $limit
             RETURN 
                 related,
-                id(related) as node_id,
+                elementId(related) as node_id,
                 labels(related) as node_labels,
                 type(r) as relationship_type,
                 r.score as score,
@@ -816,11 +816,11 @@ class GraphOperationManager:
                 query = """
                 UNWIND $relationships as rel
                 MATCH (start), (end)
-                WHERE id(start) = rel.start_node_id AND id(end) = rel.end_node_id
+                WHERE elementId(start) = rel.start_node_id AND id(end) = rel.end_node_id
                 CALL apoc.create.relationship(start, rel.type, rel.properties, end) YIELD rel as r
-                RETURN r, id(r) as rel_id,
-                    start, id(start) as start_id, labels(start) as start_labels,
-                    end, id(end) as end_id, labels(end) as end_labels
+                RETURN r, elementId(r) as rel_id,
+                    start, elementId(start) as start_id, labels(start) as start_labels,
+                    end, elementId(end) as end_id, labels(end) as end_labels
                 """
                 
                 batch_results = await self.connection.execute_query(

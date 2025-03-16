@@ -218,39 +218,53 @@ class RealNeo4jService:
         self.logger.info(f"Successfully executed {len(statements)} Cypher statements")
     
     async def _load_json_data(self, json_file: str):
-        """
-        Load test data from a JSON file.
-        
-        The JSON file should contain nodes and relationships in a format
-        compatible with Neo4j import.
-        
-        Args:
-            json_file: Path to JSON file
-        """
+        """Load test data from a JSON file."""
         with open(json_file, 'r') as f:
             data = json.load(f)
         
         node_count = 0
         rel_count = 0
+        node_id_map = {}  # To map custom IDs to Neo4j-generated IDs
         
         # Process nodes first
         if "nodes" in data:
             nodes = data["nodes"]
             self.logger.info(f"Loading {len(nodes)} nodes from JSON")
             
-            for node_id, node_data in nodes.items():
+            # Handle both dictionary and list formats
+            if isinstance(nodes, dict):
+                node_items = nodes.items()
+            elif isinstance(nodes, list):
+                node_items = [(node.get('id', f"node_{i}"), node) for i, node in enumerate(nodes)]
+            else:
+                raise ValueError(f"Unsupported nodes format: {type(nodes)}")
+            
+            for node_id, node_data in node_items:
                 try:
                     labels = node_data.get("labels", ["Node"])
                     properties = node_data.get("properties", {})
                     
+                    # Add the id as a property if it's not already there
+                    if "id" not in properties:
+                        properties["id"] = node_id
+                    
                     # Create node with labels and properties
                     labels_str = ':'.join(labels)
-                    create_query = f"CREATE (n:{labels_str} $props)"
+                    create_query = f"CREATE (n:{labels_str} $props) RETURN n"
                     
-                    await self.db_connection.execute_write_query(
+                    result = await self.db_connection.execute_query(
                         create_query,
                         {"props": properties}
                     )
+                    
+                    # Store the created node's ID for relationship creation
+                    if result and len(result) > 0:
+                        created_node = result[0].get("n")
+                        if hasattr(created_node, "element_id"):
+                            node_id_map[node_id] = created_node.element_id
+                        else:
+                            node_id_map[node_id] = node_id  # Fallback to custom ID
+                    
                     node_count += 1
                 except Exception as e:
                     self.logger.error(f"Error creating node {node_id}: {str(e)}")
@@ -263,27 +277,26 @@ class RealNeo4jService:
             
             for i, rel in enumerate(relationships):
                 try:
-                    from_id = rel.get("from")
-                    to_id = rel.get("to")
+                    start_id = rel.get("start")  # Using "start" instead of "from"
+                    end_id = rel.get("end")      # Using "end" instead of "to"
                     rel_type = rel.get("type")
                     properties = rel.get("properties", {})
                     
-                    # Create relationship between nodes
+                    # Create relationship by looking up nodes by their custom IDs
                     rel_query = """
                     MATCH (a), (b)
-                    WHERE ID(a) = $from_id AND ID(b) = $to_id
+                    WHERE a.id = $start_id AND b.id = $end_id
                     CREATE (a)-[r:$type $props]->(b)
                     """
                     
-                    # Special handling for relationship type and properties
                     # Neo4j doesn't allow parameterizing relationship types
                     rel_query = rel_query.replace("$type", rel_type)
                     
                     await self.db_connection.execute_write_query(
                         rel_query,
                         {
-                            "from_id": from_id,
-                            "to_id": to_id,
+                            "start_id": start_id,
+                            "end_id": end_id,
                             "props": properties
                         }
                     )
@@ -291,9 +304,9 @@ class RealNeo4jService:
                 except Exception as e:
                     self.logger.error(f"Error creating relationship {i}: {str(e)}")
                     raise
-        
+            
         self.logger.info(f"Successfully loaded {node_count} nodes and {rel_count} relationships from JSON")
-    
+
     async def execute_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Execute a Cypher query against the Neo4j database.

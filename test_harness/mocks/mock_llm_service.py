@@ -7,7 +7,7 @@ import traceback
 from typing import Dict, Any, List
 from aiohttp import web
 from core.utils.logger import get_logger
-from test_harness.utils.helpers import find_free_port
+from core.utils.helpers import find_free_port
 from test_harness.mocks.base import BaseMockService
 
 

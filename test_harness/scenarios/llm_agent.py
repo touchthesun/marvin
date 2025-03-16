@@ -1,8 +1,8 @@
 import time
 
 from core.utils.logger import get_logger
+from api.task_manager import TaskManager
 from test_harness.scenarios.base import TestScenario
-from test_harness.utils.helpers import wait_for_task_completion
 from test_harness.assertions import AssertionGroup
 
 
@@ -117,11 +117,23 @@ class LlmAgentScenario(TestScenario):
                 expected_content = query_data["expected_content"]
                 response_content = detail.get("response_content", "")
                 
-                agent_assertions.create_and_add(
-                    f"{query_id}_content_match",
-                    expected_content in response_content,
-                    f"Response should contain expected content '{expected_content}' for {query_id}"
-                )
+                # Handle different types of expected_content
+                if isinstance(expected_content, list):
+                    # If expected_content is a list, check if any item in the list is in the response
+                    content_match = any(item in response_content for item in expected_content)
+                    content_str = ", ".join(repr(item) for item in expected_content)
+                    agent_assertions.create_and_add(
+                        f"{query_id}_content_match",
+                        content_match,
+                        f"Response should contain at least one of these expected content patterns: {content_str} for {query_id}"
+                    )
+                else:
+                    # If expected_content is a string (or other scalar), check if it's in the response
+                    agent_assertions.create_and_add(
+                        f"{query_id}_content_match",
+                        expected_content in response_content,
+                        f"Response should contain expected content '{expected_content}' for {query_id}"
+                    )
             
             # Check for expected sources if specified
             if "expected_sources" in query_data:
@@ -147,7 +159,7 @@ class LlmAgentScenario(TestScenario):
         try:
             # Extract query parameters
             query_text = query_data.get("query", "")
-            query_type = query_data.get("task_type", "QUERY")
+            query_type = query_data.get("task_type", "query").lower()
             relevant_urls = query_data.get("relevant_urls", [])
             
             # Send query to agent
@@ -159,7 +171,10 @@ class LlmAgentScenario(TestScenario):
                 {
                     "query": query_text,
                     "task_type": query_type,
-                    "relevant_urls": relevant_urls
+                    "relevant_urls": relevant_urls,
+                    "context": None,
+                    "constraints": None,
+                    "conversation_id": None
                 },
                 headers={"Authorization": f"Bearer {self.auth_token}"}
             )
@@ -178,6 +193,7 @@ class LlmAgentScenario(TestScenario):
             
             # Extract task ID
             task_id = query_response["data"]["task_id"]
+            status_endpoint = query_response["data"].get("status_endpoint", "/api/v1/agent/status/")
             self.logger.info(f"Agent task created with ID: {task_id}")
             
             # Get max wait time from config or use default
@@ -185,10 +201,24 @@ class LlmAgentScenario(TestScenario):
             
             # Wait for task completion
             try:
-                task_result = await wait_for_task_completion(
-                    self.api, task_id, self.auth_token, max_wait=max_wait
-                )
-                self.logger.debug(f"Task result: {task_result}")
+                task_result = await TaskManager.wait_for_task_completion(
+                api_service=self.api,
+                task_id=task_id,
+                auth_token=self.auth_token,
+                status_endpoint=status_endpoint,
+                max_wait=max_wait,
+                initial_interval=1.0
+            )
+            except ValueError as ve:
+                self.logger.error(f"Invalid parameters: {str(ve)}")
+                self.results["failed_queries"].append(query_id)
+                self.results["details"][query_id] = {
+                    "status": "failed",
+                    "error": str(ve),
+                    "stage": "processing",
+                    "processing_time": time.time() - start_time
+                }
+                return
             except Exception as wait_error:
                 self.logger.error(f"Error waiting for task completion: {str(wait_error)}")
                 self.results["failed_queries"].append(query_id)

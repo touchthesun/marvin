@@ -1,6 +1,6 @@
 {
-    "graph_data": "test_harness/fixtures/agent_graph_data.json",
-    "llm_responses": "test_harness/fixtures/agent_llm_responses.json",
+    "graph_data": "test_harness/fixtures/llm_agent_graph_data.json",
+    "llm_responses": "test_harness/fixtures/llm_agent_responses.json",
     "queries": [
       {
         "id": "architecture_query",

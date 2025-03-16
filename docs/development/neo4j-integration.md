@@ -720,7 +720,7 @@ class RealNeo4jService:
         for rel in relationships:
             query = """
             MATCH (a), (b)
-            WHERE id(a) = $start_id AND id(b) = $end_id
+            WHERE elementId(a) = $start_id AND elementId(b) = $end_id
             CREATE (a)-[r:$type $properties]->(b)
             """
             

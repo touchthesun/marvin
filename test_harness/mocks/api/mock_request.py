@@ -279,13 +279,46 @@ class RealAPIService(BaseMockService):
         Returns:
             Response data
         """
+        # DEBUG - Log the original path
+        original_path = path
+        self.logger.debug(f"ORIGINAL REQUEST PATH: {method} {original_path}")
+        
         # Ensure path starts with the correct API prefix
         if not path.startswith(self.api_prefix) and not path.startswith('/'):
             path = f"{self.api_prefix}/{path}"
         elif not path.startswith(self.api_prefix) and not path.startswith(self.api_prefix[1:]):
             path = f"{self.api_prefix}{path}"
         
+        self.logger.debug(f"AFTER PREFIX NORMALIZATION: {method} {path}")
+        
         url = f"{self.base_url}{path}"
+        headers = headers or {}
+        
+        # Force the original path for agent/status requests
+        if "agent/status" in original_path or "agent/status" in path:
+            self.logger.debug(f"DETECTED AGENT STATUS REQUEST - USING ORIGINAL PATH: {original_path}")
+            path = original_path
+            url = f"{self.base_url}{path}"
+        
+        self.logger.debug(f"Sending {method} request to {url}")
+
+        resolved_path = resolve_api_path(path, self.config)
+        
+        # Force agent status paths to remain unchanged
+        if "agent/status" in path and "analysis" in resolved_path:
+            self.logger.warning(f"PATH CORRUPTION DETECTED: {path} -> {resolved_path}, FORCING AGENT PATH")
+            resolved_path = path
+        
+        if resolved_path != path:
+            self.logger.debug(f"Real API request: {method} {path} (resolved to {resolved_path})")
+        else:
+            self.logger.debug(f"Real API request: {method} {path}")
+        
+        if not self.session:
+            raise RuntimeError("HTTP session not initialized")
+        
+        url = f"{self.uri}{resolved_path}"
+        self.logger.debug(f"FINAL URL: {method} {url}")
         headers = headers or {}
         
         self.logger.debug(f"Sending {method} request to {url}")

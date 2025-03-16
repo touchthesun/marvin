@@ -9,7 +9,7 @@ import traceback
 from test_harness.utils.paths import resolve_path
 from core.utils.logger import get_logger
 from test_harness.mocks.base import BaseMockService
-from test_harness.utils.helpers import wait_for_service, find_free_port
+from core.utils.helpers import wait_for_service, find_free_port
 
 
 class MockNeo4jService(BaseMockService):

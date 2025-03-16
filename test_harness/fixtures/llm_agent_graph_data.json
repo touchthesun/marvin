@@ -1,0 +1,49 @@
+{
+    "nodes": [
+      {
+        "id": "decision_doc",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://raw.githubusercontent.com/touchthesun/marvin/refs/heads/main/docs/architecture/decisions.md",
+          "title": "Architectural Decisions",
+          "content": "Browser Extension First: Develop Marvin as a browser extension from the start rather than beginning with a standalone application. Neo4j as Knowledge Graph Backend: Use Neo4j as the primary database for storing and managing the knowledge graph. LLM Provider Abstraction: Implement a provider-agnostic abstraction layer for LLM integration. Security Model: Implement security features as part of Phase 3. Browser Compatibility: Focus initially on Chrome. Local-First Architecture: Design system to operate fully locally with optional cloud integration."
+        }
+      },
+      {
+        "id": "overview_doc",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://raw.githubusercontent.com/touchthesun/marvin/refs/heads/main/docs/architecture/overview.md",
+          "title": "System Overview",
+          "content": "Marvin is an intelligent research assistant that actively helps users organize and leverage their browsing history and research materials. Core Components: Task Execution Engine, Knowledge Graph Manager, LLM Integration Service, Web Search Service."
+        }
+      },
+      {
+        "id": "api_doc",
+        "labels": ["Page"],
+        "properties": {
+          "url": "https://raw.githubusercontent.com/touchthesun/marvin/refs/heads/main/docs/api/api-docs.md",
+          "title": "API Documentation",
+          "content": "The Marvin API provides endpoints for managing the knowledge graph, content analysis, and task execution. Authentication uses a Bearer token scheme. All endpoints return responses in a standardized format."
+        }
+      }
+    ],
+    "relationships": [
+      {
+        "start": "decision_doc",
+        "end": "overview_doc",
+        "type": "RELATED_TO",
+        "properties": {
+          "strength": 0.8
+        }
+      },
+      {
+        "start": "overview_doc",
+        "end": "api_doc",
+        "type": "RELATED_TO",
+        "properties": {
+          "strength": 0.7
+        }
+      }
+    ]
+  }

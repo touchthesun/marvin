@@ -1,6 +1,8 @@
 import os
+import time
+import uuid
 import asyncio
-from typing import Dict, Optional, Any, Type
+from typing import Dict, Optional, Any, List
 from pathlib import Path
 
 from core.services.content.pipeline_service import PipelineService
@@ -32,6 +34,7 @@ class AppState:
         self._auth_config = None
         self.llm_factory: Optional[LLMProviderFactory] = None
         self.llm_providers: Dict[str, BaseLLMProvider] = {}
+        self.agent_tasks: Dict[str, Dict[str, Any]] = {}
         self._health_check_task: Optional[asyncio.Task] = None
         self._shutdown_requested: bool = False
         
@@ -117,6 +120,11 @@ class AppState:
             if config.get("enable_health_checks", True):
                 self.logger.info("Starting periodic health checks")
                 await self.start_health_checks()
+
+            # Start agent task cleanup
+            self.logger.info("Starting periodic agent task cleanup")
+            asyncio.create_task(self._run_agent_task_cleanup())
+
             
             self.logger.info("Application state initialized successfully")
         except Exception as e:
@@ -124,7 +132,6 @@ class AppState:
             # Clean up any partially initialized resources
             await self.cleanup()
             raise
-
 
 
     async def cleanup(self) -> None:
@@ -167,6 +174,16 @@ class AppState:
                 error_msg = f"Error shutting down LLM providers: {str(e)}"
                 self.logger.error(error_msg)
                 cleanup_errors.append(error_msg)
+
+        if self.agent_tasks:
+            try:
+                self.logger.debug("Cleaning up agent tasks")
+                await self.cleanup_agent_tasks(max_age_hours=1)  # Clean up tasks older than 1 hour on shutdown
+                self.logger.debug("Agent tasks cleanup complete")
+            except Exception as e:
+                error_msg = f"Error cleaning up agent tasks: {str(e)}"
+                self.logger.error(error_msg)
+                cleanup_errors.append(error_msg)
         
         # Clean up database connection last
         if self.db_connection:
@@ -185,6 +202,17 @@ class AppState:
                 error_msg = f"Error shutting down database connection: {str(e)}"
                 self.logger.error(error_msg)
                 cleanup_errors.append(error_msg)
+
+        # Clean up task managers
+        if hasattr(self, "_registered_task_managers"):
+            for task_manager in self._registered_task_managers:
+                try:
+                    self.logger.debug(f"Shutting down task manager for {task_manager.component_name}")
+                    await task_manager.shutdown()
+                except Exception as e:
+                    error_msg = f"Error shutting down task manager: {str(e)}"
+                    self.logger.error(error_msg)
+                    cleanup_errors.append(error_msg)
         
         # Report any cleanup errors
         if cleanup_errors:
@@ -279,6 +307,69 @@ class AppState:
             self.logger.info("Health check task cancelled")
         except Exception as e:
             self.logger.error(f"Health check task failed: {str(e)}")
+
+
+    # Agent state management
+    async def create_agent_task(self, task_type: str, query: str, relevant_urls: Optional[List[str]] = None) -> str:
+        """Create a new agent task and return its ID."""
+        task_id = str(uuid.uuid4())
+        
+        self.agent_tasks[task_id] = {
+            "id": task_id,
+            "type": task_type,
+            "query": query,
+            "status": "enqueued",
+            "created_at": time.time(),
+            "relevant_urls": relevant_urls or [],
+            "result": None,
+            "error": None
+        }
+        
+        self.logger.info(f"Created agent task {task_id} for query: {query}")
+        return task_id
+
+    async def get_agent_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Get an agent task by ID."""
+        return self.agent_tasks.get(task_id)
+
+    async def update_agent_task(self, task_id: str, updates: Dict[str, Any]) -> None:
+        """Update an agent task."""
+        if task_id in self.agent_tasks:
+            self.agent_tasks[task_id].update(updates)
+            self.logger.debug(f"Updated agent task {task_id}: {updates.keys()}")
+        else:
+            self.logger.warning(f"Attempted to update non-existent agent task: {task_id}")
+
+    async def cleanup_agent_tasks(self, max_age_hours: int = 24) -> None:
+        """Clean up old agent tasks."""
+        now = time.time()
+        max_age_seconds = max_age_hours * 60 * 60
+        
+        to_remove = []
+        for task_id, task in self.agent_tasks.items():
+            # Remove tasks older than max_age
+            if now - task["created_at"] > max_age_seconds:
+                to_remove.append(task_id)
+        
+        for task_id in to_remove:
+            self.agent_tasks.pop(task_id, None)
+            
+        if to_remove:
+            self.logger.info(f"Cleaned up {len(to_remove)} old agent tasks")
+
+    async def _run_agent_task_cleanup(self, interval: int = 3600):
+        """Periodically clean up old agent tasks."""
+        try:
+            while not self._shutdown_requested:
+                await asyncio.sleep(interval)  # Run every hour by default
+                
+                if not self._shutdown_requested:  # Check again after sleeping
+                    await self.cleanup_agent_tasks()
+                    
+        except asyncio.CancelledError:
+            self.logger.debug("Agent task cleanup task cancelled")
+        except Exception as e:
+            self.logger.error(f"Error in agent task cleanup: {str(e)}")
 
 app_state = AppState()
 

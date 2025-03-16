@@ -3,7 +3,7 @@ import json
 
 from core.utils.logger import get_logger
 from test_harness.scenarios.base import TestScenario
-from test_harness.utils.helpers import wait_for_task_completion
+from core.utils.helpers import wait_for_task_completion
 from test_harness.utils.paths import resolve_api_path
 
 class KnowledgeQueryScenario(TestScenario):
@@ -213,64 +213,3 @@ class KnowledgeQueryScenario(TestScenario):
                     ))
         
         return assertions
-
-    # Instead use test_harnes.utils.helpers.wait_for_task_completion
-    # async def _wait_for_task_completion(self, task_id, max_wait=5, interval=1):
-    #     """
-    #     Wait for a task to complete.
-        
-    #     Args:
-    #         task_id: Task ID to track
-    #         max_wait: Maximum wait time in seconds
-    #         interval: Polling interval in seconds
-            
-    #     Returns:
-    #         Final task status response
-    #     """
-    #     self.logger.info(f"Waiting for task {task_id} to complete (timeout: {max_wait}s)")
-        
-    #     start_time = asyncio.get_event_loop().time()
-    #     last_status = None
-    #     attempts = 0
-        
-    #     while asyncio.get_event_loop().time() - start_time < max_wait:
-    #         attempts += 1
-    #         try:
-    #             status_path = resolve_api_path(f"/agent/status/{task_id}", self.config)
-    #             self.logger.info(f"Checking status (attempt {attempts}): GET {status_path}")
-    #             self.logger.info(f"Task ID: '{task_id}'")
-                
-    #             status_response = await self.components["api"].send_request(
-    #                 "GET",
-    #                 status_path,
-    #                 headers={"Authorization": f"Bearer {self.auth_token}"}
-    #             )
-                
-    #             last_status = status_response
-                
-    #             if not status_response.get("success", False):
-    #                 self.logger.warning(f"Error response (attempt {attempts}): {json.dumps(status_response)}")
-    #                 await asyncio.sleep(interval)
-    #                 continue
-                
-    #             status = status_response.get("data", {}).get("status")
-    #             self.logger.debug(f"Task status (attempt {attempts}): {status}")
-                
-    #             if status in ["completed", "error"]:
-    #                 self.logger.info(f"Task {task_id} finished with status: {status} after {attempts} attempts")
-    #                 return status_response
-                
-    #             progress = status_response.get("data", {}).get("progress", 0)
-    #             self.logger.debug(f"Task {task_id} in progress: {progress:.0%}")
-                
-    #         except Exception as e:
-    #             self.logger.warning(f"Exception checking task status (attempt {attempts}): {str(e)}")
-    #             if last_status is None:
-    #                 last_status = {"success": False, "error": {"message": str(e)}}
-            
-    #         # Increase interval slightly with each retry (up to 3 seconds)
-    #         interval = min(interval * 1.2, 3)
-    #         await asyncio.sleep(interval)
-        
-    #     self.logger.warning(f"Task {task_id} did not complete within {max_wait} seconds after {attempts} attempts")
-    #     return last_status

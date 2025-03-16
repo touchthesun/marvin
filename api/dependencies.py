@@ -8,12 +8,13 @@ This module provides dependencies in several categories:
 - Compound service provider: Combined service context for routes
 """
 
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Dict
 from fastapi import Depends, Header, HTTPException, status, Request
 from contextlib import asynccontextmanager
 from core.infrastructure.auth.config import AuthProviderConfig
-from core.infrastructure.auth.errors import ConfigurationError
 from api.models.auth.request import SessionAuth
+from api.state import get_app_state
+from api.task_manager import TaskManager
 from core.infrastructure.auth.config import AuthProviderConfig, get_auth_provider_config
 from core.infrastructure.auth.providers.base_auth_provider import AuthProviderInterface
 from core.infrastructure.database.db_connection import DatabaseConnection, ConnectionConfig
@@ -33,6 +34,8 @@ from core.utils.logger import get_logger
 # Initialize logger
 logger = get_logger(__name__)
 
+# Cache of task managers by component name
+_task_managers: Dict[str, TaskManager] = {}
 
 # Base component providers
 
@@ -284,3 +287,40 @@ async def get_session_token(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authorization header is required"
     )
+
+async def get_task_manager(component_name: str, app_state = Depends(get_app_state)):
+    """
+    Get (or create) a TaskManager instance for a specific component.
+    
+    This factory function ensures we reuse the same TaskManager
+    instance for each component throughout the application.
+    
+    Args:
+        component_name: The component name to get a TaskManager for
+        app_state: The application state (injected)
+        
+    Returns:
+        An initialized TaskManager instance
+    """
+    if component_name not in _task_managers:
+        # Create new TaskManager
+        task_manager = TaskManager(component_name)
+        await task_manager.initialize()
+        _task_managers[component_name] = task_manager
+        
+        # Register for cleanup when app shuts down
+        if not hasattr(app_state, "_registered_task_managers"):
+            app_state._registered_task_managers = []
+        
+        app_state._registered_task_managers.append(task_manager)
+        
+    return _task_managers[component_name]
+
+# Convenience functions for common components
+async def get_agent_task_manager(app_state = Depends(get_app_state)):
+    """Get the agent task manager."""
+    return await get_task_manager("agent", app_state)
+
+async def get_analysis_task_manager(app_state = Depends(get_app_state)):
+    """Get the analysis task manager."""
+    return await get_task_manager("analysis", app_state)
