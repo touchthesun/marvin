@@ -50,6 +50,13 @@ class BaseConfig:
     def __getitem__(self, key):
         """Dictionary-like access for backward compatibility."""
         return getattr(self, key)
+    
+    def __contains__(self, key):
+        """Support for 'in' operator."""
+        try:
+            return hasattr(self, key)
+        except:
+            return False
 
 
 @dataclass

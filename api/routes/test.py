@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any
 from pydantic import BaseModel, HttpUrl
+from datetime import datetime
 
+from api.models.analysis.response import TaskResponse, TaskResponseData
+from api.models.page.request import PageCreate
 from core.services.content.pipeline_service import PipelineService
 from api.dependencies import get_pipeline_service
 from core.utils.logger import get_logger
@@ -17,6 +20,7 @@ class URLSubmission(BaseModel):
 class URLBatchSubmission(BaseModel):
     """Model for batch URL submission"""
     urls: List[HttpUrl]
+    
 
 @router.post("/submit")
 async def submit_url(
@@ -88,3 +92,4 @@ async def get_queue_status(
     except Exception as e:
         logger.error(f"Error getting queue status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    

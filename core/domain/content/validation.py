@@ -6,7 +6,7 @@ import spacy
 from core.utils.logger import get_logger
 from .keyword_identifier import KeywordIdentifier
 from .abbreviations import AbbreviationService
-from .types import ProcessingError
+from core.common.errors import ProcessingError
 
 logger = get_logger(__name__)
 

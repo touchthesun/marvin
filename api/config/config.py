@@ -1,64 +1,54 @@
 from functools import lru_cache
-from core.utils.config import load_config
-from pydantic_settings import BaseSettings
-from typing import List
+from api.config.config_model import ApiConfig
 import os
+from core.utils.config import load_config as load_core_config
 
-# Load core configuration
-CORE_CONFIG = load_config()
-
-# Calculate paths relative to this file
+# Calculate paths relative to this file for static and template directories
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATIC_DIR = os.path.join(ROOT_DIR, 'web', 'static')
 TEMPLATES_DIR = os.path.join(ROOT_DIR, 'web', 'templates')
 
-class Settings(BaseSettings):
-    """API Server Configuration Settings
-    
-    Uses core configuration while maintaining FastAPI compatibility.
-    All sensitive settings are managed in core config.
-    """
-    
-    # Static File Settings
-    STATIC_DIR: str = STATIC_DIR
-    TEMPLATES_DIR: str = TEMPLATES_DIR
-    STATIC_URL: str = "/static"
-
-    # API Settings
-    API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Marvin"
-    DEBUG: bool = True
-    
-    # Server Settings
-    HOST: str = "localhost"
-    PORT: int = 8000
-    RELOAD: bool = True
-    
-    # Import security settings from core config
-    BACKEND_CORS_ORIGINS: List[str] = CORE_CONFIG.allowed_origins
-    SECRET_KEY: str = CORE_CONFIG.secret_key
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = CORE_CONFIG.access_token_expire_minutes
-    JWT_ALGORITHM: str = CORE_CONFIG.jwt_algorithm
-    SECURE_COOKIES: bool = CORE_CONFIG.secure_cookies
-    API_KEY_HEADER_NAME: str = CORE_CONFIG.api_key_header_name
-    RATE_LIMIT_REQUESTS: int = CORE_CONFIG.rate_limit_requests
-    RATE_LIMIT_WINDOW: int = CORE_CONFIG.rate_limit_window_seconds
-    
-    # Database settings from core config
-    NEO4J_URI: str = CORE_CONFIG.neo4j_uri
-    NEO4J_USER: str = CORE_CONFIG.neo4j_username
-    NEO4J_PASSWORD: str = CORE_CONFIG.neo4j_password
-    
-    # Logging configuration
-    LOGGING_LEVEL: str = CORE_CONFIG.logging_level
-    
-    class Config:
-        case_sensitive = True
-
 @lru_cache()
-def get_settings() -> Settings:
-    """Get cached settings instance"""
-    return Settings()
+def get_settings():
+    """Get cached settings instance with values from the core configuration."""
+    # Load the core configuration first
+    core_config = load_core_config()
+    
+    # Create API config instance, inheriting values from core config
+    api_config = ApiConfig(
+        # Inherit core config values
+        environment=core_config.environment,
+        logging_level=core_config.logging_level,
+        config_dir=core_config.config_dir,
+        storage_path=core_config.storage_path,
+        neo4j_uri=core_config.neo4j_uri,
+        neo4j_username=core_config.neo4j_username,
+        neo4j_password=core_config.neo4j_password,
+        db_mode=core_config.db_mode,
+        secret_key=core_config.secret_key,
+        admin_token=core_config.admin_token,
+        allowed_origins=core_config.allowed_origins,
+        api_key_header_name=core_config.api_key_header_name,
+        jwt_algorithm=core_config.jwt_algorithm,
+        access_token_expire_minutes=core_config.access_token_expire_minutes,
+        secure_cookies=core_config.secure_cookies,
+        rate_limit_requests=core_config.rate_limit_requests,
+        rate_limit_window_seconds=core_config.rate_limit_window_seconds,
+        enable_metadata_comparison=core_config.enable_metadata_comparison,
+        
+        # API-specific settings, potentially overridden by environment variables
+        version=os.getenv("MARVIN_API_VERSION", "0.1.0"),
+        project_name=os.getenv("MARVIN_API_PROJECT_NAME", "Marvin"),
+        debug=os.getenv("MARVIN_API_DEBUG", "True").lower() in ("true", "1", "t"),
+        host=os.getenv("MARVIN_API_HOST", "localhost"),
+        port=int(os.getenv("MARVIN_API_PORT", "8000")),
+        reload=os.getenv("MARVIN_API_RELOAD", "True").lower() in ("true", "1", "t"),
+        static_dir=os.getenv("MARVIN_API_STATIC_DIR", STATIC_DIR),
+        templates_dir=os.getenv("MARVIN_API_TEMPLATES_DIR", TEMPLATES_DIR),
+        static_url=os.getenv("MARVIN_API_STATIC_URL", "/static"),
+        api_v1_str=os.getenv("MARVIN_API_V1_STR", "/api/v1")
+    )
+    
+    return api_config
 
-# Export settings instance
 settings = get_settings()

@@ -1,6 +1,6 @@
 import traceback
 import json
-from typing import Optional
+from typing import Union
 
 from core.utils.logger import get_logger
 from test_harness.utils.paths import resolve_path
@@ -17,16 +17,27 @@ class TestHarnessController:
     environment setup/teardown, and result collection.
     """
     
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path_or_obj: Union[str, TestConfig]):
         """
         Initialize the test harness controller.
         
         Args:
-            config_path: Path to the test configuration file
+            config_path_or_obj: Path to the test configuration file or pre-configured TestConfig object
         """
-        self.config: TestConfig = load_test_config(config_path)
+        # Handle either a path to config or a pre-configured object
+        if isinstance(config_path_or_obj, str):
+            self.config_path = config_path_or_obj
+            self.config = load_test_config(config_path_or_obj)
+        else:
+            self.config_path = "pre-configured"
+            self.config = config_path_or_obj
+            
         self.logger = get_logger("test.controller", self.config.logging_level)
-        self.logger.info(f"Initializing test controller with config from {config_path}")
+        self.logger.info(f"Initializing test controller with config from {self.config_path}")
+        
+        # Log Neo4j configuration for debugging
+        if hasattr(self.config, "neo4j") and self.config.neo4j:
+            self.logger.debug(f"Controller initialized with Neo4j config: {self.config.neo4j}")
         
         self.results = []
         self.components = {}

@@ -72,6 +72,19 @@ class DatabaseError(Exception):
         if self.cause:
             error_parts.append(f"Caused by: {str(self.cause)}")
         return " ".join(error_parts)
+    
+    
+class QueryTimeoutError(DatabaseError):
+    """Raised when query execution times out."""
+    pass
+
+class QueryExecutionError(DatabaseError):
+    """Raised when query execution fails."""
+    pass
+
+class InvalidTransactionError(DatabaseError):
+    """Raised when transaction validation fails."""
+    pass
 
 
 # Service Errors
@@ -132,3 +145,5 @@ class SchemaError(Exception):
         if self.cause:
             error_str += f" Caused by: {str(self.cause)}"
         return error_str
+    
+    

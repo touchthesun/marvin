@@ -12,11 +12,6 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     """Creates and returns a configured logger."""
     logger = logging.getLogger(name)
     
-    # Debug logging configuration
-    logger.debug(f"Configuring logger {name}")
-    logger.debug(f"Current handlers: {logger.handlers}")
-    logger.debug(f"Root logger handlers: {logging.getLogger().handlers}")
-    
     # Get logging level from config, arguments, or default
     log_level = (level or 
                 config.get("logging_level") or 

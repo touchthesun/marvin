@@ -1,16 +1,22 @@
+import neo4j
+import asyncio
+
 from typing import Dict, List, Optional, AsyncIterator
 from contextlib import asynccontextmanager
-import neo4j
 from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
 from neo4j.exceptions import (
     Neo4jError,
     ServiceUnavailable,
     SessionExpired,
 )
-from core.common.errors import DatabaseError
+from core.common.errors import DatabaseError, QueryTimeoutError, QueryExecutionError
 from core.utils.logger import get_logger
-from core.infrastructure.database.transactions import Transaction, TransactionManager, TransactionConfig
-
+from core.infrastructure.database.metrics import DatabaseMetrics
+from core.infrastructure.database.transactions import (
+    Transaction, 
+    TransactionManager, 
+    TransactionConfig
+)
 
 class ConnectionConfig:
     """Configuration for database connection."""
@@ -46,6 +52,7 @@ class DatabaseConnection:
         self._driver: Optional[AsyncDriver] = None
         self._tx_manager = TransactionManager(config.transaction_config)
         self.logger = get_logger(__name__)
+        self.metrics_collector = DatabaseMetrics()
         
     async def initialize(self) -> None:
         """Initialize and verify database connection."""
@@ -112,32 +119,80 @@ class DatabaseConnection:
     
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[Transaction]:
-        """Get a managed database transaction."""
-        async with self.session() as session:
-            tx = Transaction()
-            neo4j_tx = None
+        """Get a managed database transaction with enhanced error logging."""
+        session = None
+        tx = Transaction()
+        neo4j_tx = None
+        
+        try:
+            self.logger.debug("Starting database transaction")
+            # Create session
+            if not self._driver:
+                self.logger.debug("Initializing driver before transaction")
+                await self.initialize()
+                
+            session = self._driver.session()
+            self.logger.debug(f"Created session: {id(session)}")
+            
             try:
+                # Begin transaction
+                self.logger.debug("Beginning transaction")
                 neo4j_tx = await session.begin_transaction()
+                self.logger.debug(f"Created transaction: {id(neo4j_tx)}")
+                
+                # Set transaction on our wrapper
                 await tx.set_db_transaction(neo4j_tx)
+                self.logger.debug("Transaction initialized successfully")
+                
+                # Yield transaction to caller
                 yield tx
+                
+                # Commit if we get here
+                self.logger.debug("Committing transaction")
                 await tx.commit()
+                self.logger.debug("Transaction committed successfully")
+                
             except Exception as e:
+                self.logger.error(f"Error in transaction: {str(e)}", exc_info=True)
                 if tx:
-                    await tx.rollback()
-                raise DatabaseError(
-                    message="Transaction failed",
-                    cause=e
-                )
-    
+                    self.logger.debug("Rolling back transaction due to error")
+                    try:
+                        await tx.rollback()
+                        self.logger.debug("Transaction rollback successful")
+                    except Exception as rollback_error:
+                        self.logger.error(f"Error during rollback: {str(rollback_error)}")
+                
+                if isinstance(e, DatabaseError):
+                    raise
+                else:
+                    raise DatabaseError(
+                        message="Transaction failed",
+                        cause=e
+                    )
+        except Exception as outer_e:
+            self.logger.error(f"Outer error in transaction: {str(outer_e)}", exc_info=True)
+            raise
+        finally:
+            # Always close the session
+            if session:
+                self.logger.debug(f"Closing session: {id(session)}")
+                try:
+                    await session.close()
+                    self.logger.debug("Session closed successfully")
+                except Exception as close_error:
+                    self.logger.error(f"Error closing session: {str(close_error)}")
+        
     async def execute_query(
         self,
         query: str,
         parameters: Optional[Dict] = None,
         transaction: Optional[Transaction] = None,
         read_only: bool = False,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        timeout: int = 15
     ) -> List[Dict]:
-        """Execute a database query with retry support."""
+        """Execute a database query with timeout and enhanced logging."""
+        self.logger.debug(f"Executing query (timeout: {timeout}s): {query[:100]}...")
         
         async def run_query(tx: Transaction) -> List[Dict]:
             try:
@@ -150,16 +205,43 @@ class DatabaseConnection:
                 
                 if tx.db_transaction is None:
                     # Create a new session and initialize the transaction
+                    self.logger.debug("Transaction has no database transaction, initializing")
                     session = self._driver.session()
                     await tx.initialize_db_transaction(session)
                 
-                result = await tx.db_transaction.run(query, parameters or {})
-                data = await result.data()
-                await result.consume()
+                self.logger.debug(f"Executing query in transaction: {query[:100]}...")
+                
+                # Add timeout to query execution
+                result = await asyncio.wait_for(
+                    tx.db_transaction.run(query, parameters or {}),
+                    timeout=timeout
+                )
+                
+                self.logger.debug("Query executed, fetching data")
+                data = await asyncio.wait_for(
+                    result.data(),
+                    timeout=timeout
+                )
+                
+                self.logger.debug("Data fetched, consuming results")
+                await asyncio.wait_for(
+                    result.consume(),
+                    timeout=timeout
+                )
+                
+                self.logger.debug(f"Query completed successfully, returning {len(data)} records")
                 return data
+                
+            except asyncio.TimeoutError:
+                self.logger.error(f"Query execution timed out after {timeout}s")
+                raise DatabaseError(
+                    message=f"Query execution timed out after {timeout}s",
+                    query=query,
+                    parameters=parameters
+                )
             except Exception as e:
                 self.logger.error(
-                    "Query execution error",
+                    f"Query execution error: {str(e)}",
                     extra={
                         "query": query,
                         "parameters": parameters,
@@ -175,22 +257,13 @@ class DatabaseConnection:
         
         try:
             if transaction:
-                # Use existing transaction or initialize it if needed
+                # Use existing transaction
                 return await run_query(transaction)
             else:
-                # Create new transaction through context manager
-                async def wrapped_query():
-                    tx = Transaction()
-                    try:
-                        return await run_query(tx)
-                    finally:
-                        await tx.commit()  # This will also clean up resources
-                
-                return await self._tx_manager.execute_in_transaction(
-                    wrapped_query,
-                    transaction_id=transaction_id
-                )
-                    
+                # Create a new transaction through our method
+                async with self.transaction() as tx:
+                    return await run_query(tx)
+                        
         except Exception as e:
             if isinstance(e, DatabaseError):
                 raise
@@ -209,7 +282,34 @@ class DatabaseConnection:
                 parameters=parameters,
                 cause=e
             )
-    
+
+            
+    async def check_connection_pool(self) -> Dict:
+        """Check connection pool status."""
+        if not self._driver:
+            return {"status": "not_initialized"}
+            
+        try:
+            # For Neo4j 5.x driver
+            if hasattr(self._driver, "get_stats"):
+                stats = self._driver.get_stats()
+                return {
+                    "in_use": stats.in_use,
+                    "idle": stats.idle,
+                    "max_size": self.config.max_connection_pool_size,
+                    "status": "healthy" if stats.in_use < self.config.max_connection_pool_size else "at_capacity"
+                }
+            # Fallback for driver without statistics
+            return {
+                "max_size": self.config.max_connection_pool_size,
+                "status": "metrics_unavailable"
+            }
+        except AttributeError:
+            # Fallback for Neo4j driver versions that don't support statistics
+            return {"status": "metrics_unavailable"}
+        except Exception as e:
+            self.logger.error(f"Error checking connection pool: {str(e)}")
+            return {"status": "error", "message": str(e)}
 
     async def execute_read_query(
         self,
@@ -273,3 +373,8 @@ class DatabaseConnection:
             parameters=parameters,
             cause=error
         )
+    
+    @property
+    def transaction_manager(self):
+        """Alias for _tx_manager for backward compatibility."""
+        return self._tx_manager

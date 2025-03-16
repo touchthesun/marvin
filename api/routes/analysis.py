@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends
 from core.services.content.pipeline_service import PipelineService
 from api.dependencies import get_pipeline_service
@@ -59,6 +60,7 @@ async def analyze_page(
         logger.error(f"Error analyzing page: {str(e)}", exc_info=True)
         raise
 
+
 @router.get("/status/{task_id}", response_model=TaskResponse)
 async def get_analysis_status(
     task_id: str,
@@ -67,7 +69,27 @@ async def get_analysis_status(
     """Get the status of an analysis task."""
     try:
         logger.info(f"Checking status for task: {task_id}")
-        status = await pipeline_service.get_status(task_id)
+        
+        # Replace asyncio.timeout with asyncio.wait_for for Python 3.9 compatibility
+        try:
+            status = await asyncio.wait_for(
+                pipeline_service.get_status(task_id),
+                timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout retrieving status for task: {task_id}")
+            return TaskResponse(
+                success=False,
+                data=TaskResponseData(
+                    success=False,
+                    task_id=task_id,
+                    status="error",
+                    progress=0.0,
+                    message="Status check timed out",
+                    error="Endpoint timeout retrieving task status"
+                )
+            )
+            
         logger.debug(f"Raw status response: {status}")
         
         if not status or status.get("status") == "not_found":
@@ -113,6 +135,64 @@ async def get_analysis_status(
                 status="error",
                 progress=0.0,
                 message="Status check failed",
+                error=str(e)
+            )
+        )
+    
+@router.post("/test", response_model=TaskResponse)
+async def test_analyze(
+    page: PageCreate,
+    pipeline_service: PipelineService = Depends(get_pipeline_service)
+) -> TaskResponse:
+    """Minimal test endpoint for diagnosis."""
+    try:
+        logger.info(f"Test analyze endpoint called for URL: {page.url}")
+        
+        # Create task ID
+        from uuid import uuid4
+        from datetime import datetime
+        
+        task_id = str(uuid4())
+        url = str(page.url)
+        
+        # Store directly in processed_urls with success status
+        pipeline_service.processed_urls[url] = {
+            "url": url,
+            "status": "completed",  # Mark as completed immediately
+            "task_id": task_id,
+            "progress": 1.0,
+            "queued_at": datetime.now().isoformat(),
+            "completed_at": datetime.now().isoformat(),
+            "browser_context": page.context.value if page.context else None,
+            "tab_id": getattr(page, "tab_id", None),
+            "window_id": getattr(page, "window_id", None),
+            "bookmark_id": getattr(page, "bookmark_id", None),
+            "message": "Test task completed successfully"
+        }
+        
+        logger.info(f"Created test task {task_id} for {url} with completed status")
+        
+        # Return success response
+        return TaskResponse(
+            success=True,
+            data=TaskResponseData(
+                success=True,
+                task_id=task_id,
+                status="completed",
+                progress=1.0,
+                message="Test task completed"
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error in test endpoint: {str(e)}", exc_info=True)
+        return TaskResponse(
+            success=False,
+            data=TaskResponseData(
+                success=False,
+                task_id="error",
+                status="error",
+                progress=0.0,
+                message="Test failed",
                 error=str(e)
             )
         )

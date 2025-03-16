@@ -212,7 +212,7 @@ class PipelineConfig:
             'initialize': StageConfig(timeout_seconds=5.0),
             'metadata': StageConfig(timeout_seconds=30.0),
             'content': StageConfig(timeout_seconds=60.0),
-            'analysis': StageConfig(timeout_seconds=120.0),
+            'analysis': StageConfig(timeout_seconds=60.0),
             'storage': StageConfig(timeout_seconds=30.0)
         }
         for stage, config in default_stages.items():
@@ -467,16 +467,14 @@ class DefaultComponentCoordinator(ComponentCoordinator):
         }
         self.logger = get_logger(__name__)
 
-        
-    async def execute_stage(
-        self,
-        page: Page,
-        stage: ProcessingStage,
-        tx: Optional[Transaction] = None
-    ) -> None:
+
+    async def execute_stage(self, page: Page, stage: ProcessingStage, tx: Optional[Transaction] = None) -> None:
         """Execute all components for a given stage."""
         components = self._components.get(stage, [])
+        self.logger.debug(f"Stage {stage.value} has {len(components)} components")
+        
         if not components:
+            self.logger.debug(f"No components found for stage {stage.value}, skipping")
             return
             
         stage_config = self.config.stage_configs.get(
@@ -484,10 +482,14 @@ class DefaultComponentCoordinator(ComponentCoordinator):
             StageConfig()
         )
         
+        self.logger.debug(f"Executing stage {stage.value} with {'concurrent' if stage_config.concurrent_components else 'sequential'} execution")
+        
         if stage_config.concurrent_components:
             await self._execute_concurrent(components, page, stage_config, tx)
         else:
             await self._execute_sequential(components, page, stage_config, tx)
+        
+        self.logger.debug(f"Completed execution of stage {stage.value}")
     
     async def _execute_concurrent(
         self,
@@ -497,17 +499,22 @@ class DefaultComponentCoordinator(ComponentCoordinator):
         tx: Optional[Transaction]
     ) -> None:
         """Execute components concurrently with transaction support."""
+        self.logger.debug(f"Starting concurrent execution of {len(components)} components for page {page.id}")
         tasks = []
         component_results = {}
         
         for component in components:
+            component_name = component.__class__.__name__
+            self.logger.debug(f"Creating task for component {component_name}")
             task = self._execute_component_with_retry(
                 component, page, config.retry_policy, tx
             )
             tasks.append(task)
             
         try:
+            self.logger.debug(f"Awaiting completion of {len(tasks)} component tasks")
             results = await asyncio.gather(*tasks)
+            self.logger.debug(f"All {len(tasks)} component tasks completed")
             
             # If we have a transaction, add rollback handlers for all successful components
             if tx:
@@ -533,11 +540,17 @@ class DefaultComponentCoordinator(ComponentCoordinator):
         tx: Optional[Transaction]
     ) -> None:
         """Execute components sequentially with transaction support."""
-        for component in components:
+        self.logger.debug(f"Starting sequential execution of {len(components)} components for page {page.id}")
+        
+        for i, component in enumerate(components):
+            component_name = component.__class__.__name__
+            self.logger.debug(f"Executing component {i+1}/{len(components)}: {component_name}")
+            
             try:
                 result = await self._execute_component_with_retry(
                     component, page, config.retry_policy, tx
                 )
+                self.logger.debug(f"Component {component_name} completed with result: {result}")
                 
                 # If we have a transaction, add rollback handler after successful execution
                 if tx and result:
@@ -547,12 +560,15 @@ class DefaultComponentCoordinator(ComponentCoordinator):
                     
             except Exception as e:
                 self.logger.error(
-                    f"Sequential component execution failed for {page.id}",
+                    f"Sequential component execution failed for {page.id} at component {component_name}",
                     exc_info=True
                 )
                 raise StageError(
-                    f"Component {component.__class__.__name__} failed: {str(e)}"
+                    f"Component {component_name} failed: {str(e)}"
                 )
+                
+        self.logger.debug(f"Completed sequential execution of all {len(components)} components")
+    
     
     async def _execute_component_with_retry(
         self,
@@ -562,11 +578,15 @@ class DefaultComponentCoordinator(ComponentCoordinator):
         tx: Optional[Transaction]
     ) -> bool:
         """Execute a component with retry logic and transaction support."""
+        component_name = component.__class__.__name__
+        self.logger.debug(f"Executing component {component_name} with retry (max attempts: {retry_policy.max_attempts})")
+        
         attempts = 0
         delay = retry_policy.delay_seconds
         
         while attempts < retry_policy.max_attempts:
             try:
+                self.logger.debug(f"Component {component_name}: attempt {attempts+1}/{retry_policy.max_attempts}")
                 start_time = datetime.now()
                 
                 # Execute component
@@ -574,20 +594,24 @@ class DefaultComponentCoordinator(ComponentCoordinator):
                 
                 # Record timing metadata
                 duration = (datetime.now() - start_time).total_seconds()
-                if 'component_timings' not in page.metadata:
-                    page.metadata['component_timings'] = {}
-                page.metadata['component_timings'][component.__class__.__name__] = duration
                 
+                # Use custom_metadata for storing component timings
+                if 'component_timings' not in page.metadata.custom_metadata:
+                    page.metadata.custom_metadata['component_timings'] = {}
+                page.metadata.custom_metadata['component_timings'][component_name] = duration
+                
+                self.logger.debug(f"Component {component_name} executed successfully in {duration:.2f}s")
                 return True
                 
             except Exception as e:
                 attempts += 1
                 self.logger.warning(
-                    f"Component execution failed (attempt {attempts}/{retry_policy.max_attempts})",
+                    f"Component {component_name} execution failed (attempt {attempts}/{retry_policy.max_attempts}): {str(e)}",
                     exc_info=True
                 )
                 
                 if attempts == retry_policy.max_attempts:
+                    self.logger.error(f"Component {component_name} failed after {attempts} attempts")
                     if tx:
                         # Add error information to transaction context
                         tx.add_rollback_handler(
@@ -603,6 +627,7 @@ class DefaultComponentCoordinator(ComponentCoordinator):
                         retry_policy.max_delay_seconds
                     )
                     
+                self.logger.debug(f"Retrying component {component_name} after {delay}s delay")
                 await asyncio.sleep(delay)
         
         return False
@@ -615,8 +640,8 @@ class DefaultComponentCoordinator(ComponentCoordinator):
                 await component.rollback(page)
             
             # Remove component timing data
-            if 'component_timings' in page.metadata:
-                page.metadata['component_timings'].pop(component.__class__.__name__, None)
+            if 'component_timings' in page.metadata.custom_metadata:
+                page.metadata.custom_metadata['component_timings'].pop(component.__class__.__name__, None)
                 
             self.logger.debug(
                 f"Rolled back component {component.__class__.__name__} for page {page.id}"
@@ -636,9 +661,9 @@ class DefaultComponentCoordinator(ComponentCoordinator):
     ) -> None:
         """Handle component failure in transaction context."""
         component_name = component.__class__.__name__
-        if 'component_errors' not in page.metadata:
-            page.metadata['component_errors'] = {}
-        page.metadata['component_errors'][component_name] = error_message
+        if 'component_errors' not in page.metadata.custom_metadata:
+            page.metadata.custom_metadata['component_errors'] = {}
+        page.metadata.custom_metadata['component_errors'][component_name] = error_message
     
     async def validate_stage(self, page: Page, stage: ProcessingStage) -> bool:
         """Validate all components for a stage can process the page.
@@ -663,10 +688,10 @@ class DefaultComponentCoordinator(ComponentCoordinator):
                     validation_results[component.__class__.__name__] = False
                     logger.error(f"Validation failed for {component.__class__.__name__}: {e}")
             
-            # Store validation results in page metadata
-            if 'validation_results' not in page.metadata:
-                page.metadata['validation_results'] = {}
-            page.metadata['validation_results'][stage.value] = validation_results
+            # Store validation results in page custom_metadata
+            if 'validation_results' not in page.metadata.custom_metadata:
+                page.metadata.custom_metadata['validation_results'] = {}
+            page.metadata.custom_metadata['validation_results'][stage.value] = validation_results
             
             return all(validation_results.values())
         except Exception as e:
@@ -739,12 +764,17 @@ class DefaultPipelineOrchestrator(PipelineOrchestrator):
         page.content = html_content
         
         try:
-            # Process each stage
             for stage in ProcessingStage:
                 if stage in {ProcessingStage.COMPLETE, ProcessingStage.ERROR}:
                     continue
                     
-                await self._process_stage(page, stage, tx)
+                self.logger.debug(f"Starting stage {stage.value} for page {page.id}")
+                try:
+                    await self._process_stage(page, stage, tx)
+                    self.logger.debug(f"Completed stage {stage.value} for page {page.id}")
+                except Exception as e:
+                    self.logger.error(f"Error in stage {stage.value} for page {page.id}: {str(e)}")
+                    raise
                 
             # Mark completion within same transaction
             await self.context.state_manager.mark_complete(tx, page)
@@ -819,15 +849,21 @@ class DefaultPipelineOrchestrator(PipelineOrchestrator):
         timeout: float
     ) -> None:
         """Execute stage with timeout handling."""
+        self.logger.debug(f"Executing stage {stage.value} with timeout {timeout}s")
         try:
             await asyncio.wait_for(
                 self.context.component_coordinator.execute_stage(page, stage),
                 timeout=timeout
             )
+            self.logger.debug(f"Stage {stage.value} execution completed within timeout")
         except asyncio.TimeoutError:
+            self.logger.error(f"Stage {stage.value} timed out after {timeout} seconds")
             raise TimeoutError(
                 f"Stage {stage.value} timed out after {timeout} seconds"
             )
+        except Exception as e:
+            self.logger.error(f"Error executing stage {stage.value}: {str(e)}")
+            raise
 
     def _handle_stage_error(
         self,

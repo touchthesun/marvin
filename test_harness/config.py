@@ -72,12 +72,12 @@ def load_test_config(config_path: Optional[str] = None) -> TestConfig:
         test_config.api["api_v1_str"] = os.getenv("API_V1_STR")
     
     # Update neo4j details in the test_config.neo4j dict
-    if test_config.neo4j.get("use_real", False):
-        test_config.neo4j.update({
-            "uri": test_config.neo4j_uri,
-            "username": test_config.neo4j_username,
-            "password": test_config.neo4j_password
-        })
+
+    test_config.neo4j.update({
+        "uri": test_config.neo4j_uri,
+        "username": test_config.neo4j_username,
+        "password": test_config.neo4j_password
+    })
     
     logger.info(f"Test harness configuration loaded for environment: {test_config.environment}")
     

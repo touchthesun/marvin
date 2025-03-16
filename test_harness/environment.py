@@ -1,17 +1,15 @@
-import os
-import socket
+import socket 
 from typing import Dict, Any
 import traceback
 
 from core.utils.logger import get_logger
-from core.utils.config import load_config
 from test_harness.config_model import TestConfig
-from test_harness.mocks.api import RealAPIService
-from test_harness.mocks.mock_neo4j_svc import MockNeo4jService
+from test_harness.mocks.mock_neo4j_service import MockNeo4jService
 from test_harness.mocks.real_neo4j_svc import RealNeo4jService
 from test_harness.mocks.browser import BrowserSimulator
 from test_harness.mocks.llm import LLMMockService
-from test_harness.mocks.api import MockAPIService
+from test_harness.mocks.api.mock_api_service import MockAPIService
+from test_harness.mocks.api.mock_request import RealAPIService
 
 class TestEnvironmentManager:
     """
@@ -110,7 +108,9 @@ class TestEnvironmentManager:
     async def _start_neo4j(self):
         """Start a Neo4j test instance based on configuration."""
         neo4j_config = self.config.neo4j
+        self.logger.info(f"Environment Neo4j config: {self.config.neo4j}")
         self.logger.debug(f"Starting Neo4j with config: {neo4j_config}")
+        self.logger.debug(f"Neo4j use_real setting: {neo4j_config.get('use_real', False)}")
 
         # Check if we should use real Neo4j
         if neo4j_config.get("use_real", False):
@@ -128,6 +128,17 @@ class TestEnvironmentManager:
             self.logger.debug("Initializing Neo4j service")
             initialized_service = await service.initialize()
             self.logger.debug(f"Neo4j service initialized: {initialized_service.uri}")
+            
+            # Apply schema if configured and using real Neo4j
+            if neo4j_config.get("use_real", False) and neo4j_config.get("schema_script"):
+                self.logger.info(f"Applying schema from {neo4j_config.get('schema_script')}")
+                await initialized_service.apply_schema(neo4j_config.get("schema_script"))
+            
+            # Clear data if configured and using real Neo4j
+            if neo4j_config.get("use_real", False) and neo4j_config.get("clear_on_start", False):
+                self.logger.info("Clearing existing data")
+                await initialized_service.clear_data()
+            
             return initialized_service
         except Exception as e:
             self.logger.error(f"Failed to initialize Neo4j service: {str(e)}")

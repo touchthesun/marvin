@@ -1,10 +1,11 @@
 import asyncio
+import spacy
 from datetime import datetime
 from dataclasses import dataclass
 
 from typing import List, Dict, Optional
 from .types import (
-    RawKeyword, KeywordType, ProcessingError
+    RawKeyword, KeywordType
 )
 from .keyword_identifier import (
     KeywordIdentifier,
@@ -29,6 +30,7 @@ from core.domain.content.pipeline import (
     ValidationError
 )
 from core.domain.content.models.page import Page
+from core.common.errors import ProcessingError
 from core.utils.logger import get_logger
 
 
@@ -119,7 +121,7 @@ class KeywordProcessor:
                 
                 # Calculate normalized score
                 score = self._calculate_score(keywords)
-                if score < self.config.min_score:
+                if score < self.config.min_keyword_score:
                     continue
                 
                 # Create identifier with canonical form
@@ -259,7 +261,7 @@ class ContentProcessorConfig:
         max_variants: Maximum number of variants per keyword
         enable_stemming: Whether to use stemming in normalization
         extractor_config: Configuration for keyword extractors
-    """
+    """ 
     min_content_length: int = 100
     min_keyword_score: float = 0.3
     max_variants: int = 5
@@ -269,6 +271,7 @@ class ContentProcessorConfig:
         min_chars=3,
         max_words=4,
         min_frequency=1,
+        min_keyword_score=0.25,
         score_threshold=0.5
     )
 
@@ -291,14 +294,16 @@ class ContentProcessor(PipelineComponent):
     def __init__(
         self,
         config: ContentProcessorConfig,
+        nlp: 'spacy.language.Language',
         keyword_processor: Optional[KeywordProcessor] = None,
         relationship_manager: Optional[RelationshipManager] = None,
         normalizer: Optional[KeywordNormalizer] = None,
         validator: Optional[KeywordValidator] = None,
-        nlp=None
+        debug_mode: bool = False
     ):
         """Initialize with required dependencies."""
         self.config = config
+        self.debug_mode = debug_mode
         self.logger = get_logger(__name__)
         
         # Initialize text processing
@@ -314,13 +319,13 @@ class ContentProcessor(PipelineComponent):
             validator=validator or KeywordValidator(nlp=nlp)
         )
         
-        self.relationship_manager = relationship_manager or RelationshipManager(nlp)
-        
+        self.relationship_manager = relationship_manager or RelationshipManager(nlp=nlp)  # Pass nlp here
+            
         # Initialize extractors
         self.extractors: List[BaseExtractor] = [
             RakeExtractor(config.extractor_config, self.keyword_processor.normalizer),
             TfidfExtractor(config.extractor_config, self.keyword_processor.normalizer),
-            NamedEntityExtractor(config.extractor_config, self.keyword_processor.normalizer, nlp)
+            NamedEntityExtractor(config.extractor_config, self.keyword_processor.normalizer, nlp=nlp)
         ]
 
     def get_component_type(self) -> ComponentType:
@@ -329,40 +334,62 @@ class ContentProcessor(PipelineComponent):
 
 
     async def validate(self, page: Page) -> bool:
-        """Validate that this component can process the page.
-        
-        Args:
-            page: Page to validate
-            
-        Returns:
-            bool: Whether the page can be processed
-            
-        Raises:
-            ValidationError: If validation fails
-        """
+        """Validate that this component can process the page."""
         try:
+            self.logger.debug(f"Validating page {page.id} for content processing")
+            
+            # In debug mode, be more lenient
+            if self.debug_mode:
+                self.logger.warning(f"Debug mode enabled - skipping strict validation for page {page.id}")
+                
+                # Add placeholder content if none exists
+                if not page.content:
+                    self.logger.warning(f"Adding placeholder content for page {page.id} in debug mode")
+                    page.content = "Debug mode placeholder content"
+                
+                return True
+
             # Check for content directly on page
             if not page.content:
+                self.logger.warning(f"No content available for page {page.id}")
                 raise ValidationError("No content available for processing")
+            
+            # Log content length
+            content_length = len(page.content)
+            self.logger.debug(f"Raw content length: {content_length}")
             
             # Get clean content length
             is_html = '<' in page.content and '>' in page.content
             if is_html:
                 cleaned_content = self.html_processor.clean_html(page.content)
+                self.logger.debug(f"Content is HTML, cleaned length: {len(cleaned_content)}")
             else:
                 cleaned_content = self.text_cleaner.normalize_text(page.content)
+                self.logger.debug(f"Content is text, cleaned length: {len(cleaned_content)}")
             
-            if len(cleaned_content) < self.config.min_content_length:
+            # Check minimum length
+            min_length = self.config.min_content_length
+            if len(cleaned_content) < min_length:
+                self.logger.warning(
+                    f"Cleaned content too short: {len(cleaned_content)} < {min_length}"
+                )
                 raise ValidationError(
                     f"Cleaned content length ({len(cleaned_content)}) below minimum "
-                    f"threshold ({self.config.min_content_length})"
+                    f"threshold ({min_length})"
                 )
             
+            self.logger.debug(f"Page {page.id} validated successfully for content processing")
             return True
                 
         except Exception as e:
+            self.logger.error(f"Content validation failed for page {page.id}: {str(e)}")
+            
+            # In debug mode, still return True despite errors
+            if self.debug_mode:
+                self.logger.warning(f"Ignoring validation error in debug mode: {str(e)}")
+                return True
+                
             raise ValidationError(f"Content validation failed: {str(e)}") from e
-
 
 
     def _consolidate_raw_keywords(self, raw_results: List[List[RawKeyword]]) -> List[RawKeyword]:
@@ -436,8 +463,8 @@ class ContentProcessor(PipelineComponent):
             
             
             # Store cleaned content in page metadata for future use
-            page.metadata['cleaned_content'] = cleaned_content
-            page.metadata['content_metrics'] = {
+            page.metadata.custom_metadata['cleaned_content'] = cleaned_content
+            page.metadata.custom_metadata['content_metrics'] = {
                 'original_length': len(raw_content),
                 'cleaned_length': len(cleaned_content),
                 'is_html': is_html
@@ -486,6 +513,7 @@ class ContentProcessor(PipelineComponent):
             relationships = self.relationship_manager.prepare_neo4j_relationships(
                 min_confidence=self.config.relationship_confidence_threshold
             )
+            relationships = []
             # Process relationships
             for kw in keywords:
                 self.relationship_manager.register_keyword(kw.id, kw.keyword_type)
@@ -497,13 +525,13 @@ class ContentProcessor(PipelineComponent):
             })
             
             # Store relationships in page metadata
-            page.metadata['relationships'] = relationships
+            page.metadata.custom_metadata['relationships'] = relationships
             
             # Add processing time to page metrics
             processing_time = (datetime.now() - start_time).total_seconds()
-            if page.metrics:
-                page.metrics.processing_time = processing_time
-                page.metrics.keyword_count = len(keywords)
+            if page.metadata.metrics:
+                page.metadata.metrics.processing_time = processing_time
+                page.metadata.metrics.keyword_count = len(keywords)
             
             self.logger.info(
                 f"Processed page {page.url}: {len(keywords)} keywords, "

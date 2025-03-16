@@ -1,4 +1,6 @@
 import os
+import asyncio
+from typing import Dict, Optional, Any, Type
 from pathlib import Path
 
 from core.services.content.pipeline_service import PipelineService
@@ -8,7 +10,8 @@ from core.utils.logger import get_logger
 from core.utils.config import load_config
 from core.infrastructure.auth.config import get_auth_provider_config
 from core.llm.providers.anthropic.anthropic_provider import AnthropicProvider
-from core.llm.providers.base.provider import ProviderType
+from core.llm.providers.base.provider import ProviderType 
+from core.llm.providers.base.provider_base import BaseLLMProvider
 from core.llm.factory.factory import LLMProviderFactory
 from core.llm.providers.config.config_manager import ProviderConfigManager
 from core.domain.content.pipeline import (
@@ -22,81 +25,172 @@ from core.domain.content.pipeline import (
 class AppState:
     """Container for application state."""
     def __init__(self):
-        self.pipeline_service: PipelineService = None
-        self.db_connection: DatabaseConnection = None
-        self.schema_manager: SchemaManager = None
+        self.pipeline_service: Optional[PipelineService] = None
+        self.db_connection: Optional[DatabaseConnection] = None
+        self.schema_manager: Optional[SchemaManager] = None
         self.logger = get_logger(__name__)
-        self.auth_config = None
-        self.llm_factory = None
-        self.llm_providers = {}
+        self._auth_config = None
+        self.llm_factory: Optional[LLMProviderFactory] = None
+        self.llm_providers: Dict[str, BaseLLMProvider] = {}
+        self._health_check_task: Optional[asyncio.Task] = None
+        self._shutdown_requested: bool = False
         
 
-    async def initialize(self):
-        """Initialize application services."""
-        # Initialize database connection
-        config = load_config()
-        config_dir = config.get("config_dir", "./config")
-        config_path = Path(config_dir)
+    async def initialize(self) -> None:
+        """Initialize application services with enhanced error handling and monitoring."""
+        try:
+            # Initialize database connection
+            config = load_config()
+            config_dir = config.get("config_dir", "./config")
+            config_path = Path(config_dir)
 
-        db_config = ConnectionConfig(
-            uri=config["neo4j_uri"],
-            username=config["neo4j_username"],
-            password=config["neo4j_password"]
-        )
-        self.db_connection = DatabaseConnection(db_config)
-        await self.db_connection.initialize()
+            # Log configuration details
+            self.logger.info(f"Initializing with config from {config_dir}")
+            self.logger.debug(f"Neo4j URI: {config['neo4j_uri']}")
+            
+            # Initialize database connection with better error logging
+            db_config = ConnectionConfig(
+                uri=config["neo4j_uri"],
+                username=config["neo4j_username"],
+                password=config["neo4j_password"],
+                max_connection_pool_size=int(config.get("max_connection_pool_size", 50)),
+                connection_timeout=int(config.get("connection_timeout", 30))
+            )
+            self.logger.info(f"Creating database connection (pool size: {db_config.max_connection_pool_size})")
+            self.db_connection = DatabaseConnection(db_config)
+            await self.db_connection.initialize()
+            
+            # Verify database connection with a quick health check
+            try:
+                pool_status = await self.db_connection.check_connection_pool()
+                self.logger.info(f"Initial database connection pool status: {pool_status}")
+            except Exception as pool_error:
+                self.logger.warning(f"Could not check connection pool: {str(pool_error)}")
 
-        # Initialize schema manager
-        self.schema_manager = SchemaManager(self.db_connection)
-        await self.schema_manager.initialize()
+            # Initialize schema manager
+            self.logger.info("Initializing schema manager")
+            self.schema_manager = SchemaManager(self.db_connection)
+            await self.schema_manager.initialize()
 
-        # Create pipeline config
-        pipeline_config = PipelineConfig(
-            max_concurrent_pages=10,
-            event_logging_enabled=True
-        )
+            # Create pipeline config
+            pipeline_config = PipelineConfig(
+                max_concurrent_pages=int(config.get("max_concurrent_pages", 10)),
+                event_logging_enabled=True
+            )
 
-        # Initialize Auth Config
-        self.auth_config = get_auth_provider_config(config.get("config_dir", "./config"))
+            # Initialize Auth Config
+            self.logger.info("Initializing auth provider configuration")
+            self.auth_config = get_auth_provider_config(config.get("config_dir", "./config"))
 
-        # Initialize LLM provider factory
-        provider_config_manager = ProviderConfigManager(config_path)
-        self.llm_factory = LLMProviderFactory(provider_config_manager)
+            # Initialize LLM provider factory
+            self.logger.info("Initializing LLM provider factory")
+            provider_config_manager = ProviderConfigManager(config_path)
+            self.llm_factory = LLMProviderFactory(provider_config_manager)
 
-        # Register LLM providers with factory
-        self.llm_factory.register_provider(ProviderType.ANTHROPIC, AnthropicProvider)
+            # Register LLM providers with factory
+            self.logger.info("Registering Anthropic provider")
+            self.llm_factory.register_provider(ProviderType.ANTHROPIC, AnthropicProvider)
+            
+            # Create pipeline dependencies
+            self.logger.info("Creating pipeline components")
+            state_manager = DefaultStateManager(config=pipeline_config)
+            component_coordinator = DefaultComponentCoordinator(config=pipeline_config)
+            event_system = DefaultEventSystem(config=pipeline_config)
+            
+
+            # Initialize pipeline service
+            self.logger.info("Initializing pipeline service")
+            self.pipeline_service = PipelineService(
+                state_manager=state_manager,
+                component_coordinator=component_coordinator,
+                event_system=event_system,
+                config=pipeline_config,
+                db_connection=self.db_connection
+            )
+            await self.pipeline_service.initialize()
+            
+            # Initialize auth config
+            self.logger.info("Initializing auth provider configuration")
+            await self.initialize_auth_config()
+            
+            # Start health check task if enabled
+            if config.get("enable_health_checks", True):
+                self.logger.info("Starting periodic health checks")
+                await self.start_health_checks()
+            
+            self.logger.info("Application state initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize application state: {str(e)}", exc_info=True)
+            # Clean up any partially initialized resources
+            await self.cleanup()
+            raise
+
+
+
+    async def cleanup(self) -> None:
+        """Cleanup application services with enhanced error handling."""
+        self.logger.info("Beginning application cleanup")
+        self._shutdown_requested = True
         
-        # Create pipeline dependencies
-        state_manager = DefaultStateManager(config=pipeline_config)
-        component_coordinator = DefaultComponentCoordinator(config=pipeline_config)
-        event_system = DefaultEventSystem(config=pipeline_config)
+        # Cancel health check task first
+        if self._health_check_task:
+            self.logger.debug("Cancelling health check task")
+            self._health_check_task.cancel()
+            try:
+                await self._health_check_task
+            except asyncio.CancelledError:
+                self.logger.debug("Health check task cancelled")
+            except Exception as e:
+                self.logger.warning(f"Error while cancelling health check task: {str(e)}")
         
-
-        # Initialize pipeline service
-        self.pipeline_service = PipelineService(
-            state_manager=state_manager,
-            component_coordinator=component_coordinator,
-            event_system=event_system,
-            config=pipeline_config,
-            db_connection=self.db_connection
-        )
-        await self.pipeline_service.initialize()
+        # Clean up services with better error handling
+        cleanup_errors = []
         
-        # Initialize auth config
-        self.logger.info("Initializing auth provider configuration")
-        await self.initialize_auth_config()
-        
-        self.logger.info("Application state initialized successfully")
-
-
-    async def cleanup(self):
-        """Cleanup application services."""
-        if self.db_connection:
-            await self.db_connection.shutdown()
+        # Clean up pipeline service
         if self.pipeline_service:
-            await self.pipeline_service.cleanup()
+            try:
+                self.logger.debug("Cleaning up pipeline service")
+                await self.pipeline_service.cleanup()
+                self.logger.debug("Pipeline service cleanup complete")
+            except Exception as e:
+                error_msg = f"Error cleaning up pipeline service: {str(e)}"
+                self.logger.error(error_msg)
+                cleanup_errors.append(error_msg)
+        
+        # Clean up LLM providers
         if self.llm_factory:
-            await self.llm_factory.shutdown_all()
+            try:
+                self.logger.debug("Shutting down LLM providers")
+                await self.llm_factory.shutdown_all()
+                self.logger.debug("LLM providers shutdown complete")
+            except Exception as e:
+                error_msg = f"Error shutting down LLM providers: {str(e)}"
+                self.logger.error(error_msg)
+                cleanup_errors.append(error_msg)
+        
+        # Clean up database connection last
+        if self.db_connection:
+            try:
+                # Check connection pool status before shutdown for debugging
+                try:
+                    pool_status = await self.db_connection.check_connection_pool()
+                    self.logger.info(f"Connection pool status before shutdown: {pool_status}")
+                except Exception as pool_error:
+                    self.logger.warning(f"Error checking connection pool before shutdown: {str(pool_error)}")
+                
+                self.logger.debug("Shutting down database connection")
+                await self.db_connection.shutdown()
+                self.logger.debug("Database connection shutdown complete")
+            except Exception as e:
+                error_msg = f"Error shutting down database connection: {str(e)}"
+                self.logger.error(error_msg)
+                cleanup_errors.append(error_msg)
+        
+        # Report any cleanup errors
+        if cleanup_errors:
+            self.logger.warning(f"Cleanup completed with {len(cleanup_errors)} errors")
+        else:
+            self.logger.info("Application cleanup completed successfully")
 
     # Property for config_dir
     @property
@@ -106,20 +200,17 @@ class AppState:
 
     # Property for auth_config
     @property
-    def auth_config(self):
+    def auth_config(self) -> Any:
         """Get the auth provider configuration."""
-        if not hasattr(self, "_auth_config"):
-            # Will be initialized during app startup
-            self._auth_config = None
         return self._auth_config
     
     @auth_config.setter
-    def auth_config(self, value):
+    def auth_config(self, value: Any) -> None:
         self._auth_config = value
 
     # Method to initialize auth config
-    async def initialize_auth_config(self):
-        """Initialize the auth provider configuration."""
+    async def initialize_auth_config(self) -> None:
+        """Initialize the auth provider configuration with better error handling."""
         try:
             config_dir = os.path.join(self.config_dir, "auth")
             os.makedirs(config_dir, exist_ok=True)  # Ensure directory exists
@@ -136,6 +227,58 @@ class AppState:
                 )
             # Still raise to prevent partial initialization
             raise
+
+    
+    async def start_health_checks(self, interval: int = 30) -> None:
+        """Start periodic health checks."""
+        if self._health_check_task is not None:
+            self.logger.warning("Health check task already running")
+            return
+            
+        self._health_check_task = asyncio.create_task(
+            self._run_health_checks(interval)
+        )
+        self.logger.info(f"Health check task started (interval: {interval}s)")
+        
+    async def _run_health_checks(self, interval: int) -> None:
+        """Run periodic health checks to monitor system status."""
+        try:
+            while not self._shutdown_requested:
+                try:
+                    # Database connection pool status
+                    if self.db_connection:
+                        try:
+                            pool_status = await self.db_connection.check_connection_pool()
+                            
+                            # Log based on status
+                            if pool_status.get("status") == "at_capacity":
+                                self.logger.warning(f"Neo4j connection pool at capacity: {pool_status}")
+                            elif pool_status.get("in_use", 0) > (pool_status.get("max_size", 100) * 0.8):
+                                self.logger.warning(f"Neo4j connection pool approaching capacity: {pool_status}")
+                            else:
+                                self.logger.debug(f"Neo4j connection pool status: {pool_status}")
+                        except Exception as e:
+                            self.logger.warning(f"Error checking Neo4j connection pool: {str(e)}")
+                    
+                    # Pipeline service health
+                    if self.pipeline_service:
+                        queue_size = getattr(self.pipeline_service, "get_queue_size", lambda: None)()
+                        if queue_size is not None and queue_size > 10:
+                            self.logger.warning(f"Pipeline queue size is high: {queue_size}")
+                    
+                    # Wait for next check interval
+                    await asyncio.sleep(interval)
+                    
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    self.logger.error(f"Error during health check iteration: {str(e)}")
+                    await asyncio.sleep(interval)  # Continue with next iteration after error
+                    
+        except asyncio.CancelledError:
+            self.logger.info("Health check task cancelled")
+        except Exception as e:
+            self.logger.error(f"Health check task failed: {str(e)}")
 
 app_state = AppState()
 
