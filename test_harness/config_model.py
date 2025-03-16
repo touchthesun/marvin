@@ -58,7 +58,8 @@ class TestConfig(BaseConfig):
     scenarios: List[str] = field(default_factory=lambda: [
         "page_capture",
         "knowledge_query",
-        "auth_provider"
+        "auth_provider",
+        "llm_agent"
     ])
     
     # Reporting
@@ -70,3 +71,9 @@ class TestConfig(BaseConfig):
 
     # Content workflow config
     content_workflow: ContentWorkflowConfig = field(default_factory=ContentWorkflowConfig)
+
+    # Agent test settings
+    agent: Dict[str, Any] = field(default_factory=lambda: {
+        "max_wait_time": 60,  # seconds
+        "mock_response_dir": "test_harness/fixtures/agent_responses"
+    })

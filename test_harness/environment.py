@@ -7,7 +7,7 @@ from test_harness.config_model import TestConfig
 from test_harness.mocks.mock_neo4j_service import MockNeo4jService
 from test_harness.mocks.real_neo4j_svc import RealNeo4jService
 from test_harness.mocks.browser import BrowserSimulator
-from test_harness.mocks.llm import LLMMockService
+from test_harness.mocks.mock_llm_service import LLMMockService
 from test_harness.mocks.api.mock_api_service import MockAPIService
 from test_harness.mocks.api.mock_request import RealAPIService
 

@@ -1,5 +1,6 @@
 import os
 import json
+import copy
 import time
 import asyncio
 import traceback
@@ -330,10 +331,139 @@ class LLMMockService(BaseMockService):
         self.logger.debug(f"Generated response using key: {response_key}")
         
         # Clone to avoid modifying the original
-        import copy
         response_copy = copy.deepcopy(response)
         
         # Update created timestamp
         response_copy["created"] = int(time.time())
         
         return response_copy
+    
+    async def configure_responses(self, responses_config):
+        """Configure specific responses for a test run."""
+        self.logger.info(f"Configuring LLM responses from: {responses_config}")
+        
+        try:
+            if isinstance(responses_config, dict):
+                # Direct dictionary configuration
+                self.responses.update(responses_config)
+                self.logger.debug(f"Updated with {len(responses_config)} responses")
+            elif os.path.exists(responses_config):
+                # Load from file
+                with open(responses_config, 'r') as f:
+                    loaded_responses = json.load(f)
+                    self.responses.update(loaded_responses)
+                    self.logger.debug(f"Loaded {len(loaded_responses)} responses from {responses_config}")
+            else:
+                self.logger.warning(f"Responses config not found: {responses_config}")
+        except Exception as e:
+            self.logger.error(f"Error configuring responses: {str(e)}")
+
+
+    async def _handle_agent_query(self, data, headers, params=None):
+        """Handle an agent query request."""
+        self.logger.info(f"Handling agent query: {data.get('query', '')}")
+        
+        # Validate auth
+        if not self._validate_auth(headers):
+            return self._unauthorized_response()
+        
+        # Create task
+        import uuid
+        task_id = str(uuid.uuid4())
+        self.state["tasks"][task_id] = {
+            "status": "enqueued",
+            "created_at": time.time(),
+            "type": "agent_query",
+            "data": data,
+            "result": None
+        }
+        
+        # Start processing task asynchronously
+        asyncio.create_task(self._process_agent_task(task_id))
+        
+        return {
+            "success": True,
+            "data": {
+                "task_id": task_id,
+                "status": "enqueued"
+            }
+        }
+
+    async def _process_agent_task(self, task_id):
+        """Process an agent task asynchronously."""
+        task = self.state["tasks"][task_id]
+        
+        try:
+            # Update status
+            task["status"] = "processing"
+            
+            # Get query data
+            query_data = task["data"]
+            query = query_data.get("query", "")
+            task_type = query_data.get("task_type", "QUERY")
+            
+            # Wait a bit to simulate processing
+            await asyncio.sleep(1)
+            
+            # Get matching response key based on query content
+            response_key = "default"
+            if "architecture" in query.lower():
+                response_key = "architecture"
+            elif "component" in query.lower():
+                response_key = "component"
+            elif "api" in query.lower():
+                response_key = "api"
+            
+            # Get LLM response if LLM mock is available
+            llm_response = "This is a mock response to the query: " + query
+            llm_component = self.components.get("llm")
+            if llm_component and hasattr(llm_component, "generate_response"):
+                response_obj = await llm_component.generate_response([
+                    {"role": "user", "content": query}
+                ])
+                if response_obj and "choices" in response_obj and len(response_obj["choices"]) > 0:
+                    llm_response = response_obj["choices"][0]["message"]["content"]
+            
+            # Extract relevant sources from the query
+            sources = []
+            if "relevant_urls" in query_data:
+                for url in query_data["relevant_urls"]:
+                    sources.append({
+                        "url": url,
+                        "title": url.split("/")[-1],
+                        "relevance_score": 0.95
+                    })
+            else:
+                # Add some default sources based on query content
+                if "architecture" in query.lower():
+                    sources.append({
+                        "url": "https://example.com/decisions.md",
+                        "title": "Architectural Decisions",
+                        "relevance_score": 0.95
+                    })
+                elif "component" in query.lower():
+                    sources.append({
+                        "url": "https://example.com/overview.md",
+                        "title": "System Overview",
+                        "relevance_score": 0.92
+                    })
+                elif "api" in query.lower():
+                    sources.append({
+                        "url": "https://example.com/api-docs.md",
+                        "title": "API Documentation",
+                        "relevance_score": 0.89
+                    })
+            
+            # Update task with results
+            task["status"] = "completed"
+            task["completed_at"] = time.time()
+            task["result"] = {
+                "response": llm_response,
+                "sources": sources,
+                "confidence_score": 0.87
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error processing agent task: {str(e)}")
+            task["status"] = "error"
+            task["error"] = str(e)
