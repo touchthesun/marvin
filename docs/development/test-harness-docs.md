@@ -40,12 +40,13 @@ The test harness will provide:
 
 ### Current Focus Areas
 
-The initial implementation will focus on:
+The initial implementation focuses on:
 
-- Auth Provider integration
-- Anthropic LLM provider integration
-- Multi-component workflow testing
-- Transaction consistency across components
+- Auth Provider integration with DevAuthProvider for test setup
+- Anthropic LLM provider integration using secure credential storage
+- API-centric testing design that respects the mediator pattern
+- LLM Agent testing with realistic response validation
+- Flexible test environment configuration supporting both mock and real components
 
 ## Integration Testing Strategy
 
@@ -82,7 +83,17 @@ We'll employ multiple testing approaches:
 
 ### Component Overview
 
-The test harness consists of the following components:
+The test harness consists of the following components, with a strong focus on service abstraction to support both mocked and real implementations:
+
+1. **Test Controller**: Central orchestrator that initializes the environment, runs scenarios, and collects results
+2. **Environment Manager**: Sets up and tears down the test environment components
+3. **Service Interfaces**: Abstract interfaces for Neo4j, API, LLM, and Browser components
+      - Each interface has both mock and real implementations
+      - Consistent APIs regardless of whether using mock or real components
+4. **Scenario Runner**: Executes specific test workflows against the environment
+5. **Assertion Engine**: Validates test results against expected outcomes
+6. **Configuration System**: Handles environment-specific configuration including credential management
+7. **Reporting Module**: Generates detailed test reports and metrics
 
 ```mermaid
 flowchart LR
@@ -943,7 +954,49 @@ class AuthProviderScenario(TestScenario):
         return assertions
 ```
 
+### LLM Agent Scenario
+
+#### The LLM Agent scenario tests the integration between:
+- The API server
+- The LLM provider (via the API's provider abstraction)
+- The task execution system
+- The knowledge graph content retrieval
+
+#### Key features of our implementation:
+- **Provider Flexibility**: Tests can specify which LLM provider to use
+- **Content Validation**: Flexible validation of response content that works with real AI responses
+- **Source Validation**: Verification that responses include expected source documents
+- **Task Status Tracking**: Proper monitoring of asynchronous task execution
+- **Error Handling**: Robust handling of failure modes
+
 ## Environment Setup
+
+A key insight from our implementation is that properly handling credentials and service initialization is critical for reliable integration testing. Our updated approach includes:
+
+### Authentication and Credential Management
+
+- **DevAuthProvider**: Used to securely store and manage credentials for testing
+- **Secure Storage**: Implemented with encryption for sensitive credentials
+- **PreTest Setup**: Essential credentials are configured before tests begin
+- **Consistent Provider IDs**: System uses consistent provider identifiers throughout
+
+### LLM Provider Integration
+
+- **API-Mediated Access**: All LLM access goes through the API server
+- **Provider Abstraction**: Support for different LLM providers through a common interface
+- **Flexible Configuration**: Configuration can be provided via environment variables or files
+- **Real Provider Testing**: Support for testing with actual Anthropic Claude models
+
+### Neo4j Integration
+
+- **Mock or Real**: Support for both mock Neo4j service and real Neo4j instances
+- **Data Fixtures**: Predefined knowledge graph data for consistent testing
+
+### API Service Integration
+
+- **Path Consistency**: Careful handling of API paths and versioning
+- **Real Server Support**: Can test against a running API server
+- **Service Abstraction**: Common interface for both mock and real implementations
 
 ### Neo4j Test Environment
 
@@ -1550,6 +1603,31 @@ class PerformanceMonitor:
 ```
 
 ## Best Practices
+
+### Service Abstraction
+
+- **Interface Consistency**: Both mock and real services should implement identical interfaces
+- **Behavior Consistency**: Mock services should simulate real service behavior accurately
+- **Configuration Flexibility**: Services should adapt to different environments via configuration
+
+### Error Handling and Diagnostics
+
+- **Detailed Logging**: Comprehensive logging at all levels helps track down issues
+- **Graceful Degradation**: Tests should handle missing capabilities without failing completely
+- **Endpoint Discovery**: Test harness should detect which endpoints are available
+- **Case Sensitivity**: Be careful with case sensitivity in identifiers and paths
+
+### Authentication and Security
+
+- **Credential Management**: Secure handling of test credentials is essential
+- **Authentication Abstraction**: Flexible authentication that works in different environments
+- **Provider Configuration**: Proper setup of authentication providers before tests begin
+
+### API Integration
+
+- **Path Construction**: Careful handling of API path construction including version prefixes
+- **Content Types**: Proper handling of content types and response parsing
+- **Error Responses**: Robust handling of different error response formats
 
 ### Developing Test Scenarios
 
