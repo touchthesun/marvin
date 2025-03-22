@@ -1,7 +1,7 @@
 # Development Setup
 
 ## Prerequisites
-- Python 3.10 or higher
+- Python 3.9 or higher
 - Node.js 18 or higher
 - Neo4j Database (local or cloud)
 - Git
@@ -9,8 +9,8 @@
 
 ## Optional Development Tools
 - [Cursor](https://cursor.sh/) - AI-powered IDE (recommended)
-- Docker (for running local Neo4j)
 
+  
 ## Environment Setup
 
 ### 1. Clone Repository
@@ -22,7 +22,7 @@ cd marvin
 ### 2. Python Environment
 ```bash
 # Create conda environment
-conda create -n marvin python=3.10
+conda create -n marvin python=3.9
 conda activate marvin
 
 # Install dependencies
@@ -51,20 +51,7 @@ docker run \
 Create an account at [Neo4j Aura](https://neo4j.com/cloud/platform/aura-graph-database/) and set up a database instance.
 
 ### 5. Environment Configuration
-Copy `.env.template` to `.env` and configure:
-```ini
-DB_MODE=REMOTE
-STREAMLIT_MODE=TERMINAL
-NEO4J_URI_LOCAL=""
-NEO4J_URI_REMOTE=""
-NEO4J_USERNAME_LOCAL=neo4j
-NEO4J_USERNAME_REMOTE=neo4j
-NEO4J_PASSWORD_LOCAL=
-NEO4J_PASSWORD_REMOTE=
-OPENAI_API_KEY=
-LOGGING_LEVEL=INFO
-ENABLE_METADATA_COMPARISON=False
-```
+Copy `.env.template` to `.env` and configure
 
 ## Cursor IDE Configuration
 
@@ -81,7 +68,7 @@ Project Overview:
 Marvin is a browser extension that helps users organize and leverage their browsing history and research materials through an active knowledge graph and LLM-powered interface.
 
 Coding Standards:
-- Use Python 3.10+ features and type hints
+- Use Python 3.9 features and type hints
 - Follow PEP 8 style guide with Black formatting
 - Use TypeScript for extension code
 - Implement test-driven development
@@ -91,15 +78,14 @@ Coding Standards:
 
 Project Structure:
 - marvin/core: Backend Python code for LLM and knowledge graph
+- marvin/api: FastAPI backend
 - marvin/extension: Chrome extension code
-- marvin/utils: Development utilities
+- marvin/core/utils: Development utilities
 - docs/: Project documentation
-- archive/: Archived code and experiments. Ignore in search.
 
 Libraries and Tools:
 - Neo4j for knowledge graph
 - FastAPI for backend API
-- LangChain for LLM integration
 - React/TypeScript for extension UI
 
 Testing Requirements:

@@ -93,32 +93,50 @@ class AuthManager {
     await chrome.storage.local.remove(['authToken', 'tokenExpiry']);
   }
   
+
   async login(username, password) {
+    // For testing: accept a specific test account
+    if (username === 'test' && password === 'test123') {
+      await this.setToken('test-token-123', 86400); // 24 hour expiry
+      return true;
+    }
+    
     try {
-      // Implement actual login logic here
-      // This is a placeholder
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data.token) {
-          await this.setToken(data.data.token, data.data.expires_in);
-          return true;
-        }
-      }
-      
-      return false;
+      // API authentication code
+      return false; // Return false until API is connected
     } catch (error) {
       console.error('Login error:', error);
       return false;
     }
   }
 }
+
+//   async login(username, password) {
+//     try {
+//       // Implement actual login logic here
+//       // This is a placeholder
+//       const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+//         method: 'POST',
+//         headers: {
+//           'Content-Type': 'application/json'
+//         },
+//         body: JSON.stringify({ username, password })
+//       });
+      
+//       if (response.ok) {
+//         const data = await response.json();
+//         if (data.success && data.data.token) {
+//           await this.setToken(data.data.token, data.data.expires_in);
+//           return true;
+//         }
+//       }
+      
+//       return false;
+//     } catch (error) {
+//       console.error('Login error:', error);
+//       return false;
+//     }
+//   }
+// }
 
 export default AuthManager;
