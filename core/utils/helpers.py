@@ -1,12 +1,12 @@
 import os
 import json
-import time
 import asyncio
 import socket
 import traceback
 from pathlib import Path
 from typing import Dict, Any
 
+from api.task_manager import TaskManager
 from core.utils.logger import get_logger
 
 logger = get_logger("test.utils")
@@ -135,10 +135,16 @@ async def wait_for_service(host: str, port: int, timeout: int = 30) -> bool:
     logger.warning(f"Timeout waiting for service at {host}:{port} after {elapsed:.2f}s")
     return False
 
-
-async def wait_for_task_completion(api_service, task_id, auth_token, max_wait=60, initial_interval=1):
+async def wait_for_task_completion(
+    api_service, 
+    task_id, 
+    auth_token, 
+    max_wait, 
+    initial_interval=1,
+    path_override=None
+):
     """
-    Wait for a task to complete with improved error handling and backoff.
+    Legacy wrapper for task waiting - maintains backward compatibility.
     
     Args:
         api_service: API service to use for requests
@@ -146,95 +152,31 @@ async def wait_for_task_completion(api_service, task_id, auth_token, max_wait=60
         auth_token: Authentication token
         max_wait: Maximum wait time in seconds
         initial_interval: Initial polling interval in seconds
-        
-    Returns:
-        Final task status response
+        path_override: Override for the status path (e.g., "/api/v1/agent/status/")
     """
-    logger = get_logger("test.utils")
-    logger.info(f"Waiting for task {task_id} to complete (timeout: {max_wait}s)")
+    logger = get_logger("task_manager.wait")
     
-    start_time = time.time()
-    last_status = None
-    interval = initial_interval
-    not_found_count = 0
-    connection_error_count = 0
+    # Check if a path_override was provided
+    if path_override:
+        status_endpoint = path_override
+    else:
+        # If we're transitioning to the generic helper, we need to infer the endpoint type
+        # from the task_id or other context, but for now we'll log a warning
+        status_endpoint = "/api/v1/analysis/status/"  # Default for backward compatibility
+        logger.warning(f"No status endpoint provided for task {task_id}, defaulting to: {status_endpoint}")
     
-    while time.time() - start_time < max_wait:
-        try:
-            # Check task status using the correct API path
-            status_response = await api_service.send_request(
-                "GET",
-                f"/api/v1/analysis/status/{task_id}",
-                headers={"Authorization": f"Bearer {auth_token}"}
-            )
-            
-            # Reset connection error count on successful request
-            connection_error_count = 0
-            
-            last_status = status_response
-            
-            if not status_response.get("success", False):
-                # Check if this is a task not found error
-                data = status_response.get("data", {})
-                error_message = data.get("message", "")
-                
-                if "not found" in error_message.lower():
-                    not_found_count += 1
-                    if not_found_count >= 3:
-                        logger.error(f"Task {task_id} consistently not found after {not_found_count} attempts")
-                        return status_response
-                else:
-                    not_found_count = 0
-                
-                logger.warning(f"Error checking task status: {status_response}")
-                await asyncio.sleep(interval)
-                
-                # Increase interval with a cap
-                interval = min(interval * 1.5, 10)
-                continue
-            
-            # Reset not found counter on success
-            not_found_count = 0
-            
-            # Get status from response
-            data = status_response.get("data", {})
-            status = data.get("status")
-            
-            if status in ["completed", "error"]:
-                logger.info(f"Task {task_id} finished with status: {status}")
-                return status_response
-            
-            progress = data.get("progress", 0)
-            logger.debug(f"Task {task_id} in progress: {progress:.1%}")
-            
-            # Use progressive backoff for polling
-            await asyncio.sleep(interval)
-            interval = min(interval * 1.2, 10)  # More gradual backoff
-            
-        except Exception as e:
-            connection_error_count += 1
-            logger.warning(f"Connection error checking task status (attempt {connection_error_count}): {str(e)}")
-            
-            # If we've had multiple consecutive connection errors, 
-            # return a special response
-            if connection_error_count >= 3:
-                logger.error(f"Too many consecutive connection errors ({connection_error_count}), assuming API is unavailable")
-                return {
-                    "success": False,
-                    "error": {
-                        "error_code": "CONNECTION_ERROR",
-                        "message": f"API connection error: {str(e)}"
-                    }
-                }
-                
-            # Use shorter interval for connection errors
-            await asyncio.sleep(min(interval, 2))
+    # Ensure consistent format with trailing slash
+    status_endpoint = status_endpoint.rstrip("/") + "/"
     
-    logger.warning(f"Timeout waiting for task {task_id} to complete after {max_wait}s")
-    return last_status or {
-        "success": False,
-        "error": {
-            "error_code": "TIMEOUT",
-            "message": f"Task {task_id} did not complete within {max_wait} seconds"
-        }
-    }
+    # Log the endpoint we're using for debugging
+    logger.info(f"Using status endpoint: {status_endpoint}")
+    
+    # Use TaskManager's static method
+    return await TaskManager.wait_for_task_completion(
+        api_service,
+        task_id,
+        auth_token,
+        status_endpoint,
+        max_wait,
+        initial_interval
+    )

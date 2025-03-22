@@ -1,28 +1,20 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
 from enum import Enum
-from uuid import UUID
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
 class AgentTaskType(str, Enum):
-    """Types of tasks the agent can perform."""
-    QUERY = "query"              # Direct question answering
-    RESEARCH = "research"        # In-depth research task
-    SUMMARIZE = "summarize"      # Summarize content/findings
-    ANALYZE = "analyze"          # Analyze relationships/patterns
-    RECOMMEND = "recommend"      # Make recommendations
+    QUERY = "query"
+    SUMMARIZE = "summarize"
+    ANALYZE = "analyze"
+    RESEARCH = "research"
 
 class AgentRequest(BaseModel):
-    """Base request model for agent interactions."""
-    task_type: AgentTaskType
-    query: str
-    context: Optional[Dict[str, Any]] = None
-    constraints: Optional[Dict[str, Any]] = None
-    relevant_urls: Optional[List[str]] = None
-    conversation_id: Optional[UUID] = None
-
-class ResearchRequest(AgentRequest):
-    """Specific request for research tasks."""
-    depth: int = 2
-    max_sources: int = 10
-    include_domains: Optional[List[str]] = None
-    exclude_domains: Optional[List[str]] = None
+    """Request model for agent tasks with provider flexibility"""
+    query: str = Field(..., description="Query or task description")
+    task_type: AgentTaskType = Field(AgentTaskType.QUERY, description="Type of task")
+    relevant_urls: Optional[List[str]] = Field(None, description="Relevant URLs to include")
+    provider_id: Optional[str] = Field(None, description="Specific LLM provider to use")
+    model_id: Optional[str] = Field(None, description="Specific model to use")
+    context: Optional[str] = Field(None, description="Additional context")
+    constraints: Optional[str] = Field(None, description="Task constraints")
+    conversation_id: Optional[str] = Field(None, description="Conversation ID for multi-turn")

@@ -38,8 +38,14 @@ class TestConfig(BaseConfig):
     
     # LLM test settings
     llm: Dict[str, Any] = field(default_factory=lambda: {
+        "use_real": False,
         "use_http_server": True,
-        "responses_dir": "fixtures/llm_responses"
+        "responses_dir": "fixtures/llm_responses",
+        "provider": {
+            "provider_type": "anthropic",
+            "provider_id": "anthropic-test",
+            "model": "claude-3-opus-20240229"
+        }
     })
     
     # Browser test settings
@@ -58,7 +64,8 @@ class TestConfig(BaseConfig):
     scenarios: List[str] = field(default_factory=lambda: [
         "page_capture",
         "knowledge_query",
-        "auth_provider"
+        "auth_provider",
+        "llm_agent"
     ])
     
     # Reporting
@@ -70,3 +77,9 @@ class TestConfig(BaseConfig):
 
     # Content workflow config
     content_workflow: ContentWorkflowConfig = field(default_factory=ContentWorkflowConfig)
+
+    # Agent test settings
+    agent: Dict[str, Any] = field(default_factory=lambda: {
+        "max_wait_time": 60,  # seconds
+        "mock_response_dir": "test_harness/fixtures/agent_responses"
+    })

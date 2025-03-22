@@ -7,7 +7,7 @@ from test_harness.utils.diagnostics import test_basic_functionality
 from test_harness.utils.paths import resolve_path
 from core.utils.logger import get_logger
 from test_harness.scenarios.base import TestScenario
-from test_harness.utils.helpers import wait_for_task_completion
+from core.utils.helpers import wait_for_task_completion
 
 
 logger = get_logger(__name__)

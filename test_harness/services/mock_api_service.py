@@ -9,9 +9,9 @@ import urllib.parse
 from typing import Dict, Any, Optional, Callable
 from aiohttp import web
 from test_harness.utils.paths import resolve_api_path
-from test_harness.utils.helpers import find_free_port
-from test_harness.mocks.mock_neo4j_service import BaseMockService
-from test_harness.mocks.api.mock_request import MockRequest
+from core.utils.helpers import find_free_port
+from test_harness.services.mock_neo4j_service import BaseMockService
+from test_harness.services.mock_request import MockRequest
 
 
 # Default configuration
@@ -190,6 +190,7 @@ class MockAPIService(BaseMockService):
                 f"{api_prefix}/auth/providers/{{provider_id}}": self._handle_get_provider,
                 f"{api_prefix}/auth/provider-types": self._handle_provider_types,
                 f"{api_prefix}/agent/status/{{task_id}}": self._handle_agent_status,
+                f"{api_prefix}/agent/status/{{task_id}}": self._handle_agent_status,
             },
             "POST": {
                 f"{api_prefix}/pages": self._handle_create_page,
@@ -198,6 +199,7 @@ class MockAPIService(BaseMockService):
                 f"{api_prefix}/auth/providers": self._handle_create_provider,
                 f"{api_prefix}/auth/validate": self._handle_validate_token,
                 f"{api_prefix}/llm/initialize": self._handle_llm_initialize,
+                f"{api_prefix}/agent/query": self._handle_agent_query
             },
             "DELETE": {
                 f"{api_prefix}/auth/providers/{{provider_id}}": self._handle_delete_provider,
@@ -1705,7 +1707,15 @@ class MockAPIService(BaseMockService):
         Returns:
             Admin token for use in tests
         """
+        self.logger.info("Setting up test authentication with admin token")
+        
+        # Ensure admin token exists in state
+        if not self.state["auth"]["admin_token"]:
+            self.logger.warning("Admin token not found in state, using default")
+            self.state["auth"]["admin_token"] = self.config.get("admin_token", "test-admin-token")
+        
         return self.state["auth"]["admin_token"]
+
     
     def get_admin_token(self):
         """

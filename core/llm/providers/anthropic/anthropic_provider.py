@@ -25,10 +25,17 @@ logger = get_logger(__name__)
 class AnthropicProvider(BaseLLMProvider):
     """Provider implementation for Anthropic's Claude models."""
     
-    def __init__(self, config: ProviderConfig):
-        if config.provider_type != ProviderType.ANTHROPIC:
-            raise ProviderConfigError(f"Expected ANTHROPIC provider type, got {config.provider_type}")
-            
+    def __init__(self, config):
+        # Verify that provider_type is correct
+        if isinstance(config.provider_type, str):
+            # Handle string values case-insensitively
+            if config.provider_type.lower() != "anthropic":
+                raise ProviderConfigError(f"Expected ANTHROPIC provider type, got {config.provider_type}")
+        else:
+            # Handle enum values
+            if config.provider_type != ProviderType.ANTHROPIC:
+                raise ProviderConfigError(f"Expected ANTHROPIC provider type, got {config.provider_type}")
+        
         super().__init__(config)
         self.session = None
         self.api_key = None
@@ -40,10 +47,17 @@ class AnthropicProvider(BaseLLMProvider):
     async def initialize(self) -> None:
         """Initialize the Anthropic provider."""
         try:
+            # Get provider ID from config if available
+            provider_id = "anthropic"  # Default
+            if isinstance(self.config, dict) and "provider_id" in self.config:
+                provider_id = self.config["provider_id"]
+            elif hasattr(self.config, "provider_id") and self.config.provider_id:
+                provider_id = self.config.provider_id
+            
             # Get credentials from storage
             credentials = await self.auth_provider.get_credentials(
                 "dev-token",  # Any token works with DevAuthProvider
-                "anthropic-main"  # Or your chosen provider ID
+                provider_id
             )
             
             # Extract API key

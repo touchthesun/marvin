@@ -14,6 +14,13 @@ class BaseLLMProvider(ABC):
         self.metrics = ProviderMetrics()
         self._status = ProviderStatus.INITIALIZING
         self._last_error: Optional[str] = None
+
+        # Extract the provider type from the config
+        if isinstance(config, dict):
+            self.provider_type = config.get("provider_type", "unknown")
+        else:
+            # For ProviderConfig objects
+            self.provider_type = config.provider_type.value if hasattr(config.provider_type, "value") else str(config.provider_type)
         
     @abstractmethod
     async def initialize(self) -> None:

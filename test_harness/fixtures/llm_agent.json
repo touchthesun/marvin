@@ -1,0 +1,28 @@
+{
+    "graph_data": "test_harness/fixtures/llm_agent_graph_data.json",
+    "llm_responses": "test_harness/fixtures/llm_agent_responses.json",
+    "queries": [
+      {
+        "id": "architecture_query",
+        "query": "What are the key architectural decisions in Marvin?",
+        "task_type": "QUERY",
+        "relevant_urls": ["https://raw.githubusercontent.com/touchthesun/marvin/refs/heads/main/docs/architecture/decisions.md"],
+        "expected_content": ["browser extension", "graph database"],
+        "expected_sources": ["https://raw.githubusercontent.com/touchthesun/marvin/refs/heads/main/docs/architecture/decisions.md"]
+      },
+      {
+        "id": "core_components",
+        "query": "Explain the core components of Marvin",
+        "task_type": "QUERY",
+        "expected_content": "Knowledge Graph Manager",
+        "expected_sources": ["https://raw.githubusercontent.com/touchthesun/marvin/refs/heads/main/docs/architecture/overview.md"]
+      },
+      {
+        "id": "api_summary",
+        "query": "Summarize the API documentation",
+        "task_type": "SUMMARIZE",
+        "relevant_urls": ["https://raw.githubusercontent.com/touchthesun/marvin/refs/heads/main/docs/api/api-docs.md"],
+        "expected_content": "authentication"
+      }
+    ]
+  }
