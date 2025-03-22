@@ -1,0 +1,59 @@
+<!-- popup.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin Research Assistant</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Marvin</h1>
+      <div id="status-indicator" class="status-offline">Offline</div>
+    </header>
+    
+    <div id="auth-container">
+      <div id="login-form" style="display: none;">
+        <h2>Login</h2>
+        <form id="auth-form">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+          </div>
+          <button type="submit" class="btn-primary">Login</button>
+        </form>
+      </div>
+      
+      <div id="user-info" style="display: none;">
+        <button id="logout-btn" class="btn-secondary">Logout</button>
+      </div>
+    </div>
+    
+    <div id="actions-container">
+      <button id="capture-btn" class="btn-primary" disabled>Capture Current Page</button>
+      <button id="related-btn" class="btn-secondary" disabled>Find Related Content</button>
+      <button id="query-btn" class="btn-secondary" disabled>Ask Marvin</button>
+    </div>
+    
+    <div id="status-container">
+      <h2>Recent Activity</h2>
+      <div id="activity-list" class="scrollable-list">
+        <div class="loading-indicator">Loading...</div>
+      </div>
+    </div>
+    
+    <footer>
+      <button id="options-btn" class="btn-text">Options</button>
+      <span id="version-info">v0.1.0</span>
+    </footer>
+  </div>
+  
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

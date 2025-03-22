@@ -1,13 +1,13 @@
-// webpack.config.js
 const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
   entry: {
-    popup: './src/popup/index.tsx',
-    background: './src/background/main.ts',
-    pageAnalyzer: './src/content/pageAnalyzer.ts',
+    background: './background/background.js',
+    popup: './popup/popup.js',
+    options: './options/options.js',
+    content: './content/content.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -33,21 +33,26 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { from: 'public/manifest.json', to: 'manifest.json' },
-        { from: 'public/icons', to: 'icons' },
+        { from: 'manifest.json', to: 'manifest.json' },
+        { from: 'icons', to: 'icons' },
+        { from: 'popup/popup.css', to: 'popup/popup.css' },
+        { from: 'options/options.css', to: 'options/options.css' },
       ],
     }),
     new HtmlWebpackPlugin({
-      template: './src/popup/index.html',
-      filename: 'popup/index.html',
+      template: './popup/popup.html',
+      filename: 'popup/popup.html',
       chunks: ['popup'],
     }),
     new HtmlWebpackPlugin({
-      template: './src/options/index.html',
-      filename: 'options/index.html',
+      template: './options/options.html',
+      filename: 'options/options.html',
       chunks: ['options'],
     }),
   ],
+  experiments: {
+    outputModule: true,
+  },
   devtool: 'cheap-module-source-map',
   mode: 'development',
-};
+}

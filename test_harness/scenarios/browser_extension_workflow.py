@@ -1,10 +1,10 @@
+import os
+import json
 import asyncio
 import uuid
 import urllib.parse
-from typing import Dict, List, Any
 
 from test_harness.scenarios.base import TestScenario
-from test_harness.assertions import Assertion
 
 
 class BrowserExtensionWorkflowScenario(TestScenario):
@@ -29,19 +29,22 @@ class BrowserExtensionWorkflowScenario(TestScenario):
         if self.components.get("api"):
             self.logger.info("Setting up test authentication")
             self.auth_token = await self.components["api"].setup_test_auth()
-            self.logger.debug(f"Test auth token: {self.auth_token}")
+            self.logger.debug(f"Test auth token acquired")
         
         # Load browser state from test data
-        self.browser_state = self.test_data.get("browser_state", {
-            "windows": [{"id": "window1", "focused": True}],
-            "tabs": [
-                {"id": "tab1", "windowId": "window1", "active": True, "url": "https://example.com/page1"},
-                {"id": "tab2", "windowId": "window1", "active": False, "url": "https://example.com/page2"}
-            ],
-            "bookmarks": [
-                {"id": "bookmark1", "title": "Example Bookmark", "url": "https://example.com/bookmark"}
-            ]
-        })
+        self.browser_state = self.test_data.get("browser_state", {})
+        if not self.browser_state:
+            self.logger.warning("No browser state found in test data, using defaults")
+            self.browser_state = {
+                "windows": [{"id": "window1", "focused": True}],
+                "tabs": [
+                    {"id": "tab1", "windowId": "window1", "active": True, "url": "https://example.com/page1"},
+                    {"id": "tab2", "windowId": "window1", "active": False, "url": "https://example.com/page2"}
+                ],
+                "bookmarks": [
+                    {"id": "bookmark1", "title": "Example Bookmark", "url": "https://example.com/bookmark"}
+                ]
+            }
         
         # Prepare test URLs
         self.test_urls = [tab["url"] for tab in self.browser_state["tabs"]]
@@ -51,22 +54,20 @@ class BrowserExtensionWorkflowScenario(TestScenario):
         self.logger.info(f"Set up scenario with {len(self.test_urls)} test URLs")
         self.logger.debug(f"Test URLs: {', '.join(self.test_urls)}")
         
-        # Pre-load content for test URLs
-        self.test_content = {}
-        for url in self.test_urls:
-            self.logger.debug(f"Preparing content for URL: {url}")
-            self.test_content[url] = await self._prepare_content(url)
+        # Load content fixtures
+        self.content_fixtures = await self._load_content_fixtures()
     
     async def execute(self):
         """Execute the browser extension workflow scenario."""
         results = {
             "page_captures": [],
-            "browser_sync": None,
+            "page_queries": [],
             "related_content": [],
+            "graph_searches": [],
             "llm_insights": []
         }
         
-        # 1. Page Capture Flow
+        # 1. Page Capture Flow - POST /api/v1/pages/
         self.logger.info("Testing page capture flow")
         with self.timed_operation("page_capture_flow"):
             for url in self.test_urls:
@@ -74,13 +75,13 @@ class BrowserExtensionWorkflowScenario(TestScenario):
                 capture_result = await self._capture_page(url)
                 results["page_captures"].append(capture_result)
         
-        # 2. Browser State Synchronization
-        self.logger.info("Testing browser state synchronization")
-        with self.timed_operation("browser_sync_flow"):
-            sync_result = await self._sync_browser_state()
-            results["browser_sync"] = sync_result
+        # 2. Page Query Flow - GET /api/v1/pages/
+        self.logger.info("Testing page query flow")
+        with self.timed_operation("page_query_flow"):
+            query_result = await self._query_pages()
+            results["page_queries"].append(query_result)
         
-        # 3. Related Content Query
+        # 3. Related Content Query - GET /api/v1/graph/related/{url}
         self.logger.info("Testing related content queries")
         with self.timed_operation("related_content_flow"):
             for url in self.test_urls:
@@ -88,7 +89,16 @@ class BrowserExtensionWorkflowScenario(TestScenario):
                 related_result = await self._query_related_content(url)
                 results["related_content"].append(related_result)
         
-        # 4. LLM Agent Insights
+        # 4. Graph Search - GET /api/v1/graph/search
+        self.logger.info("Testing graph search")
+        with self.timed_operation("graph_search_flow"):
+            search_terms = self.test_data.get("search_terms", ["knowledge", "graph"])
+            for term in search_terms:
+                self.logger.info(f"Searching graph for: {term}")
+                search_result = await self._search_graph(term)
+                results["graph_searches"].append(search_result)
+        
+        # 5. LLM Agent Insights - POST /api/v1/agent/query
         self.logger.info("Testing LLM agent insights")
         with self.timed_operation("llm_insights_flow"):
             # Use the active tab URL for insights
@@ -124,13 +134,21 @@ class BrowserExtensionWorkflowScenario(TestScenario):
                     f"Content processing for {url} should be in progress or completed"
                 ))
         
-        # 2. Validate Browser Sync
-        self.logger.info("Validating browser state synchronization")
-        if results["browser_sync"]:
+        # 2. Validate Page Queries
+        self.logger.info("Validating page queries")
+        for query in results["page_queries"]:
             assertions.append(self.create_assertion(
-                "browser_sync_success",
-                results["browser_sync"]["sync_response"]["success"] is True,
-                "Browser state synchronization should succeed"
+                "page_query_success",
+                query["query_response"]["success"] is True,
+                "Page query should succeed"
+            ))
+            
+            # Check that pages were returned
+            pages = query["query_response"].get("data", {}).get("pages", [])
+            assertions.append(self.create_assertion(
+                "pages_returned",
+                len(pages) > 0,
+                "Page query should return at least one page"
             ))
         
         # 3. Validate Related Content
@@ -143,15 +161,24 @@ class BrowserExtensionWorkflowScenario(TestScenario):
                 f"Related content query for {url} should succeed"
             ))
             
-            # Validate that nodes were returned - flexible based on Neo4j content
-            nodes = query["related_response"].get("data", {}).get("nodes", [])
+            # Validate response structure
             assertions.append(self.create_assertion(
-                f"related_content_nodes_{self._normalize_url(url)}",
-                isinstance(nodes, list),
-                f"Related content query should return a list of nodes for {url}"
+                f"related_content_structure_{self._normalize_url(url)}",
+                "data" in query["related_response"] and isinstance(query["related_response"]["data"], dict),
+                f"Related content response should contain a data object"
             ))
         
-        # 4. Validate LLM Insights
+        # 4. Validate Graph Searches
+        self.logger.info("Validating graph searches")
+        for search in results["graph_searches"]:
+            term = search["term"]
+            assertions.append(self.create_assertion(
+                f"graph_search_success_{term}",
+                search["search_response"]["success"] is True,
+                f"Graph search for '{term}' should succeed"
+            ))
+        
+        # 5. Validate LLM Insights
         self.logger.info("Validating LLM insights")
         for insight in results["llm_insights"]:
             url = insight["url"]
@@ -173,11 +200,14 @@ class BrowserExtensionWorkflowScenario(TestScenario):
         return assertions
     
     async def _capture_page(self, url):
-        """Capture a page through the API."""
+        """Capture a page through the API using the /api/v1/pages/ endpoint."""
         self.logger.debug(f"Capturing page content for URL: {url}")
         
-        # Get mock content
-        content = self.test_content.get(url, {"title": "Test Page", "content": "<html><body>Test content</body></html>"})
+        # Get content from fixtures
+        content = self.content_fixtures.get(url, {
+            "title": f"Test Page: {url}",
+            "content": f"<html><body><h1>Test Content for {url}</h1></body></html>"
+        })
         
         # Determine context based on tab state
         is_active_tab = any(tab.get("active") and tab["url"] == url for tab in self.browser_state["tabs"])
@@ -198,7 +228,7 @@ class BrowserExtensionWorkflowScenario(TestScenario):
         # Send to API with auth token (simulating extension)
         capture_response = await self.components["api"].send_request(
             "POST", 
-            "/api/v1/pages", 
+            "/api/v1/pages/", 
             {
                 "url": url,
                 "title": content.get("title", "Test Page"),
@@ -225,28 +255,32 @@ class BrowserExtensionWorkflowScenario(TestScenario):
             "processing_status": processing_status
         }
     
-    async def _sync_browser_state(self):
-        """Synchronize browser state through the API."""
-        self.logger.debug("Synchronizing browser state")
+    async def _query_pages(self):
+        """Query pages through the API using the /api/v1/pages/ endpoint."""
+        self.logger.debug("Querying pages")
         
-        # Send browser state to API
-        sync_response = await self.components["api"].send_request(
-            "POST", 
-            "/api/v1/browser/sync", 
-            {
-                "tabs": self.browser_state["tabs"],
-                "windows": self.browser_state.get("windows", []),
-                "bookmarks": self.browser_state.get("bookmarks", [])
-            },
+        # Query parameters
+        params = {
+            "context": "ACTIVE_TAB"  # Filter by active tab context
+        }
+        
+        # Build query string
+        query_string = "&".join(f"{k}={v}" for k, v in params.items())
+        endpoint = f"/api/v1/pages/?{query_string}"
+        
+        # Send query to API
+        query_response = await self.components["api"].send_request(
+            "GET",
+            endpoint,
             headers={"Authorization": f"Bearer {self.auth_token}"}
         )
         
         return {
-            "sync_response": sync_response
+            "query_response": query_response
         }
     
     async def _query_related_content(self, url):
-        """Query related content for a URL."""
+        """Query related content for a URL using the /api/v1/graph/related/{url} endpoint."""
         self.logger.debug(f"Querying related content for URL: {url}")
         
         # Add query parameters
@@ -271,8 +305,34 @@ class BrowserExtensionWorkflowScenario(TestScenario):
             "related_response": related_response
         }
     
+    async def _search_graph(self, term):
+        """Search the graph using the /api/v1/graph/search endpoint."""
+        self.logger.debug(f"Searching graph for term: {term}")
+        
+        # Add query parameters
+        params = {
+            "query": term,
+            "limit": "10"
+        }
+        
+        # Build query string
+        query_string = "&".join(f"{k}={v}" for k, v in params.items())
+        endpoint = f"/api/v1/graph/search?{query_string}"
+        
+        # Send search to API
+        search_response = await self.components["api"].send_request(
+            "GET",
+            endpoint,
+            headers={"Authorization": f"Bearer {self.auth_token}"}
+        )
+        
+        return {
+            "term": term,
+            "search_response": search_response
+        }
+    
     async def _get_llm_insights(self, url):
-        """Get LLM insights for a URL."""
+        """Get LLM insights for a URL using the /api/v1/agent/query endpoint."""
         self.logger.debug(f"Getting LLM insights for URL: {url}")
         
         # Create conversation ID
@@ -337,63 +397,47 @@ class BrowserExtensionWorkflowScenario(TestScenario):
         self.logger.warning(f"Task status check timed out after {max_wait}s")
         return {"status": "timeout", "error": f"Task did not complete within {max_wait} seconds"}
     
-    async def _prepare_content(self, url):
-        """Prepare test content for a URL."""
-        # Generate different content based on URL path
-        path = url.split("/")[-1] if "/" in url else ""
+    async def _load_content_fixtures(self):
+        """Load content fixtures from JSON files."""
+        fixtures = {}
+        fixtures_dir = self.config.get("fixtures", {}).get("dir", "test_harness/fixtures")
+        content_dir = os.path.join(fixtures_dir, "content")
         
-        if "page1" in url or "research" in url:
-            return {
-                "title": "Knowledge Graph Research",
-                "content": """
-                <html>
-                <head><title>Knowledge Graph Research</title></head>
-                <body>
-                    <h1>Knowledge Graph Research</h1>
-                    <p>Knowledge graphs are a powerful way to represent information and relationships.</p>
-                    <p>They enable complex queries across interconnected data.</p>
-                    <h2>Key Benefits</h2>
-                    <ul>
-                        <li>Semantic relationships between entities</li>
-                        <li>Flexible schema evolution</li>
-                        <li>Support for inference and reasoning</li>
-                    </ul>
-                </body>
-                </html>
-                """
-            }
-        elif "page2" in url or "related" in url:
-            return {
-                "title": "Related Technologies",
-                "content": """
-                <html>
-                <head><title>Related Technologies</title></head>
-                <body>
-                    <h1>Technologies Related to Knowledge Graphs</h1>
-                    <p>Several technologies work well with knowledge graphs:</p>
-                    <ul>
-                        <li>Graph Databases (Neo4j, Neptune)</li>
-                        <li>Vector embeddings for semantic search</li>
-                        <li>Large Language Models for content analysis</li>
-                    </ul>
-                </body>
-                </html>
-                """
-            }
-        else:
-            return {
-                "title": f"Test Page: {url}",
-                "content": f"""
-                <html>
-                <head><title>Test Page: {url}</title></head>
-                <body>
-                    <h1>Test Content for {url}</h1>
-                    <p>This is a test page for URL: {url}</p>
-                    <p>It contains sample content for testing the browser extension workflow.</p>
-                </body>
-                </html>
-                """
-            }
+        self.logger.debug(f"Loading content fixtures from: {content_dir}")
+        
+        try:
+            # Check if directory exists
+            if not os.path.exists(content_dir):
+                self.logger.warning(f"Content fixtures directory not found: {content_dir}")
+                return fixtures
+            
+            # Load each JSON file in the directory
+            for filename in os.listdir(content_dir):
+                if filename.endswith(".json"):
+                    file_path = os.path.join(content_dir, filename)
+                    self.logger.debug(f"Loading content fixture: {file_path}")
+                    
+                    try:
+                        with open(file_path, 'r') as f:
+                            content_data = json.load(f)
+                            
+                            # Check if this is a URL-keyed fixture
+                            if "url" in content_data and "content" in content_data:
+                                fixtures[content_data["url"]] = content_data
+                            # Or multiple content items
+                            elif isinstance(content_data, dict) and "items" in content_data:
+                                for item in content_data["items"]:
+                                    if "url" in item and "content" in item:
+                                        fixtures[item["url"]] = item
+                    except Exception as e:
+                        self.logger.warning(f"Error loading content fixture {file_path}: {str(e)}")
+            
+            self.logger.info(f"Loaded {len(fixtures)} content fixtures")
+            return fixtures
+            
+        except Exception as e:
+            self.logger.error(f"Error loading content fixtures: {str(e)}")
+            return {}
     
     def _normalize_url(self, url):
         """Normalize URL for use in assertion IDs."""

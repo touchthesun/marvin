@@ -1,0 +1,116 @@
+<!-- options.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Marvin Research Assistant</h1>
+      <h2>Extension Settings</h2>
+    </header>
+    
+    <main>
+      <section class="options-section">
+        <h3>API Configuration</h3>
+        <form id="api-config-form">
+          <div class="form-group">
+            <label for="api-url">API URL</label>
+            <input type="url" id="api-url" name="apiUrl" placeholder="http://localhost:8000">
+          </div>
+          <button type="submit" class="btn-primary">Save API Settings</button>
+        </form>
+      </section>
+      
+      <section class="options-section">
+        <h3>Capture Settings</h3>
+        <form id="capture-settings-form">
+          <div class="form-group checkbox">
+            <input type="checkbox" id="auto-capture" name="automaticCapture">
+            <label for="auto-capture">Enable automatic page capture</label>
+          </div>
+          
+          <div class="form-group">
+            <label for="min-time">Minimum time on page before capture (seconds)</label>
+            <input type="number" id="min-time" name="minTimeOnPage" min="1" max="300" value="10">
+          </div>
+          
+          <div class="form-group">
+            <label for="excluded-domains">Excluded Domains (one per line)</label>
+            <textarea id="excluded-domains" name="excludedDomains" rows="4" placeholder="example.com"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="included-domains">Only Include These Domains (one per line, leave empty for all)</label>
+            <textarea id="included-domains" name="includedDomains" rows="4" placeholder="research-site.com"></textarea>
+          </div>
+          
+          <button type="submit" class="btn-primary">Save Capture Settings</button>
+        </form>
+      </section>
+      
+      <section class="options-section">
+        <h3>Sync Settings</h3>
+        <form id="sync-settings-form">
+          <div class="form-group checkbox">
+            <input type="checkbox" id="enable-sync" name="syncEnabled">
+            <label for="enable-sync">Enable browser state synchronization</label>
+          </div>
+          
+          <div class="form-group">
+            <label for="sync-interval">Sync interval (seconds)</label>
+            <input type="number" id="sync-interval" name="syncInterval" min="10" max="600" value="60">
+          </div>
+          
+          <div class="form-group checkbox">
+            <input type="checkbox" id="sync-bookmarks" name="syncBookmarks">
+            <label for="sync-bookmarks">Sync bookmarks</label>
+          </div>
+          
+          <button type="submit" class="btn-primary">Save Sync Settings</button>
+        </form>
+      </section>
+      
+      <section class="options-section">
+        <h3>Authentication</h3>
+        <div id="auth-status">
+          <div class="loading-indicator">Checking authentication status...</div>
+        </div>
+        
+        <form id="auth-form" style="display: none;">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+          </div>
+          <button type="submit" class="btn-primary">Login</button>
+        </form>
+        
+        <div id="logout-container" style="display: none;">
+          <p>You are currently logged in.</p>
+          <button id="logout-btn" class="btn-secondary">Logout</button>
+        </div>
+      </section>
+      
+      <section class="options-section">
+        <h3>Advanced</h3>
+        <button id="clear-data-btn" class="btn-danger">Clear Local Data</button>
+        <p class="help-text">This will clear all locally stored capture history and settings. Your API authentication and server data will not be affected.</p>
+      </section>
+    </main>
+    
+    <footer>
+      <p>Marvin Research Assistant v0.1.0</p>
+    </footer>
+  </div>
+  
+  <script src="options.js" type="module"></script>
+</body>
+</html>

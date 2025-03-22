@@ -1,0 +1,27 @@
+{
+    "browser_state": {
+      "windows": [
+        {"id": "window1", "focused": true}
+      ],
+      "tabs": [
+        {"id": "tab1", "windowId": "window1", "active": true, "url": "https://example.com/research"},
+        {"id": "tab2", "windowId": "window1", "active": false, "url": "https://example.com/related"},
+        {"id": "tab3", "windowId": "window1", "active": false, "url": "https://example.com/implementation"}
+      ],
+      "bookmarks": [
+        {"id": "bookmark1", "title": "Knowledge Graph Reference", "url": "https://example.com/reference"},
+        {"id": "bookmark2", "title": "Neo4j Documentation", "url": "https://example.com/neo4j"}
+      ]
+    },
+    "search_terms": ["knowledge", "graph", "neo4j", "implementation"],
+    "test_parameters": {
+      "max_wait_time": 30,
+      "retry_attempts": 3,
+      "validate_graph_nodes": true
+    },
+    "expected_results": {
+      "should_find_related_content": true,
+      "minimum_node_count": 1,
+      "minimum_relationship_count": 0
+    }
+  }
