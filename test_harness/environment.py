@@ -1,15 +1,18 @@
-import socket 
-from typing import Dict, Any
+import socket
+import os
 import traceback
 
 from core.utils.logger import get_logger
 from test_harness.config_model import TestConfig
-from test_harness.mocks.mock_neo4j_service import MockNeo4jService
-from test_harness.mocks.real_neo4j_svc import RealNeo4jService
-from test_harness.mocks.browser import BrowserSimulator
-from test_harness.mocks.mock_llm_service import LLMMockService
-from test_harness.mocks.api.mock_api_service import MockAPIService
-from test_harness.mocks.api.mock_request import RealAPIService
+from test_harness.services.mock_neo4j_service import MockNeo4jService
+from test_harness.services.real_neo4j_svc import RealNeo4jService
+from test_harness.services.mock_browser_service import BrowserSimulator
+from test_harness.services.mock_llm_service import MockLLMService
+from test_harness.services.real_llm_service import RealLLMService
+from test_harness.services.mock_api_service import MockAPIService
+from test_harness.services.real_api_service import RealAPIService
+
+
 
 class TestEnvironmentManager:
     """
@@ -31,44 +34,41 @@ class TestEnvironmentManager:
         neo4j_config = self.config.neo4j
         self.logger.debug(f"Neo4j configuration: use_real={neo4j_config.get('use_real', False)}")
     
-    async def setup_environment(self) -> Dict[str, Any]:
-        """
-        Set up the complete test environment.
-        
-        Returns:
-            Dictionary of initialized service instances
-        """
+    async def setup_environment(self):
+        """Set up the complete test environment."""
         self.logger.info("Setting up test environment")
         
         environment = {}
         
         try:
-            # Start Neo4j test instance
-            self.logger.info("Setting up Neo4j")
+            # Start Neo4j instance
             neo4j = await self._start_neo4j()
-            self.logger.debug(f"Neo4j service started: {neo4j.__class__.__name__}")
             environment["neo4j"] = neo4j
             self.active_services.append(neo4j)
             
-            # Start API server
-            self.logger.info("Setting up API server")
-            api_server = await self._start_api_server(neo4j)
-            self.logger.debug(f"API service started: {api_server.__class__.__name__}")
-            environment["api_server"] = api_server
-            self.active_services.append(api_server)
+            # If using real LLM, set up the environment for secure storage
+            if self.config.get("llm", {}).get("use_real", False):
+
+                # Make sure the config directory exists
+                os.makedirs("./config", exist_ok=True)
+                
+                # Set up the environment variable for the secure storage
+                if "SECRET_KEY" not in os.environ:
+                    # Use a test key if not set
+                    os.environ["SECRET_KEY"] = "marvin-test-secret-key-for-secure-storage"
+                
+                # Set up the credentials directly (before API server starts)
+                await self._setup_anthropic_credentials(None)
             
-            # Start LLM mock server
-            self.logger.info("Setting up LLM mock")
-            llm_mock = await self._start_llm_mock()
-            self.logger.debug(f"LLM mock service started: {llm_mock.__class__.__name__}")
-            environment["llm_mock"] = llm_mock
-            self.active_services.append(llm_mock)
+            # Start API server
+            api_server = await self._start_api_server(neo4j)
+            environment["api"] = api_server
+            self.active_services.append(api_server)
             
             # Set up browser simulator
             self.logger.info("Setting up browser simulator")
             browser_simulator = await self._start_browser_simulator()
-            self.logger.debug(f"Browser simulator started: {browser_simulator.__class__.__name__}")
-            environment["browser_simulator"] = browser_simulator
+            environment["browser"] = browser_simulator
             self.active_services.append(browser_simulator)
             
             self.logger.info("Test environment setup complete with services:")
@@ -106,36 +106,29 @@ class TestEnvironmentManager:
     
 
     async def _start_neo4j(self):
-        """Start a Neo4j test instance based on configuration."""
+        """Start a Neo4j instance based on configuration."""
         neo4j_config = self.config.neo4j
-        self.logger.info(f"Environment Neo4j config: {self.config.neo4j}")
         self.logger.debug(f"Starting Neo4j with config: {neo4j_config}")
-        self.logger.debug(f"Neo4j use_real setting: {neo4j_config.get('use_real', False)}")
-
+        
         # Check if we should use real Neo4j
         if neo4j_config.get("use_real", False):
             self.logger.info("Using real Neo4j service")
-            # Neo4j config already has the right credentials from load_test_config
             service = RealNeo4jService(neo4j_config)
-            self.logger.debug("RealNeo4jService created")
         else:
-            # Use mock Neo4j implementation
             self.logger.info("Using mock Neo4j service")
             service = MockNeo4jService(neo4j_config)
-            self.logger.debug("MockNeo4jService created")
-
+        
         try:
-            self.logger.debug("Initializing Neo4j service")
             initialized_service = await service.initialize()
-            self.logger.debug(f"Neo4j service initialized: {initialized_service.uri}")
+            self.logger.debug(f"Neo4j service initialized")
             
-            # Apply schema if configured and using real Neo4j
-            if neo4j_config.get("use_real", False) and neo4j_config.get("schema_script"):
-                self.logger.info(f"Applying schema from {neo4j_config.get('schema_script')}")
-                await initialized_service.apply_schema(neo4j_config.get("schema_script"))
+            # Apply schema if configured
+            if "schema_script" in neo4j_config and neo4j_config["schema_script"]:
+                self.logger.info(f"Applying schema from {neo4j_config['schema_script']}")
+                await initialized_service.apply_schema(neo4j_config["schema_script"])
             
-            # Clear data if configured and using real Neo4j
-            if neo4j_config.get("use_real", False) and neo4j_config.get("clear_on_start", False):
+            # Clear data if configured
+            if neo4j_config.get("clear_on_start", False):
                 self.logger.info("Clearing existing data")
                 await initialized_service.clear_data()
             
@@ -173,54 +166,69 @@ class TestEnvironmentManager:
         
         self.logger.debug(f"API server config: {server_config}")
         
+        # Merge with API config
+        combined_config = {**api_config, **server_config}
+    
         try:
             if self.config.get("use_real_api", False):
                 self.logger.info("Using real API service")
-                service = RealAPIService({**api_config, **server_config})
+                
+                # Check if we need to configure the real API server with LLM credentials
+                if self.config.get("llm", {}).get("use_real", False):
+                    self.logger.info("Configuring API server with real LLM provider")
+                
+                service = RealAPIService(combined_config)
                 self.logger.debug("RealAPIService created")
             else:
                 self.logger.info("Using mock API service")
-                service = MockAPIService({**api_config, **server_config})
+                service = MockAPIService(combined_config)
                 self.logger.debug("MockAPIService created")
             
             self.logger.debug("Initializing API service")
             initialized_service = await service.initialize()
-            self.logger.debug(f"API service initialized on port {free_port}")
+            self.logger.debug("API service initialized")
+            
+            # If using real API with real LLM, configure the LLM provider
+            if self.config.get("use_real_api", False) and self.config.get("llm", {}).get("use_real", False):
+                await self._configure_llm_provider(initialized_service)
+            
             return initialized_service
         except Exception as e:
             self.logger.error(f"Failed to initialize API service: {str(e)}")
             self.logger.error(traceback.format_exc())
             raise
-    
-    async def _start_llm_mock(self):
-        """
-        Start the LLM mock service.
-        
-        Returns:
-            LLM mock service instance
-        """
+
+
+
+    async def _start_llm_service(self):
+        """Start an LLM service based on configuration."""
         llm_config = self.config.get("llm", {})
-        self.logger.debug(f"Starting LLM mock with config: {llm_config}")
+        self.logger.info(f"Starting LLM service with config: {llm_config}")
+        
+        # Check if we should use real LLM
+        if llm_config.get("use_real", False):
+            self.logger.info("Using real LLM service")
+            # Add more detailed provider config
+            if "provider" in llm_config:
+                provider_config = llm_config["provider"]
+                self.logger.info(f"Using provider: {provider_config.get('provider_type', 'unknown')}")
+                service = RealLLMService(llm_config)
+            else:
+                self.logger.warning("No provider configuration found for real LLM, using default")
+                service = RealLLMService(llm_config)
+        else:
+            self.logger.info("Using mock LLM service")
+            service = MockLLMService(llm_config)
         
         try:
-            service = LLMMockService(llm_config)
-            self.logger.debug("LLMMockService created")
-            
-            self.logger.debug("Initializing LLM mock service")
             initialized_service = await service.initialize()
-            
-            # Log endpoint if available
-            if hasattr(initialized_service, "url"):
-                self.logger.debug(f"LLM mock service initialized at {initialized_service.url}")
-            else:
-                self.logger.debug("LLM mock service initialized")
-                
+            self.logger.debug(f"LLM service initialized: {type(initialized_service).__name__}")
             return initialized_service
         except Exception as e:
-            self.logger.error(f"Failed to initialize LLM mock service: {str(e)}")
+            self.logger.error(f"Failed to initialize LLM service: {str(e)}")
             self.logger.error(traceback.format_exc())
             raise
-    
+        
     async def _start_browser_simulator(self):
         """
         Set up the browser simulator.
@@ -257,3 +265,109 @@ class TestEnvironmentManager:
             port = s.getsockname()[1]
             self.logger.debug(f"Found free port: {port}")
             return port
+            
+    async def _configure_llm_provider(self, api_service):
+        """Configure the LLM provider in the API server."""
+        self.logger.info("Configuring LLM provider in API server")
+        
+        llm_config = self.config.get("llm", {})
+        provider_config = llm_config.get("provider", {})
+        
+        if not provider_config:
+            self.logger.warning("No provider configuration found")
+            return
+        
+        provider_id = provider_config.get("provider_id", "default")
+        provider_type = provider_config.get("provider_type", "anthropic")
+        credentials = provider_config.get("credentials", {})
+
+        self.logger.info(f"Provider {provider_id} of type {provider_type} should be configured in the API directly")
+        self.logger.info("Skipping API-based provider configuration as endpoints may not be implemented")
+        self.logger.info("Please ensure the LLM provider is configured in your API server configuration")
+            
+        # Create provider in auth system
+        auth_request = {
+            "provider_id": provider_id,
+            "provider_type": provider_type,
+            "credentials": credentials
+        }
+        
+        self.logger.info(f"Creating provider {provider_id} of type {provider_type}")
+        
+        try:
+            # Use the auth endpoint to register the provider
+            response = await api_service.send_request(
+                "POST",
+                "/api/v1/auth/providers",
+                data=auth_request,
+                headers={"Authorization": f"Bearer {api_service.auth_token}"}
+            )
+            
+            if response.get("success", False):
+                self.logger.info(f"Provider {provider_id} created successfully")
+                
+                # Verify the provider by checking for available models
+                models_response = await api_service.send_request(
+                    "POST",
+                    "/llm/models",
+                    data={"provider_id": provider_id},
+                    headers={"Authorization": f"Bearer {api_service.auth_token}"}
+                )
+                
+                if models_response.get("success", False):
+                    models = models_response.get("data", {}).get("models", [])
+                    self.logger.info(f"Available models for {provider_id}: {models}")
+                else:
+                    self.logger.warning(f"Could not list models for {provider_id}: {models_response.get('error')}")
+            else:
+                self.logger.error(f"Failed to create provider: {response.get('error')}")
+        except Exception as e:
+            self.logger.error(f"Error configuring LLM provider: {str(e)}")
+            raise
+
+    async def _setup_anthropic_credentials(self, api_service):
+        """Set up Anthropic credentials in the storage system."""
+        self.logger.info("Setting up Anthropic credentials for testing")
+        
+        # Get credentials from config
+        llm_config = self.config.get("llm", {})
+        provider_config = llm_config.get("provider", {})
+        credentials = provider_config.get("credentials", {})
+        
+        if not credentials or "api_key" not in credentials:
+            self.logger.error("Missing Anthropic API key in configuration")
+            return False
+        
+        # Use a provider ID that the system already recognizes
+        provider_id = "anthropic"  # Use the standard provider ID
+        
+        # Format credentials properly
+        anthropic_credentials = {
+            "provider_type": "anthropic",
+            "api_key": credentials["api_key"],
+            "api_base": credentials.get("api_base", "https://api.anthropic.com/v1"),
+            "model": provider_config.get("model", "claude-3-opus-20240229")
+        }
+        
+        # Store credentials directly in the secure storage
+        try:
+            # Use the dev_auth_provider for direct storage
+            from core.infrastructure.auth.providers.dev_auth_provider import DevAuthProvider
+            import os
+            
+            # Get the storage path from environment or default
+            storage_path = os.environ.get("MARVIN_CONFIG_DIR", "./config")
+            dev_auth = DevAuthProvider(storage_path)
+            
+            # Store the credentials
+            await dev_auth.store_credentials(
+                "test-token",
+                provider_id,
+                anthropic_credentials
+            )
+            
+            self.logger.info(f"Successfully configured Anthropic credentials for provider_id: {provider_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to configure Anthropic credentials: {str(e)}")
+            return False

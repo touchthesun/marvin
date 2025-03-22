@@ -10,7 +10,7 @@ from test_harness.utils.generate_test_data import generate_test_data_files
 from core.utils.logger import get_logger
 from test_harness.config import load_test_config
 from test_harness.controller import TestHarnessController
-from test_harness.utils.diagnostics import diagnose_request_handling
+from test_harness.utils.diagnostics import diagnose_request_handling, test_basic_functionality
 
 logger = get_logger("test.cli")
 
@@ -22,7 +22,7 @@ async def run_tests(args: argparse.Namespace):
         args: Command line arguments
     """
     # Initialize logging based on args
-    config = load_test_config(args.config)
+    config = load_test_config(args.config, args.credentials)
     log_level = args.log_level or config.get("log_level")
     logger = get_logger("test.cli", log_level)
 
@@ -226,7 +226,7 @@ async def run_diagnostics(components):
                 "success": False,
                 "message": f"Error: {str(e)}"
             }
-    
+     
     # Log a summary of results
     logger.info("Diagnostic results summary:")
     for test, result in results.items():
@@ -357,7 +357,12 @@ def main(argv: Optional[List[str]] = None):
         "--log-dir",
         help="Directory for log files (default: logs)"
     )
-        
+
+    parser.add_argument(
+        "--credentials",
+        help="Path to credentials file containing sensitive information"
+    )
+            
     args = parser.parse_args(argv)
     
     # Configure initial logging

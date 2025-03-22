@@ -10,8 +10,8 @@ from typing import Dict, Any, Optional, Callable
 from aiohttp import web
 from test_harness.utils.paths import resolve_api_path
 from core.utils.helpers import find_free_port
-from test_harness.mocks.mock_neo4j_service import BaseMockService
-from test_harness.mocks.api.mock_request import MockRequest
+from test_harness.services.mock_neo4j_service import BaseMockService
+from test_harness.services.mock_request import MockRequest
 
 
 # Default configuration
@@ -1707,7 +1707,15 @@ class MockAPIService(BaseMockService):
         Returns:
             Admin token for use in tests
         """
+        self.logger.info("Setting up test authentication with admin token")
+        
+        # Ensure admin token exists in state
+        if not self.state["auth"]["admin_token"]:
+            self.logger.warning("Admin token not found in state, using default")
+            self.state["auth"]["admin_token"] = self.config.get("admin_token", "test-admin-token")
+        
         return self.state["auth"]["admin_token"]
+
     
     def get_admin_token(self):
         """

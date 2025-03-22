@@ -522,7 +522,7 @@ async def direct_storage_test():
 @router.post("/add-anthropic-direct")
 async def add_anthropic_direct(
     api_key: str = Query(..., description="Anthropic API Key"),
-    provider_id: str = Query("anthropic-main", description="Provider ID")
+    provider_id: str = Query("anthropic", description="Provider ID")
 ):
     """Add Anthropic credentials directly using SecureStorage"""
     from core.infrastructure.auth.storage import SecureStorage
@@ -577,7 +577,7 @@ async def add_anthropic_direct(
 
 @router.get("/get-anthropic-direct/{provider_id}")
 async def get_anthropic_direct(
-    provider_id: str = "anthropic-main"
+    provider_id: str = "anthropic"
 ):
     """Get Anthropic credentials directly using SecureStorage"""
     from core.infrastructure.auth.storage import SecureStorage

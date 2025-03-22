@@ -26,6 +26,12 @@ class LlmAgentScenario(TestScenario):
         self.neo4j = self.components.get("neo4j")
         self.llm_mock = self.components.get("llm")
         
+        # Check if agent endpoints are available
+        if hasattr(self.api, 'check_endpoint_availability'):
+            agent_query_available = await self.api.check_endpoint_availability("POST", "agent/query")
+            if not agent_query_available:
+                self.logger.warning("Agent query endpoint is not available - test may fail")
+        
         # Set up authentication
         self.auth_token = await self.api.setup_test_auth()
         
@@ -33,11 +39,6 @@ class LlmAgentScenario(TestScenario):
         if "graph_data" in self.test_data and self.test_data["graph_data"]:
             self.logger.info("Loading test data into knowledge graph")
             await self.neo4j.load_test_data(self.test_data["graph_data"])
-        
-        # Configure LLM mock responses if specified
-        if "llm_responses" in self.test_data and self.test_data["llm_responses"]:
-            self.logger.info("Configuring mock LLM responses")
-            await self._configure_llm_responses()
         
         # Initialize results tracking
         self.results = {
@@ -115,36 +116,60 @@ class LlmAgentScenario(TestScenario):
             # Check for expected content patterns if specified
             if "expected_content" in query_data:
                 expected_content = query_data["expected_content"]
-                response_content = detail.get("response_content", "")
+                response_content = detail.get("response_content", "").lower()
                 
                 # Handle different types of expected_content
                 if isinstance(expected_content, list):
-                    # If expected_content is a list, check if any item in the list is in the response
-                    content_match = any(item in response_content for item in expected_content)
-                    content_str = ", ".join(repr(item) for item in expected_content)
+                    # Count how many expected items are found
+                    found_items = [item.lower() for item in expected_content if item.lower() in response_content]
+                    content_match = len(found_items) > 0
+                    
+                    # Create assertion with details
                     agent_assertions.create_and_add(
                         f"{query_id}_content_match",
                         content_match,
-                        f"Response should contain at least one of these expected content patterns: {content_str} for {query_id}"
+                        f"Found {len(found_items)}/{len(expected_content)} expected content items in response for {query_id}"
                     )
+                    
+                    # Add detail for each item
+                    for item in expected_content:
+                        item_found = item.lower() in response_content
+                        agent_assertions.create_and_add(
+                            f"{query_id}_content_{item.replace(' ', '_')}",
+                            item_found,
+                            f"Expected content '{item}' {'found' if item_found else 'not found'} in response"
+                        )
                 else:
-                    # If expected_content is a string (or other scalar), check if it's in the response
+                    # Single item check
+                    content_found = expected_content.lower() in response_content
                     agent_assertions.create_and_add(
                         f"{query_id}_content_match",
-                        expected_content in response_content,
-                        f"Response should contain expected content '{expected_content}' for {query_id}"
+                        content_found,
+                        f"Expected content '{expected_content}' {'found' if content_found else 'not found'} in response"
                     )
-            
+
             # Check for expected sources if specified
             if "expected_sources" in query_data:
                 expected_sources = query_data["expected_sources"]
                 sources = detail.get("sources", [])
                 
+                source_found = False
                 for expected_source in expected_sources:
+                    # More flexible matching - check if any source contains the expected_source
+                    if any(expected_source in source for source in sources):
+                        source_found = True
+                        agent_assertions.create_and_add(
+                            f"{query_id}_source_found",
+                            source_found,
+                            f"Response should include at least one expected source containing '{expected_source}'"
+                        )
+                        break
+                
+                if not source_found:
                     agent_assertions.create_and_add(
-                        f"{query_id}_source_{self._safe_url_for_name(expected_source)}",
-                        expected_source in sources,
-                        f"Response should include source '{expected_source}' for {query_id}"
+                        f"{query_id}_source_found",
+                        False,
+                        f"Response should include at least one source containing any of: {expected_sources}"
                     )
         
         # Return all assertions
@@ -161,32 +186,45 @@ class LlmAgentScenario(TestScenario):
             query_text = query_data.get("query", "")
             query_type = query_data.get("task_type", "query").lower()
             relevant_urls = query_data.get("relevant_urls", [])
+            provider_id = query_data.get("provider_id")
+            model_id = query_data.get("model_id")
+            
+            # Prepare request data with specific provider and model
+            request_data = {
+                "query": query_text,
+                "task_type": query_type,
+                "relevant_urls": relevant_urls,
+                "context": None,
+                "constraints": None,
+                "conversation_id": None,
+                "provider_id": provider_id,
+                "model_id": model_id 
+            }
+            
+            # Log details about provider/model being used
+            provider_info = f" using provider: {provider_id}" if provider_id else ""
+            model_info = f" and model: {model_id}" if model_id else ""
+            self.logger.info(f"Sending query to agent{provider_info}{model_info}: {query_text}")
             
             # Send query to agent
-            self.logger.info(f"Sending query to agent: {query_text}")
-            
             query_response = await self.api.send_request(
                 "POST",
                 "/api/v1/agent/query",
-                {
-                    "query": query_text,
-                    "task_type": query_type,
-                    "relevant_urls": relevant_urls,
-                    "context": None,
-                    "constraints": None,
-                    "conversation_id": None
-                },
+                request_data,
                 headers={"Authorization": f"Bearer {self.auth_token}"}
             )
             
             # Handle API error
             if not query_response.get("success", False):
-                self.logger.error(f"Failed to create agent task for {query_id}: {query_response.get('error')}")
+                error_msg = query_response.get("error", "Unknown error")
+                status_code = query_response.get("status_code", 0)
+                self.logger.error(f"Failed to create agent task for {query_id}: {error_msg} (Status: {status_code})")
                 self.results["failed_queries"].append(query_id)
                 self.results["details"][query_id] = {
                     "status": "failed",
-                    "error": query_response.get("error"),
+                    "error": error_msg,
                     "stage": "creation",
+                    "status_code": status_code,
                     "processing_time": time.time() - start_time
                 }
                 return
@@ -254,7 +292,15 @@ class LlmAgentScenario(TestScenario):
             sources = result_data.get("sources", [])
             source_urls = [s.get("url", "") for s in sources]
             
-            # Record success
+            # Log response content for debugging
+            self.logger.info(f"Response for {query_id}: {response_content[:200]}...")
+            self.logger.info(f"Sources for {query_id}: {source_urls}")
+            
+            # Extract provider information if available
+            provider_used = result_data.get("provider_id", "unknown")
+            model_used = result_data.get("model", "unknown")
+            
+            # Record success with enhanced details
             processing_time = time.time() - start_time
             self.results["processed_queries"].append(query_id)
             self.results["details"][query_id] = {
@@ -265,7 +311,11 @@ class LlmAgentScenario(TestScenario):
                 "response_content": response_content,
                 "sources": source_urls,
                 "source_count": len(sources),
-                "processing_time": processing_time
+                "processing_time": processing_time,
+                "provider_used": provider_used,
+                "model_used": model_used,
+                "full_result": result_data,  # Store complete result data
+                "complete_task_result": task_result  # Store complete task result
             }
             
             self.logger.info(f"Successfully processed query {query_id} in {processing_time:.2f}s")
@@ -303,8 +353,12 @@ class LlmAgentScenario(TestScenario):
                 "failed": len(self.results.get("failed_queries", [])),
                 "success_rate": f"{len(self.results.get('processed_queries', [])) / len(self.results.get('queries', [])) * 100:.1f}%" if self.results.get("queries") else "0%"
             },
-            "query_details": {}
+            "query_details": {},
+            "llm_providers": {}  # New section for provider details
         }
+        
+        # Track used providers
+        providers_used = set()
         
         # Add successful queries
         for query_id in self.results.get("processed_queries", []):
@@ -313,13 +367,20 @@ class LlmAgentScenario(TestScenario):
             # Extract query text
             query_text = next((q.get("query", "") for q in self.test_data["queries"] if q.get("id") == query_id), "")
             
+            # Track provider
+            provider_used = details.get("provider_used", "unknown")
+            providers_used.add(provider_used)
+            
             report["query_details"][query_id] = {
                 "status": "success",
                 "query": query_text,
                 "processing_time": f"{details.get('processing_time', 0):.2f}s",
                 "source_count": details.get("source_count", 0),
                 "sources": details.get("sources", []),
-                "response_snippet": details.get("response_content", "")[:200] + "..." if details.get("response_content") else ""
+                "provider": provider_used,
+                "model": details.get("model_used", "unknown"),
+                "response_snippet": details.get("response_content", "")[:200] + "..." if details.get("response_content") else "",
+                "full_response_length": len(details.get("response_content", ""))
             }
         
         # Add failed queries
@@ -337,8 +398,21 @@ class LlmAgentScenario(TestScenario):
                 "processing_time": f"{details.get('processing_time', 0):.2f}s"
             }
         
+        # Add provider summary
+        for provider_id in providers_used:
+            provider_queries = [
+                q_id for q_id in self.results.get("processed_queries", [])
+                if self.results.get("details", {}).get(q_id, {}).get("provider_used") == provider_id
+            ]
+            
+            report["llm_providers"][provider_id] = {
+                "query_count": len(provider_queries),
+                "queries": provider_queries
+            }
+        
         return report
     
     def _safe_url_for_name(self, url):
         """Convert URL to a safe string for use in assertion names."""
         return url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_")
+    

@@ -80,7 +80,7 @@ curl -X POST http://localhost:8000/api/v1/auth/providers \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-admin-token" \
   -d '{
-    "provider_id": "anthropic-main",
+    "provider_id": "anthropic",
     "provider_type": "anthropic",
     "credentials": {
       "api_key": "your-api-key",

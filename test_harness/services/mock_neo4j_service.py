@@ -8,7 +8,7 @@ import traceback
 
 from test_harness.utils.paths import resolve_path
 from core.utils.logger import get_logger
-from test_harness.mocks.base import BaseMockService
+from test_harness.services.base_mock_service import BaseMockService
 from core.utils.helpers import wait_for_service, find_free_port
 
 

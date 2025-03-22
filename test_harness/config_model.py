@@ -38,8 +38,14 @@ class TestConfig(BaseConfig):
     
     # LLM test settings
     llm: Dict[str, Any] = field(default_factory=lambda: {
+        "use_real": False,
         "use_http_server": True,
-        "responses_dir": "fixtures/llm_responses"
+        "responses_dir": "fixtures/llm_responses",
+        "provider": {
+            "provider_type": "anthropic",
+            "provider_id": "anthropic-test",
+            "model": "claude-3-opus-20240229"
+        }
     })
     
     # Browser test settings

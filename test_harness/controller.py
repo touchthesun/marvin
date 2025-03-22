@@ -71,7 +71,7 @@ class TestHarnessController:
             # Store component references
             self.components = {
                 "neo4j": environment.get("neo4j"),
-                "api": environment.get("api_server"),
+                "api": environment.get("api"),
                 "browser": environment.get("browser_simulator"),
                 "llm": environment.get("llm_mock")
             }
