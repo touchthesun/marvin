@@ -36,6 +36,35 @@ export async function fetchAPI(endpoint, options = {}) {
     // Make request
     const response = await fetch(url, requestOptions);
     
+    // Special handling for GET /api/v1/pages/ with 500 error
+    if (response.status === 500 && endpoint === '/api/v1/pages/') {
+      console.warn('Server error when fetching pages, using local fallback');
+      
+      // Get capture history as fallback
+      const data = await chrome.storage.local.get('captureHistory');
+      const captureHistory = data.captureHistory || [];
+      
+      // Convert to expected format
+      return {
+        success: true,
+        data: {
+          pages: captureHistory.map(item => ({
+            id: item.url, // Use URL as ID since we don't have real IDs
+            url: item.url,
+            title: item.title,
+            domain: extractDomain(item.url),
+            discovered_at: item.timestamp,
+            browser_contexts: [BrowserContext.ACTIVE_TAB],
+            keywords: {},
+            relationships: []
+          })),
+          total_count: captureHistory.length,
+          success_count: captureHistory.length,
+          error_count: 0
+        }
+      };
+    }
+    
     // Check for 404 - endpoint not found
     if (response.status === 404) {
       console.warn(`Endpoint not found: ${endpoint}`);
@@ -140,5 +169,15 @@ export async function fetchAPI(endpoint, options = {}) {
         message: error.message || 'Unknown error'
       }
     };
+  }
+}
+
+// Utility function to extract domain
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname;
+  } catch (e) {
+    return 'unknown';
   }
 }

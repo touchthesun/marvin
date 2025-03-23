@@ -1000,7 +1000,7 @@ A key insight from our implementation is that properly handling credentials and 
 
 ### Neo4j Test Environment
 
-We'll provide options for both real and mock Neo4j instances:
+We provide options for both real and mock Neo4j instances:
 
 ```python
 class MockNeo4jService:

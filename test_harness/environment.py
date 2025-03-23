@@ -11,6 +11,8 @@ from test_harness.services.mock_llm_service import MockLLMService
 from test_harness.services.real_llm_service import RealLLMService
 from test_harness.services.mock_api_service import MockAPIService
 from test_harness.services.real_api_service import RealAPIService
+from test_harness.services.real_browser_service import RealBrowserService
+
 
 
 
@@ -231,30 +233,32 @@ class TestEnvironmentManager:
         
     async def _start_browser_simulator(self):
         """
-        Set up the browser simulator.
+        Set up the browser simulator or real browser service.
         
         Returns:
-            Browser simulator instance
+            Browser service instance
         """
         browser_config = self.config.get("browser", {})
-        self.logger.debug(f"Starting browser simulator with config: {browser_config}")
+        self.logger.debug(f"Starting browser service with config: {browser_config}")
         
         try:
-
-            service = BrowserSimulator(browser_config)
-            self.logger.debug("BrowserSimulator created")
+            # Check if we should use a real browser
+            if browser_config.get("use_real", False):
+                self.logger.info("Using real browser service")
+                service = RealBrowserService(browser_config)
+            else:
+                self.logger.info("Using mock browser simulator")
+                service = BrowserSimulator(browser_config)
             
-            self.logger.debug("Initializing browser simulator")
+            self.logger.debug("Browser service created")
+            
+            self.logger.debug("Initializing browser service")
             initialized_service = await service.initialize()
             
-            # Log browser state
-            tabs_count = len(getattr(initialized_service, "tabs", []))
-            bookmarks_count = len(getattr(initialized_service, "bookmarks", []))
-            self.logger.debug(f"Browser simulator initialized with {tabs_count} tabs and {bookmarks_count} bookmarks")
-            
+            self.logger.info("Browser service initialized")
             return initialized_service
         except Exception as e:
-            self.logger.error(f"Failed to initialize browser simulator: {str(e)}")
+            self.logger.error(f"Failed to initialize browser service: {str(e)}")
             self.logger.error(traceback.format_exc())
             raise
     

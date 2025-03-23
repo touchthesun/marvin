@@ -217,6 +217,14 @@ class Page:
                 properties['id'] = uuid4()
         
         # Create basic page instance
+        if 'domain' not in properties and 'url' in properties:
+            try:
+                from urllib.parse import urlparse
+                parsed_url = urlparse(properties['url'])
+                properties['domain'] = parsed_url.netloc
+            except Exception:
+                properties['domain'] = 'unknown'
+
         page = cls(
             url=properties['url'],
             domain=properties['domain'],

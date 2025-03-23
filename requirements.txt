@@ -37,4 +37,5 @@ mkdocs-mermaid2-plugin
 pycountry
 python-us
 docker
+playwright
 # python -m spacy download en_core_web_sm
