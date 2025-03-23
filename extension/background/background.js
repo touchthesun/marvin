@@ -97,7 +97,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .then(result => sendResponse(result))
         .catch(error => sendResponse({ success: false, error: error.message }));
       return true;
-  }
+
+      case 'getDashboardData':
+      chrome.storage.local.get(['captureHistory', 'stats'], (data) => {
+        sendResponse(data);
+      });
+      return true; // Indicates async response
+
+      case 'contentScriptPing':
+        sendResponse({ success: true });
+        return true;
+
+      case 'pageVisible':
+        // Handle page visibility change
+        console.log('Page visible:', message.url);
+        return false;
+
+      case 'pageHidden':
+        // Handle page visibility change
+        console.log('Page hidden:', message.url);
+        return false;
+    }
 });
 
 // Initialize extension

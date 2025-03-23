@@ -16,7 +16,8 @@ class StateManager {
     // Load settings from storage
     const data = await chrome.storage.local.get(['stateSettings', 'lastSyncTime']);
     this.settings = data.stateSettings || {
-      syncEnabled: true,
+      // disabled for dev, enable for prod
+      syncEnabled: false,
       syncInterval: 60000, // 1 minute
       syncBookmarks: true
     };

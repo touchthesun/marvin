@@ -1,7 +1,18 @@
 // content/content.js
 
+// Helper function to safely send messages to the extension
+function safeSendMessage(message) {
+  try {
+    chrome.runtime.sendMessage(message);
+    return true;
+  } catch (error) {
+    console.log('Failed to send message to extension, context may be invalidated');
+    return false;
+  }
+}
+
 // Notify background script that content script is active
-chrome.runtime.sendMessage({ 
+safeSendMessage({ 
   action: 'contentScriptLoaded', 
   url: window.location.href 
 });
@@ -9,22 +20,26 @@ chrome.runtime.sendMessage({
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'extractContent') {
-    // Extract page content
-    const content = document.documentElement.outerHTML;
-    
-    // Basic metadata extraction
-    const metadata = {
-      title: document.title,
-      description: document.querySelector('meta[name="description"]')?.content || '',
-      keywords: document.querySelector('meta[name="keywords"]')?.content || '',
-      author: document.querySelector('meta[name="author"]')?.content || '',
-      // Open Graph metadata
-      ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
-      ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
-      ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
-    };
-    
-    sendResponse({ content, metadata });
+    try {
+      // Extract page content
+      const content = document.documentElement.outerHTML;
+      
+      // Basic metadata extraction
+      const metadata = {
+        title: document.title,
+        description: document.querySelector('meta[name="description"]')?.content || '',
+        keywords: document.querySelector('meta[name="keywords"]')?.content || '',
+        author: document.querySelector('meta[name="author"]')?.content || '',
+        // Open Graph metadata
+        ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
+        ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
+        ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
+      };
+      
+      sendResponse({ content, metadata });
+    } catch (error) {
+      sendResponse({ error: error.message });
+    }
     return true;
   } else if (message.action === 'updateCaptureStatus') {
     showCaptureOverlay(message.status);
@@ -84,15 +99,15 @@ function showCaptureOverlay(status) {
 
 // Report network status to service worker
 function reportNetworkStatus() {
-  chrome.runtime.sendMessage({ 
+  safeSendMessage({ 
     action: 'networkStatusChange', 
     isOnline: navigator.onLine 
   });
 }
 
 // Listen for online/offline events
-window.addEventListener('online', () => reportNetworkStatus());
-window.addEventListener('offline', () => reportNetworkStatus());
+window.addEventListener('online', reportNetworkStatus);
+window.addEventListener('offline', reportNetworkStatus);
 
 // Report initial network status
 reportNetworkStatus();
@@ -100,8 +115,16 @@ reportNetworkStatus();
 // Handle page visibility for auto-capture logic
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    chrome.runtime.sendMessage({ action: 'pageVisible', url: window.location.href });
+    safeSendMessage({ action: 'pageVisible', url: window.location.href });
   } else {
-    chrome.runtime.sendMessage({ action: 'pageHidden', url: window.location.href });
+    safeSendMessage({ action: 'pageHidden', url: window.location.href });
+  }
+});
+
+// Re-establish connection with extension after reloads
+window.addEventListener('focus', () => {
+  // Try to reconnect with extension
+  if (safeSendMessage({ action: 'contentScriptPing' })) {
+    console.log('Reconnected with extension');
   }
 });

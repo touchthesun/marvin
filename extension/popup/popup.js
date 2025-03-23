@@ -1,6 +1,8 @@
 // popup/popup.js
 
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('Popup loaded');
+  
   // UI elements
   const statusIndicator = document.getElementById('status-indicator');
   const loginForm = document.getElementById('login-form');
@@ -9,13 +11,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const captureBtn = document.getElementById('capture-btn');
   const relatedBtn = document.getElementById('related-btn');
   const queryBtn = document.getElementById('query-btn');
+  const dashboardBtn = document.getElementById('open-dashboard-btn');
   const activityList = document.getElementById('activity-list');
   const optionsBtn = document.getElementById('options-btn');
   const logoutBtn = document.getElementById('logout-btn');
   
   // Check online status
   function updateOnlineStatus() {
-    if (navigator.onLine) {
+    const isOnline = navigator.onLine;
+    console.log('Online status:', isOnline);
+    
+    if (isOnline) {
       statusIndicator.textContent = 'Online';
       statusIndicator.className = 'status-online';
     } else {
@@ -26,34 +32,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Check authentication status
   async function checkAuthStatus() {
-    const response = await chrome.runtime.sendMessage({ action: 'checkAuthStatus' });
+    console.log('Checking auth status...');
     
-    if (response.authenticated) {
-      loginForm.style.display = 'none';
-      userInfo.style.display = 'block';
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'checkAuthStatus' });
+      console.log('Auth status response:', response);
+      
+      if (response.authenticated) {
+        loginForm.style.display = 'none';
+        userInfo.style.display = 'block';
+        enableFunctionality();
+      } else {
+        loginForm.style.display = 'block';
+        userInfo.style.display = 'none';
+        disableFunctionality();
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error);
+      // For testing, always enable functionality
       enableFunctionality();
-    } else {
-      loginForm.style.display = 'block';
-      userInfo.style.display = 'none';
-      disableFunctionality();
     }
   }
   
   // Enable/disable main functionality
   function enableFunctionality() {
+    console.log('Enabling functionality');
     captureBtn.disabled = false;
     relatedBtn.disabled = false;
     queryBtn.disabled = false;
+    dashboardBtn.disabled = false;
   }
   
   function disableFunctionality() {
+    console.log('Disabling functionality');
     captureBtn.disabled = true;
     relatedBtn.disabled = true;
     queryBtn.disabled = true;
+    dashboardBtn.disabled = true;
   }
   
   // Load recent activity
   async function loadRecentActivity() {
+    console.log('Loading recent activity');
+    
     try {
       const data = await chrome.storage.local.get('captureHistory');
       const history = data.captureHistory || [];
@@ -82,13 +103,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         activityList.appendChild(element);
       });
     } catch (error) {
-      activityList.innerHTML = '<div class="error-state">Error loading activity</div>';
       console.error('Error loading activity:', error);
+      activityList.innerHTML = '<div class="error-state">Error loading activity</div>';
     }
   }
   
   // Utility functions
   function truncate(str, length) {
+    if (!str) return '';
     return str.length > length ? str.substring(0, length) + '...' : str;
   }
   
@@ -97,12 +119,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
   
-  // Report network status to background script
+  // Report network status to service worker
   function reportNetworkStatus() {
-    chrome.runtime.sendMessage({ 
-      action: 'networkStatusChange', 
-      isOnline: navigator.onLine 
-    });
+    const isOnline = navigator.onLine;
+    console.log('Reporting network status:', isOnline);
+    
+    try {
+      chrome.runtime.sendMessage({ 
+        action: 'networkStatusChange', 
+        isOnline: isOnline 
+      });
+    } catch (error) {
+      console.error('Error reporting network status:', error);
+    }
   }
   
   // Event listeners
@@ -116,68 +145,122 @@ document.addEventListener('DOMContentLoaded', async () => {
     reportNetworkStatus();
   });
   
-  authForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-    
-    const response = await chrome.runtime.sendMessage({
-      action: 'login',
-      username,
-      password
+  // Login form submission
+  if (authForm) {
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      console.log('Login form submitted');
+      
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'login',
+          username,
+          password
+        });
+        
+        console.log('Login response:', response);
+        
+        if (response.success) {
+          checkAuthStatus();
+        } else {
+          alert('Login failed: ' + (response.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        alert('Login error: ' + error.message);
+      }
     });
-    
-    if (response.success) {
-      checkAuthStatus();
-    } else {
-      alert('Login failed: ' + (response.error || 'Unknown error'));
-    }
-  });
+  }
   
-  logoutBtn.addEventListener('click', async () => {
-    await chrome.runtime.sendMessage({ action: 'logout' });
-    checkAuthStatus();
-  });
+  // Logout button
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      console.log('Logout clicked');
+      
+      try {
+        await chrome.runtime.sendMessage({ action: 'logout' });
+        checkAuthStatus();
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    });
+  }
   
-  captureBtn.addEventListener('click', async () => {
-    captureBtn.disabled = true;
-    captureBtn.textContent = 'Capturing...';
-    
-    const response = await chrome.runtime.sendMessage({ action: 'captureCurrentTab' });
-    
-    if (response.success) {
-      captureBtn.textContent = 'Captured!';
-      setTimeout(() => {
-        captureBtn.textContent = 'Capture Current Page';
-        captureBtn.disabled = false;
-        loadRecentActivity();
-      }, 2000);
-    } else {
-      alert('Capture failed: ' + (response.error || 'Unknown error'));
-      captureBtn.textContent = 'Capture Failed';
-      setTimeout(() => {
-        captureBtn.textContent = 'Capture Current Page';
-        captureBtn.disabled = false;
-      }, 2000);
-    }
-  });
+  // Capture button
+  if (captureBtn) {
+    captureBtn.addEventListener('click', async () => {
+      console.log('Capture button clicked');
+      
+      captureBtn.disabled = true;
+      captureBtn.textContent = 'Capturing...';
+      
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'captureCurrentTab' });
+        console.log('Capture response:', response);
+        
+        if (response.success) {
+          captureBtn.textContent = 'Captured!';
+          setTimeout(() => {
+            captureBtn.textContent = 'Capture Current Page';
+            captureBtn.disabled = false;
+            loadRecentActivity();
+          }, 2000);
+        } else {
+          alert('Capture failed: ' + (response.error || 'Unknown error'));
+          captureBtn.textContent = 'Capture Failed';
+          setTimeout(() => {
+            captureBtn.textContent = 'Capture Current Page';
+            captureBtn.disabled = false;
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Capture error:', error);
+        captureBtn.textContent = 'Error';
+        setTimeout(() => {
+          captureBtn.textContent = 'Capture Current Page';
+          captureBtn.disabled = false;
+        }, 2000);
+      }
+    });
+  }
   
-  relatedBtn.addEventListener('click', () => {
-    // Will be implemented in Phase 2
-    alert('Finding related content will be available in the next version.');
-  });
+  // Related content button
+  if (relatedBtn) {
+    relatedBtn.addEventListener('click', () => {
+      console.log('Related button clicked');
+      alert('Finding related content will be available in the next version.');
+    });
+  }
   
-  queryBtn.addEventListener('click', () => {
-    // Will be implemented in Phase 3
-    alert('Ask Marvin functionality will be available in the next version.');
-  });
+  // Query button
+  if (queryBtn) {
+    queryBtn.addEventListener('click', () => {
+      console.log('Query button clicked');
+      alert('Ask Marvin functionality will be available in the next version.');
+    });
+  }
   
-  optionsBtn.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
+  // Open dashboard button
+  if (dashboardBtn) {
+    dashboardBtn.addEventListener('click', () => {
+      console.log('Dashboard button clicked');
+      chrome.tabs.create({ url: 'dashboard/dashboard.html' });
+    });
+  }
+  
+  // Options button
+  if (optionsBtn) {
+    optionsBtn.addEventListener('click', () => {
+      console.log('Options button clicked');
+      chrome.runtime.openOptionsPage();
+    });
+  }
   
   // Initialize popup
+  console.log('Initializing popup');
   updateOnlineStatus();
   checkAuthStatus();
   loadRecentActivity();

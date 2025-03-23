@@ -7,7 +7,8 @@ module.exports = {
     background: './background/background.js',
     popup: './popup/popup.js',
     options: './options/options.js',
-    content: './content/content.js'
+    content: './content/content.js',
+    dashboard: './dashboard/dashboard.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -37,6 +38,7 @@ module.exports = {
         { from: 'icons', to: 'icons' },
         { from: 'popup/popup.css', to: 'popup/popup.css' },
         { from: 'options/options.css', to: 'options/options.css' },
+        { from: 'dashboard/dashboard.css', to: 'dashboard/dashboard.css' }, // Add this line
       ],
     }),
     new HtmlWebpackPlugin({
@@ -49,10 +51,12 @@ module.exports = {
       filename: 'options/options.html',
       chunks: ['options'],
     }),
+    new HtmlWebpackPlugin({
+      template: './dashboard/dashboard.html',
+      filename: 'dashboard/dashboard.html',
+      chunks: ['dashboard'],
+    }), // Add this plugin
   ],
-  experiments: {
-    outputModule: true,
-  },
   devtool: 'cheap-module-source-map',
   mode: 'development',
-}
+};
