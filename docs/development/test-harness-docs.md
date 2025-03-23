@@ -48,6 +48,93 @@ The initial implementation focuses on:
 - LLM Agent testing with realistic response validation
 - Flexible test environment configuration supporting both mock and real components
 
+
+## CLI Reference
+
+### Basic Usage
+
+python -m test_harness [options]
+
+### Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--config PATH` | Path to test configuration file | `config/test.json` |
+| `--credentials PATH` | Path to credentials file containing sensitive information | None |
+
+### Test Execution Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--scenario NAME` | Run a specific scenario (omit to run all) | Run all |
+| `--diagnostics` | Run diagnostic tests to troubleshoot issues | False |
+| `--fail-on-error` | Exit immediately on setup errors | False |
+
+### Service Selection Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--use-real-api` | Use real API instead of mock | False |
+| `--use-docker` | Use Docker for services like Neo4j | False |
+
+### Neo4j Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--use-real-neo4j` | Use real Neo4j database instead of mock | False |
+| `--neo4j-uri URI` | Neo4j database URI (e.g., bolt://localhost:7687) | None |
+| `--neo4j-username USERNAME` | Neo4j database username | None |
+| `--neo4j-password PASSWORD` | Neo4j database password | None |
+| `--verify-neo4j` | Verify Neo4j connection before running tests | False |
+
+### Browser Testing Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--use-real-browser` | Use real browser for testing instead of simulator | False |
+| `--browser-extension-path PATH` | Path to browser extension directory | None |
+| `--browser-profile PATH` | Path to browser user profile directory | None |
+| `--browser-headless` | Run browser in headless mode | False |
+| `--browser-screenshot-dir PATH` | Directory to save browser screenshots | None |
+| `--browser-enable-tracing` | Enable browser tracing for debugging | False |
+
+### Test Data Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--generate-test-data` | Generate test data before running tests | False |
+| `--fixtures-dir PATH` | Directory for test fixtures | `fixtures` |
+| `--num-pages N` | Number of pages to generate for test data | 15 |
+
+### Logging Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--log-level LEVEL` | Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | INFO |
+| `--report-dir PATH` | Directory for test reports | None |
+| `--log-file PATH` | Path to save logs (in addition to console output) | Auto-generated |
+| `--log-dir PATH` | Directory for log files | `test_harness/logs` |
+
+### Example Commands
+
+Run all scenarios with default configuration:
+`python -m test_harness`
+
+Run a specific scenario:
+`python -m test_harness --scenario browser_extension_ui`
+
+Run with real browser extension testing:
+`python -m test_harness --use-real-browser --browser-extension-path ./path/to/extension`
+
+Run with real Neo4j database:
+`python -m test_harness --use-real-neo4j --neo4j-uri bolt://localhost:7687 --neo4j-username neo4j --neo4j-password password`
+
+Run diagnostics only:
+`python -m test_harness --diagnostics`
+
+Generate test data and run tests:
+`python -m test_harness --generate-test-data --fixtures-dir ./my-fixtures`
+
 ## Integration Testing Strategy
 
 ### Integration Paths
