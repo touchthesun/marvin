@@ -43,40 +43,27 @@ class TestEnvironmentManager:
         environment = {}
         
         try:
-            # Start Neo4j instance
+            # Start Neo4j test instance
             neo4j = await self._start_neo4j()
             environment["neo4j"] = neo4j
             self.active_services.append(neo4j)
-            
-            # If using real LLM, set up the environment for secure storage
-            if self.config.get("llm", {}).get("use_real", False):
-
-                # Make sure the config directory exists
-                os.makedirs("./config", exist_ok=True)
-                
-                # Set up the environment variable for the secure storage
-                if "SECRET_KEY" not in os.environ:
-                    # Use a test key if not set
-                    os.environ["SECRET_KEY"] = "marvin-test-secret-key-for-secure-storage"
-                
-                # Set up the credentials directly (before API server starts)
-                await self._setup_anthropic_credentials(None)
             
             # Start API server
             api_server = await self._start_api_server(neo4j)
             environment["api"] = api_server
             self.active_services.append(api_server)
             
-            # Set up browser simulator
-            self.logger.info("Setting up browser simulator")
-            browser_simulator = await self._start_browser_simulator()
-            environment["browser"] = browser_simulator
-            self.active_services.append(browser_simulator)
+            # Set up browser simulator or real browser service
+            browser_service = await self._start_browser_service()
+            environment["browser"] = browser_service
+            self.active_services.append(browser_service)
             
-            self.logger.info("Test environment setup complete with services:")
-            for i, service in enumerate(self.active_services):
-                self.logger.info(f"  {i+1}. {service.__class__.__name__}")
-                
+            # Start LLM mock server (if needed)
+            # llm_mock = await self._start_llm_mock()
+            # environment["llm"] = llm_mock
+            # self.active_services.append(llm_mock)
+            
+            self.logger.info("Test environment setup complete")
             return environment
             
         except Exception as e:
@@ -231,9 +218,9 @@ class TestEnvironmentManager:
             self.logger.error(traceback.format_exc())
             raise
         
-    async def _start_browser_simulator(self):
+    async def _start_browser_service(self):
         """
-        Set up the browser simulator or real browser service.
+        Set up the browser service (either simulator or real).
         
         Returns:
             Browser service instance
@@ -241,21 +228,25 @@ class TestEnvironmentManager:
         browser_config = self.config.get("browser", {})
         self.logger.debug(f"Starting browser service with config: {browser_config}")
         
+        # Check if we should use a real browser
+        use_real = browser_config.get("use_real", False) or self.config.get("use_real_browser", False)
+        
         try:
-            # Check if we should use a real browser
-            if browser_config.get("use_real", False):
+            if use_real:
                 self.logger.info("Using real browser service")
+                from test_harness.services.real_browser_service import RealBrowserService
                 service = RealBrowserService(browser_config)
             else:
                 self.logger.info("Using mock browser simulator")
+                from test_harness.services.mock_browser_service import BrowserSimulator
                 service = BrowserSimulator(browser_config)
             
-            self.logger.debug("Browser service created")
+            self.logger.debug(f"Created browser service: {service.__class__.__name__}")
             
             self.logger.debug("Initializing browser service")
             initialized_service = await service.initialize()
             
-            self.logger.info("Browser service initialized")
+            self.logger.info(f"Browser service initialized: {initialized_service.__class__.__name__}")
             return initialized_service
         except Exception as e:
             self.logger.error(f"Failed to initialize browser service: {str(e)}")

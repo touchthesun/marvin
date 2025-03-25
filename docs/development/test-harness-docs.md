@@ -10,7 +10,7 @@
 6. [Test Scenarios](#test-scenarios)
 7. [Environment Setup](#environment-setup)
 8. [Mock Services](#mock-services)
-9. [Monitoring and Reporting](#monitoring-and-reporting)
+9.  [Monitoring and Reporting](#monitoring-and-reporting)
 10. [Best Practices](#best-practices)
 11. [Future Extensions](#future-extensions)
 
@@ -119,6 +119,18 @@ python -m test_harness [options]
 
 Run all scenarios with default configuration:
 `python -m test_harness`
+
+Run the browser extension UI scenario:
+```bash
+python -m test_harness \
+  --config test_harness/config/browser_extension.json \
+  --scenario real_browser_extension \
+  --use-real-api \
+  --use-real-neo4j \
+  --use-real-browser \
+  --browser-extension-path ./extension/dist \
+  --browser-headless
+```
 
 Run a specific scenario:
 `python -m test_harness --scenario browser_extension_ui`

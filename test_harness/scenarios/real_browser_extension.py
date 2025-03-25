@@ -4,7 +4,7 @@ from datetime import datetime
 
 from test_harness.scenarios.base import TestScenario
 
-class BrowserExtensionUIScenario(TestScenario):
+class RealBrowserExtensionScenario(TestScenario):
     """
     Tests the browser extension UI interaction:
     1. Launches browser with extension

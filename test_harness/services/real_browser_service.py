@@ -1,13 +1,12 @@
-from typing import Dict, Any
 import os
 import asyncio
 import json
 from datetime import datetime
+from typing import Dict, Any, Optional, List, Tuple, Union
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, BrowserContext, Page, ElementHandle
 
 from core.utils.logger import get_logger
-from test_harness.services.base_mock_service import BaseMockService
 
 class RealBrowserService:
     """
@@ -21,7 +20,8 @@ class RealBrowserService:
         Initialize the real browser service.
         
         Args:
-            config: Browser configuration options
+            config: Browser configuration options including extension path,
+                   user data directory, headless mode, and other settings
         """
         self.config = config
         self.logger = get_logger("test.real_browser", config.get("log_level", "INFO"))
@@ -29,10 +29,10 @@ class RealBrowserService:
         
         # Browser state
         self.playwright = None
-        self.browser_context = None
-        self.extension_id = None
-        self.extension_targets = {}
-        self.pages = {}
+        self.browser_context: Optional[BrowserContext] = None
+        self.extension_id: Optional[str] = None
+        self.extension_targets: Dict[str, Union[Page, Any]] = {}
+        self.pages: Dict[str, Page] = {}
         
         # Extension config
         self.extension_path = config.get("extension_path")
@@ -44,23 +44,23 @@ class RealBrowserService:
         
         # Log capture configuration
         self.capture_logs = config.get("capture_logs", True)
-        self.log_buffer = []
-
+        self.log_buffer: List[Dict[str, Any]] = []
+        
         # Screenshots directory
         self.screenshot_dir = config.get("screenshot_dir", "screenshots")
         os.makedirs(self.screenshot_dir, exist_ok=True)
         
-        # Traces directory
-        self.trace_dir = config.get("trace_dir", "traces")
-        os.makedirs(self.trace_dir, exist_ok=True)
+        # Tracing
+        self.tracing_enabled = config.get("enable_tracing", False)
+        self.current_trace_path: Optional[str] = None
         
-    async def initialize(self):
+    async def initialize(self) -> 'RealBrowserService':
         """
         Initialize the browser service. This doesn't launch the browser yet,
         as that's done when needed by specific tests.
         
         Returns:
-            The initialized service
+            The initialized service for method chaining
         """
         self.logger.info("Initializing browser service")
         
@@ -76,102 +76,293 @@ class RealBrowserService:
         self.logger.info(f"RealBrowserService initialized with extension: {self.extension_path}")
         return self
     
-    async def launch_browser(self):
-        """Launch the browser with the extension loaded."""
-        self.logger.info("Launching browser with extension")
+    async def launch_browser(self) -> BrowserContext:
+        """
+        Launch the browser with the extension loaded.
         
-        # Initialize Playwright
-        self.playwright = await async_playwright().start()
+        Returns:
+            The browser context with the extension loaded
+        """
+        self.logger.info(f"Launching browser with extension: {self.extension_path}")
         
-        # Choose browser type (chromium for extension testing)
-        browser_type = self.playwright.chromium
+        # Make paths absolute
+        extension_path = os.path.abspath(self.extension_path)
+        self.logger.info(f"Using absolute extension path: {extension_path}")
         
-        # Set up launch arguments
-        context_options = {
-            'headless': self.headless,
-            'args': [
-                f'--disable-extensions-except={self.extension_path}',
-                f'--load-extension={self.extension_path}',
-                '--no-sandbox',
+        # Validate extension
+        if not os.path.exists(extension_path):
+            raise FileNotFoundError(f"Extension path not found: {extension_path}")
+        
+        # Create user data dir with unique name
+        # user_data_dir = self.user_data_dir
+        # if not user_data_dir:
+        #     user_data_dir = os.path.abspath('./browser_test_profile')
+        
+        # unique_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # user_data_dir = f"{user_data_dir}_{unique_id}"
+        # user_data_dir = os.path.abspath(user_data_dir)
+        # os.makedirs(user_data_dir, exist_ok=True)
+        # self.logger.info(f"Using user data directory: {user_data_dir}")
+        
+        # Find system Chrome
+        chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        if not os.path.exists(chrome_path):
+            raise FileNotFoundError(f"System Chrome not found at: {chrome_path}")
+        
+        self.logger.info(f"Using system Chrome at: {chrome_path}")
+
+        # Start Playwright with system Chrome
+        try:
+            if self.playwright is None:
+                self.logger.info("Initializing Playwright")
+                self.playwright = await async_playwright().start()
+            
+            # Prepare launch options
+            browser_args = [
+                f"--disable-extensions-except={extension_path}",
+                f"--load-extension={extension_path}",
+                "--no-first-run",
+                "--no-default-browser-check"
             ]
-        }
+            
+            launch_options = {
+                "user_data_dir": user_data_dir,
+                "headless": self.headless,
+                "args": browser_args
+            }
+            
+            # Use system Chrome if available
+            if chrome_path:
+                launch_options["executable_path"] = chrome_path
+            
+            # Launch persistent browser context
+            self.logger.info("Launching persistent browser context...")
+            self.browser_context = await self.playwright.chromium.launch_persistent_context(**launch_options)
+                
+            # Wait for background page (if extension has one)
+            if len(self.browser_context.background_pages) == 0:
+                self.logger.info("Waiting for extension background page...")
+                try:
+                    # Set a timeout for the wait_for_event
+                    background_page = await asyncio.wait_for(
+                        self.browser_context.wait_for_event('backgroundpage'),
+                        timeout=10.0  # 10-second timeout
+                    )
+                    self.extension_targets['background'] = background_page
+                    self.logger.info("Background page loaded")
+                except asyncio.TimeoutError:
+                    self.logger.warning("Timeout waiting for background page")
+            else:
+                background_page = self.browser_context.background_pages[0]
+                self.extension_targets['background'] = background_page
+                self.logger.info("Background page already available")
+            
+            # Create a new page to test browser functionality
+            self.logger.info("Creating initial page")
+            page = await self.browser_context.new_page()
+            await page.goto("about:blank")
+            self.pages['initial'] = page
+            
+            # Set up log capture
+            if self.capture_logs:
+                await self._setup_log_capture()
+            
+            # Attempt to detect extension ID
+            await self._detect_extension_id()
+            
+            self.logger.info(f"Successfully launched browser with extension ID: {self.extension_id}")
+            return self.browser_context
+            
+        except Exception as e:
+            self.logger.error(f"Error during browser launch: {str(e)}")
+            
+            # Capture screenshots and clean up
+            await self._capture_error_screenshots()
+            await self._cleanup_browser_resources()
+            
+            # Re-raise the exception
+            raise
+
+    async def _cleanup_browser_resources(self) -> None:
+        """
+        Clean up browser resources safely.
         
-        # Add user data directory if specified
-        if self.user_data_dir:
-            if not os.path.exists(self.user_data_dir):
-                os.makedirs(self.user_data_dir, exist_ok=True)
-            # For persistent context, user_data_dir is required as the first argument
-        else:
-            # Create a temporary user data directory
-            temp_dir = os.path.join(os.getcwd(), "browser_profiles", f"profile_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-            os.makedirs(temp_dir, exist_ok=True)
-            self.user_data_dir = temp_dir
-            self.logger.info(f"Created temporary user data directory: {self.user_data_dir}")
+        This method ensures that all pages and browser contexts are properly closed
+        and Playwright is stopped, even if errors occur during cleanup.
+        """
+        self.logger.info("Cleaning up browser resources...")
         
-        # Launch browser with persistent context
-        self.browser_context = await browser_type.launch_persistent_context(
-            user_data_dir=self.user_data_dir,
-            **context_options
-        )
+        # Save trace if enabled
+        if self.tracing_enabled and self.current_trace_path and self._is_browser_context_active():
+            try:
+                await self.browser_context.tracing.stop(path=self.current_trace_path)
+                self.logger.info(f"Saved browser trace to {self.current_trace_path}")
+            except Exception as e:
+                self.logger.warning(f"Failed to save browser trace: {str(e)}")
         
-        # Allow some time for extension to initialize
-        await asyncio.sleep(1)
+        # Close all pages first
+        for page_name, page in list(self.pages.items()):
+            try:
+                await page.close()
+                del self.pages[page_name]
+            except Exception:
+                pass  # Ignore errors during cleanup
         
-        # Detect the extension ID
-        await self._detect_extension_id()
+        # Close browser context
+        if self._is_browser_context_active():
+            try:
+                await self.browser_context.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            
+        self.browser_context = None
         
-        # Set up log capture
-        if self.capture_logs:
-            await self._setup_log_capture()
+        # Close playwright
+        if self.playwright:
+            try:
+                await self.playwright.stop()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            
+        self.playwright = None
+        self.logger.info("Browser resources cleanup completed")
+
+    def _is_browser_context_active(self) -> bool:
+        """
+        Check if the browser context is still active.
         
-        self.logger.info(f"Browser launched with extension ID: {self.extension_id}")
-        return self.browser_context
-    
-    async def _detect_extension_id(self):
-        """Detect the extension ID after browser launch."""
+        Returns:
+            True if the context is active, False otherwise
+        """
         if not self.browser_context:
-            raise RuntimeError("Browser not launched yet")
+            return False
+            
+        try:
+            # Check if we can access pages property (will throw if context is closed)
+            _ = self.browser_context.pages
+            return True
+        except Exception:
+            return False
         
-        # Get all background pages and service workers
-        background_pages = self.browser_context.background_pages
-        service_workers = self.browser_context.service_workers
+    async def _capture_error_screenshots(self) -> None:
+        """
+        Capture screenshots of all pages for error debugging.
         
-        # Check background pages first
-        for bg_page in background_pages:
-            if 'marvin' in bg_page.url.lower():
-                # Extract extension ID from URL
+        This is automatically called when errors occur to help diagnose issues.
+        """
+        if not self._is_browser_context_active():
+            return
+            
+        try:
+            for page_name, page in self.pages.items():
+                try:
+                    screenshot_path = os.path.join(
+                        self.screenshot_dir,
+                        f"error_{page_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                    )
+                    await page.screenshot(path=screenshot_path)
+                    self.logger.info(f"Captured error screenshot for {page_name}: {screenshot_path}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to capture screenshot for {page_name}: {str(e)}")
+        except Exception as e:
+            self.logger.warning(f"Error capturing error screenshots: {str(e)}")
+    
+
+    async def _detect_extension_id(self) -> None:
+        """
+        Detect the extension ID after browser launch.
+        
+        This method tries several approaches to find the extension ID:
+        1. Checking background pages
+        2. Checking service workers
+        3. Checking all pages for extension URLs
+        4. Extracting IDs from the extensions page
+        
+        Raises:
+            RuntimeError: If the extension ID cannot be detected
+        """
+        if not self._is_browser_context_active():
+            raise RuntimeError("Browser not launched or context not active")
+        
+        self.logger.info("Attempting to detect extension ID...")
+        
+        # 1. Check background pages
+        self.logger.debug(f"Checking {len(self.browser_context.background_pages)} background pages")
+        for bg_page in self.browser_context.background_pages:
+            self.logger.debug(f"Examining background page: {bg_page.url}")
+            if 'chrome-extension://' in bg_page.url:
                 url_parts = bg_page.url.split('/')
-                if len(url_parts) > 2 and 'chrome-extension:' in url_parts[0]:
+                if len(url_parts) > 2:
                     self.extension_id = url_parts[2]
                     self.extension_targets['background'] = bg_page
-                    self.logger.debug(f"Detected extension ID from background page: {self.extension_id}")
+                    self.logger.info(f"Detected extension ID from background page: {self.extension_id}")
                     return
         
-        # Check service workers if not found in background pages
-        for sw in service_workers:
-            if 'marvin' in sw.url.lower():
+        # 2. Check service workers
+        self.logger.debug(f"Checking {len(self.browser_context.service_workers)} service workers")
+        for sw in self.browser_context.service_workers:
+            self.logger.debug(f"Examining service worker: {sw.url}")
+            if 'chrome-extension://' in sw.url:
                 url_parts = sw.url.split('/')
-                if len(url_parts) > 2 and 'chrome-extension:' in url_parts[0]:
+                if len(url_parts) > 2:
                     self.extension_id = url_parts[2]
                     self.extension_targets['service_worker'] = sw
-                    self.logger.debug(f"Detected extension ID from service worker: {self.extension_id}")
+                    self.logger.info(f"Detected extension ID from service worker: {self.extension_id}")
                     return
         
-        # If not found in background pages or service workers, check regular pages
+        # 3. Check all pages
+        self.logger.debug(f"Checking {len(self.browser_context.pages)} regular pages")
         for page in self.browser_context.pages:
-            if 'chrome-extension://' in page.url and 'marvin' in page.url.lower():
+            self.logger.debug(f"Examining page: {page.url}")
+            if 'chrome-extension://' in page.url:
                 url_parts = page.url.split('/')
                 if len(url_parts) > 2:
                     self.extension_id = url_parts[2]
-                    self.logger.debug(f"Detected extension ID from page: {self.extension_id}")
+                    self.logger.info(f"Detected extension ID from regular page: {self.extension_id}")
                     return
-                    
+        
+        # 4. If we have an extensions page, try to extract IDs from it
+        if 'extensions' in self.pages:
+            try:
+                extension_ids = await self.pages['extensions'].evaluate('''() => {
+                    const extensionItems = document.querySelectorAll('extensions-item');
+                    return Array.from(extensionItems).map(item => {
+                        return {
+                            id: item.getAttribute('id'),
+                            name: item.querySelector('.name')?.textContent.trim() || "Unknown",
+                            enabled: !item.querySelector('.enable-toggle')?.hasAttribute('disabled')
+                        };
+                    });
+                }''')
+                
+                if extension_ids and len(extension_ids) > 0:
+                    self.logger.info(f"Found {len(extension_ids)} extensions:")
+                    for ext in extension_ids:
+                        self.logger.info(f"  - {ext['name']} (ID: {ext['id']}, Enabled: {ext.get('enabled', False)})")
+                        
+                    # Try to find our extension by checking if any are enabled
+                    for ext in extension_ids:
+                        if ext.get('enabled', False):
+                            self.extension_id = ext['id']
+                            self.logger.info(f"Using enabled extension: {ext['name']} with ID: {self.extension_id}")
+                            return
+                else:
+                    self.logger.warning("No extensions found on extensions page")
+                
+            except Exception as e:
+                self.logger.warning(f"Error extracting extension IDs from extensions page: {str(e)}")
+        
+        # If we get here, we couldn't find an extension ID
         self.logger.error("Could not detect extension ID; extension may not be loaded correctly")
+        self.logger.error("Please check: 1) Extension is built correctly, 2) manifest.json is valid, 3) Background script/service worker exists")
         raise RuntimeError("Failed to detect extension ID")
-    
 
-    async def _setup_log_capture(self):
-        """Set up console log capture."""
+    async def _setup_log_capture(self) -> None:
+        """
+        Set up console log capture for browser and extension.
+        
+        This registers event listeners on all pages to capture console logs and errors.
+        """
         if not self.browser_context:
             raise RuntimeError("Browser not launched yet")
         
@@ -187,10 +378,15 @@ class RealBrowserService:
             page.on("console", self._handle_console_log)
             page.on("pageerror", self._handle_page_error)
         
-        self.logger.debug("Set up log capture")
+        self.logger.debug("Log capture set up successfully")
 
-    def _handle_console_log(self, msg):
-        """Handle console message events."""
+    def _handle_console_log(self, msg) -> None:
+        """
+        Handle console message events from browser pages.
+        
+        Args:
+            msg: Console message object from Playwright
+        """
         log_type = msg.type
         text = msg.text
         
@@ -210,8 +406,14 @@ class RealBrowserService:
         )
         log_method(f"Browser console [{log_type}]: {text}")
 
-    def _handle_page_error(self, error):
-        """Handle page error events."""
+
+    def _handle_page_error(self, error) -> None:
+        """
+        Handle page error events from browser pages.
+        
+        Args:
+            error: Error object from Playwright
+        """
         # Add to log buffer
         log_entry = {
             'timestamp': datetime.now().timestamp(),
@@ -224,17 +426,26 @@ class RealBrowserService:
         # Log to our logger
         self.logger.error(f"Browser page error: {error}")
     
-    async def open_extension_popup(self):
+    async def open_extension_popup(self) -> Page:
         """
         Open the extension popup page.
         
         Returns:
-            The popup page
+            The popup page object
+            
+        Raises:
+            RuntimeError: If the browser is not launched or extension ID is not detected
+            Exception: If there's an error opening the popup
         """
-        if not self.browser_context or not self.extension_id:
-            raise RuntimeError("Browser not launched or extension ID not detected")
+        if not self._is_browser_context_active():
+            raise RuntimeError("Browser not launched or context not active")
+        
+        if not self.extension_id:
+            self.logger.error("Extension ID not detected, cannot open popup")
+            raise RuntimeError("Extension ID not detected, cannot open popup")
         
         popup_url = f"chrome-extension://{self.extension_id}/popup.html"
+        self.logger.info(f"Opening extension popup at {popup_url}")
         
         # Create a new page
         popup_page = await self.browser_context.new_page()
@@ -250,24 +461,49 @@ class RealBrowserService:
             # Store in pages dictionary
             self.pages['popup'] = popup_page
             
-            self.logger.info(f"Opened extension popup at {popup_url}")
+            # Take screenshot for debugging
+            screenshot_path = os.path.join(
+                self.screenshot_dir,
+                f"popup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            )
+            await popup_page.screenshot(path=screenshot_path)
+            self.logger.info(f"Captured popup screenshot to {screenshot_path}")
+            
+            self.logger.info(f"Successfully opened extension popup")
             return popup_page
         except Exception as e:
             self.logger.error(f"Error opening extension popup: {str(e)}")
+            
+            # Try to take a screenshot of what we got
+            try:
+                screenshot_path = os.path.join(
+                    self.screenshot_dir,
+                    f"popup_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                )
+                await popup_page.screenshot(path=screenshot_path)
+                self.logger.info(f"Captured error screenshot to {screenshot_path}")
+            except:
+                pass
+                
             await popup_page.close()
             raise
     
-    async def open_extension_dashboard(self):
+    async def open_extension_dashboard(self) -> Page:
         """
         Open the extension dashboard page.
         
         Returns:
-            The dashboard page
+            The dashboard page object
+            
+        Raises:
+            RuntimeError: If the browser is not launched or extension ID is not detected
+            Exception: If there's an error opening the dashboard
         """
-        if not self.browser_context or not self.extension_id:
+        if not self._is_browser_context_active() or not self.extension_id:
             raise RuntimeError("Browser not launched or extension ID not detected")
         
         dashboard_url = f"chrome-extension://{self.extension_id}/dashboard.html"
+        self.logger.info(f"Opening extension dashboard at {dashboard_url}")
         
         # Create a new page
         dashboard_page = await self.browser_context.new_page()
@@ -283,14 +519,34 @@ class RealBrowserService:
             # Store in pages dictionary
             self.pages['dashboard'] = dashboard_page
             
-            self.logger.info(f"Opened extension dashboard at {dashboard_url}")
+            # Take screenshot for debugging
+            screenshot_path = os.path.join(
+                self.screenshot_dir,
+                f"dashboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            )
+            await dashboard_page.screenshot(path=screenshot_path)
+            self.logger.info(f"Captured dashboard screenshot to {screenshot_path}")
+            
+            self.logger.info(f"Successfully opened extension dashboard")
             return dashboard_page
         except Exception as e:
             self.logger.error(f"Error opening extension dashboard: {str(e)}")
+            
+            # Try to take a screenshot
+            try:
+                screenshot_path = os.path.join(
+                    self.screenshot_dir,
+                    f"dashboard_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                )
+                await dashboard_page.screenshot(path=screenshot_path)
+                self.logger.info(f"Captured error screenshot to {screenshot_path}")
+            except:
+                pass
+                
             await dashboard_page.close()
             raise
     
-    async def open_test_page(self, url):
+    async def open_test_page(self, url: str) -> Tuple[Page, str]:
         """
         Open a test page in the browser.
         
@@ -299,15 +555,20 @@ class RealBrowserService:
             
         Returns:
             Tuple of (page object, page_id)
+            
+        Raises:
+            RuntimeError: If the browser is not launched
+            Exception: If there's an error opening the page
         """
-        if not self.browser_context:
-            raise RuntimeError("Browser not launched")
+        if not self._is_browser_context_active():
+            raise RuntimeError("Browser not launched or context not active")
         
         # Create a new page
         page = await self.browser_context.new_page()
         
         try:
             # Navigate to URL
+            self.logger.info(f"Navigating to test page: {url}")
             await page.goto(url, wait_until="domcontentloaded")
             
             # Set up console logging for this page
@@ -320,14 +581,26 @@ class RealBrowserService:
             # Store in pages dictionary
             self.pages[page_id] = page
             
-            self.logger.info(f"Opened test page at {url}")
+            self.logger.info(f"Successfully opened test page at {url} (page ID: {page_id})")
             return page, page_id
         except Exception as e:
-            self.logger.error(f"Error opening test page: {str(e)}")
+            self.logger.error(f"Error opening test page {url}: {str(e)}")
+            
+            # Try to take a screenshot
+            try:
+                screenshot_path = os.path.join(
+                    self.screenshot_dir,
+                    f"page_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                )
+                await page.screenshot(path=screenshot_path)
+                self.logger.info(f"Captured error screenshot to {screenshot_path}")
+            except:
+                pass
+                
             await page.close()
             raise
     
-    async def click_extension_element(self, page_name, selector, timeout=5000):
+    async def click_extension_element(self, page_name: str, selector: str, timeout: int = 5000) -> bool:
         """
         Click an element in the extension UI.
         
@@ -337,7 +610,7 @@ class RealBrowserService:
             timeout: Timeout in milliseconds
             
         Returns:
-            True if the click was successful
+            True if the click was successful, False otherwise
         """
         page = self.pages.get(page_name)
         if not page:
@@ -345,15 +618,16 @@ class RealBrowserService:
             return False
         
         try:
+            self.logger.info(f"Clicking element '{selector}' on page '{page_name}'")
             # Playwright automatically waits for the element to be ready
             await page.click(selector, timeout=timeout)
-            self.logger.debug(f"Clicked element {selector} on {page_name}")
+            self.logger.info(f"Successfully clicked element '{selector}' on page '{page_name}'")
             return True
         except Exception as e:
-            self.logger.error(f"Error clicking element {selector} on {page_name}: {str(e)}")
+            self.logger.error(f"Error clicking element '{selector}' on page '{page_name}': {str(e)}")
             return False
         
-    async def fill_form_field(self, page_name, selector, value, timeout=5000):
+    async def fill_form_field(self, page_name: str, selector: str, value: str, timeout: int = 5000) -> bool:
         """
         Fill a form field in the extension UI.
         
@@ -364,7 +638,7 @@ class RealBrowserService:
             timeout: Timeout in milliseconds
             
         Returns:
-            True if the field was filled successfully
+            True if the field was filled successfully, False otherwise
         """
         page = self.pages.get(page_name)
         if not page:
@@ -372,15 +646,16 @@ class RealBrowserService:
             return False
         
         try:
+            self.logger.info(f"Filling field '{selector}' on page '{page_name}' with value: {value}")
             # Wait for the element and fill it
             await page.fill(selector, value, timeout=timeout)
-            self.logger.debug(f"Filled field {selector} with '{value}' on {page_name}")
+            self.logger.info(f"Successfully filled field '{selector}' on page '{page_name}'")
             return True
         except Exception as e:
-            self.logger.error(f"Error filling field {selector} on {page_name}: {str(e)}")
+            self.logger.error(f"Error filling field '{selector}' on page '{page_name}': {str(e)}")
             return False
         
-    async def get_element_text(self, page_name, selector, timeout=5000):
+    async def get_element_text(self, page_name: str, selector: str, timeout: int = 5000) -> Optional[str]:
         """
         Get the text content of an element.
         
@@ -398,15 +673,18 @@ class RealBrowserService:
             return None
         
         try:
+            self.logger.debug(f"Getting text from element '{selector}' on page '{page_name}'")
             # Wait for the element and get its text content
             element = await page.wait_for_selector(selector, timeout=timeout)
             if not element:
+                self.logger.warning(f"Element '{selector}' not found on page '{page_name}'")
                 return None
             
             text = await element.text_content()
+            self.logger.debug(f"Element '{selector}' text: {text}")
             return text
         except Exception as e:
-            self.logger.error(f"Error getting text from {selector} on {page_name}: {str(e)}")
+            self.logger.error(f"Error getting text from element '{selector}' on page '{page_name}': {str(e)}")
             return None
         
     async def is_element_visible(self, page_name, selector, timeout=5000):
@@ -654,35 +932,6 @@ class RealBrowserService:
         """
         return self.log_buffer
     
-    async def capture_screenshot(self, page_name, path):
-        """
-        Capture a screenshot of a page.
-        
-        Args:
-            page_name: The name of the page ('popup', 'dashboard', etc.)
-            path: The path to save the screenshot
-            
-        Returns:
-            True if the screenshot was captured successfully
-        """
-        page = self.pages.get(page_name)
-        if not page:
-            self.logger.error(f"Page not found: {page_name}")
-            return False
-        
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            
-            # Capture screenshot
-            await page.screenshot({'path': path})
-            
-            self.logger.debug(f"Captured screenshot of {page_name} to {path}")
-            return True
-        except Exception as e:
-            self.logger.error(f"Error capturing screenshot: {str(e)}")
-            return False
-    
     async def wait_for_selector(self, page_name, selector, timeout=5000, state="visible"):
         """
         Wait for an element to appear on the page.
@@ -755,39 +1004,30 @@ class RealBrowserService:
         except Exception as e:
             self.logger.error(f"Error reloading page {page_name}: {str(e)}")
             return False
+        
     
-    async def shutdown(self):
-        """Close the browser and clean up resources."""
+    async def shutdown(self) -> bool:
+        """
+        Close the browser and clean up resources.
+        
+        Returns:
+            True if shutdown completed successfully
+        """
         self.logger.info("Shutting down browser service")
-        
-        # Stop tracing if active
-        if hasattr(self, 'current_trace_path') and self.browser_context:
-            try:
-                await self.stop_tracing()
-            except Exception as e:
-                self.logger.error(f"Error stopping tracing during shutdown: {str(e)}")
-        
-        # Close browser context if open
-        if self.browser_context:
-            try:
-                await self.browser_context.close()
-                self.browser_context = None
-            except Exception as e:
-                self.logger.error(f"Error closing browser context: {str(e)}")
-        
-        # Stop Playwright if initialized
-        if self.playwright:
-            try:
-                await self.playwright.stop()
-                self.playwright = None
-            except Exception as e:
-                self.logger.error(f"Error stopping Playwright: {str(e)}")
-        
-        # Clear state
-        self.extension_id = None
-        self.extension_targets = {}
-        self.pages = {}
-        self.log_buffer = []
-        
+        await self._cleanup_browser_resources()
         self.logger.info("Browser service shutdown complete")
         return True
+    
+    async def __aenter__(self) -> 'RealBrowserService':
+        """Support for async context manager."""
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:
+        """
+        Clean up resources when used as a context manager.
+        
+        Returns:
+            False to propagate exceptions
+        """
+        await self.shutdown()
+        return False 
