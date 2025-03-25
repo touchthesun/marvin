@@ -51,6 +51,8 @@ class RealBrowserService:
         os.makedirs(self.screenshot_dir, exist_ok=True)
         
         # Tracing
+        self.trace_dir = config.get("trace_dir", "traces")
+        os.makedirs(self.trace_dir, exist_ok=True)
         self.tracing_enabled = config.get("enable_tracing", False)
         self.current_trace_path: Optional[str] = None
         
@@ -94,15 +96,28 @@ class RealBrowserService:
             raise FileNotFoundError(f"Extension path not found: {extension_path}")
         
         # Create user data dir with unique name
-        # user_data_dir = self.user_data_dir
-        # if not user_data_dir:
-        #     user_data_dir = os.path.abspath('./browser_test_profile')
+        user_data_dir = self.user_data_dir
+        if not user_data_dir:
+            user_data_dir = os.path.abspath('./browser_test_profile')
         
-        # unique_id = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # user_data_dir = f"{user_data_dir}_{unique_id}"
-        # user_data_dir = os.path.abspath(user_data_dir)
-        # os.makedirs(user_data_dir, exist_ok=True)
-        # self.logger.info(f"Using user data directory: {user_data_dir}")
+        # Ensure directory exists and is clean
+        if os.path.exists(user_data_dir):
+            self.logger.info(f"Cleaning existing user data directory: {user_data_dir}")
+            try:
+                # Remove only the contents, not the directory itself
+                for item in os.listdir(user_data_dir):
+                    item_path = os.path.join(user_data_dir, item)
+                    if os.path.isfile(item_path):
+                        os.unlink(item_path)
+                    elif os.path.isdir(item_path):
+                        import shutil
+                        shutil.rmtree(item_path)
+            except Exception as e:
+                self.logger.warning(f"Error cleaning user data directory: {str(e)}")
+
+        # Ensure directory exists
+        os.makedirs(user_data_dir, exist_ok=True)
+        self.logger.info(f"Using user data directory: {user_data_dir}")
         
         # Find system Chrome
         chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -444,7 +459,7 @@ class RealBrowserService:
             self.logger.error("Extension ID not detected, cannot open popup")
             raise RuntimeError("Extension ID not detected, cannot open popup")
         
-        popup_url = f"chrome-extension://{self.extension_id}/popup.html"
+        popup_url = f"chrome-extension://{self.extension_id}/popup/popup.html"
         self.logger.info(f"Opening extension popup at {popup_url}")
         
         # Create a new page
@@ -502,7 +517,7 @@ class RealBrowserService:
         if not self._is_browser_context_active() or not self.extension_id:
             raise RuntimeError("Browser not launched or extension ID not detected")
         
-        dashboard_url = f"chrome-extension://{self.extension_id}/dashboard.html"
+        dashboard_url = f"chrome-extension://{self.extension_id}/dashboard/dashboard.html"
         self.logger.info(f"Opening extension dashboard at {dashboard_url}")
         
         # Create a new page
@@ -1004,6 +1019,237 @@ class RealBrowserService:
         except Exception as e:
             self.logger.error(f"Error reloading page {page_name}: {str(e)}")
             return False
+        
+
+    async def get_elements(self, page_name, selector):
+        """Get all elements matching a selector."""
+        page = self.pages.get(page_name)
+        if not page:
+            self.logger.error(f"Page not found: {page_name}")
+            return []
+        
+        try:
+            return await page.querySelectorAll(selector)
+        except Exception as e:
+            self.logger.error(f"Error getting elements '{selector}' on {page_name}: {str(e)}")
+            return []
+
+    async def get_attribute(self, element, attr_name):
+        """Get an attribute from an element."""
+        try:
+            return await element.getAttribute(attr_name)
+        except Exception as e:
+            self.logger.error(f"Error getting attribute '{attr_name}': {str(e)}")
+            return None
+
+    async def evaluate_js(self, page_name, js_code):
+        """Evaluate JavaScript code on the page."""
+        page = self.pages.get(page_name)
+        if not page:
+            self.logger.error(f"Page not found: {page_name}")
+            return None
+        
+        try:
+            return await page.evaluate(js_code)
+        except Exception as e:
+            self.logger.error(f"Error evaluating JS on {page_name}: {str(e)}")
+            return None
+
+    async def press_key(self, page_name, key):
+        """Press a key on the page."""
+        page = self.pages.get(page_name)
+        if not page:
+            self.logger.error(f"Page not found: {page_name}")
+            return False
+        
+        try:
+            await page.keyboard.press(key)
+            return True
+        except Exception as e:
+            self.logger.error(f"Error pressing key '{key}' on {page_name}: {str(e)}")
+            return False
+        
+    async def login_to_extension(self, username="test", password="test123"):
+        """
+        Login to the extension using the provided credentials.
+        
+        Args:
+            username: Login username (default: "test")
+            password: Login password (default: "test123")
+            
+        Returns:
+            True if login was successful, False otherwise
+        """
+        self.logger.info(f"Attempting to login with username: {username}")
+        
+        try:
+            # Ensure popup is open
+            if 'popup' not in self.pages:
+                await self.open_extension_popup()
+            
+            # Check if login form is visible
+            login_form_visible = await self.is_element_visible('popup', '#login-form')
+            
+            if not login_form_visible:
+                # Check if already logged in
+                user_info_visible = await self.is_element_visible('popup', '#user-info')
+                if user_info_visible:
+                    self.logger.info("Already logged in, no login needed")
+                    return True
+                    
+                # Try to make login form visible (might be hidden by default)
+                login_btn_visible = await self.is_element_visible('popup', '#login-btn')
+                if login_btn_visible:
+                    await self.click_extension_element('popup', '#login-btn')
+                    # Wait for login form to appear
+                    login_form_visible = await self.wait_for_selector('popup', '#login-form', timeout=3000)
+            
+            if login_form_visible:
+                # Fill login form
+                await self.fill_form_field('popup', '#username', username)
+                await self.fill_form_field('popup', '#password', password)
+                
+                # Take a screenshot before submitting
+                screenshot_path = os.path.join(
+                    self.screenshot_dir, 
+                    f"login_form_filled_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                )
+                await self.capture_screenshot('popup', screenshot_path)
+                
+                # Submit the form
+                submit_success = await self.click_extension_element('popup', '#auth-form button[type="submit"]')
+                if not submit_success:
+                    # Try alternate method - look for a login button
+                    submit_success = await self.click_extension_element('popup', '.btn-primary')
+                
+                if not submit_success:
+                    self.logger.warning("Could not find login submit button")
+                    return False
+                
+                # Wait for login process to complete
+                await asyncio.sleep(1)
+                
+                # Check if login was successful by looking for user-info or checking if buttons are enabled
+                user_info_visible = await self.is_element_visible('popup', '#user-info')
+                capture_btn_disabled = await self.get_element_property('popup', '#capture-btn', 'disabled')
+                
+                login_success = user_info_visible or not capture_btn_disabled
+                
+                # Take a post-login screenshot
+                screenshot_path = os.path.join(
+                    self.screenshot_dir, 
+                    f"post_login_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                )
+                await self.capture_screenshot('popup', screenshot_path)
+                
+                if login_success:
+                    self.logger.info("Login successful")
+                    return True
+                else:
+                    self.logger.warning("Login form submitted but login appears unsuccessful")
+                    return False
+            else:
+                # Check if we're already logged in
+                capture_btn_disabled = await self.get_element_property('popup', '#capture-btn', 'disabled')
+                if capture_btn_disabled is False:
+                    self.logger.info("Already logged in (buttons are enabled)")
+                    return True
+                
+                self.logger.warning("Login form not found and not already logged in")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error during login: {str(e)}")
+            
+            # Take an error screenshot
+            try:
+                screenshot_path = os.path.join(
+                    self.screenshot_dir, 
+                    f"login_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                )
+                await self.capture_screenshot('popup', screenshot_path)
+            except:
+                pass
+                
+            return False
+        
+    async def get_element_property(self, page_name, selector, property_name):
+        """
+        Get a property value from an element.
+        
+        Args:
+            page_name: The name of the page ('popup', 'dashboard', etc.)
+            selector: CSS selector for the element
+            property_name: The name of the property to get
+            
+        Returns:
+            The property value, or None if not found
+        """
+        page = self.pages.get(page_name)
+        if not page:
+            self.logger.error(f"Page not found: {page_name}")
+            return None
+        
+        try:
+            # First wait for the element to exist
+            element = await page.wait_for_selector(selector, timeout=3000)
+            if not element:
+                self.logger.warning(f"Element not found: {selector}")
+                return None
+                
+            # Get the property value
+            property_value = await element.get_property(property_name)
+            if property_value:
+                return await property_value.json_value()
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting property '{property_name}' for element '{selector}' on {page_name}: {str(e)}")
+            return None
+        
+    async def get_nav_panel_names(self, page_name):
+        """Get the names of navigation panels in dashboard."""
+        page = self.pages.get(page_name)
+        if not page:
+            self.logger.error(f"Page not found: {page_name}")
+            return []
+        
+        try:
+            # Use page.evaluate to safely run JS in the page context
+            return await page.evaluate("""
+                () => {
+                    const navItems = document.querySelectorAll('.nav-item');
+                    return Array.from(navItems)
+                        .map(item => item.getAttribute('data-panel'))
+                        .filter(panel => panel);
+                }
+            """)
+        except Exception as e:
+            self.logger.error(f"Error getting nav panel names: {str(e)}")
+            return []
+        
+    async def wait_for_condition(self, page_name, check_function, max_attempts=30, delay=200):
+        """
+        Wait for a condition to be true by polling.
+        This avoids CSP issues with wait_for_function.
+        
+        Args:
+            page_name: The name of the page
+            check_function: An async function that returns True when condition is met
+            max_attempts: Maximum number of polling attempts
+            delay: Milliseconds to wait between attempts
+            
+        Returns:
+            True if condition was met, False if timed out
+        """
+        for attempt in range(max_attempts):
+            try:
+                if await check_function():
+                    return True
+            except Exception as e:
+                self.logger.debug(f"Polling attempt {attempt+1} failed: {str(e)}")
+            
+            await asyncio.sleep(delay / 1000)  # Convert to seconds
+        
+        return False
         
     
     async def shutdown(self) -> bool:

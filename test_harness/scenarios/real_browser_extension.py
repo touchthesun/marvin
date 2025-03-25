@@ -38,6 +38,16 @@ class RealBrowserExtensionScenario(TestScenario):
         # Generate test ID for this run
         self.test_run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         
+        # Login to the extension first to ensure we can access all UI elements
+        self.logger.info("Logging in to extension")
+        await self.browser_service.open_extension_popup()
+        login_success = await self.browser_service.login_to_extension()
+        
+        if not login_success:
+            self.logger.warning("Extension login failed, some tests may fail")
+        else:
+            self.logger.info("Extension login successful")
+        
         # Start tracing if enabled
         if self.config.get("browser", {}).get("enable_tracing", False):
             await self.browser_service.start_tracing(f"browser_extension_ui_{self.test_run_id}")
@@ -110,13 +120,21 @@ class RealBrowserExtensionScenario(TestScenario):
             "Extension popup should load successfully"
         ))
         
+        # Check for specific elements in your popup
         assertions.append(self.create_assertion(
             "popup_has_capture_button",
             popup_ui.get("has_capture_button", False),
             "Extension popup should have a capture button"
         ))
         
-        # 2. Validate page captures
+        assertions.append(self.create_assertion(
+            "popup_has_dashboard_button",
+            popup_ui.get("has_dashboard_button", False),
+            "Extension popup should have a dashboard button"
+        ))
+        
+        # 2. Validate page captures - we expect these to potentially fail 
+        # until the API is fully connected
         for capture in results.get("page_capture", []):
             url = capture.get("url", "unknown")
             assertions.append(self.create_assertion(
@@ -139,7 +157,22 @@ class RealBrowserExtensionScenario(TestScenario):
             "Extension dashboard should load successfully"
         ))
         
-        # 4. Validate knowledge queries
+        # Check for specific dashboard elements
+        if dashboard_ui.get("loaded", False):
+            assertions.append(self.create_assertion(
+                "dashboard_has_sidebar",
+                dashboard_ui.get("has_sidebar", False),
+                "Dashboard should have a sidebar navigation"
+            ))
+            
+            assertions.append(self.create_assertion(
+                "dashboard_has_main_content",
+                dashboard_ui.get("has_main_content", False),
+                "Dashboard should have main content area"
+            ))
+        
+        # 4. Validate knowledge queries - we expect these to potentially fail
+        # until the API is fully connected
         for query in results.get("knowledge_query", []):
             query_text = query.get("query", "unknown")
             assertions.append(self.create_assertion(
@@ -157,25 +190,30 @@ class RealBrowserExtensionScenario(TestScenario):
         try:
             popup_page = await self.browser_service.open_extension_popup()
             
-            # Wait for popup to load - adjust selector based on your extension's actual UI
-            capture_button_selector = '#capture-button'
-            await self.browser_service.wait_for_selector('popup', capture_button_selector, timeout=5000)
+            # Wait for popup to load - using your actual selectors
+            await self.browser_service.wait_for_selector('popup', '.container', timeout=5000)
             
-            # Check if essential elements exist
-            has_capture_button = await self.browser_service.is_element_visible('popup', capture_button_selector)
-            has_dashboard_link = await self.browser_service.is_element_visible('popup', '#dashboard-link')
-            
-            # Get status indicator text
-            status_text = await self.browser_service.get_element_text('popup', '.status-text') or "No status"
-            
-            # Take a screenshot
+            # Take a screenshot to see the loaded state
             screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_popup.png")
             await self.browser_service.capture_screenshot('popup', screenshot_path)
+            
+            # Check for critical UI elements present in your popup.html
+            has_capture_button = await self.browser_service.is_element_visible('popup', '#capture-btn')
+            has_dashboard_button = await self.browser_service.is_element_visible('popup', '#open-dashboard-btn')
+            has_activity_list = await self.browser_service.is_element_visible('popup', '#activity-list')
+            has_status_indicator = await self.browser_service.is_element_visible('popup', '#status-indicator')
+            
+            # Get status text
+            status_text = await self.browser_service.get_element_text('popup', '#status-indicator') or "No status"
+            
+            self.logger.info(f"Popup UI elements - Capture button: {has_capture_button}, Dashboard button: {has_dashboard_button}")
             
             return {
                 "loaded": True,
                 "has_capture_button": has_capture_button,
-                "has_dashboard_link": has_dashboard_link,
+                "has_dashboard_button": has_dashboard_button, 
+                "has_activity_list": has_activity_list,
+                "has_status_indicator": has_status_indicator,
                 "status_text": status_text,
                 "screenshot_path": screenshot_path
             }
@@ -193,7 +231,7 @@ class RealBrowserExtensionScenario(TestScenario):
                     }
             except:
                 pass
-                
+                    
             return {
                 "loaded": False,
                 "error": str(e)
@@ -210,32 +248,80 @@ class RealBrowserExtensionScenario(TestScenario):
             # Wait for page to load
             await self.browser_service.wait_for_navigation(page_id, wait_until="networkidle")
             
+            # Take a screenshot of the test page
+            test_page_screenshot = os.path.join(self.screenshot_dir, f"{self.test_run_id}_test_page_{self._normalize_url(url)}.png")
+            await self.browser_service.capture_screenshot(page_id, test_page_screenshot)
+            
             # Open the extension popup if not already open
             if 'popup' not in self.browser_service.pages:
                 await self.browser_service.open_extension_popup()
             
-            # Click the capture button in the popup
-            capture_success = await self.browser_service.click_extension_element('popup', '#capture-button')
+            # Check if we need to login again
+            capture_btn_disabled = await self.browser_service.get_element_property('popup', '#capture-btn', 'disabled')
+            if capture_btn_disabled:
+                self.logger.info("Capture button disabled, attempting login")
+                login_success = await self.browser_service.login_to_extension()
+                if not login_success:
+                    self.logger.warning("Login failed, capture test will likely fail")
             
-            # Wait for the capture status indicator to appear/update
-            # Adjust selector based on your extension's actual UI
-            success_indicator = '.capture-success'
-            indicator_visible = await self.browser_service.wait_for_selector(
-                'popup', 
-                success_indicator, 
-                timeout=5000, 
-                state="visible"
-            )
+            # Wait for popup to load completely
+            await self.browser_service.wait_for_selector('popup', '#capture-btn', timeout=5000)
             
-            # Take a screenshot of the popup after capture
-            screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_capture_{self._normalize_url(url)}.png")
-            await self.browser_service.capture_screenshot('popup', screenshot_path)
+            # Take a screenshot before capture
+            before_screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_popup_before_capture.png")
+            await self.browser_service.capture_screenshot('popup', before_screenshot_path)
+            
+            # Click the capture button (using your actual button ID)
+            capture_success = await self.browser_service.click_extension_element('popup', '#capture-btn')
+            
+            if not capture_success:
+                self.logger.warning("Failed to click capture button")
+            else:
+                self.logger.info("Successfully clicked capture button")
+            
+            # Wait for the capture operation to complete
+            # The popup.js shows that the button text changes to "Capturing..." then "Captured!"
+            try:
+                # Wait for button text to change to "Capturing..."
+                await self.browser_service.wait_for_condition(
+                    'popup',
+                    """() => {
+                        const btn = document.querySelector('#capture-btn');
+                        return btn && btn.textContent.includes('Capturing');
+                    }""",
+                    timeout=3000
+                )
+                
+                self.logger.info("Capture in progress...")
+                
+                # Wait for button text to change to "Captured!" or back to original
+                await self.browser_service.wait_for_condition(
+                    'popup',
+                    """() => {
+                        const btn = document.querySelector('#capture-btn');
+                        return btn && (btn.textContent.includes('Captured') || 
+                            btn.textContent.includes('Capture Current Page'));
+                    }""",
+                    timeout=10000
+                )
+                
+                self.logger.info("Capture operation completed")
+            except Exception as e:
+                self.logger.warning(f"Error waiting for capture status: {str(e)}")
+            
+            # Take a screenshot after capture
+            after_screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_popup_after_capture.png")
+            await self.browser_service.capture_screenshot('popup', after_screenshot_path)
+            
+            # Check if capture was successful by looking at button text
+            button_text = await self.browser_service.get_element_text('popup', '#capture-btn')
+            indicator_visible = button_text and ("Captured" in button_text or "Capture Current Page" in button_text)
             
             # Verify capture through API
             api_success = False
             if self.components.get("api"):
-                # Wait a bit for the capture to complete
-                await asyncio.sleep(2)
+                # Wait a bit longer for the capture to complete
+                await asyncio.sleep(3)
                 
                 # Query the API to check if the page was captured
                 query_response = await self.components["api"].send_request(
@@ -244,11 +330,19 @@ class RealBrowserExtensionScenario(TestScenario):
                     headers={"Authorization": f"Bearer {self.auth_token}"}
                 )
                 
+                # Log the API response for debugging
+                self.logger.debug(f"API response: {query_response}")
+                
                 # Check if the page was found
                 api_success = (
                     query_response.get("success", False) and
                     len(query_response.get("data", {}).get("pages", [])) > 0
                 )
+                
+                if api_success:
+                    self.logger.info(f"API verification succeeded for {url}")
+                else:
+                    self.logger.warning(f"API verification failed for {url}")
             
             # Get extension logs
             extension_logs = await self.browser_service.get_logs()
@@ -258,7 +352,11 @@ class RealBrowserExtensionScenario(TestScenario):
                 "url": url,
                 "ui_success": capture_success and indicator_visible,
                 "api_success": api_success,
-                "screenshot_path": screenshot_path,
+                "screenshot_paths": {
+                    "test_page": test_page_screenshot,
+                    "before": before_screenshot_path,
+                    "after": after_screenshot_path
+                },
                 "logs": capture_logs
             }
         except Exception as e:
@@ -293,22 +391,39 @@ class RealBrowserExtensionScenario(TestScenario):
             # Open the dashboard
             dashboard_page = await self.browser_service.open_extension_dashboard()
             
-            # Wait for dashboard to load - adjust selector based on your extension's actual UI
-            dashboard_container = '.dashboard-container'
-            await self.browser_service.wait_for_selector('dashboard', dashboard_container, timeout=10000)
-            
-            # Check if essential elements exist
-            has_knowledge_tab = await self.browser_service.is_element_visible('dashboard', '#knowledge-tab')
-            has_chat_tab = await self.browser_service.is_element_visible('dashboard', '#chat-tab')
+            # Wait for dashboard to load - using elements from your dashboard.html
+            await self.browser_service.wait_for_selector('dashboard', '.dashboard-container', timeout=10000)
             
             # Take a screenshot
             screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_dashboard.png")
             await self.browser_service.capture_screenshot('dashboard', screenshot_path)
             
+            # Check if essential elements exist from your dashboard structure
+            has_sidebar = await self.browser_service.is_element_visible('dashboard', '.sidebar')
+            has_main_content = await self.browser_service.is_element_visible('dashboard', '.main-content')
+            has_nav_links = await self.browser_service.is_element_visible('dashboard', '.nav-links')
+            
+            # Get panel names using browser_service instead of direct page access
+            nav_panels = await self.browser_service.get_nav_panel_names('dashboard')
+            self.logger.info(f"Found nav panels: {nav_panels}")
+            try:
+                # This needs to be done via the browser_service
+                panel_elements = await self.browser_service.get_elements('dashboard', '.nav-item')
+                for panel_element in panel_elements:
+                    panel_name = await self.browser_service.get_attribute(panel_element, 'data-panel')
+                    if panel_name:
+                        nav_panels.append(panel_name)
+            except Exception as e:
+                self.logger.warning(f"Error getting panel names: {str(e)}")
+                
+            self.logger.info(f"Found nav panels: {nav_panels}")
+            
             return {
                 "loaded": True,
-                "has_knowledge_tab": has_knowledge_tab,
-                "has_chat_tab": has_chat_tab,
+                "has_sidebar": has_sidebar,
+                "has_main_content": has_main_content,
+                "has_nav_links": has_nav_links,
+                "nav_panels": nav_panels,
                 "screenshot_path": screenshot_path
             }
         except Exception as e:
@@ -340,69 +455,72 @@ class RealBrowserExtensionScenario(TestScenario):
             if 'dashboard' not in self.browser_service.pages:
                 await self.browser_service.open_extension_dashboard()
             
-            # Navigate to knowledge tab if exists
+            # Navigate to knowledge panel using your actual UI structure
             try:
-                if await self.browser_service.is_element_visible('dashboard', '#knowledge-tab'):
-                    await self.browser_service.click_extension_element('dashboard', '#knowledge-tab')
-                    # Wait for tab to become active
-                    await self.browser_service.wait_for_selector('dashboard', '.knowledge-tab-active', timeout=5000)
+                # Find the knowledge tab using data-panel attribute
+                if await self.browser_service.is_element_visible('dashboard', '[data-panel="knowledge"]'):
+                    await self.browser_service.click_extension_element('dashboard', '[data-panel="knowledge"]')
+                    # Wait for content panel to appear
+                    await self.browser_service.wait_for_selector('dashboard', '#knowledge-panel', timeout=5000)
+                else:
+                    self.logger.warning("Could not find knowledge panel navigation element")
             except Exception as e:
-                self.logger.warning(f"Could not navigate to knowledge tab: {str(e)}")
+                self.logger.warning(f"Could not navigate to knowledge panel: {str(e)}")
             
-            # Find search input and enter query
-            search_input = '#search-input'
-            await self.browser_service.wait_for_selector('dashboard', search_input, timeout=5000)
-            await self.browser_service.fill_form_field('dashboard', search_input, query)
-            
-            # Click search button or press Enter
-            if await self.browser_service.is_element_visible('dashboard', '#search-button'):
-                await self.browser_service.click_extension_element('dashboard', '#search-button')
+            # Find search input - using your actual selectors from dashboard.html
+            search_input = '#knowledge-search'  
+            if await self.browser_service.wait_for_selector('dashboard', search_input, timeout=5000):
+                await self.browser_service.fill_form_field('dashboard', search_input, query)
+                
+                # Click search button
+                if await self.browser_service.is_element_visible('dashboard', '#search-btn'):
+                    await self.browser_service.click_extension_element('dashboard', '#search-btn')
+                else:
+                    # Fallback to keyboard press if button not found
+                    await self.browser_service.press_key('dashboard', 'Enter')
+                
+                # Wait for results - use actual selectors from your dashboard.html
+                try:
+                    await self.browser_service.wait_for_selector(
+                        'dashboard', 
+                        '.knowledge-list',  # This should match your actual UI 
+                        timeout=10000
+                    )
+                    
+                    # Check if results were found using actual selectors
+                    has_results = await self.browser_service.is_element_visible('dashboard', '.knowledge-item')
+                    
+                    # Get result count safely through browser_service
+                    result_count = await self.browser_service.evaluate_js(
+                        'dashboard', 
+                        'document.querySelectorAll(".knowledge-item").length || 0'
+                    )
+                    
+                    screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_search_{query.replace(' ', '_')}.png")
+                    await self.browser_service.capture_screenshot('dashboard', screenshot_path)
+                    
+                    return {
+                        "query": query,
+                        "success": True,
+                        "has_results": has_results,
+                        "result_count": result_count,
+                        "screenshot_path": screenshot_path
+                    }
+                except Exception as e:
+                    self.logger.error(f"Error testing knowledge query: {str(e)}")
+                    return {
+                        "query": query,
+                        "success": False,
+                        "error": str(e),
+                    }
             else:
-                # Use the Playwright Page object directly for keyboard press
-                dashboard_page = self.browser_service.pages['dashboard']
-                await dashboard_page.keyboard.press('Enter')
-            
-            # Wait for results
-            try:
-                search_results = '.search-results'
-                results_visible = await self.browser_service.wait_for_selector(
-                    'dashboard', 
-                    search_results, 
-                    timeout=10000
-                )
-                
-                # Check if results were found
-                has_results = await self.browser_service.is_element_visible('dashboard', '.search-result-item')
-                
-                # Get result count
-                dashboard_page = self.browser_service.pages['dashboard']
-                result_count = await dashboard_page.evaluate('() => document.querySelectorAll(".search-result-item").length')
-                
-                # Take a screenshot
-                screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_search_{query.replace(' ', '_')}.png")
-                await self.browser_service.capture_screenshot('dashboard', screenshot_path)
-                
-                return {
-                    "query": query,
-                    "success": True,
-                    "has_results": has_results,
-                    "result_count": result_count,
-                    "screenshot_path": screenshot_path
-                }
-            except Exception as e:
-                self.logger.warning(f"Timeout waiting for search results: {str(e)}")
-                
-                # Take a screenshot anyway
-                screenshot_path = os.path.join(self.screenshot_dir, f"{self.test_run_id}_search_timeout_{query.replace(' ', '_')}.png")
-                await self.browser_service.capture_screenshot('dashboard', screenshot_path)
-                
+                self.logger.warning(f"Could not find search input element")
                 return {
                     "query": query,
                     "success": False,
-                    "error": "Timeout waiting for results",
-                    "screenshot_path": screenshot_path
+                    "error": "Could not find search input",
                 }
-                
+                    
         except Exception as e:
             self.logger.error(f"Error testing knowledge query: {str(e)}")
             # Try to capture screenshot on failure
@@ -428,3 +546,5 @@ class RealBrowserExtensionScenario(TestScenario):
     def _normalize_url(self, url):
         """Normalize a URL for use in filenames."""
         return url.replace('https://', '').replace('http://', '').replace('/', '_').replace('.', '_')
+    
+    

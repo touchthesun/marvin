@@ -159,3 +159,5 @@ extension/dist
 test_harness/config/*
 test_harness/fixtures/*
 test_harness/reports/*
+test_harness/screenshots/*
+test_harness/traces/*
