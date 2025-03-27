@@ -1,13 +1,14 @@
-// dashboard/dashboard.js
-
 // Import dependencies
+import * as d3 from 'd3';
+
 import { loadSettings, saveSettings } from '../shared/utils/settings.js';
 import { fetchAPI } from '../shared/utils/api.js';
+import { captureUrl } from '../shared/utils/capture.js';
 import { BrowserContext, TabTypeToContext, BrowserContextLabels } from '../shared/constants.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Dashboard loaded');
-  
+   
   // Initialize navigation
   initNavigation();
   initTabs();
@@ -801,10 +802,13 @@ function filterHistory(allItems, searchTerm) {
   displayHistoryItems(filteredItems);
 }
 
-// Capture selected items
 async function captureSelectedItems() {
   // Get active tab panel
   const activeTabPane = document.querySelector('.capture-tab-content .tab-pane.active');
+  if (!activeTabPane) {
+    alert('No capture tab is active');
+    return;
+  }
   const type = activeTabPane.id.split('-')[0]; // tabs, bookmarks, or history
   
   // Get selected items
@@ -821,7 +825,9 @@ async function captureSelectedItems() {
     return {
       id: item.getAttribute('data-id'),
       url: item.getAttribute('data-url'),
-      title: item.querySelector('.item-title')?.textContent || 'Untitled'
+      title: item.querySelector('.item-title')?.textContent || 'Untitled',
+      type: type,  // tabs, bookmarks, or history
+      context: getContextForType(type)
     };
   });
   
@@ -832,114 +838,108 @@ async function captureSelectedItems() {
   captureBtn.disabled = true;
   
   try {
+    console.log(`Starting capture of ${selectedItems.length} items`, selectedItems);
+    
     // Determine context based on source type
     const contextType = TabTypeToContext[type] || BrowserContext.ACTIVE_TAB;
     
-    // Gather content for tabs if needed
-    const itemsWithContent = [];
+    // Track results for all captures
+    const captureResults = [];
+    const failedItems = [];
     
+    // Process items one by one
     for (const item of selectedItems) {
       try {
-        // Only extract content for tabs (not bookmarks or history yet)
+        let content = "";
+        let extractedTitle = item.title;
+        let metadata = {};
+        
+        // Extract content for tabs if needed
         if (type === 'tabs') {
           const tabId = parseInt(item.id);
-          const extractedData = await extractTabContent(tabId);
-          
-          itemsWithContent.push({
-            ...item,
-            content: extractedData.content || "",
-            extractedTitle: extractedData.title || item.title,
-            metadata: extractedData.metadata || {}
+          try {
+            const extractedData = await extractTabContent(tabId);
+            content = extractedData.content || "";
+            extractedTitle = extractedData.title || item.title;
+            metadata = extractedData.metadata || {};
+            
+            console.log(`Extracted content from tab ${tabId}:`, {
+              title: extractedData.title,
+              contentLength: extractedData.content?.length || 0,
+              hasMetadata: !!extractedData.metadata
+            });
+          } catch (extractError) {
+            console.error(`Error extracting content for tab ${tabId}:`, extractError);
+          }
+        }
+        
+        // Use the captureUrl utility for each item
+        const captureOptions = {
+          context: contextType,
+          title: extractedTitle,
+          content: content,
+          metadata: metadata
+        };
+        
+        // Add source-specific fields
+        if (type === 'tabs') {
+          captureOptions.tabId = item.id.toString();
+          captureOptions.windowId = "1";
+        } else if (type === 'bookmarks') {
+          captureOptions.bookmarkId = item.id.toString();
+        }
+        
+        // Capture the URL using the shared utility
+        const response = await captureUrl(item.url, captureOptions);
+        
+        // Track result
+        if (response.success) {
+          captureResults.push({
+            url: item.url,
+            success: true,
+            data: response.data
           });
         } else {
-          // For other types, no content extraction yet
-          itemsWithContent.push(item);
-        }
-      } catch (error) {
-        console.error(`Error extracting content for ${item.url}:`, error);
-        // Continue with minimal data
-        itemsWithContent.push(item);
-      }
-      
-      // Small delay to prevent overwhelming the browser
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    let response;
-    
-    if (itemsWithContent.length === 1) {
-      // Use single page endpoint for single item
-      const item = itemsWithContent[0];
-      const pageData = {
-        url: item.url,
-        title: item.extractedTitle || item.title,
-        content: item.content || "",
-        context: BrowserContext.ACTIVE_TAB,
-        tab_id: type === 'tabs' ? item.id.toString() : undefined,
-        window_id: type === 'tabs' ? "1" : undefined,
-        bookmark_id: type === 'bookmarks' ? item.id.toString() : undefined,
-        browser_contexts: [BrowserContext.ACTIVE_TAB]
-      };
-      
-      console.log("Single page request payload (truncated):", {
-        ...pageData,
-        content: pageData.content ? `[${pageData.content.length} characters]` : ""
-      });
-      
-      response = await fetchAPI('/api/v1/pages/', {
-        method: 'POST',
-        body: JSON.stringify(pageData)
-      });
-    } else {
-      // Use batch endpoint for multiple items
-      const batchRequest = {
-        pages: itemsWithContent.map(item => {
-          const pageData = {
+          failedItems.push(item);
+          captureResults.push({
             url: item.url,
-            title: item.extractedTitle || item.title,
-            content: item.content || "",
-            context: contextType,
-            browser_contexts: [contextType]
-          };
-          
-          // Add source-specific fields
-          if (type === 'tabs') {
-            pageData.tab_id = item.id.toString();
-            pageData.window_id = "1";
-          } else if (type === 'bookmarks') {
-            pageData.bookmark_id = item.id.toString();
-          }
-          
-          return pageData;
-        })
-      };
-      
-      console.log("Batch request payload (truncated):", {
-        pages: batchRequest.pages.map(p => ({
-          ...p,
-          content: p.content ? `[${p.content.length} characters]` : ""
-        }))
-      });
-      
-      response = await fetchAPI('/api/v1/pages/batch', {
-        method: 'POST',
-        body: JSON.stringify(batchRequest)
-      });
+            success: false,
+            error: response.error
+          });
+        }
+        
+        // Small delay to prevent overwhelming the browser
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (itemError) {
+        console.error(`Error capturing ${item.url}:`, itemError);
+        failedItems.push(item);
+        captureResults.push({
+          url: item.url,
+          success: false,
+          error: itemError.message
+        });
+      }
     }
     
-    console.log("Capture response:", response);
+    // Check if we have any successful captures
+    const successCount = captureResults.filter(r => r.success).length;
+    console.log(`Capture results: ${successCount} successful, ${failedItems.length} failed`);
     
-    if (response.success) {
+    if (successCount > 0) {
+      console.log("Some captures successful, updating history and stats");
+      
       // Update capture history
       const captureHistory = (await chrome.storage.local.get('captureHistory')).captureHistory || [];
       
       // Add new captures to history
-      const newCaptures = selectedItems.map(item => ({
-        url: item.url,
-        title: item.title,
-        timestamp: Date.now(),
-        status: 'captured'
-      }));
+      const newCaptures = captureResults
+        .filter(result => result.success)
+        .map(result => ({
+          url: result.url,
+          title: selectedItems.find(item => item.url === result.url)?.title || 'Untitled',
+          timestamp: Date.now(),
+          status: 'captured'
+        }));
       
       const updatedHistory = [...newCaptures, ...captureHistory];
       
@@ -953,29 +953,55 @@ async function captureSelectedItems() {
       
       // Update stats
       const stats = (await chrome.storage.local.get('stats')).stats || { captures: 0, relationships: 0, queries: 0 };
-      stats.captures += selectedItems.length;
+      stats.captures += successCount;
       await chrome.storage.local.set({ stats });
       
-      // Show success
-      captureBtn.textContent = 'Capture Successful!';
-      setTimeout(() => {
-        captureBtn.textContent = originalText;
-        captureBtn.disabled = false;
-        
-        // Uncheck all items
-        selectedCheckboxes.forEach(checkbox => {
-          checkbox.checked = false;
-        });
-        
-        // Refresh dashboard data
-        loadDashboardData();
-      }, 2000);
+      // Show success or partial success message
+      if (failedItems.length === 0) {
+        captureBtn.textContent = 'Capture Successful!';
+      } else {
+        captureBtn.textContent = `${successCount}/${selectedItems.length} Captured`;
+      }
+      
+      // Dispatch success event
+      const captureSuccessEvent = new CustomEvent('marvin:capture-success', { 
+        detail: { 
+          items: captureResults.filter(r => r.success).map(r => r.url), 
+          count: successCount 
+        } 
+      });
+      document.dispatchEvent(captureSuccessEvent);
     } else {
-      throw new Error(response.error?.message || 'Unknown error');
+      // All captures failed
+      throw new Error(`All ${selectedItems.length} captures failed`);
     }
+    
+    // Reset button after delay
+    setTimeout(() => {
+      captureBtn.textContent = originalText;
+      captureBtn.disabled = false;
+      
+      // Uncheck all items
+      selectedCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      
+      // Refresh dashboard data
+      loadDashboardData();
+    }, 2000);
   } catch (error) {
     console.error('Error capturing items:', error);
     captureBtn.textContent = 'Capture Failed';
+    
+    // Dispatch error event
+    const captureErrorEvent = new CustomEvent('marvin:capture-error', { 
+      detail: { 
+        error: error.message, 
+        items: selectedItems 
+      } 
+    });
+    document.dispatchEvent(captureErrorEvent);
+    
     setTimeout(() => {
       captureBtn.textContent = originalText;
       captureBtn.disabled = false;
@@ -983,6 +1009,17 @@ async function captureSelectedItems() {
     
     alert(`Error capturing items: ${error.message}`);
   }
+}
+
+function getContextForType(type) {
+  // Map item types to context types
+  const contextMap = {
+    'tabs': 'ACTIVE_TAB',
+    'bookmarks': 'BOOKMARK',
+    'history': 'HISTORY'
+  };
+  
+  return contextMap[type] || 'ACTIVE_TAB';
 }
 
 // Initialize knowledge panel
@@ -1185,21 +1222,19 @@ async function searchKnowledge(searchTerm) {
   knowledgeList.innerHTML = '<div class="loading-indicator">Searching...</div>';
   
   try {
-    // Try to use the search endpoint if it exists
-    const response = await fetchAPI(`/api/v1/graph/search?query=${encodeURIComponent(searchTerm)}`);
-    
-    if (response.success) {
-      // If search endpoint works, display results
-      displayKnowledgeItems(response.data.results || []);
-    } else if (response.error?.error_code === 'NOT_FOUND') {
-      // If endpoint doesn't exist, fall back to local filtering of all pages
-      const allPagesResponse = await fetchAPI('/api/v1/pages/');
+    // First try the search endpoint that should be there
+    let response;
+    try {
+      response = await fetchAPI(`/api/v1/pages/?query=${encodeURIComponent(searchTerm)}`);
+    } catch (error) {
+      // If the first attempt fails, try a fallback approach
+      // by getting all pages and filtering client-side
+      console.log('Search endpoint error, falling back to all pages:', error);
+      response = await fetchAPI('/api/v1/pages/');
       
-      if (allPagesResponse.success) {
-        const allPages = allPagesResponse.data.pages || [];
-        
-        // Filter pages locally
-        const filteredPages = allPages.filter(page => 
+      if (response.success && response.data && response.data.pages) {
+        // Filter pages by the search term
+        const filteredPages = response.data.pages.filter(page => 
           page.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
           page.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
           Object.keys(page.keywords || {}).some(k => 
@@ -1207,10 +1242,19 @@ async function searchKnowledge(searchTerm) {
           )
         );
         
-        displayKnowledgeItems(filteredPages);
-      } else {
-        throw new Error('Failed to load pages for search');
+        // Create a modified response with filtered pages
+        response = {
+          success: true,
+          data: {
+            ...response.data,
+            pages: filteredPages
+          }
+        };
       }
+    }
+    
+    if (response.success) {
+      displayKnowledgeItems(response.data.pages || []);
     } else {
       throw new Error(response.error?.message || 'Search failed');
     }
@@ -1570,13 +1614,6 @@ async function initKnowledgeGraph() {
   const graphContainer = document.querySelector('.graph-container');
   
   try {
-    // Check if D3.js is available
-    if (typeof d3 === 'undefined') {
-      // Load D3.js dynamically if needed
-      await loadScript('https://d3js.org/d3.v7.min.js');
-    }
-    
-    // Load knowledge graph data
     await loadGraphData();
   } catch (error) {
     console.error('Error initializing knowledge graph:', error);
@@ -1584,15 +1621,6 @@ async function initKnowledgeGraph() {
   }
 }
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
 
 async function loadGraphData() {
   const graphContainer = document.querySelector('.graph-container');

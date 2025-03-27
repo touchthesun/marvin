@@ -9,7 +9,7 @@ from core.services.graph.graph_service import GraphService
 from api.utils.helpers import get_domain_from_url
 from api.dependencies import get_graph_service
 
-from api.models.page.response import PageResponse, PageData
+from api.models.page.response import PageResponse
 from api.models.graph.response import GraphResponse
 from api.models.graph.response import (
     GraphResponse, 
@@ -117,7 +117,7 @@ async def search_graph(
     limit: int = 100,
     graph_service = Depends(get_graph_service)
 ):
-    results = await graph_service.search_pages(
+    results = await graph_service.query_pages(
         url_pattern=query,
         limit=limit
     )
@@ -158,8 +158,6 @@ async def get_page_by_url(
                     }
                 )
             
-            # The page is already in the correct format from _get_page_by_url
-            # Just need to wrap it in the response
             return PageResponse(
                 success=True,
                 data=page
@@ -173,6 +171,137 @@ async def get_page_by_url(
             data=None,
             metadata={
                 "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+        )
+
+@router.get("/overview", response_model=GraphResponse)
+async def get_graph_overview(
+    limit: int = Query(default=100, ge=1, le=500),
+    include_empty: bool = Query(default=False),
+    graph_service: GraphService = Depends(get_graph_service)
+):
+    """
+    Get an overview of the entire knowledge graph.
+    
+    This endpoint retrieves a limited subset of nodes and edges from the graph
+    for visualization purposes.
+    """
+    try:
+        logger.info(f"Getting graph overview with limit: {limit}")
+        
+        # Access the database connection through the graph operations
+        db_connection = graph_service.graph_operations.connection
+        
+        # Execute transaction for consistency
+        async with graph_service.graph_operations.transaction() as tx:
+            # Get nodes with a reasonable limit
+            nodes_query = f"""
+            MATCH (p:Page)
+            RETURN 
+                p,
+                id(p) as node_id,
+                p.url as url,
+                p.domain as domain,
+                p.title as title,
+                p.last_active as last_active
+            LIMIT {limit}
+            """
+            
+            nodes_result = await db_connection.execute_query(
+                nodes_query,
+                transaction=tx
+            )
+            
+            # Convert to GraphNode objects
+            nodes = []
+            node_ids = set()
+            id_mapping = {}  # Map Neo4j IDs to generated UUIDs
+            
+            for item in nodes_result:
+                node_id = item["node_id"]
+                node_ids.add(node_id)
+                
+                # Generate a UUID for each node instead of trying to convert the Neo4j ID
+                generated_uuid = uuid4()
+                id_mapping[node_id] = generated_uuid
+                
+                nodes.append(GraphNode(
+                    id=generated_uuid,
+                    url=item["url"],
+                    domain=item.get("domain", get_domain_from_url(item["url"])),
+                    title=item.get("title"),
+                    last_active=item.get("last_active"),
+                    metadata={"neo4j_id": str(node_id)}
+                ))
+            
+            # Get edges between these nodes
+            edges_query = f"""
+            MATCH (p1:Page)-[r]->(p2:Page)
+            WHERE id(p1) IN $node_ids AND id(p2) IN $node_ids
+            RETURN 
+                id(p1) as source_id,
+                id(p2) as target_id,
+                type(r) as rel_type,
+                r.score as score,
+                properties(r) as properties
+            LIMIT {limit * 2}
+            """
+            
+            # Use the actual Neo4j IDs for the query
+            edges_result = await db_connection.execute_query(
+                edges_query,
+                parameters={"node_ids": list(node_ids)},
+                transaction=tx
+            )
+            
+            # Convert to GraphEdge objects using our ID mapping
+            edges = []
+            for item in edges_result:
+                source_neo4j_id = item["source_id"]
+                target_neo4j_id = item["target_id"]
+                
+                # Use our mapping to get the corresponding UUIDs
+                if source_neo4j_id in id_mapping and target_neo4j_id in id_mapping:
+                    edges.append(GraphEdge(
+                        source_id=id_mapping[source_neo4j_id],
+                        target_id=id_mapping[target_neo4j_id],
+                        type=item["rel_type"],
+                        strength=float(item.get("score", 0.5)),
+                        metadata=item.get("properties", {})
+                    ))
+            
+            # Create graph data response
+            graph_data = GraphData(
+                nodes=nodes,
+                edges=edges,
+                metadata={
+                    "node_count": len(nodes),
+                    "edge_count": len(edges),
+                    "total_nodes": len(nodes_result),
+                    "is_complete": len(nodes) < limit,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+            
+            return GraphResponse(
+                success=True,
+                data=graph_data,
+                metadata={
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"Error getting graph overview: {str(e)}", exc_info=True)
+        return GraphResponse(
+            success=False,
+            error={
+                "error_code": "GRAPH_ERROR",
+                "message": f"Failed to get graph overview: {str(e)}",
+                "details": {}
+            },
+            metadata={
                 "timestamp": datetime.now().isoformat()
             }
         )

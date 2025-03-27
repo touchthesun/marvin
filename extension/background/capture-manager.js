@@ -184,6 +184,37 @@ class CaptureManager {
       return { success: false, error: error.message };
     }
   }
+
+  // Add to CaptureManager class
+  async capturePage(pageData) {
+    try {
+      // Submit to API
+      const response = await this.apiClient.post('/api/v1/pages/', pageData);
+      
+      // Track capture history
+      if (response.success) {
+        this.captureHistory.unshift({
+          url: pageData.url,
+          title: pageData.title,
+          timestamp: Date.now(),
+          taskId: response.data?.task_id,
+          status: 'captured'
+        });
+        
+        // Trim history to last 100 items
+        if (this.captureHistory.length > 100) {
+          this.captureHistory = this.captureHistory.slice(0, 100);
+        }
+        
+        await chrome.storage.local.set({ captureHistory: this.captureHistory });
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Processing error:', error);
+      return { success: false, error: error.message };
+    }
+  }
   
   // Methods for manual capture
   async captureCurrentTab() {

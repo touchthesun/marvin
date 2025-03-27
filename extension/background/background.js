@@ -1,5 +1,3 @@
-// background/background.js
-
 // Import dependencies
 import AuthManager from './auth-manager.js';
 import MarvinAPIClient from './api-client.js';
@@ -35,6 +33,84 @@ async function initialize() {
   }
 }
 
+// Consistent handler for captures
+async function handleCaptureUrl(message, sender) {
+  try {
+    console.log('Processing capture request:', message.data);
+    
+    // Check that we have the right message structure
+    if (!message.data || !message.data.url) {
+      return {
+        success: false,
+        error: 'Invalid capture request: missing data or URL'
+      };
+    }
+    
+    const { url, context, tabId, windowId, title, content, browser_contexts } = message.data;
+    
+    // Add more detailed logging
+    console.log('Capture data:', {
+      url, context, tabId, windowId, title,
+      hasContent: !!content,
+      hasBrowserContexts: !!browser_contexts
+    });
+    
+    // Process the capture with the capture manager
+    // Make sure browser_contexts is included
+    const pageData = {
+      url: url,
+      title: title || "",
+      content: content || "",
+      context: context || "ACTIVE_TAB",
+      tab_id: tabId,
+      window_id: windowId,
+      browser_contexts: browser_contexts || [context || "ACTIVE_TAB"]
+    };
+    
+    // Check if we're processing a tab capture
+    if (tabId) {
+      try {
+        // Try to capture an existing tab by ID
+        return await captureManager.captureTab(parseInt(tabId));
+      } catch (tabError) {
+        console.error('Error capturing tab:', tabError);
+        // Fall back to direct URL capture
+        return await directCapture(pageData);
+      }
+    } else {
+      // Direct URL capture
+      return await directCapture(pageData);
+    }
+  } catch (error) {
+    console.error('Error in capture handler:', error);
+    return {
+      success: false,
+      error: error.message || 'Unknown error during capture'
+    };
+  }
+}
+
+// Add a helper function for direct capture
+async function directCapture(pageData) {
+  // Send to API
+  const response = await apiClient.post('/api/v1/pages/', pageData);
+  
+  // Add detailed logging
+  console.log('API response for capture:', response);
+  
+  // Update capture history if successful
+  if (response.success) {
+    await captureManager.updateCaptureHistory({
+      url: pageData.url,
+      title: pageData.title || pageData.url,
+      timestamp: Date.now(),
+      status: 'captured'
+    });
+  }
+  
+  return response;
+}
+
 // Handle extension installation or update
 chrome.runtime.onInstalled.addListener(details => {
   if (details.reason === 'install') {
@@ -48,15 +124,32 @@ chrome.runtime.onInstalled.addListener(details => {
 
 // Message handler for communication with popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Message received:', message.action);
+  console.log('Background received message:', message);
+  
+  // Common handling for all capture-related messages
+  if (message.action === 'captureUrl' || message.action === 'captureCurrentTab') {
+    // Use Promise handling for async responses
+    (async () => {
+      try {
+        const response = message.action === 'captureUrl' 
+          ? await handleCaptureUrl(message, sender)
+          : await captureManager.captureCurrentTab();
+          
+        console.log('Sending capture response:', response);
+        sendResponse(response);
+      } catch (error) {
+        console.error('Error handling capture:', error);
+        sendResponse({
+          success: false,
+          error: error.message || 'Unknown error'
+        });
+      }
+    })();
+    return true; // Indicate async response
+  }
   
   // Handle various message types
   switch (message.action) {
-    case 'captureCurrentTab':
-      captureManager.captureCurrentTab()
-        .then(sendResponse)
-        .catch(error => sendResponse({ success: false, error: error.message }));
-      return true; // Indicates async response
       
     case 'checkAuthStatus':
       authManager.getToken()
@@ -98,26 +191,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .catch(error => sendResponse({ success: false, error: error.message }));
       return true;
 
-      case 'getDashboardData':
+    case 'getDashboardData':
       chrome.storage.local.get(['captureHistory', 'stats'], (data) => {
         sendResponse(data);
       });
       return true; // Indicates async response
 
-      case 'contentScriptPing':
-        sendResponse({ success: true });
-        return true;
+    case 'contentScriptPing':
+      sendResponse({ success: true });
+      return true;
 
-      case 'pageVisible':
-        // Handle page visibility change
-        console.log('Page visible:', message.url);
-        return false;
+    case 'pageVisible':
+      // Handle page visibility change
+      console.log('Page visible:', message.url);
+      return false;
 
-      case 'pageHidden':
-        // Handle page visibility change
-        console.log('Page hidden:', message.url);
-        return false;
-    }
+    case 'pageHidden':
+      // Handle page visibility change
+      console.log('Page hidden:', message.url);
+      return false;
+  }
 });
 
 // Initialize extension

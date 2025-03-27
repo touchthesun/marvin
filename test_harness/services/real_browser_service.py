@@ -938,13 +938,19 @@ class RealBrowserService:
             self.logger.error(f"Error getting extension state: {str(e)}")
             return {}
     
-    async def get_logs(self):
+    async def get_logs(self, page_name=None):
         """
         Get the captured logs from the browser and extension.
         
+        Args:
+            page_name: Optional name of the page to filter logs for
+            
         Returns:
             List of log entries
         """
+        if page_name:
+            # Filter logs for the specified page
+            return [log for log in self.log_buffer if log.get('page') == page_name]
         return self.log_buffer
     
     async def wait_for_selector(self, page_name, selector, timeout=5000, state="visible"):
@@ -1021,7 +1027,7 @@ class RealBrowserService:
             return False
         
 
-    async def get_elements(self, page_name, selector):
+    async def get_element(self, page_name, selector):
         """Get all elements matching a selector."""
         page = self.pages.get(page_name)
         if not page:
@@ -1213,15 +1219,14 @@ class RealBrowserService:
             return []
         
         try:
-            # Use page.evaluate to safely run JS in the page context
-            return await page.evaluate("""
-                () => {
-                    const navItems = document.querySelectorAll('.nav-item');
-                    return Array.from(navItems)
-                        .map(item => item.getAttribute('data-panel'))
-                        .filter(panel => panel);
-                }
-            """)
+            # Use evaluate to run JavaScript in the page context
+            panel_names = await page.evaluate('''() => {
+                const navItems = document.querySelectorAll('.nav-item');
+                return Array.from(navItems)
+                    .map(item => item.getAttribute('data-panel'))
+                    .filter(panel => panel);
+            }''')
+            return panel_names
         except Exception as e:
             self.logger.error(f"Error getting nav panel names: {str(e)}")
             return []
@@ -1250,6 +1255,45 @@ class RealBrowserService:
             await asyncio.sleep(delay / 1000)  # Convert to seconds
         
         return False
+    
+    async def enable_console_capture(self, page_name):
+        """
+        Enable enhanced console logging for a specific page.
+        
+        Args:
+            page_name: The name of the page ('popup', 'dashboard', etc.)
+        
+        Returns:
+            True if enabled successfully, False otherwise
+        """
+        page = self.pages.get(page_name)
+        if not page:
+            self.logger.error(f"Page not found: {page_name}")
+            return False
+        
+        try:
+            # Filter log buffer for this page
+            self.log_buffer = [log for log in self.log_buffer if log.get('page') != page_name]
+            
+            # Console logging is already enabled by default, just note this was called
+            self.logger.info(f"Enhanced console capture enabled for {page_name}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error enabling console capture: {str(e)}")
+            return False
+
+    async def get_console_logs(self, page_name):
+        """
+        Get console logs for a specific page.
+        
+        Args:
+            page_name: The name of the page ('popup', 'dashboard', etc.)
+            
+        Returns:
+            List of console log entries
+        """
+        # Filter logs for the specified page
+        return [log for log in self.log_buffer if log.get('page') == page_name]
         
     
     async def shutdown(self) -> bool:

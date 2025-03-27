@@ -1,5 +1,3 @@
-// background/api-client.js
-
 class MarvinAPIClient {
   constructor(baseURL, authManager) {
     this.baseURL = baseURL;
@@ -48,6 +46,18 @@ class MarvinAPIClient {
         } else {
           throw new Error('Authentication failed');
         }
+      }
+      
+      // Handle 404 errors gracefully
+      if (response.status === 404) {
+        console.warn(`Endpoint not found: ${endpoint}`);
+        return {
+          success: false,
+          error: {
+            error_code: "NOT_FOUND",
+            message: `Endpoint ${endpoint} not available`
+          }
+        };
       }
       
       const result = await response.json();

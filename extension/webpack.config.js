@@ -29,7 +29,7 @@ module.exports = {
     ],
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
+    extensions: ['.js', '.jsx', '.json'],
   },
   plugins: [
     new CopyPlugin({

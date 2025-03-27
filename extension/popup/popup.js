@@ -1,4 +1,4 @@
-// popup/popup.js
+import { captureCurrentTab, setupCaptureButton } from '../shared/utils/capture.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Popup loaded');
@@ -8,13 +8,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const loginForm = document.getElementById('login-form');
   const userInfo = document.getElementById('user-info');
   const authForm = document.getElementById('auth-form');
-  const captureBtn = document.getElementById('capture-btn');
   const relatedBtn = document.getElementById('related-btn');
   const queryBtn = document.getElementById('query-btn');
   const dashboardBtn = document.getElementById('open-dashboard-btn');
   const activityList = document.getElementById('activity-list');
   const optionsBtn = document.getElementById('options-btn');
   const logoutBtn = document.getElementById('logout-btn');
+  const captureBtn = document.getElementById('capture-btn');
+    setupCaptureButton(captureBtn, captureCurrentTab, () => {
+      // Callback to run after successful capture
+      loadRecentActivity();
+    });
   
   // Check online status
   function updateOnlineStatus() {
@@ -198,19 +202,49 @@ document.addEventListener('DOMContentLoaded', async () => {
       captureBtn.textContent = 'Capturing...';
       
       try {
-        const response = await chrome.runtime.sendMessage({ action: 'captureCurrentTab' });
+        // Add more detailed logging
+        console.log('Sending capture request to background script');
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+        // Dispatch a capture start event that tests can detect
+        document.dispatchEvent(new CustomEvent('marvin:capture-start'));
+        
+        // Send a standardized message format
+        const response = await chrome.runtime.sendMessage({ 
+          action: 'captureUrl',
+          data: {
+            url: tab.url,
+            title: tab.title,
+            context: 'ACTIVE_TAB',
+            tabId: tab.id,
+            windowId: tab.windowId
+          }
+        });
+        
         console.log('Capture response:', response);
         
         if (response.success) {
           captureBtn.textContent = 'Captured!';
+          
+          // Dispatch success event
+          document.dispatchEvent(new CustomEvent('marvin:capture-success', { 
+            detail: response.data 
+          }));
+          
           setTimeout(() => {
             captureBtn.textContent = 'Capture Current Page';
             captureBtn.disabled = false;
             loadRecentActivity();
           }, 2000);
         } else {
-          alert('Capture failed: ' + (response.error || 'Unknown error'));
+          console.error('Capture failed:', response.error);
           captureBtn.textContent = 'Capture Failed';
+          
+          // Dispatch failure event
+          document.dispatchEvent(new CustomEvent('marvin:capture-error', { 
+            detail: { error: response.error } 
+          }));
+          
           setTimeout(() => {
             captureBtn.textContent = 'Capture Current Page';
             captureBtn.disabled = false;
@@ -219,13 +253,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (error) {
         console.error('Capture error:', error);
         captureBtn.textContent = 'Error';
+        
+        // Dispatch error event that tests can detect
+        document.dispatchEvent(new CustomEvent('marvin:capture-error', { 
+          detail: { error: error.message } 
+        }));
+        
         setTimeout(() => {
           captureBtn.textContent = 'Capture Current Page';
           captureBtn.disabled = false;
         }, 2000);
       }
     });
-  }
   
   // Related content button
   if (relatedBtn) {
@@ -267,4 +306,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Report network status to service worker
   reportNetworkStatus();
-});
+}});
