@@ -6,6 +6,28 @@ import { fetchAPI } from '../shared/utils/api.js';
 import { captureUrl } from '../shared/utils/capture.js';
 import { BrowserContext, TabTypeToContext, BrowserContextLabels } from '../shared/constants.js';
 
+let captureInitialized = false;
+let knowledgeInitialized = false;
+let assistantInitialized = false;
+let navigationInitialized = false;
+let tabsFilterInitialized = false;
+let statusMonitoringInitialized = false;
+
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
+
+// Create debounced versions of functions
+const debouncedSearchKnowledge = debounce(searchKnowledge, 300);
+const debouncedFilterTabs = debounce(filterTabs, 200);
+const debouncedFilterBookmarks = debounce(filterBookmarks, 200);
+const debouncedFilterHistory = debounce(filterHistory, 200);
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Dashboard loaded');
    
@@ -16,39 +38,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load dashboard data
   await loadDashboardData();
   
-  // Initialize panels based on which one is active
-  const activePanel = document.querySelector('.content-panel.active');
-  if (activePanel) {
-    const panelId = activePanel.id;
-    
-    if (panelId === 'capture-panel') {
-      // Initialize capture panel
-      initCapturePanel();
-    } else if (panelId === 'knowledge-panel') {
-      // Initialize knowledge panel
-      await initKnowledgePanel();
-      await initKnowledgeGraph();
-    } else if (panelId === 'assistant-panel') {
-      // Initialize assistant panel
-      initAssistantPanel();
-    }
-  }
-  
-  // Add panel change listener to initialize panels when switched
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const targetPanel = item.getAttribute('data-panel');
-      
-      if (targetPanel === 'capture') {
-        initCapturePanel();
-      } else if (targetPanel === 'knowledge') {
-        await initKnowledgePanel();
-        await initKnowledgeGraph();
-      } else if (targetPanel === 'assistant') {
-        initAssistantPanel();
-      }
-    });
-  });
   
   // Setup status monitoring
   setupStatusMonitoring();
@@ -56,6 +45,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 function initNavigation() {
+  if (navigationInitialized) {
+    console.log('Navigation already initialized, skipping');
+    return;
+  }
+  
+  console.log('Initializing navigation');
+  navigationInitialized = true;
+
   console.log('Initializing navigation');
   const navItems = document.querySelectorAll('.nav-item');
   const contentPanels = document.querySelectorAll('.content-panel');
@@ -98,6 +95,13 @@ function initNavigation() {
 
 // Add initialization function for capture panel
 function initCapturePanel() {
+  if (captureInitialized) {
+    console.log('Capture panel already initialized, skipping');
+    return;
+  }
+  console.log('Initializing capture panel');
+  captureInitialized = true;
+
   // Set up tab loading
   document.querySelector('[data-tab="tabs"]').addEventListener('click', loadOpenTabs);
   document.querySelector('[data-tab="bookmarks"]').addEventListener('click', loadBookmarks);
@@ -362,6 +366,21 @@ function createTabListItem(tab) {
 
 // Set up filtering for tabs
 function setupTabsFilter(allTabs) {
+  if (tabsFilterInitialized) {
+    console.log('Tabs filter already initialized, updating tabs only');
+    // Just update the tabs data without adding new event listeners
+    const searchInput = document.getElementById('tabs-search');
+    const windowFilter = document.getElementById('tabs-window-filter');
+    const searchTerm = searchInput.value.toLowerCase();
+    const windowId = windowFilter.value === 'all' ? null : parseInt(windowFilter.value);
+    
+    filterTabs(allTabs, searchTerm, windowId);
+    return;
+  }
+  
+  console.log('Initializing tabs filter');
+  tabsFilterInitialized = true;
+  
   const searchInput = document.getElementById('tabs-search');
   const windowFilter = document.getElementById('tabs-window-filter');
   
@@ -370,17 +389,17 @@ function setupTabsFilter(allTabs) {
     const searchTerm = searchInput.value.toLowerCase();
     const windowId = windowFilter.value === 'all' ? null : parseInt(windowFilter.value);
     
-    filterTabs(allTabs, searchTerm, windowId);
+    debouncedFilterTabs(allTabs, searchTerm, windowId);
   });
   
-  // Window filter
   windowFilter.addEventListener('change', () => {
     const searchTerm = searchInput.value.toLowerCase();
     const windowId = windowFilter.value === 'all' ? null : parseInt(windowFilter.value);
     
-    filterTabs(allTabs, searchTerm, windowId);
+    debouncedFilterTabs(allTabs, searchTerm, windowId);
   });
 }
+
 
 // Filter tabs based on search term and window
 function filterTabs(allTabs, searchTerm, windowId) {
@@ -514,19 +533,18 @@ function populateBookmarkFolders(bookmarks) {
   });
   
   // Set up event listener for filtering
-  folderFilter.addEventListener('change', () => {
-    const selectedFolder = folderFilter.value;
-    const searchTerm = document.getElementById('bookmarks-search').value.toLowerCase();
-    
-    filterBookmarks(bookmarks, searchTerm, selectedFolder);
-  });
-  
-  // Set up search input listener
   document.getElementById('bookmarks-search').addEventListener('input', (e) => {
     const searchTerm = e.target.value.toLowerCase();
     const selectedFolder = folderFilter.value;
     
-    filterBookmarks(bookmarks, searchTerm, selectedFolder);
+    debouncedFilterBookmarks(bookmarks, searchTerm, selectedFolder);
+  });
+  
+  folderFilter.addEventListener('change', () => {
+    const selectedFolder = folderFilter.value;
+    const searchTerm = document.getElementById('bookmarks-search').value.toLowerCase();
+    
+    debouncedFilterBookmarks(bookmarks, searchTerm, selectedFolder);
   });
 }
 
@@ -639,7 +657,7 @@ async function loadHistory() {
     
     // Set up search handler
     document.getElementById('history-search').addEventListener('input', (e) => {
-      filterHistory(historyItems, e.target.value.toLowerCase());
+      debouncedFilterHistory(historyItems, e.target.value.toLowerCase());
     });
     
     // Set up selection controls
@@ -1024,20 +1042,28 @@ function getContextForType(type) {
 
 // Initialize knowledge panel
 async function initKnowledgePanel() {
+  if (knowledgeInitialized) {
+    console.log('Knowledge panel already initialized, skipping');
+    return;
+  }
+  
+  console.log('Initializing knowledge panel');
+  knowledgeInitialized = true;
+
   try {
     // Load initial knowledge data
-    await loadKnowledgeData();
+    await debouncedLoadKnowledgeData();
     
-    // Set up search handler
+    // Knowledge panel search
     document.getElementById('knowledge-search').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        searchKnowledge(e.target.value);
+        debouncedSearchKnowledge(e.target.value);
       }
     });
     
     document.getElementById('search-btn').addEventListener('click', () => {
       const searchTerm = document.getElementById('knowledge-search').value;
-      searchKnowledge(searchTerm);
+      debouncedSearchKnowledge(searchTerm);
     });
     
     // Set up filter handlers
@@ -1119,6 +1145,36 @@ async function loadKnowledgeData() {
     });
   }
 }
+
+// For async loadKnowledgeData
+const debouncedLoadKnowledgeData = (() => {
+  let timeout;
+  let pendingPromise = null;
+  
+  return function() {
+    if (pendingPromise) return pendingPromise;
+    
+    clearTimeout(timeout);
+    
+    pendingPromise = new Promise(resolve => {
+      timeout = setTimeout(async () => {
+        try {
+          const result = await loadKnowledgeData();
+          resolve(result);
+        } catch (error) {
+          console.error('Error in debounced loadKnowledgeData:', error);
+          resolve(null);
+        } finally {
+          pendingPromise = null;
+        }
+      }, 500);
+    });
+    
+    return pendingPromise;
+  };
+})();
+
+
 
 function displayKnowledgeItems(items) {
   const knowledgeList = document.querySelector('.knowledge-list');
@@ -1418,6 +1474,14 @@ async function loadRelatedItem(itemId) {
 
 // Initialize assistant panel
 function initAssistantPanel() {
+  if (assistantInitialized) {
+    console.log('Assistant panel already initialized, skipping');
+    return;
+  }
+  
+  console.log('Initializing assistant panel');
+  assistantInitialized = true;
+
   const chatInput = document.getElementById('chat-input');
   const sendButton = document.getElementById('send-message');
   const messagesContainer = document.getElementById('chat-messages');
@@ -1482,7 +1546,7 @@ function initAssistantPanel() {
           relevant_urls: relevantUrls
         })
       });
-      
+       
       // Remove loading indicator
       messagesContainer.removeChild(loadingIndicator);
       
@@ -1663,6 +1727,14 @@ function showSaveConfirmation(form) {
 
 // Setup status monitoring
 function setupStatusMonitoring() {
+  if (statusMonitoringInitialized) {
+    console.log('Status monitoring already initialized, skipping');
+    return;
+  }
+  
+  console.log('Initializing status monitoring');
+  statusMonitoringInitialized = true;
+
   // Network status
   const statusDot = document.querySelector('.status-dot');
   const statusText = document.querySelector('.status-text');
@@ -1701,12 +1773,14 @@ async function initKnowledgeGraph() {
   const graphContainer = document.querySelector('.graph-container');
   
   try {
-    await loadGraphData();
+    await debouncedLoadGraphData();
   } catch (error) {
     console.error('Error initializing knowledge graph:', error);
     graphContainer.innerHTML = `<div class="error-state">Error loading graph: ${error.message}</div>`;
   }
 }
+
+
 
 
 async function loadGraphData() {
@@ -1760,6 +1834,34 @@ async function loadGraphData() {
     graphContainer.innerHTML = `<div class="error-state">Error: ${error.message}</div>`;
   }
 }
+
+// For async loadGraphData
+const debouncedLoadGraphData = (() => {
+  let timeout;
+  let pendingPromise = null;
+  
+  return function() {
+    if (pendingPromise) return pendingPromise;
+    
+    clearTimeout(timeout);
+    
+    pendingPromise = new Promise(resolve => {
+      timeout = setTimeout(async () => {
+        try {
+          const result = await loadGraphData();
+          resolve(result);
+        } catch (error) {
+          console.error('Error in debounced loadGraphData:', error);
+          resolve(null);
+        } finally {
+          pendingPromise = null;
+        }
+      }, 500);
+    });
+    
+    return pendingPromise;
+  };
+})();
 
 function renderGraph(nodes, edges) {
   // Simple force-directed graph using D3.js

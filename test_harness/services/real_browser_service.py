@@ -1,4 +1,5 @@
 import os
+import time
 import asyncio
 import json
 from datetime import datetime
@@ -404,6 +405,32 @@ class RealBrowserService:
         """
         log_type = msg.type
         text = msg.text
+        
+        # Create a unique key for this log message
+        log_key = f"{log_type}:{text}"
+        current_time = time.time()
+        
+        # Check if we've seen this exact log message recently
+        if hasattr(self, '_log_dedup_cache'):
+            if log_key in self._log_dedup_cache:
+                last_time = self._log_dedup_cache[log_key]
+                if current_time - last_time < 1.0:  # 1 second deduplication window
+                    return  # Skip duplicate log
+        else:
+            # Initialize deduplication cache if it doesn't exist
+            self._log_dedup_cache = {}
+        
+        # Update the deduplication cache
+        self._log_dedup_cache[log_key] = current_time
+        
+        # Clean up old entries periodically
+        if len(self._log_dedup_cache) > 100:
+            keys_to_remove = []
+            for key, timestamp in self._log_dedup_cache.items():
+                if current_time - timestamp > 5.0:  # Remove entries older than 5 seconds
+                    keys_to_remove.append(key)
+            for key in keys_to_remove:
+                del self._log_dedup_cache[key]
         
         # Add to log buffer
         log_entry = {

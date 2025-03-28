@@ -219,76 +219,38 @@ async function processCapture(url, options = {}) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
   
-  // Handle capture-related messages
-  if (message.action === 'captureUrl') {
-    (async () => {
-      try {
-        // Extract data from message
-        const { url, context, tabId, windowId, title, content, browser_contexts } = message.data || {};
-        
-        if (!url) {
+  // Handle various message types with a single switch statement
+  switch (message.action) {
+    case 'captureUrl':
+      (async () => {
+        try {
+          const response = await handleCaptureUrl(message, sender);
+          sendResponse(response);
+        } catch (error) {
+          console.error('Error handling capture:', error);
           sendResponse({
             success: false,
-            error: 'Missing URL in capture request'
+            error: error.message || 'Unknown error'
           });
-          return;
         }
-        
-        // Process the capture
-        const result = await processCapture(url, {
-          context,
-          tabId,
-          windowId,
-          title,
-          content,
-          browser_contexts
-        });
-        
-        sendResponse(result);
-      } catch (error) {
-        console.error('Error handling captureUrl:', error);
-        sendResponse({
-          success: false,
-          error: error.message || 'Unknown error'
-        });
-      }
-    })();
-    return true; // Indicates async response
-  }
-  
-  if (message.action === 'captureCurrentTab') {
-    (async () => {
-      try {
-        // Get current tab
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        
-        if (!tab) {
+      })();
+      return true;
+      
+    case 'captureCurrentTab':
+      (async () => {
+        try {
+          // Either use handleCaptureUrl or captureManager.captureCurrentTab, not both
+          const response = await captureManager.captureCurrentTab();
+          sendResponse(response);
+        } catch (error) {
+          console.error('Error handling capture:', error);
           sendResponse({
             success: false,
-            error: 'No active tab found'
+            error: error.message || 'Unknown error'
           });
-          return;
         }
-        
-        // Process capture for the current tab
-        const result = await processCapture(tab.url, {
-          tabId: tab.id.toString(),
-          windowId: tab.windowId.toString(),
-          title: tab.title,
-          context: 'active_tab',
-          browser_contexts: ['active_tab']
-        });
-        
-        sendResponse(result);
-      } catch (error) {
-        console.error('Error handling captureCurrentTab:', error);
-        sendResponse({
-          success: false,
-          error: error.message || 'Unknown error'
-        });
-      }
-    })();
-    return true; // Indicates async response
+      })();
+      return true;
   }
   
   // Handle other message types
