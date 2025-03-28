@@ -1321,3 +1321,99 @@ class RealBrowserService:
         """
         await self.shutdown()
         return False 
+    
+
+    async def enable_network_logging(self, page_id):
+        """Enable network request logging for a page."""
+        try:
+            page = self.pages.get(page_id)
+            if not page:
+                self.logger.warning(f"Page '{page_id}' not found for network logging")
+                return False
+                
+            # Start monitoring network
+            await page.route('**', self._log_request)
+            self.logger.info(f"Network logging enabled for page {page_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error enabling network logging: {str(e)}")
+            return False
+        
+    async def _log_request(self, route, request):
+        """Log request details and continue."""
+        try:
+            # Store request info
+            request_info = {
+                "url": request.url,
+                "method": request.method,
+                "headers": request.headers,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            if not hasattr(self, "_network_requests"):
+                self._network_requests = []
+                
+            self._network_requests.append(request_info)
+            
+            # Continue the request
+            await route.continue_()
+        except Exception as e:
+            self.logger.error(f"Error logging request: {str(e)}")
+            await route.continue_()
+        
+    async def get_network_requests(self, page_id):
+        """Get logged network requests for a page."""
+        if hasattr(self, "_network_requests"):
+            return self._network_requests
+        return []
+        
+            
+    def _handle_console_message(self, message):
+        """Handle a console message event."""
+        try:
+            # Store message info
+            message_info = {
+                "type": message.type,
+                "message": message.text,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            if not hasattr(self, "_console_logs"):
+                self._console_logs = []
+                
+            self._console_logs.append(message_info)
+        except Exception as e:
+            self.logger.error(f"Error handling console message: {str(e)}")
+            
+
+    async def is_element_present(self, page_id, selector, timeout=1000):
+        """
+        Check if an element exists in the DOM, regardless of visibility.
+        
+        Args:
+            page_id: ID of the page to check
+            selector: CSS selector to find the element
+            timeout: Maximum time to wait in milliseconds
+            
+        Returns:
+            bool: True if the element exists in the DOM, False otherwise
+        """
+        try:
+            page = self.pages.get(page_id)
+            if not page:
+                self.logger.warning(f"Page '{page_id}' not found for element presence check")
+                return False
+                
+            # Use the locator API with a very short timeout to check if the element exists
+            locator = page.locator(selector)
+            try:
+                # Wait for the element to be present in DOM, regardless of visibility
+                await locator.wait_for(state='attached', timeout=timeout)
+                return True
+            except Exception:
+                # Element wasn't found within timeout
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error checking element presence for '{selector}': {str(e)}")
+            return False

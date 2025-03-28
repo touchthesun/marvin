@@ -265,6 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 2000);
       }
     });
+  }
   
   // Related content button
   if (relatedBtn) {
@@ -306,4 +307,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Report network status to service worker
   reportNetworkStatus();
-}});
+});

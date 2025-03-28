@@ -6,7 +6,7 @@
  */
 export async function captureUrl(url, options = {}) {
     const { 
-      context = 'ACTIVE_TAB', 
+      context = 'active_tab', 
       tabId = null,
       windowId = null,
       title = null,
@@ -68,7 +68,7 @@ export async function captureUrl(url, options = {}) {
       
       // Call the main capture function with tab details
       return await captureUrl(currentTab.url, {
-        context: 'ACTIVE_TAB',
+        context: 'active_tab',
         tabId: currentTab.id.toString(),
         windowId: currentTab.windowId.toString(),
         title: currentTab.title

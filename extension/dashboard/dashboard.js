@@ -1436,8 +1436,8 @@ function initAssistantPanel() {
     }
   });
   
-  // Send message
-  function sendMessage() {
+  // Updated sendMessage function in dashboard.js
+  async function sendMessage() {
     const messageText = chatInput.value.trim();
     if (!messageText) return;
     
@@ -1447,19 +1447,106 @@ function initAssistantPanel() {
     // Clear input
     chatInput.value = '';
     
+    // Show loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'message assistant loading';
+    loadingIndicator.innerHTML = '<div class="message-content"><p>Loading response...</p></div>';
+    messagesContainer.appendChild(loadingIndicator);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
     // Get selected context
     const contextOptions = document.querySelectorAll('.context-options input:checked');
     const selectedContext = Array.from(contextOptions).map(option => option.id.replace('context-', ''));
     
-    // Simulate assistant response
-    setTimeout(() => {
-      const response = `This is a simulated response to your message: "${messageText}". 
-      ${selectedContext.length ? `You selected context: ${selectedContext.join(', ')}` : 'No context was selected.'}
+    try {
+      // Get relevant URLs based on selected context
+      let relevantUrls = [];
+      if (selectedContext.length > 0) {
+        // If context items are selected, fetch relevant URLs
+        try {
+          const contextResponse = await fetchAPI('/api/v1/pages/?limit=5');
+          if (contextResponse.success && contextResponse.data && contextResponse.data.pages) {
+            relevantUrls = contextResponse.data.pages.map(page => page.url);
+          }
+        } catch (error) {
+          console.error('Error fetching context URLs:', error);
+        }
+      }
       
-      In the final implementation, this will use the LLM agent API to generate a proper response based on your query and the selected context.`;
+      // Send query to agent API
+      const agentResponse = await fetchAPI('/api/v1/agent/query', {
+        method: 'POST',
+        body: JSON.stringify({
+          task_type: 'query',
+          query: messageText,
+          relevant_urls: relevantUrls
+        })
+      });
       
-      addMessageToChat('assistant', response);
-    }, 1000);
+      // Remove loading indicator
+      messagesContainer.removeChild(loadingIndicator);
+      
+      if (agentResponse.success && agentResponse.data && agentResponse.data.task_id) {
+        // Start checking for completion
+        const taskId = agentResponse.data.task_id;
+        checkTaskStatus(taskId, messageText);
+      } else {
+        // Show error message
+        const errorMessage = agentResponse.error?.message || 'Failed to send query to assistant';
+        addMessageToChat('assistant', `Error: ${errorMessage}`);
+      }
+    } catch (error) {
+      console.error('Error sending message to agent:', error);
+      
+      // Remove loading indicator
+      messagesContainer.removeChild(loadingIndicator);
+      
+      // Show error message
+      addMessageToChat('assistant', `Error: ${error.message || 'Failed to connect to assistant'}`);
+    }
+  }
+
+  async function checkTaskStatus(taskId, originalQuery) {
+    try {
+      const statusResponse = await fetchAPI(`/api/v1/agent/status/${taskId}`);
+      
+      if (statusResponse.success && statusResponse.data) {
+        const status = statusResponse.data.status;
+        
+        if (status === 'completed') {
+          // Task is complete, show response
+          const result = statusResponse.data.result;
+          
+          // Format response with sources if available
+          let responseText = result.response || 'No response received.';
+          
+          // Add sources if available
+          if (result.sources && result.sources.length > 0) {
+            responseText += '\n\nSources:';
+            result.sources.forEach(source => {
+              responseText += `\n- ${source.title || source.url}`;
+            });
+          }
+          
+          addMessageToChat('assistant', responseText);
+        } else if (status === 'error') {
+          // Show error message
+          addMessageToChat('assistant', `Error: ${statusResponse.data.error || 'Assistant encountered an error'}`);
+        } else if (status === 'processing' || status === 'enqueued') {
+          // Still processing, check again after a delay
+          setTimeout(() => checkTaskStatus(taskId, originalQuery), 2000);
+        } else {
+          // Unknown status
+          addMessageToChat('assistant', `Unknown status: ${status}`);
+        }
+      } else {
+        // Error checking status
+        throw new Error(statusResponse.error?.message || 'Failed to check task status');
+      }
+    } catch (error) {
+      console.error('Error checking task status:', error);
+      addMessageToChat('assistant', `Error: ${error.message || 'Failed to get response from assistant'}`);
+    }
   }
   
   // Add message to chat

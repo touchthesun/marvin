@@ -1,8 +1,84 @@
+// Add log deduplication to prevent double logging
+const logCache = new Map();
+const CACHE_TIMEOUT = 1000; // 1 second
+
+// Create wrapped logging functions
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+// Replace console.log
+console.log = function(...args) {
+  const message = args.map(arg => 
+    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+  ).join(' ');
+  
+  const now = Date.now();
+  const cachedTime = logCache.get(message);
+  
+  // If this exact message was logged less than 1s ago, ignore it
+  if (cachedTime && (now - cachedTime) < CACHE_TIMEOUT) {
+    return;
+  }
+  
+  // Otherwise log it and cache the timestamp
+  logCache.set(message, now);
+  originalConsoleLog.apply(console, args);
+  
+  // Cleanup old messages periodically
+  if (logCache.size > 100) {
+    for (const [key, timestamp] of logCache.entries()) {
+      if (now - timestamp > CACHE_TIMEOUT) {
+        logCache.delete(key);
+      }
+    }
+  }
+};
+
+// Replace console.error
+console.error = function(...args) {
+  const message = args.map(arg => 
+    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+  ).join(' ');
+  
+  const now = Date.now();
+  const cachedTime = logCache.get('ERROR:' + message);
+  
+  // If this exact error was logged less than 1s ago, ignore it
+  if (cachedTime && (now - cachedTime) < CACHE_TIMEOUT) {
+    return;
+  }
+  
+  // Otherwise log it and cache the timestamp
+  logCache.set('ERROR:' + message, now);
+  originalConsoleError.apply(console, args);
+};
+
+// Replace console.warn
+console.warn = function(...args) {
+  const message = args.map(arg => 
+    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+  ).join(' ');
+  
+  const now = Date.now();
+  const cachedTime = logCache.get('WARN:' + message);
+  
+  // If this exact warning was logged less than 1s ago, ignore it
+  if (cachedTime && (now - cachedTime) < CACHE_TIMEOUT) {
+    return;
+  }
+  
+  // Otherwise log it and cache the timestamp
+  logCache.set('WARN:' + message, now);
+  originalConsoleWarn.apply(console, args);
+};
+
+
 // Import dependencies
 import AuthManager from './auth-manager.js';
 import MarvinAPIClient from './api-client.js';
-import CaptureManager from './capture-manager.js';
 import StateManager from './state-manager.js';
+import { captureUrl } from '../shared/utils/capture.js';
 
 // Configuration (would be loaded from storage in real implementation)
 const API_BASE_URL = 'http://localhost:8000';
@@ -10,7 +86,6 @@ const API_BASE_URL = 'http://localhost:8000';
 // Initialize components
 const authManager = new AuthManager();
 const apiClient = new MarvinAPIClient(API_BASE_URL, authManager);
-const captureManager = new CaptureManager(apiClient);
 const stateManager = new StateManager(apiClient);
 
 // Initialize on extension load
@@ -18,7 +93,6 @@ async function initialize() {
   console.log('Initializing Marvin extension...');
   try {
     await authManager.initialize();
-    await captureManager.initialize();
     await stateManager.initialize();
     
     // Load configuration from storage
@@ -33,124 +107,192 @@ async function initialize() {
   }
 }
 
-// Consistent handler for captures
-async function handleCaptureUrl(message, sender) {
+// Helper function to extract content from a tab
+async function extractTabContent(tabId) {
   try {
-    console.log('Processing capture request:', message.data);
-    
-    // Check that we have the right message structure
-    if (!message.data || !message.data.url) {
-      return {
-        success: false,
-        error: 'Invalid capture request: missing data or URL'
-      };
-    }
-    
-    const { url, context, tabId, windowId, title, content, browser_contexts } = message.data;
-    
-    // Add more detailed logging
-    console.log('Capture data:', {
-      url, context, tabId, windowId, title,
-      hasContent: !!content,
-      hasBrowserContexts: !!browser_contexts
+    // We'll use the executeScript method to extract content from the tab
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      function: () => {
+        return {
+          content: document.documentElement.outerHTML,
+          title: document.title,
+          metadata: {
+            description: document.querySelector('meta[name="description"]')?.content || '',
+            keywords: document.querySelector('meta[name="keywords"]')?.content || '',
+            author: document.querySelector('meta[name="author"]')?.content || '',
+            ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
+            ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
+            ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
+          }
+        };
+      }
     });
     
-    // Process the capture with the capture manager
-    // Make sure browser_contexts is included
+    if (!results || !results[0] || chrome.runtime.lastError) {
+      throw new Error(chrome.runtime.lastError?.message || 'Failed to extract content');
+    }
+    
+    return results[0].result;
+  } catch (error) {
+    console.error(`Error extracting content from tab ${tabId}:`, error);
+    // Return minimal data if extraction fails
+    return {
+      content: "",
+      title: "",
+      metadata: {}
+    };
+  }
+}
+
+// Update capture history
+async function updateCaptureHistory(captureInfo) {
+  try {
+    // Get existing history
+    const data = await chrome.storage.local.get('captureHistory');
+    const captureHistory = data.captureHistory || [];
+    
+    // Add new item to the beginning
+    captureHistory.unshift(captureInfo);
+    
+    // Keep only the latest 100 items
+    if (captureHistory.length > 100) {
+      captureHistory.splice(100);
+    }
+    
+    // Save updated history
+    await chrome.storage.local.set({ captureHistory });
+  } catch (error) {
+    console.error('Error updating capture history:', error);
+  }
+}
+
+// Use the shared capture utility to process API calls
+async function processCapture(url, options = {}) {
+  try {
+    // Extract content if needed
+    if (options.tabId && !options.content) {
+      try {
+        const tabId = parseInt(options.tabId);
+        const extractedData = await extractTabContent(tabId);
+        options.content = extractedData.content;
+        options.title = options.title || extractedData.title;
+      } catch (error) {
+        console.error(`Error extracting content for tab ${options.tabId}:`, error);
+      }
+    }
+    
+    // Call the API directly (the shared utility might handle messaging, not API calls)
     const pageData = {
       url: url,
-      title: title || "",
-      content: content || "",
-      context: context || "ACTIVE_TAB",
-      tab_id: tabId,
-      window_id: windowId,
-      browser_contexts: browser_contexts || [context || "ACTIVE_TAB"]
+      title: options.title || '',
+      content: options.content || '',
+      context: options.context || 'active_tab',
+      browser_contexts: options.browser_contexts || [options.context || 'active_tab'],
+      tab_id: options.tabId,
+      window_id: options.windowId
     };
     
-    // Check if we're processing a tab capture
-    if (tabId) {
-      try {
-        // Try to capture an existing tab by ID
-        return await captureManager.captureTab(parseInt(tabId));
-      } catch (tabError) {
-        console.error('Error capturing tab:', tabError);
-        // Fall back to direct URL capture
-        return await directCapture(pageData);
-      }
-    } else {
-      // Direct URL capture
-      return await directCapture(pageData);
+    const response = await apiClient.post('/api/v1/pages/', pageData);
+    
+    // Update capture history
+    if (response && response.success) {
+      await updateCaptureHistory({
+        url: url,
+        title: options.title || url,
+        timestamp: Date.now(),
+        status: 'captured'
+      });
     }
+    
+    return response;
   } catch (error) {
-    console.error('Error in capture handler:', error);
+    console.error(`Error processing capture for ${url}:`, error);
     return {
       success: false,
-      error: error.message || 'Unknown error during capture'
+      error: error.message || 'Unknown error'
     };
   }
 }
-
-// Add a helper function for direct capture
-async function directCapture(pageData) {
-  // Send to API
-  const response = await apiClient.post('/api/v1/pages/', pageData);
-  
-  // Add detailed logging
-  console.log('API response for capture:', response);
-  
-  // Update capture history if successful
-  if (response.success) {
-    await captureManager.updateCaptureHistory({
-      url: pageData.url,
-      title: pageData.title || pageData.url,
-      timestamp: Date.now(),
-      status: 'captured'
-    });
-  }
-  
-  return response;
-}
-
-// Handle extension installation or update
-chrome.runtime.onInstalled.addListener(details => {
-  if (details.reason === 'install') {
-    // First-time installation
-    chrome.tabs.create({ url: 'options/options.html' });
-  } else if (details.reason === 'update') {
-    // Extension update
-    console.log('Marvin extension updated');
-  }
-});
 
 // Message handler for communication with popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
   
-  // Common handling for all capture-related messages
-  if (message.action === 'captureUrl' || message.action === 'captureCurrentTab') {
-    // Use Promise handling for async responses
+  // Handle capture-related messages
+  if (message.action === 'captureUrl') {
     (async () => {
       try {
-        const response = message.action === 'captureUrl' 
-          ? await handleCaptureUrl(message, sender)
-          : await captureManager.captureCurrentTab();
-          
-        console.log('Sending capture response:', response);
-        sendResponse(response);
+        // Extract data from message
+        const { url, context, tabId, windowId, title, content, browser_contexts } = message.data || {};
+        
+        if (!url) {
+          sendResponse({
+            success: false,
+            error: 'Missing URL in capture request'
+          });
+          return;
+        }
+        
+        // Process the capture
+        const result = await processCapture(url, {
+          context,
+          tabId,
+          windowId,
+          title,
+          content,
+          browser_contexts
+        });
+        
+        sendResponse(result);
       } catch (error) {
-        console.error('Error handling capture:', error);
+        console.error('Error handling captureUrl:', error);
         sendResponse({
           success: false,
           error: error.message || 'Unknown error'
         });
       }
     })();
-    return true; // Indicate async response
+    return true; // Indicates async response
   }
   
-  // Handle various message types
+  if (message.action === 'captureCurrentTab') {
+    (async () => {
+      try {
+        // Get current tab
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+          sendResponse({
+            success: false,
+            error: 'No active tab found'
+          });
+          return;
+        }
+        
+        // Process capture for the current tab
+        const result = await processCapture(tab.url, {
+          tabId: tab.id.toString(),
+          windowId: tab.windowId.toString(),
+          title: tab.title,
+          context: 'active_tab',
+          browser_contexts: ['active_tab']
+        });
+        
+        sendResponse(result);
+      } catch (error) {
+        console.error('Error handling captureCurrentTab:', error);
+        sendResponse({
+          success: false,
+          error: error.message || 'Unknown error'
+        });
+      }
+    })();
+    return true; // Indicates async response
+  }
+  
+  // Handle other message types
   switch (message.action) {
-      
     case 'checkAuthStatus':
       authManager.getToken()
         .then(token => sendResponse({ authenticated: !!token }))
@@ -170,7 +312,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
       
     case 'updateSettings':
-      captureManager.updateSettings(message.settings)
+      stateManager.updateSettings(message.settings)
         .then(() => sendResponse({ success: true }))
         .catch(error => sendResponse({ success: false, error: error.message }));
       return true;
@@ -186,29 +328,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false; // No async response needed
       
     case 'extractedContent':
-      captureManager.processExtractedContent(sender.tab, message.content, message.metadata)
-        .then(result => sendResponse(result))
-        .catch(error => sendResponse({ success: false, error: error.message }));
+      (async () => {
+        try {
+          // Process extracted content
+          if (!sender.tab) {
+            throw new Error('No tab information provided');
+          }
+          
+          const result = await processCapture(sender.tab.url, {
+            tabId: sender.tab.id.toString(),
+            windowId: sender.tab.windowId.toString(),
+            title: sender.tab.title,
+            content: message.content,
+            metadata: message.metadata,
+            context: 'active_tab',
+            browser_contexts: ['active_tab']
+          });
+          
+          sendResponse(result);
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
       return true;
 
     case 'getDashboardData':
       chrome.storage.local.get(['captureHistory', 'stats'], (data) => {
         sendResponse(data);
       });
-      return true; // Indicates async response
+      return true;
 
     case 'contentScriptPing':
       sendResponse({ success: true });
       return true;
 
     case 'pageVisible':
-      // Handle page visibility change
-      console.log('Page visible:', message.url);
-      return false;
-
     case 'pageHidden':
       // Handle page visibility change
-      console.log('Page hidden:', message.url);
+      console.log(`Page ${message.action === 'pageVisible' ? 'visible' : 'hidden'}:`, message.url);
+      return false;
+      
+    default:
+      console.log('Unhandled message type:', message.action);
+      sendResponse({ success: false, error: 'Unhandled message type' });
       return false;
   }
 });
