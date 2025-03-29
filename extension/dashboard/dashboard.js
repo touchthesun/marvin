@@ -54,15 +54,32 @@ function debugCaptureButton() {
 }
 
 document.addEventListener('click', function(event) {
-  // Use event delegation to handle clicks on the capture button
-  if (event.target.id === 'capture-selected' || 
-      (event.target.closest && event.target.closest('#capture-selected'))) {
+  // Check if the clicked element or any of its parents is the capture button
+  const captureButton = event.target.closest('#capture-selected');
+  if (captureButton || event.target.id === 'capture-selected') {
     console.log('Global capture button click handler triggered!', event.target);
-    captureSelectedItems();
+    
+    // Try to get the active tab pane first to check if we're in the right context
+    const activeTabPane = document.querySelector('.capture-tab-content .tab-pane.active');
+    if (!activeTabPane) {
+      console.warn('No active tab pane found, but capture button was clicked');
+    }
+    
+    // Call the capture function directly
+    try {
+      captureSelectedItems();
+    } catch (error) {
+      console.error('Error in captureSelectedItems:', error);
+      alert('Error capturing items: ' + error.message);
+    }
+    
+    // Prevent default and stop propagation to ensure no other handlers interfere
     event.preventDefault();
     event.stopPropagation();
+    return false;
   }
 });
+
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Dashboard loaded');
@@ -1532,7 +1549,12 @@ async function captureSelectedItems() {
   console.log(`Capture type: ${type}`);
   
   // Get selected items
-  const selectedCheckboxes = activeTabPane.querySelectorAll('.item-checkbox:checked');
+  let selectedCheckboxes;
+  if (type === 'tabs') {
+    selectedCheckboxes = activeTabPane.querySelectorAll('.tab-item input[type="checkbox"]:checked');
+  } else {
+    selectedCheckboxes = activeTabPane.querySelectorAll('.item-checkbox:checked');
+  }
   console.log(`Selected checkboxes: ${selectedCheckboxes.length}`);
   
   if (selectedCheckboxes.length === 0) {
