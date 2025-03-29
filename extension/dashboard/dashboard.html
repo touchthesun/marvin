@@ -58,6 +58,7 @@
         <header class="panel-header">
           <h2>Overview</h2>
           <div class="panel-actions">
+            <button id="force-init-overview" class="btn-secondary">Reload Overview</button>
             <button class="refresh-btn">Refresh</button>
           </div>
         </header>
@@ -110,6 +111,7 @@
         <header class="panel-header">
           <h2>Capture</h2>
           <div class="panel-actions">
+            <button id="force-init-capture" class="btn-secondary">Reload Capture Data</button>
             <button class="btn-primary" id="capture-selected">Capture Selected</button>
           </div>
         </header>
@@ -201,6 +203,7 @@
           <h2>Knowledge</h2>
           <div class="panel-actions">
             <div class="search-container">
+              <button id="force-init-knowledge" class="btn-secondary">Reload Knowledge Data</button>
               <input type="text" id="knowledge-search" class="search-input" placeholder="Search knowledge...">
               <button id="search-btn" class="btn-icon">🔍</button>
             </div>
@@ -230,15 +233,32 @@
           </div>
           
           <div class="knowledge-content">
-            <div class="knowledge-list">
-              <!-- Will be populated dynamically -->
-              <div class="loading-indicator">Loading knowledge items...</div>
-            </div>
-            
-            <div class="knowledge-visualization">
-              <div class="graph-container">
-                <!-- Graph visualization will be rendered here -->
-                <div class="placeholder">Knowledge graph visualization</div>
+            <div class="knowledge-split-view">
+              <div class="knowledge-list-panel">
+                <div class="list-controls">
+                  <div class="search-container">
+                    <input type="text" id="pages-search" class="search-input" placeholder="Filter pages...">
+                  </div>
+                  <div class="sort-controls">
+                    <select id="sort-options">
+                      <option value="date-desc">Date (Newest)</option>
+                      <option value="date-asc">Date (Oldest)</option>
+                      <option value="domain">Domain</option>
+                      <option value="title">Title</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="knowledge-list">
+                  <!-- Pages will be populated here -->
+                </div>
+              </div>
+              
+              <div class="splitter" id="knowledge-splitter"></div>
+              
+              <div class="knowledge-graph-panel">
+                <div class="graph-container">
+                  <!-- Graph will be rendered here -->
+                </div>
               </div>
             </div>
           </div>
@@ -249,6 +269,9 @@
       <section id="assistant-panel" class="content-panel">
         <header class="panel-header">
           <h2>Research Assistant</h2>
+          <div class="panel-actions">
+            <button id="force-init-assistant" class="btn-secondary">Reload Assistant</button>
+          </div>
         </header>
         
         <div class="chat-container">
@@ -289,6 +312,9 @@
       <section id="settings-panel" class="content-panel">
         <header class="panel-header">
           <h2>Settings</h2>
+          <div class="panel-actions">
+            <button id="force-init-settings" class="btn-secondary">Reload Settings</button>
+          </div>
         </header>
         
         <div class="settings-container">

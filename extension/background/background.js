@@ -224,7 +224,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'captureUrl':
       (async () => {
         try {
-          const response = await handleCaptureUrl(message, sender);
+          const response = await processCapture(
+            message.data.url, 
+            {
+              context: message.data.context,
+              tabId: message.data.tabId,
+              windowId: message.data.windowId,
+              title: message.data.title,
+              content: message.data.content,
+              browser_contexts: message.data.browser_contexts
+            }
+          );
+          
           sendResponse(response);
         } catch (error) {
           console.error('Error handling capture:', error);

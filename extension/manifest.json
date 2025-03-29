@@ -8,6 +8,7 @@
     "activeTab",
     "storage",
     "bookmarks",
+    "history",
     "scripting"
   ],
   "host_permissions": [

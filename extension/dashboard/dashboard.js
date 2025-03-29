@@ -1,14 +1,16 @@
 // Import dependencies
 import * as d3 from 'd3';
-
-import { loadSettings, saveSettings } from '../shared/utils/settings.js';
 import { fetchAPI } from '../shared/utils/api.js';
 import { captureUrl } from '../shared/utils/capture.js';
+import { loadGraphData } from './components/graph-data.js';
 import { BrowserContext, TabTypeToContext, BrowserContextLabels } from '../shared/constants.js';
 
+// Panel initialization flags
+let overviewInitialized = false;
 let captureInitialized = false;
 let knowledgeInitialized = false;
 let assistantInitialized = false;
+let settingsInitialized = false;
 let navigationInitialized = false;
 let tabsFilterInitialized = false;
 let statusMonitoringInitialized = false;
@@ -41,7 +43,92 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Setup status monitoring
   setupStatusMonitoring();
+
+  // Check which panel is active and initialize it
+  const overviewPanel = document.getElementById('overview-panel');
+  if (overviewPanel && overviewPanel.classList.contains('active')) {
+    initOverviewPanel();
+  }
+
+  const capturePanel = document.getElementById('capture-panel');
+  if (capturePanel && capturePanel.classList.contains('active')) {
+    initCapturePanel();
+  }
+
+  const knowledgePanel = document.getElementById('knowledge-panel');
+  if (knowledgePanel && knowledgePanel.classList.contains('active')) {
+    initKnowledgePanel();
+    initKnowledgeGraph();
+  }
+
+  const assistantPanel = document.getElementById('assistant-panel');
+  if (assistantPanel && assistantPanel.classList.contains('active')) {
+    initAssistantPanel();
+  }
+
+  const settingsPanel = document.getElementById('settings-panel');
+  if (settingsPanel && settingsPanel.classList.contains('active')) {
+    initSettingsPanel();
+  }
+
+  // Force initialization button handlers for all panels
+  setupForceInitButtons();
 });
+
+
+async function setupForceInitButtons() {
+  // Capture panel force init
+  const forceInitCaptureButton = document.getElementById('force-init-capture');
+  if (forceInitCaptureButton) {
+    forceInitCaptureButton.addEventListener('click', async () => { 
+      console.log('Force initializing capture panel');
+      captureInitialized = false; 
+      await initCapturePanel(); 
+    });
+  }
+  
+  // Knowledge panel force init
+  const forceInitKnowledgeButton = document.getElementById('force-init-knowledge');
+  if (forceInitKnowledgeButton) {
+    forceInitKnowledgeButton.addEventListener('click', async () => {
+      console.log('Force initializing knowledge panel');
+      knowledgeInitialized = false; 
+      await initKnowledgePanel(); 
+      await initKnowledgeGraph(); 
+    });
+  }
+  
+  // Assistant panel force init
+  const forceInitAssistantButton = document.getElementById('force-init-assistant');
+  if (forceInitAssistantButton) {
+    forceInitAssistantButton.addEventListener('click', async () => {
+      console.log('Force initializing assistant panel');
+      assistantInitialized = false; 
+      await initAssistantPanel(); 
+    });
+  }
+  
+  // Settings panel force init
+  const forceInitSettingsButton = document.getElementById('force-init-settings');
+  if (forceInitSettingsButton) {
+    forceInitSettingsButton.addEventListener('click', async () => {
+      console.log('Force initializing settings panel');
+      settingsInitialized = false; 
+      await initSettingsPanel(); 
+    });
+  }
+  
+  // Overview panel force init
+  const forceInitOverviewButton = document.getElementById('force-init-overview');
+  if (forceInitOverviewButton) {
+    forceInitOverviewButton.addEventListener('click', async () => {
+      console.log('Force initializing overview panel');
+      overviewInitialized = false; 
+      await initOverviewPanel(); 
+    });
+  }
+}
+
 
 
 function initNavigation() {
@@ -81,20 +168,24 @@ function initNavigation() {
       });
       
       // Initialize panel if needed
-      if (targetPanel === 'capture') {
+      if (targetPanel === 'overview') {
+        initOverviewPanel();
+      } else if (targetPanel === 'capture') {
         initCapturePanel();
       } else if (targetPanel === 'knowledge') {
         initKnowledgePanel();
         initKnowledgeGraph();
       } else if (targetPanel === 'assistant') {
         initAssistantPanel();
+      } else if (targetPanel === 'settings') {
+        initSettingsPanel();
       }
     });
   });
 }
 
-// Add initialization function for capture panel
-function initCapturePanel() {
+// Initialization function for capture panel
+async function initCapturePanel() {
   if (captureInitialized) {
     console.log('Capture panel already initialized, skipping');
     return;
@@ -127,6 +218,26 @@ function initCapturePanel() {
   }
 }
 
+function updateWindowFilter(windows) {
+  console.log('Updating window filter with', windows.length, 'windows');
+  const windowFilter = document.getElementById('tabs-window-filter');
+  if (!windowFilter) {
+    console.error('tabs-window-filter element not found');
+    return;
+  }
+  
+  // Clear existing options
+  windowFilter.innerHTML = '<option value="all">All Windows</option>';
+  
+  // Add options for each window
+  windows.forEach(window => {
+    const option = document.createElement('option');
+    option.value = window.id.toString();
+    option.textContent = `Window ${window.id} (${window.tabs.length} tabs)`;
+    windowFilter.appendChild(option);
+  });
+}
+
 // Tabs within panels (e.g., Capture panel)
 function initTabs() {
   const tabButtons = document.querySelectorAll('.tab-btn');
@@ -152,7 +263,6 @@ function initTabs() {
   });
 }
 
-// Load initial dashboard data
 async function loadDashboardData() {
   try {
     // Show loading state
@@ -173,7 +283,41 @@ async function loadDashboardData() {
     // Update recent captures
     updateRecentCaptures(captureHistory);
     
-    // Try to fetch updated stats from API (but handle missing endpoint)
+    // Load mini graph visualization
+    const graphPlaceholder = document.querySelector('.graph-placeholder');
+    if (graphPlaceholder) {
+      try {
+        // Try to get data from API
+        const response = await fetchAPI('/api/v1/graph/overview?limit=10');
+        
+        if (response.success && response.data?.nodes?.length > 0) {
+          renderMiniGraph(response.data.nodes, response.data.edges, graphPlaceholder);
+        } else {
+          // Try to use capture data to create a simple graph
+          const pagesResponse = await fetchAPI('/api/v1/pages/');
+          if (pagesResponse.success && pagesResponse.data?.pages?.length > 0) {
+            const pages = pagesResponse.data.pages || [];
+            
+            // Create simple nodes
+            const nodes = pages.slice(0, 10).map(page => ({
+              id: page.id,
+              label: page.title || 'Untitled',
+              url: page.url,
+              domain: page.domain
+            }));
+            
+            // Create edges (if available)
+            const edges = [];
+            
+            renderMiniGraph(nodes, edges, graphPlaceholder);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading mini graph:', error);
+      }
+    }
+    
+    // Try to fetch updated stats from API
     try {
       const apiStats = await fetchAPI('/api/v1/stats');
       if (apiStats.success) {
@@ -193,7 +337,6 @@ async function loadDashboardData() {
       }
     } catch (error) {
       console.log('Stats endpoint not available, using local data');
-      // Continue with local data
     }
   } catch (error) {
     console.error('Error loading dashboard data:', error);
@@ -231,6 +374,193 @@ function updateRecentCaptures(captures) {
   });
 }
 
+async function initOverviewPanel() {
+  if (overviewInitialized) {
+    console.log('Overview panel already initialized, skipping');
+    return;
+  }
+  console.log('Initializing overview panel');
+  overviewInitialized = true;
+  
+  // Load stats data
+  await loadOverviewStats();
+  
+  // Set up refresh button
+  const refreshBtn = document.querySelector('#overview-panel .refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      console.log('Refreshing overview data');
+      loadOverviewStats();
+    });
+  }
+  
+  // Load recent captures list
+  await loadRecentCaptures();
+}
+
+
+async function loadOverviewStats() {
+  try {
+    console.log('Loading overview stats');
+    
+    // Get stats elements
+    const capturedCountEl = document.getElementById('captured-count');
+    const relationshipCountEl = document.getElementById('relationship-count');
+    const queryCountEl = document.getElementById('query-count');
+    
+    if (!capturedCountEl || !relationshipCountEl || !queryCountEl) {
+      console.error('Stats elements not found');
+      return;
+    }
+    
+    // Show loading state
+    capturedCountEl.textContent = '...';
+    relationshipCountEl.textContent = '...';
+    queryCountEl.textContent = '...';
+    
+    // Try to get stats from API
+    try {
+      const response = await fetchAPI('/api/v1/stats');
+      
+      if (response.success) {
+        const stats = response.result;
+        capturedCountEl.textContent = stats.page_count || 0;
+        relationshipCountEl.textContent = stats.relationship_count || 0;
+        queryCountEl.textContent = stats.query_count || 0;
+        
+        console.log('Stats loaded from API:', stats);
+      } else {
+        throw new Error(response.error || 'Failed to load stats');
+      }
+    } catch (error) {
+      console.error('Error loading stats from API:', error);
+      
+      // Fallback to local storage
+      const data = await chrome.storage.local.get(['captureHistory', 'stats']);
+      const captureHistory = data.captureHistory || [];
+      const stats = data.stats || {};
+      
+      capturedCountEl.textContent = captureHistory.length;
+      relationshipCountEl.textContent = stats.relationshipCount || 0;
+      queryCountEl.textContent = stats.queryCount || 0;
+      
+      console.log('Stats loaded from local storage');
+    }
+  } catch (error) {
+    console.error('Error in loadOverviewStats:', error);
+  }
+}
+
+async function loadRecentCaptures() {
+  try {
+    console.log('Loading recent captures');
+    
+    const recentCapturesList = document.getElementById('recent-captures-list');
+    if (!recentCapturesList) {
+      console.error('Recent captures list element not found');
+      return;
+    }
+    
+    // Show loading state
+    recentCapturesList.innerHTML = '<li class="loading">Loading recent captures...</li>';
+    
+    // Get capture history from storage
+    const data = await chrome.storage.local.get('captureHistory');
+    const captureHistory = data.captureHistory || [];
+    
+    if (captureHistory.length === 0) {
+      recentCapturesList.innerHTML = '<li class="empty-state">No recent captures</li>';
+      return;
+    }
+    
+    // Display recent captures (up to 5)
+    recentCapturesList.innerHTML = '';
+    captureHistory.slice(0, 5).forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'capture-item';
+      
+      const date = new Date(item.timestamp);
+      const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      
+      li.innerHTML = `
+        <div class="capture-title">${item.title || 'Untitled'}</div>
+        <div class="capture-meta">
+          <span class="capture-url">${item.url}</span>
+          <span class="capture-time">${formattedDate}</span>
+        </div>
+      `;
+      
+      recentCapturesList.appendChild(li);
+    });
+    
+    console.log('Recent captures loaded:', captureHistory.slice(0, 5).length);
+    
+    // Set up "View All" button
+    const viewAllBtn = document.getElementById('view-all-captures');
+    if (viewAllBtn) {
+      viewAllBtn.addEventListener('click', () => {
+        // Switch to capture panel
+        document.querySelector('[data-panel="capture"]').click();
+      });
+    }
+  } catch (error) {
+    console.error('Error in loadRecentCaptures:', error);
+  }
+}
+
+
+function renderMiniGraph(nodes, edges, container) {
+  // Clear container
+  container.innerHTML = '';
+  
+  // Handle empty data
+  if (!nodes || nodes.length === 0) {
+    container.innerHTML = '<div class="placeholder">No graph data available</div>';
+    return;
+  }
+
+  const width = container.clientWidth || 300;
+  const height = container.clientHeight || 200;
+  
+  const svg = d3.select(container)
+    .append('svg')
+    .attr('width', '100%')
+    .attr('height', '100%')
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('class', 'mini-graph-svg');
+  
+  // Create simple simulation
+  const simulation = d3.forceSimulation(nodes.slice(0, 10))
+    .force('center', d3.forceCenter(width/2, height/2))
+    .force('charge', d3.forceManyBody().strength(-100))
+    .force('collide', d3.forceCollide().radius(15));
+  
+  // Create nodes
+  const node = svg.append('g')
+    .selectAll('circle')
+    .data(nodes.slice(0, 10)) // Show max 10 nodes
+    .enter()
+    .append('circle')
+    .attr('r', 5)
+    .attr('fill', '#4a6fa5');
+  
+  // Update positions
+  simulation.on('tick', () => {
+    node
+      .attr('cx', d => Math.max(5, Math.min(width - 5, d.x)))
+      .attr('cy', d => Math.max(5, Math.min(height - 5, d.y)));
+  });
+  
+  // Make the entire graph clickable, navigating to Knowledge tab
+  svg.append('rect')
+    .attr('width', width)
+    .attr('height', height)
+    .attr('fill', 'transparent')
+    .style('cursor', 'pointer')
+    .on('click', () => {
+      document.querySelector('[data-panel="knowledge"]').click();
+    });
+}
 
 // Load open tabs
 async function loadOpenTabs() {
@@ -239,53 +569,233 @@ async function loadOpenTabs() {
   
   try {
     // Get all windows with tabs
-    const windows = await chrome.windows.getAll({ populate: true });
-    
-    if (windows.length === 0) {
-      tabsList.innerHTML = '<div class="empty-state">No open tabs found</div>';
-      return;
-    }
-    
-    // Populate window filter
-    const windowFilter = document.getElementById('tabs-window-filter');
-    windowFilter.innerHTML = '<option value="all">All Windows</option>';
-    
-    windows.forEach(window => {
-      const option = document.createElement('option');
-      option.value = window.id;
-      option.textContent = `Window ${window.id} (${window.tabs.length} tabs)`;
-      windowFilter.appendChild(option);
+    chrome.windows.getAll({ populate: true }, (windows) => {
+      if (windows.length === 0) {
+        tabsList.innerHTML = '<div class="empty-state">No open tabs found</div>';
+        return;
+      }
+      
+      // Create hierarchical structure
+      tabsList.innerHTML = '<div class="tabs-hierarchy"></div>';
+      const tabsHierarchy = tabsList.querySelector('.tabs-hierarchy');
+      
+      // Create window filter dropdown
+      updateWindowFilter(windows);
+      
+      // Group tabs by windows
+      windows.forEach(window => {
+        const filteredTabs = window.tabs.filter(shouldShowTab);
+        if (filteredTabs.length === 0) return;
+        
+        const windowGroup = document.createElement('div');
+        windowGroup.className = 'window-group';
+        windowGroup.setAttribute('data-window-id', window.id);
+        
+        // Create window header
+        const windowHeader = document.createElement('div');
+        windowHeader.className = 'window-header';
+        
+        const windowCheckbox = document.createElement('input');
+        windowCheckbox.type = 'checkbox';
+        windowCheckbox.className = 'window-checkbox';
+        windowCheckbox.id = `window-${window.id}`;
+        
+        const windowTitle = document.createElement('div');
+        windowTitle.className = 'window-title';
+        windowTitle.textContent = `Window ${window.id} (${filteredTabs.length} tabs)`;
+        
+        windowHeader.appendChild(windowCheckbox);
+        windowHeader.appendChild(windowTitle);
+        
+        // Add collapse/expand toggle
+        const toggleButton = document.createElement('button');
+        toggleButton.className = 'btn-icon toggle-window';
+        toggleButton.innerHTML = '▼';
+        windowHeader.appendChild(toggleButton);
+        
+        windowGroup.appendChild(windowHeader);
+        
+        // Create container for tabs
+        const tabsContainer = document.createElement('div');
+        tabsContainer.className = 'window-tabs';
+        
+        // Add tabs to container
+        filteredTabs.forEach(tab => {
+          const tabItem = createTabListItem(tab, window.id);
+          tabsContainer.appendChild(tabItem);
+        });
+        
+        windowGroup.appendChild(tabsContainer);
+        tabsHierarchy.appendChild(windowGroup);
+        
+        // Window checkbox selects all tabs
+        windowCheckbox.addEventListener('change', () => {
+          const checked = windowCheckbox.checked;
+          tabsContainer.querySelectorAll('.item-checkbox').forEach(checkbox => {
+            checkbox.checked = checked;
+          });
+        });
+        
+        // Toggle expand/collapse
+        toggleButton.addEventListener('click', () => {
+          tabsContainer.style.display = tabsContainer.style.display === 'none' ? 'block' : 'none';
+          toggleButton.innerHTML = tabsContainer.style.display === 'none' ? '▶' : '▼';
+        });
+      });
+      
+      // Add search functionality
+      setupSearchAndFilter();
     });
-    
-    // Create tab list
-    tabsList.innerHTML = '';
-    
-    // Flatten all tabs from all windows
-    const allTabs = windows.flatMap(window => 
-      window.tabs.map(tab => ({ ...tab, windowTitle: `Window ${window.id}` }))
-    );
-    
-    // Filter and display tabs
-    const filteredTabs = allTabs.filter(shouldShowTab);
-    
-    for (const tab of filteredTabs) {
-      const tabItem = createTabListItem(tab);
-      tabsList.appendChild(tabItem);
-    }
-    
-    // Add filter functionality
-    setupTabsFilter(filteredTabs);
-    
-    // Add selection controls
-    setupSelectionControls('tabs');
   } catch (error) {
     console.error('Error loading tabs:', error);
     tabsList.innerHTML = `<div class="error-state">Error loading tabs: ${error.message}</div>`;
   }
 }
 
-// Add a function to extract content from a tab
+function setupSearchAndFilter() {
+  const searchInput = document.getElementById('tabs-search');
+  const windowFilter = document.getElementById('tabs-window-filter');
+  
+  // Add advanced filters button and panel
+  const listControls = document.querySelector('.list-controls');
+  
+  const advancedButton = document.createElement('button');
+  advancedButton.className = 'btn-text';
+  advancedButton.textContent = 'Advanced Filters';
+  advancedButton.addEventListener('click', toggleAdvancedFilters);
+  listControls.appendChild(advancedButton);
+  
+  // Create advanced filters panel
+  const advancedFilters = document.createElement('div');
+  advancedFilters.className = 'advanced-filters';
+  advancedFilters.style.display = 'none';
+  
+  advancedFilters.innerHTML = `
+    <div class="filter-row">
+      <span class="filter-label">Domain:</span>
+      <input type="text" id="domain-filter" placeholder="e.g., example.com">
+    </div>
+    <div class="filter-row">
+      <span class="filter-label">Exclude:</span>
+      <input type="text" id="exclude-filter" placeholder="e.g., social">
+    </div>
+    <div class="filter-row">
+      <span class="filter-label">Type:</span>
+      <select id="type-filter">
+        <option value="all">All types</option>
+        <option value="http">HTTP</option>
+        <option value="https">HTTPS</option>
+        <option value="file">Files</option>
+      </select>
+    </div>
+    <button class="btn-secondary" id="apply-filters">Apply Filters</button>
+    <button class="btn-text" id="reset-filters">Reset</button>
+  `;
+  
+  document.getElementById('tabs-content').insertBefore(advancedFilters, document.getElementById('tabs-list'));
+  
+  // Set up filter application
+  document.getElementById('apply-filters').addEventListener('click', applyFilters);
+  document.getElementById('reset-filters').addEventListener('click', resetFilters);
+  
+  // Apply filters when search changes
+  searchInput.addEventListener('input', applyFilters);
+  windowFilter.addEventListener('change', applyFilters);
+}
 
+function toggleAdvancedFilters() {
+  const advancedFilters = document.querySelector('.advanced-filters');
+  advancedFilters.style.display = advancedFilters.style.display === 'none' ? 'block' : 'none';
+}
+
+function applyFilters() {
+  const searchTerm = document.getElementById('tabs-search').value.toLowerCase();
+  const windowId = document.getElementById('tabs-window-filter').value;
+  const domainFilter = document.getElementById('domain-filter')?.value.toLowerCase() || '';
+  const excludeFilter = document.getElementById('exclude-filter')?.value.toLowerCase() || '';
+  const typeFilter = document.getElementById('type-filter')?.value || 'all';
+  
+  // Process all tab items
+  const tabItems = document.querySelectorAll('.tab-item');
+  let visibleCount = 0;
+  
+  tabItems.forEach(item => {
+    const url = item.getAttribute('data-url').toLowerCase();
+    const title = item.querySelector('.tab-title').textContent.toLowerCase();
+    const itemWindowId = item.getAttribute('data-window-id');
+    
+    let visible = true;
+    
+    // Apply window filter
+    if (windowId !== 'all' && itemWindowId !== windowId) {
+      visible = false;
+    }
+    
+    // Apply search filter
+    if (searchTerm && !url.includes(searchTerm) && !title.includes(searchTerm)) {
+      visible = false;
+    }
+    
+    // Apply domain filter
+    if (domainFilter && !url.includes(domainFilter)) {
+      visible = false;
+    }
+    
+    // Apply exclude filter
+    if (excludeFilter && (url.includes(excludeFilter) || title.includes(excludeFilter))) {
+      visible = false;
+    }
+    
+    // Apply type filter
+    if (typeFilter === 'http' && !url.startsWith('http:')) {
+      visible = false;
+    } else if (typeFilter === 'https' && !url.startsWith('https:')) {
+      visible = false;
+    } else if (typeFilter === 'file' && !url.startsWith('file:')) {
+      visible = false;
+    }
+    
+    // Update visibility
+    item.style.display = visible ? 'flex' : 'none';
+    if (visible) visibleCount++;
+  });
+  
+  // Update window visibility based on visible tabs
+  const windowGroups = document.querySelectorAll('.window-group');
+  windowGroups.forEach(group => {
+    const visibleTabsInWindow = Array.from(group.querySelectorAll('.tab-item'))
+      .filter(item => item.style.display !== 'none').length;
+      
+    group.style.display = visibleTabsInWindow > 0 ? 'block' : 'none';
+  });
+  
+  // Show message if no results
+  const tabsList = document.getElementById('tabs-list');
+  const noResults = tabsList.querySelector('.no-results');
+  
+  if (visibleCount === 0) {
+    if (!noResults) {
+      const message = document.createElement('div');
+      message.className = 'no-results empty-state';
+      message.textContent = 'No tabs match your filters';
+      tabsList.appendChild(message);
+    }
+  } else if (noResults) {
+    noResults.remove();
+  }
+}
+
+function resetFilters() {
+  document.getElementById('tabs-search').value = '';
+  document.getElementById('tabs-window-filter').value = 'all';
+  document.getElementById('domain-filter').value = '';
+  document.getElementById('exclude-filter').value = '';
+  document.getElementById('type-filter').value = 'all';
+  
+  applyFilters();
+}
+
+// Add a function to extract content from a tab
 async function extractTabContent(tabId) {
   try {
     // We'll use the executeScript method to extract content from the tab
@@ -336,33 +846,46 @@ function shouldShowTab(tab) {
 }
 
 // Create a list item for a tab
-function createTabListItem(tab) {
+function createTabListItem(tab, windowId) {
   const item = document.createElement('div');
-  item.className = 'list-item tab-item';
+  item.className = 'tab-item';
   item.setAttribute('data-id', tab.id);
   item.setAttribute('data-url', tab.url);
+  item.setAttribute('data-window-id', windowId);
   
   const favicon = tab.favIconUrl || '../icons/icon16.png';
   
-  item.innerHTML = `
-    <div class="item-selector">
-      <input type="checkbox" id="tab-${tab.id}" class="item-checkbox">
-    </div>
-    <div class="item-icon">
-      <img src="${favicon}" alt="" class="favicon">
-    </div>
-    <div class="item-content">
-      <div class="item-title">${tab.title || 'Untitled'}</div>
-      <div class="item-url">${truncateText(tab.url, 50)}</div>
-    </div>
-    <div class="item-meta">
-      <span class="item-window">${tab.windowTitle}</span>
-      ${tab.active ? '<span class="item-active">Active</span>' : ''}
-    </div>
-  `;
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = `tab-${tab.id}`;
+  checkbox.className = 'item-checkbox';
+  
+  const icon = document.createElement('img');
+  icon.src = favicon;
+  icon.alt = '';
+  icon.className = 'tab-icon';
+  
+  const content = document.createElement('div');
+  content.className = 'tab-content';
+  
+  const title = document.createElement('div');
+  title.className = 'tab-title';
+  title.textContent = tab.title || 'Untitled';
+  
+  const url = document.createElement('div');
+  url.className = 'tab-url';
+  url.textContent = tab.url;
+  
+  content.appendChild(title);
+  content.appendChild(url);
+  
+  item.appendChild(checkbox);
+  item.appendChild(icon);
+  item.appendChild(content);
   
   return item;
 }
+
 
 // Set up filtering for tabs
 function setupTabsFilter(allTabs) {
@@ -1040,6 +1563,46 @@ function getContextForType(type) {
   return contextMap[type] || 'ACTIVE_TAB';
 }
 
+function initSplitView() {
+  const splitter = document.getElementById('knowledge-splitter');
+  const listPanel = document.querySelector('.knowledge-list-panel');
+  
+  if (splitter && listPanel) {
+    let startX, startWidth;
+    
+    splitter.addEventListener('mousedown', (e) => {
+      startX = e.clientX;
+      startWidth = parseInt(getComputedStyle(listPanel).width, 10);
+      document.documentElement.style.cursor = 'col-resize';
+      
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      
+      e.preventDefault();
+    });
+    
+    function onMouseMove(e) {
+      const newWidth = startWidth + (e.clientX - startX);
+      // Constrain within min/max values
+      if (newWidth >= 200 && newWidth <= window.innerWidth * 0.6) {
+        listPanel.style.width = `${newWidth}px`;
+      }
+    }
+    
+    function onMouseUp() {
+      document.documentElement.style.cursor = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      
+      // Trigger graph resize
+      window.dispatchEvent(new Event('resize'));
+    }
+    
+    // Initialize with fixed height to give graph sufficient space
+    document.querySelector('.knowledge-graph-panel').style.height = 'calc(100vh - 200px)';
+  }
+}
+
 // Initialize knowledge panel
 async function initKnowledgePanel() {
   if (knowledgeInitialized) {
@@ -1049,6 +1612,15 @@ async function initKnowledgePanel() {
   
   console.log('Initializing knowledge panel');
   knowledgeInitialized = true;
+
+  // Initialize the split view
+  initSplitView();
+
+  // Load initial knowledge data
+  loadKnowledgeData();
+  
+  // Initialize graph
+  initKnowledgeGraph();
 
   try {
     // Load initial knowledge data
@@ -1473,7 +2045,7 @@ async function loadRelatedItem(itemId) {
 }
 
 // Initialize assistant panel
-function initAssistantPanel() {
+async function initAssistantPanel() {
   if (assistantInitialized) {
     console.log('Assistant panel already initialized, skipping');
     return;
@@ -1644,70 +2216,172 @@ function initAssistantPanel() {
 
 // Initialize settings panel
 async function initSettingsPanel() {
-  // Load current settings
-  const settings = await loadSettings();
+  if (settingsInitialized) {
+    console.log('Settings panel already initialized, skipping');
+    return;
+  }
+  console.log('Initializing settings panel');
+  settingsInitialized = true;
   
+  // Load current settings
+  await loadCurrentSettings();
+  
+  // Set up form submission handlers
+  setupSettingsForms();
+  
+  // Set up clear data button
+  const clearDataBtn = document.getElementById('clear-data-btn');
+  if (clearDataBtn) {
+    clearDataBtn.addEventListener('click', handleClearData);
+  }
+}
+
+
+async function loadCurrentSettings() {
+  try {
+    console.log('Loading current settings');
+    
+    // Get settings from storage
+    const data = await chrome.storage.local.get(['apiConfig', 'captureSettings']);
+    const apiConfig = data.apiConfig || {};
+    const captureSettings = data.captureSettings || {};
+    
+    // Populate API config form
+    const apiUrlInput = document.getElementById('api-url');
+    if (apiUrlInput && apiConfig.baseUrl) {
+      apiUrlInput.value = apiConfig.baseUrl;
+    }
+    
+    // Populate capture settings form
+    const autoCaptureCheckbox = document.getElementById('auto-capture');
+    if (autoCaptureCheckbox) {
+      autoCaptureCheckbox.checked = !!captureSettings.automaticCapture;
+    }
+    
+    const minTimeInput = document.getElementById('min-time');
+    if (minTimeInput && captureSettings.minTimeOnPage) {
+      minTimeInput.value = captureSettings.minTimeOnPage;
+    }
+    
+    const excludedDomainsTextarea = document.getElementById('excluded-domains');
+    if (excludedDomainsTextarea && captureSettings.excludedDomains) {
+      excludedDomainsTextarea.value = Array.isArray(captureSettings.excludedDomains) 
+        ? captureSettings.excludedDomains.join('\n') 
+        : captureSettings.excludedDomains;
+    }
+    
+    const includedDomainsTextarea = document.getElementById('included-domains');
+    if (includedDomainsTextarea && captureSettings.includedDomains) {
+      includedDomainsTextarea.value = Array.isArray(captureSettings.includedDomains) 
+        ? captureSettings.includedDomains.join('\n') 
+        : captureSettings.includedDomains;
+    }
+    
+    console.log('Settings loaded:', { apiConfig, captureSettings });
+  } catch (error) {
+    console.error('Error loading settings:', error);
+  }
+}
+
+function setupSettingsForms() {
   // API config form
   const apiConfigForm = document.getElementById('api-config-form');
-  document.getElementById('api-url').value = settings.apiUrl || 'http://localhost:8000';
-  
-  apiConfigForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const apiUrl = document.getElementById('api-url').value;
-    
-    await saveSettings({ apiUrl });
-    showSaveConfirmation(apiConfigForm);
-  });
+  if (apiConfigForm) {
+    apiConfigForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const apiUrl = document.getElementById('api-url').value.trim();
+      
+      try {
+        // Save to storage
+        await chrome.storage.local.set({
+          apiConfig: { baseUrl: apiUrl }
+        });
+        
+        // Send message to background script
+        chrome.runtime.sendMessage({
+          action: 'updateSettings',
+          settings: { apiConfig: { baseUrl: apiUrl } }
+        });
+        
+        alert('API settings saved successfully');
+      } catch (error) {
+        console.error('Error saving API settings:', error);
+        alert('Error saving API settings: ' + error.message);
+      }
+    });
+  }
   
   // Capture settings form
   const captureSettingsForm = document.getElementById('capture-settings-form');
-  document.getElementById('auto-capture').checked = settings.automaticCapture !== false;
-  document.getElementById('min-time').value = settings.minTimeOnPage || 10;
-  document.getElementById('excluded-domains').value = (settings.excludedDomains || []).join('\n');
-  document.getElementById('included-domains').value = (settings.includedDomains || []).join('\n');
-  
-  captureSettingsForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const automaticCapture = document.getElementById('auto-capture').checked;
-    const minTimeOnPage = parseInt(document.getElementById('min-time').value, 10);
-    const excludedDomainsText = document.getElementById('excluded-domains').value;
-    const includedDomainsText = document.getElementById('included-domains').value;
-    
-    // Parse domains, filtering empty lines
-    const excludedDomains = excludedDomainsText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+  if (captureSettingsForm) {
+    captureSettingsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
       
-    const includedDomains = includedDomainsText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-    
-    await saveSettings({
-      automaticCapture,
-      minTimeOnPage,
-      excludedDomains,
-      includedDomains
+      const automaticCapture = document.getElementById('auto-capture').checked;
+      const minTimeOnPage = parseInt(document.getElementById('min-time').value, 10);
+      const excludedDomainsText = document.getElementById('excluded-domains').value;
+      const includedDomainsText = document.getElementById('included-domains').value;
+      
+      // Parse domains from textarea (one per line)
+      const excludedDomains = excludedDomainsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      
+      const includedDomains = includedDomainsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      
+      const captureSettings = {
+        automaticCapture,
+        minTimeOnPage,
+        excludedDomains,
+        includedDomains
+      };
+      
+      try {
+        // Save to storage
+        await chrome.storage.local.set({ captureSettings });
+        
+        // Send message to background script
+        chrome.runtime.sendMessage({
+          action: 'updateSettings',
+          settings: { captureSettings }
+        });
+        
+        alert('Capture settings saved successfully');
+      } catch (error) {
+        console.error('Error saving capture settings:', error);
+        alert('Error saving capture settings: ' + error.message);
+      }
     });
-    
-    showSaveConfirmation(captureSettingsForm);
-  });
-  
-  // Clear data button
-  const clearDataBtn = document.getElementById('clear-data-btn');
-  
-  clearDataBtn.addEventListener('click', async () => {
-    if (confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
-      await chrome.storage.local.clear();
-      
-      // Reload page
-      window.location.reload();
-    }
-  });
+  }
 }
+
+async function handleClearData() {
+  if (!confirm('Are you sure you want to clear all locally stored data? This cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    // Clear specific storage items but keep settings
+    await chrome.storage.local.remove(['captureHistory', 'stats']);
+    
+    // Notify background script
+    chrome.runtime.sendMessage({ action: 'clearLocalData' });
+    
+    alert('Local data cleared successfully');
+    
+    // Reload the page to reflect changes
+    window.location.reload();
+  } catch (error) {
+    console.error('Error clearing data:', error);
+    alert('Error clearing data: ' + error.message);
+  }
+}
+
 
 // Show save confirmation message
 function showSaveConfirmation(form) {
@@ -1780,61 +2454,6 @@ async function initKnowledgeGraph() {
   }
 }
 
-
-
-
-async function loadGraphData() {
-  const graphContainer = document.querySelector('.graph-container');
-  graphContainer.innerHTML = '<div class="loading-indicator">Loading graph data...</div>';
-  
-  try {
-    // Try to get graph data from API
-    const response = await fetchAPI('/api/v1/graph/overview');
-    
-    if (response.success) {
-      renderGraph(response.data.nodes, response.data.edges);
-    } else if (response.error?.error_code === 'NOT_FOUND') {
-      // If endpoint doesn't exist, create a simple visualization from pages
-      const pagesResponse = await fetchAPI('/api/v1/pages/');
-      
-      if (pagesResponse.success) {
-        const pages = pagesResponse.data.pages || [];
-        
-        // Create simple graph data
-        const nodes = pages.map(page => ({
-          id: page.id,
-          label: page.title || 'Untitled',
-          url: page.url,
-          type: 'page'
-        }));
-        
-        // Create edges from relationships
-        const edges = [];
-        pages.forEach(page => {
-          if (page.relationships && page.relationships.length > 0) {
-            page.relationships.forEach(rel => {
-              edges.push({
-                source: page.id,
-                target: rel.target_id,
-                type: rel.type
-              });
-            });
-          }
-        });
-        
-        renderGraph(nodes, edges);
-      } else {
-        throw new Error('Failed to load pages for graph');
-      }
-    } else {
-      throw new Error(response.error?.message || 'Failed to load graph data');
-    }
-  } catch (error) {
-    console.error('Error loading graph data:', error);
-    graphContainer.innerHTML = `<div class="error-state">Error: ${error.message}</div>`;
-  }
-}
-
 // For async loadGraphData
 const debouncedLoadGraphData = (() => {
   let timeout;
@@ -1862,99 +2481,3 @@ const debouncedLoadGraphData = (() => {
     return pendingPromise;
   };
 })();
-
-function renderGraph(nodes, edges) {
-  // Simple force-directed graph using D3.js
-  const graphContainer = document.querySelector('.graph-container');
-  const width = graphContainer.clientWidth;
-  const height = graphContainer.clientHeight;
-  
-  // Clear container
-  graphContainer.innerHTML = '';
-  
-  // Create SVG
-  const svg = d3.select(graphContainer)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height);
-  
-  // Create force simulation
-  const simulation = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(edges).id(d => d.id).distance(100))
-    .force('charge', d3.forceManyBody().strength(-200))
-    .force('center', d3.forceCenter(width / 2, height / 2));
-  
-  // Create edges
-  const link = svg.append('g')
-    .selectAll('line')
-    .data(edges)
-    .enter()
-    .append('line')
-    .attr('stroke', '#999')
-    .attr('stroke-opacity', 0.6)
-    .attr('stroke-width', 2);
-  
-  // Create nodes
-  const node = svg.append('g')
-    .selectAll('circle')
-    .data(nodes)
-    .enter()
-    .append('circle')
-    .attr('r', 8)
-    .attr('fill', d => {
-      // Different colors for different node types
-      const colorMap = {
-        'page': '#4a6fa5',
-        'site': '#6b8cae',
-        'keyword': '#28a745'
-      };
-      return colorMap[d.type] || '#999';
-    })
-    .call(d3.drag()
-      .on('start', dragstarted)
-      .on('drag', dragged)
-      .on('end', dragended));
-  
-  // Add tooltips
-  node.append('title')
-    .text(d => d.label);
-  
-  // Update simulation on tick
-  simulation.on('tick', () => {
-    link
-      .attr('x1', d => d.source.x)
-      .attr('y1', d => d.source.y)
-      .attr('x2', d => d.target.x)
-      .attr('y2', d => d.target.y);
-    
-    node
-      .attr('cx', d => d.x)
-      .attr('cy', d => d.y);
-  });
-  
-  // Add click handler to nodes
-  node.on('click', (event, d) => {
-    // Load and show details for the node
-    if (d.type === 'page') {
-      loadRelatedItem(d.id);
-    }
-  });
-  
-  // Drag functions
-  function dragstarted(event) {
-    if (!event.active) simulation.alphaTarget(0.3).restart();
-    event.subject.fx = event.subject.x;
-    event.subject.fy = event.subject.y;
-  }
-  
-  function dragged(event) {
-    event.subject.fx = event.x;
-    event.subject.fy = event.y;
-  }
-  
-  function dragended(event) {
-    if (!event.active) simulation.alphaTarget(0);
-    event.subject.fx = null;
-    event.subject.fy = null;
-  }
-}

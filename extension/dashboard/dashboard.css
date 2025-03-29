@@ -328,8 +328,96 @@
     color: var(--text-light);
   }
   
+
+  /* Hierarchical capture panel view */
+  .tabs-hierarchy {
+    margin-top: 10px;
+  }
+
+  .window-group {
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+  }
+
+  .window-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+  }
+
+  .window-title {
+    font-weight: 500;
+    margin-left: 10px;
+    flex-grow: 1;
+  }
+
+  .window-tabs {
+    padding: 0 8px;
+  }
+
+  .tab-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .tab-item:last-child {
+    border-bottom: none;
+  }
+
+  .tab-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 10px;
+  }
+
+  .tab-content {
+    flex-grow: 1;
+    overflow: hidden;
+  }
+
+  .tab-title {
+    font-weight: normal;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tab-url {
+    font-size: 12px;
+    color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Advanced filter panel */
+  .advanced-filters {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--card-bg);
+  }
+
+  .filter-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .filter-label {
+    width: 80px;
+  }
+
   /* Capture panel */
-  .capture-tabs {
+  /* .capture-tabs {
     display: flex;
     border-bottom: 1px solid var(--border-color);
     margin-bottom: var(--spacing-lg);
@@ -405,67 +493,133 @@
     padding: var(--spacing-md);
     max-height: calc(100vh - 300px);
     overflow-y: auto;
-  }
+  } */
   
-  /* Knowledge panel */
+  /* Knowledge panel - Split view layout */
   .knowledge-view {
     display: flex;
     height: calc(100vh - 150px);
   }
-  
+
   .knowledge-filters {
     width: 250px;
-    padding-right: var(--spacing-lg);
+    padding-right: var(--spacing-sm);
     border-right: 1px solid var(--border-color);
   }
-  
-  .filter-group {
-    margin-bottom: var(--spacing-lg);
-  }
-  
-  .filter-group h3 {
-    font-size: var(--font-size-md);
-    margin-bottom: var(--spacing-sm);
-  }
-  
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-xs);
-    cursor: pointer;
-  }
-  
+
   .knowledge-content {
     flex-grow: 1;
-    padding-left: var(--spacing-lg);
     display: flex;
-    flex-direction: column;
+    position: relative;
   }
-  
-  .knowledge-list {
-    flex-grow: 1;
+
+  /* Split panel view */
+  .knowledge-split-view {
+    display: flex;
+    width: 100%;
+    position: relative;
+  }
+
+  .knowledge-list-panel {
+    width: 40%;
+    min-width: 200px;
+    max-width: 60%;
     overflow-y: auto;
-    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    border-right: 1px solid var(--border-color);
   }
-  
-  .knowledge-visualization {
-    height: 300px;
-    background-color: var(--card-bg);
-    border-radius: var(--border-radius);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+
+  .knowledge-graph-panel {
+    flex-grow: 1;
+    overflow: hidden;
+    position: relative;
   }
-  
+
+  /* Resizable splitter */
+  .splitter {
+    width: 8px;
+    background-color: var(--border-color);
+    cursor: col-resize;
+    position: relative;
+  }
+
+  .splitter:hover {
+    background-color: var(--primary-color);
+  }
+
+  /* Graph container */
   .graph-container {
     width: 100%;
     height: 100%;
+    position: relative;
+  }
+
+  /* Legend positioning */
+  .graph-legend {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    z-index: 10;
+    max-width: 150px;
+    font-size: 10px;
+  }
+
+  /* Controls positioning */
+  .graph-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    gap: 5px;
+  }
+
+  /* Graph visualization enhancements */
+  .graph-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .node {
+    cursor: pointer;
+  }
+
+  .node:hover text {
+    font-weight: bold;
+  }
+
+  .graph-controls button, 
+  .btn-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    background: white;
+    border: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  .graph-controls button:hover,
+  .btn-icon:hover {
+    background: #f0f0f0;
   }
   
-  .placeholder {
-    color: var(--text-light);
+  .nodes circle {
+    stroke: #fff;
+    stroke-width: 1.5px;
+    cursor: pointer;
+  }
+  
+  .nodes circle:hover {
+    stroke: #333;
+    stroke-width: 2px;
   }
   
   /* Assistant panel */
