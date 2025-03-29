@@ -15,6 +15,11 @@ let navigationInitialized = false;
 let tabsFilterInitialized = false;
 let statusMonitoringInitialized = false;
 
+function logWithStack(message) {
+  console.log(`${message} | Stack: ${new Error().stack.split('\n')[2]}`);
+}
+
+
 function debounce(func, wait) {
   let timeout;
   return function(...args) {
@@ -30,8 +35,50 @@ const debouncedFilterTabs = debounce(filterTabs, 200);
 const debouncedFilterBookmarks = debounce(filterBookmarks, 200);
 const debouncedFilterHistory = debounce(filterHistory, 200);
 
+function debugCaptureButton() {
+  const captureBtn = document.getElementById('capture-selected');
+  console.log('Debug capture button:', {
+    exists: !!captureBtn,
+    disabled: captureBtn?.disabled,
+    hasClickListeners: captureBtn?._events?.click?.length > 0,
+    innerHTML: captureBtn?.innerHTML,
+    isVisible: captureBtn ? window.getComputedStyle(captureBtn).display !== 'none' : false
+  });
+  // Test direct click simulation
+  if (captureBtn) {
+    console.log('Adding test click handler');
+    captureBtn.onclick = function() {
+      console.log('Direct onclick property triggered');
+    };
+  }
+}
+
+document.addEventListener('click', function(event) {
+  // Use event delegation to handle clicks on the capture button
+  if (event.target.id === 'capture-selected' || 
+      (event.target.closest && event.target.closest('#capture-selected'))) {
+    console.log('Global capture button click handler triggered!', event.target);
+    captureSelectedItems();
+    event.preventDefault();
+    event.stopPropagation();
+  }
+});
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Dashboard loaded');
+
+  // Log the existence of the capture button
+  const captureSelectedBtn = document.getElementById('capture-selected');
+  console.log(`Capture button found: ${!!captureSelectedBtn}`);
+  if (captureSelectedBtn) {
+    console.log('Adding click handler to capture-selected button');
+    captureSelectedBtn.addEventListener('click', () => {
+      console.log('Capture selected button clicked');
+      captureSelectedItems();
+    });
+  } else {
+    console.error('capture-selected button not found!');
+  }
    
   // Initialize navigation
   initNavigation();
@@ -44,30 +91,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Setup status monitoring
   setupStatusMonitoring();
 
+  // Debug capture button at the end of initialization
+  debugCaptureButton();
+
   // Check which panel is active and initialize it
   const overviewPanel = document.getElementById('overview-panel');
   if (overviewPanel && overviewPanel.classList.contains('active')) {
+    console.log('Initializing overview panel from DOMContentLoaded');
     initOverviewPanel();
   }
 
   const capturePanel = document.getElementById('capture-panel');
+  console.log(`Capture panel found: ${!!capturePanel}, active: ${capturePanel?.classList.contains('active')}`);
   if (capturePanel && capturePanel.classList.contains('active')) {
-    initCapturePanel();
+    console.log('Initializing capture panel from DOMContentLoaded');
+    await initCapturePanel();
   }
 
   const knowledgePanel = document.getElementById('knowledge-panel');
   if (knowledgePanel && knowledgePanel.classList.contains('active')) {
+    console.log('Initializing knowledge panel from DOMContentLoaded');
     initKnowledgePanel();
     initKnowledgeGraph();
   }
 
   const assistantPanel = document.getElementById('assistant-panel');
   if (assistantPanel && assistantPanel.classList.contains('active')) {
+    console.log('Initializing assistant panel from DOMContentLoaded');
     initAssistantPanel();
   }
 
   const settingsPanel = document.getElementById('settings-panel');
   if (settingsPanel && settingsPanel.classList.contains('active')) {
+    console.log('Initializing settings panel from DOMContentLoaded');
     initSettingsPanel();
   }
 
@@ -77,18 +133,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 async function setupForceInitButtons() {
+  logWithStack('setupForceInitButtons called');
+
   // Capture panel force init
   const forceInitCaptureButton = document.getElementById('force-init-capture');
+  console.log(`Force init capture button found: ${!!forceInitCaptureButton}`);
+
   if (forceInitCaptureButton) {
+    console.log('Adding click handler to force-init-capture button');
     forceInitCaptureButton.addEventListener('click', async () => { 
       console.log('Force initializing capture panel');
       captureInitialized = false; 
       await initCapturePanel(); 
+
+      // Check capture button after forced initialization
+      const captureBtn = document.getElementById('capture-selected');
+      console.log(`Capture button after force init: ${!!captureBtn}, disabled=${captureBtn?.disabled}, text=${captureBtn?.textContent}`);
     });
   }
   
   // Knowledge panel force init
   const forceInitKnowledgeButton = document.getElementById('force-init-knowledge');
+  console.log('Force init knowledge button found:', !!forceInitKnowledgeButton);
   if (forceInitKnowledgeButton) {
     forceInitKnowledgeButton.addEventListener('click', async () => {
       console.log('Force initializing knowledge panel');
@@ -96,42 +162,59 @@ async function setupForceInitButtons() {
       await initKnowledgePanel(); 
       await initKnowledgeGraph(); 
     });
+
+    // Check Knowledge Button after forced initializing
+    const knowledgeBtn = document.getElementById('knowledge-selected');
+    console.log(`Knowledge button after force init: ${!!knowledgeBtn}, disabled=${knowledgeBtn?.disabled}, text=${knowledgeBtn?.textContent}`);
   }
   
   // Assistant panel force init
   const forceInitAssistantButton = document.getElementById('force-init-assistant');
+  console.log('Force init assistant button found:', !!forceInitAssistantButton);
   if (forceInitAssistantButton) {
     forceInitAssistantButton.addEventListener('click', async () => {
       console.log('Force initializing assistant panel');
       assistantInitialized = false; 
       await initAssistantPanel(); 
     });
+
+    const assistantBtn = document.getElementById('assistant-selected');
+    console.log(`Assistant button after force init: ${!!assistantBtn}, disabled=${assistantBtn?.disabled}, text=${assistantBtn?.textContent}`);
   }
   
   // Settings panel force init
   const forceInitSettingsButton = document.getElementById('force-init-settings');
+  console.log('Force init settings button found:', !!forceInitSettingsButton);
   if (forceInitSettingsButton) {
     forceInitSettingsButton.addEventListener('click', async () => {
       console.log('Force initializing settings panel');
       settingsInitialized = false; 
       await initSettingsPanel(); 
     });
+
+    const settingsBtn = document.getElementById('settings-selected');
+    console.log(`Settings button after force init: ${!!settingsBtn}, disabled=${settingsBtn?.disabled}, text=${settingsBtn?.textContent}`);
   }
   
   // Overview panel force init
   const forceInitOverviewButton = document.getElementById('force-init-overview');
+  console.log('Force init overview button found:', !!forceInitOverviewButton);
   if (forceInitOverviewButton) {
     forceInitOverviewButton.addEventListener('click', async () => {
       console.log('Force initializing overview panel');
       overviewInitialized = false; 
       await initOverviewPanel(); 
     });
+
+    const overviewBtn = document.getElementById('overview-selected');
+    console.log(`Overview button after force init: ${!!overviewBtn}, disabled=${overviewBtn?.disabled}, text=${overviewBtn?.textContent}`);
   }
 }
 
 
 
 function initNavigation() {
+  logWithStack('initNavigation called');
   if (navigationInitialized) {
     console.log('Navigation already initialized, skipping');
     return;
@@ -144,15 +227,15 @@ function initNavigation() {
   const navItems = document.querySelectorAll('.nav-item');
   const contentPanels = document.querySelectorAll('.content-panel');
   
-  console.log('Found nav items:', navItems.length);
-  console.log('Found content panels:', contentPanels.length);
+  console.log(`Found nav items: ${navItems.length}, content panels: ${contentPanels.length}`);
   
   navItems.forEach(item => {
-    console.log('Setting up click handler for nav item:', item.getAttribute('data-panel'));
+    const panelName = item.getAttribute('data-panel');
+    console.log(`Setting up click handler for nav item: ${panelName}`);
     
-    item.addEventListener('click', () => {
-      console.log('Nav item clicked:', item.getAttribute('data-panel'));
-      const targetPanel = item.getAttribute('data-panel');
+    item.addEventListener('click', async () => {
+      console.log(`Nav item clicked: ${panelName}`);
+      const targetPanel = panelName;
       
       // Update navigation highlighting
       navItems.forEach(navItem => navItem.classList.remove('active'));
@@ -161,7 +244,11 @@ function initNavigation() {
       // Show corresponding panel
       contentPanels.forEach(panel => {
         if (panel.id === `${targetPanel}-panel`) {
+          console.log(`Activating panel: ${panel.id}`);
           panel.classList.add('active');
+          // Debug capture button when capture panel is activated
+          if (targetPanel === 'capture') {
+            setTimeout(debugCaptureButton, 500);}
         } else {
           panel.classList.remove('active');
         }
@@ -169,15 +256,20 @@ function initNavigation() {
       
       // Initialize panel if needed
       if (targetPanel === 'overview') {
+        console.log('Initializing overview panel from navigation');
         initOverviewPanel();
       } else if (targetPanel === 'capture') {
+        console.log('Initializing capture panel from navigation');
         initCapturePanel();
       } else if (targetPanel === 'knowledge') {
+        console.log('Initializing knowledge panel from navigation');
         initKnowledgePanel();
         initKnowledgeGraph();
       } else if (targetPanel === 'assistant') {
+        console.log('Initializing assistant panel from navigation');
         initAssistantPanel();
       } else if (targetPanel === 'settings') {
+        console.log('Initializing settings panel from navigation');
         initSettingsPanel();
       }
     });
@@ -186,6 +278,7 @@ function initNavigation() {
 
 // Initialization function for capture panel
 async function initCapturePanel() {
+  logWithStack('initCapturePanel called');
   if (captureInitialized) {
     console.log('Capture panel already initialized, skipping');
     return;
@@ -194,14 +287,69 @@ async function initCapturePanel() {
   captureInitialized = true;
 
   // Set up tab loading
-  document.querySelector('[data-tab="tabs"]').addEventListener('click', loadOpenTabs);
-  document.querySelector('[data-tab="bookmarks"]').addEventListener('click', loadBookmarks);
-  document.querySelector('[data-tab="history"]').addEventListener('click', loadHistory);
+  const tabsTabBtn = document.querySelector('[data-tab="tabs"]');
+  const bookmarksTabBtn = document.querySelector('[data-tab="bookmarks"]');
+  const historyTabBtn = document.querySelector('[data-tab="history"]');
   
-  // Set up batch capture
-  document.getElementById('capture-selected').addEventListener('click', captureSelectedItems);
+  console.log(`Tab buttons found: tabs=${!!tabsTabBtn}, bookmarks=${!!bookmarksTabBtn}, history=${!!historyTabBtn}`);
   
-  // Load tabs by default (if active)
+  if (tabsTabBtn) {
+    console.log('Adding click handler to tabs tab button');
+    tabsTabBtn.addEventListener('click', () => {
+      console.log('Tabs tab button clicked');
+      loadOpenTabs();
+    });
+  }
+  
+  if (bookmarksTabBtn) {
+    console.log('Adding click handler to bookmarks tab button');
+    bookmarksTabBtn.addEventListener('click', () => {
+      console.log('Bookmarks tab button clicked');
+      loadBookmarks();
+    });
+  }
+  
+  if (historyTabBtn) {
+    console.log('Adding click handler to history tab button');
+    historyTabBtn.addEventListener('click', () => {
+      console.log('History tab button clicked');
+      loadHistory();
+    });
+  }
+  const captureBtn = document.getElementById('capture-selected');
+  if (captureBtn) {
+    console.log('Adding click handler to capture button');
+    
+    // Remove any existing event handlers
+    const newCaptureBtn = captureBtn.cloneNode(true);
+    captureBtn.parentNode.replaceChild(newCaptureBtn, captureBtn);
+    
+    // Add event listener with multiple approaches
+    newCaptureBtn.addEventListener('click', function(event) {
+      console.log('Capture button clicked!');
+      captureSelectedItems();
+    });
+    
+    // Also use onclick property as fallback
+    newCaptureBtn.onclick = function() {
+      console.log('Capture button onclick triggered!');
+      captureSelectedItems();
+    };
+  } else {
+    console.error('Capture button not found');
+  }
+  // Debug capture button after panel initialization
+  debugCaptureButton();
+  
+  try {
+    chrome.windows.getAll({ populate: true }, (windows) => {
+      updateWindowFilter(windows);
+      setupTabsFilter(windows.reduce((tabs, window) => [...tabs, ...window.tabs], []));
+    });
+  } catch (error) {
+    console.error('Error setting up tabs filter:', error);
+  }
+  
   const activeTab = document.querySelector('.tab-pane.active');
   if (activeTab) {
     const tabType = activeTab.id.split('-')[0];
@@ -213,10 +361,12 @@ async function initCapturePanel() {
       loadHistory();
     }
   } else {
-    // Default to tabs if nothing is active
-    document.querySelector('[data-tab="tabs"]').click();
+    if (tabsTabBtn) {
+      tabsTabBtn.click();
+    }
   }
 }
+
 
 function updateWindowFilter(windows) {
   console.log('Updating window filter with', windows.length, 'windows');
@@ -423,8 +573,8 @@ async function loadOverviewStats() {
       const response = await fetchAPI('/api/v1/stats');
       
       if (response.success) {
-        const stats = response.result;
-        capturedCountEl.textContent = stats.page_count || 0;
+        const stats = response.data || response.result || {};
+        capturedCountEl.textContent = stats.captures || 0;
         relationshipCountEl.textContent = stats.relationship_count || 0;
         queryCountEl.textContent = stats.query_count || 0;
         
@@ -564,12 +714,22 @@ function renderMiniGraph(nodes, edges, container) {
 
 // Load open tabs
 async function loadOpenTabs() {
+  logWithStack('loadOpenTabs called');
   const tabsList = document.getElementById('tabs-list');
+  if (!tabsList) {
+    console.error('tabs-list element not found');
+    return;
+  }
+
   tabsList.innerHTML = '<div class="loading-indicator">Loading tabs...</div>';
+  
   
   try {
     // Get all windows with tabs
+    console.log('Calling chrome.windows.getAll');
     chrome.windows.getAll({ populate: true }, (windows) => {
+      console.log(`Got ${windows.length} windows`);
+
       if (windows.length === 0) {
         tabsList.innerHTML = '<div class="empty-state">No open tabs found</div>';
         return;
@@ -636,6 +796,7 @@ async function loadOpenTabs() {
           });
         });
         
+        debugCaptureButton();
         // Toggle expand/collapse
         toggleButton.addEventListener('click', () => {
           tabsContainer.style.display = tabsContainer.style.display === 'none' ? 'block' : 'none';
@@ -645,7 +806,17 @@ async function loadOpenTabs() {
       
       // Add search functionality
       setupSearchAndFilter();
-    });
+
+      const captureButton = document.getElementById('capture-selected');
+      if (captureButton) {
+        console.log('Capture button after loading tabs:', true, 'disabled=' + captureButton.disabled, 'text=' + captureButton.textContent);
+        
+        // Ensure event handler is attached after tabs are loaded
+        captureButton.onclick = function() {
+          console.log('Capture button clicked from tabs load handler!');
+          captureSelectedItems();
+        };
+    }});
   } catch (error) {
     console.error('Error loading tabs:', error);
     tabsList.innerHTML = `<div class="error-state">Error loading tabs: ${error.message}</div>`;
@@ -1344,36 +1515,74 @@ function filterHistory(allItems, searchTerm) {
 }
 
 async function captureSelectedItems() {
+  console.log('captureSelectedItems function called');
+  logWithStack('captureSelectedItems called');
+  
   // Get active tab panel
   const activeTabPane = document.querySelector('.capture-tab-content .tab-pane.active');
+  console.log(`Active tab pane: ${activeTabPane?.id || 'none'}`);
+  
   if (!activeTabPane) {
+    console.error('No capture tab is active');
     alert('No capture tab is active');
     return;
   }
+  
   const type = activeTabPane.id.split('-')[0]; // tabs, bookmarks, or history
+  console.log(`Capture type: ${type}`);
   
   // Get selected items
   const selectedCheckboxes = activeTabPane.querySelectorAll('.item-checkbox:checked');
+  console.log(`Selected checkboxes: ${selectedCheckboxes.length}`);
   
   if (selectedCheckboxes.length === 0) {
+    console.log('No items selected');
     alert('Please select at least one item to capture');
     return;
   }
   
-  // Gather selected items
+  // Gather selected items - ADD SAFETY CHECKS HERE
   const selectedItems = Array.from(selectedCheckboxes).map(checkbox => {
-    const item = checkbox.closest('.list-item');
+    const item = checkbox.closest('.list-item') || checkbox.closest('.tab-item');
+    
+    // Safety check - if we can't find the parent item, skip it
+    if (!item) {
+      console.error('Could not find parent item for checkbox', checkbox);
+      return null;
+    }
+    
+    const id = item.getAttribute('data-id');
+    const url = item.getAttribute('data-url');
+    const titleElement = item.querySelector('.item-title') || item.querySelector('.tab-title');
+    const title = titleElement ? titleElement.textContent : 'Untitled';
+    
+    console.log(`Selected item: id=${id}, url=${url}, title=${title}`);
+    
     return {
-      id: item.getAttribute('data-id'),
-      url: item.getAttribute('data-url'),
-      title: item.querySelector('.item-title')?.textContent || 'Untitled',
-      type: type,  // tabs, bookmarks, or history
+      id: id,
+      url: url,
+      title: title,
+      type: type,
       context: getContextForType(type)
     };
-  });
+  }).filter(item => item !== null); // Remove any null items
+  
+  // Check if we have any valid items after filtering
+  if (selectedItems.length === 0) {
+    console.error('No valid items found after processing');
+    alert('Error: Could not process selected items');
+    return;
+  }
   
   // Show capturing status
   const captureBtn = document.getElementById('capture-selected');
+  console.log(`Capture button before capture: ${!!captureBtn}, disabled=${captureBtn?.disabled}, text=${captureBtn?.textContent}`);
+  
+  if (!captureBtn) {
+    console.error('capture-selected button not found!');
+    return;
+  }
+  
   const originalText = captureBtn.textContent;
   captureBtn.textContent = `Capturing ${selectedItems.length} items...`;
   captureBtn.disabled = true;
@@ -2304,7 +2513,9 @@ function setupSettingsForms() {
           settings: { apiConfig: { baseUrl: apiUrl } }
         });
         
-        alert('API settings saved successfully');
+        showSaveConfirmation(apiConfigForm);
+        
+        console.log('API settings saved successfully');
       } catch (error) {
         console.error('Error saving API settings:', error);
         alert('Error saving API settings: ' + error.message);
@@ -2350,6 +2561,8 @@ function setupSettingsForms() {
           action: 'updateSettings',
           settings: { captureSettings }
         });
+
+        showSaveConfirmation(captureSettingsForm);
         
         alert('Capture settings saved successfully');
       } catch (error) {

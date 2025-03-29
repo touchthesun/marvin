@@ -211,7 +211,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // Open dashboard button
-  if (dashboardBtn) {
+  if (dashboardBtn && !dashboardBtn.hasClickListener) {
+    dashboardBtn.hasClickListener = true;
     dashboardBtn.addEventListener('click', () => {
       console.log('Dashboard button clicked');
       chrome.tabs.create({ url: 'dashboard/dashboard.html' });
