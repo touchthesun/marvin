@@ -66,6 +66,7 @@ class RealBrowserExtensionScenario(TestScenario):
             "agent_interaction": [],
             "batch_capture": {},
             "stats_view": {},
+            "analysis_pipeline": [],
             "diagnostics": {
                 "knowledge_graph": {},
                 "batch_capture": {}
@@ -153,6 +154,15 @@ class RealBrowserExtensionScenario(TestScenario):
         with self.timed_operation("batch_capture_diagnostics"):
             batch_diagnostics = await self._diagnose_batch_capture_issues()
             results["diagnostics"]["batch_capture"] = batch_diagnostics
+
+        # 10. Analysis pipeline tests
+        test_urls = self.test_data.get("test_urls", ["https://example.com"])
+        self.logger.info("Testing analysis pipeline")
+        with self.timed_operation("analysis_pipeline_test"):
+            for url in test_urls[:1]:  # Test with one URL for now
+                self.logger.info(f"Testing analysis pipeline for: {url}")
+                pipeline_result = await self._test_analysis_pipeline(url)
+                results["analysis_pipeline"].append(pipeline_result)
         
         return results
 
@@ -404,6 +414,62 @@ class RealBrowserExtensionScenario(TestScenario):
             stats_view.get("stats_visible", False),
             "Statistics should be visible on dashboard"
         ))
+
+
+        # Validate analysis pipeline
+        for pipeline in results.get("analysis_pipeline", []):
+            url = pipeline.get("url", "unknown")
+            
+            assertions.append(self.create_assertion(
+                f"analysis_pipeline_capture_{self._normalize_url(url)}",
+                pipeline.get("capture_success", False),
+                f"Page capture for analysis pipeline should succeed for {url}"
+            ))
+            
+            # Only validate pipeline details if capture succeeded
+            if pipeline.get("capture_success", False):
+                pipeline_results = pipeline.get("pipeline_results", {})
+                
+                assertions.append(self.create_assertion(
+                    f"analysis_queue_visible_{self._normalize_url(url)}",
+                    pipeline_results.get("queue_exists", False),
+                    f"Analysis queue should be visible for {url}"
+                ))
+                
+                if pipeline_results.get("analysis_tab_exists", False):
+                    assertions.append(self.create_assertion(
+                        f"analysis_tab_visible_{self._normalize_url(url)}",
+                        pipeline_results.get("analysis_tab_visible", False),
+                        f"Analysis tab should be visible for {url}"
+                    ))
+                    
+                    assertions.append(self.create_assertion(
+                        f"analysis_completed_{self._normalize_url(url)}",
+                        pipeline_results.get("analysis_completed", False),
+                        f"Analysis should complete for {url}"
+                    ))
+                    
+                    # Check for enriched data if analysis completed
+                    if pipeline_results.get("analysis_completed", False):
+                        enriched_data = pipeline.get("enriched_data", {})
+                        
+                        assertions.append(self.create_assertion(
+                            f"has_knowledge_item_{self._normalize_url(url)}",
+                            enriched_data.get("has_knowledge_item", False),
+                            f"Knowledge item should exist for {url} after analysis"
+                        ))
+                        
+                        assertions.append(self.create_assertion(
+                            f"has_keywords_{self._normalize_url(url)}",
+                            enriched_data.get("has_keywords", False),
+                            f"Knowledge item should have keywords for {url} after analysis"
+                        ))
+                        
+                        assertions.append(self.create_assertion(
+                            f"has_relationships_{self._normalize_url(url)}",
+                            enriched_data.get("has_relationships", False),
+                            f"Knowledge item should have relationships for {url} after analysis"
+                        ))
         
         return assertions
     
@@ -1723,4 +1789,208 @@ class RealBrowserExtensionScenario(TestScenario):
             return {
                 "error": str(e),
                 "diagnostics_completed": diagnostics
+            }
+        
+    async def _test_analysis_pipeline(self, url):
+        """Test the analysis pipeline for a captured URL."""
+        self.logger.info(f"Testing analysis pipeline for {url}")
+        
+        try:
+            # First capture the page
+            capture_result = await self._test_page_capture(url)
+            
+            if not capture_result.get("ui_success") and not capture_result.get("api_success"):
+                self.logger.warning(f"Page wasn't captured successfully, analysis test may fail")
+                return {
+                    "url": url,
+                    "capture_success": False,
+                    "error": "Failed to capture page"
+                }
+            
+            # Wait for analysis queue to update
+            await asyncio.sleep(3)
+            
+            # Check for queue in popup
+            self.logger.info("Verifying analysis queue in popup")
+            if 'popup' not in self.browser_service.pages:
+                await self.browser_service.open_extension_popup()
+                
+            # Take screenshot of popup with queue
+            queue_screenshot = os.path.join(self.screenshot_dir, f"{self.test_run_id}_analysis_queue_{self._normalize_url(url)}.png")
+            await self.browser_service.capture_screenshot('popup', queue_screenshot)
+            
+            # Check if queue exists and contains our URL
+            queue_exists = await self.browser_service.is_element_visible('popup', '#analysis-queue')
+            queue_has_items = False
+            item_in_queue = False
+            
+            if queue_exists:
+                # Check if queue has any items
+                queue_has_items = await self.browser_service.is_element_visible('popup', '.queue-item')
+                
+                # Check if our URL is in the queue
+                item_in_queue = await self.browser_service.evaluate_js(
+                    'popup',
+                    f'''() => {{
+                        const queueItems = document.querySelectorAll('#analysis-queue .queue-item');
+                        return Array.from(queueItems).some(item => {{
+                            const content = item.textContent || '';
+                            return content.includes("{url.split('/')[2]}"); // Check for domain
+                        }});
+                    }}'''
+                )
+            
+            self.logger.info(f"Analysis queue check: exists={queue_exists}, has_items={queue_has_items}, item_in_queue={item_in_queue}")
+            
+            # Now check dashboard for more details
+            self.logger.info("Checking analysis status in dashboard")
+            await self.browser_service.open_extension_dashboard()
+            
+            # Navigate to knowledge panel and analysis tab
+            await self.browser_service.click_extension_element('dashboard', '[data-panel="knowledge"]')
+            await asyncio.sleep(1)
+            
+            # Find and click the analysis tab
+            analysis_tab_exists = await self.browser_service.is_element_visible('dashboard', '[data-knowledge-tab="analysis"]')
+            
+            if analysis_tab_exists:
+                await self.browser_service.click_extension_element('dashboard', '[data-knowledge-tab="analysis"]')
+                await asyncio.sleep(1)
+                
+                # Take screenshot of analysis tab
+                analysis_tab_screenshot = os.path.join(self.screenshot_dir, f"{self.test_run_id}_analysis_tab_{self._normalize_url(url)}.png")
+                await self.browser_service.capture_screenshot('dashboard', analysis_tab_screenshot)
+                
+                # Check for active analyses
+                analysis_tab_visible = await self.browser_service.is_element_visible('dashboard', '#analysis-tab-content.active')
+                has_active_analyses = await self.browser_service.is_element_visible('dashboard', '#active-analyses .analysis-item')
+                
+                # Wait up to 30 seconds for analysis to complete
+                analysis_completed = False
+                start_time = time.time()
+                max_wait = 30
+                
+                while time.time() - start_time < max_wait:
+                    # Refresh analysis status
+                    refresh_btn = await self.browser_service.is_element_visible('dashboard', '#refresh-analyses')
+                    if refresh_btn:
+                        await self.browser_service.click_extension_element('dashboard', '#refresh-analyses')
+                    
+                    # Check for completed analyses
+                    has_completed = await self.browser_service.is_element_visible('dashboard', '#completed-analyses .analysis-item')
+                    
+                    # Check if our URL is in completed analyses
+                    url_in_completed = False
+                    if has_completed:
+                        url_in_completed = await self.browser_service.evaluate_js(
+                            'dashboard',
+                            f'''() => {{
+                                const items = document.querySelectorAll('#completed-analyses .analysis-item');
+                                return Array.from(items).some(item => {{
+                                    const urlEl = item.querySelector('.analysis-url');
+                                    return urlEl && urlEl.textContent.includes("{url}");
+                                }});
+                            }}'''
+                        )
+                    
+                    if url_in_completed:
+                        analysis_completed = True
+                        break
+                        
+                    # Short wait before checking again
+                    await asyncio.sleep(2)
+                
+                # Take final screenshot after waiting
+                completed_screenshot = os.path.join(self.screenshot_dir, f"{self.test_run_id}_analysis_completed_{self._normalize_url(url)}.png")
+                await self.browser_service.capture_screenshot('dashboard', completed_screenshot)
+                
+                # Now check if the page details show enriched data
+                self.logger.info("Checking for enriched page data in knowledge panel")
+                
+                # Go back to knowledge panel main tab
+                await self.browser_service.click_extension_element('dashboard', '[data-knowledge-tab="list"]')
+                await asyncio.sleep(1)
+                
+                # Search for the URL
+                await self.browser_service.fill_form_field('dashboard', '#knowledge-search', url)
+                await self.browser_service.click_extension_element('dashboard', '#search-btn')
+                
+                # Wait for results
+                await asyncio.sleep(3)
+                
+                # Take screenshot of search results
+                results_screenshot = os.path.join(self.screenshot_dir, f"{self.test_run_id}_knowledge_results_{self._normalize_url(url)}.png")
+                await self.browser_service.capture_screenshot('dashboard', results_screenshot)
+                
+                # Check for knowledge item and view details
+                has_knowledge_item = await self.browser_service.is_element_visible('dashboard', '.knowledge-item')
+                details_visible = False
+                has_keywords = False
+                has_relationships = False
+                
+                if has_knowledge_item:
+                    # Click to view details
+                    await self.browser_service.click_extension_element('dashboard', '.knowledge-item .btn-action')
+                    await asyncio.sleep(1)
+                    
+                    # Check if details sidebar is visible
+                    details_visible = await self.browser_service.is_element_visible('dashboard', '#details-sidebar.active')
+                    
+                    if details_visible:
+                        # Check for enriched data elements
+                        has_keywords = await self.browser_service.is_element_visible('dashboard', '.keyword-cloud')
+                        has_relationships = await self.browser_service.is_element_visible('dashboard', '.relationship-list')
+                        
+                        # Take screenshot of details
+                        details_screenshot = os.path.join(self.screenshot_dir, f"{self.test_run_id}_details_enriched_{self._normalize_url(url)}.png")
+                        await self.browser_service.capture_screenshot('dashboard', details_screenshot)
+                
+                return {
+                    "url": url,
+                    "capture_success": True,
+                    "pipeline_results": {
+                        "queue_exists": queue_exists,
+                        "queue_has_items": queue_has_items,
+                        "item_in_queue": item_in_queue,
+                        "analysis_tab_exists": analysis_tab_exists,
+                        "analysis_tab_visible": analysis_tab_visible,
+                        "has_active_analyses": has_active_analyses,
+                        "analysis_completed": analysis_completed
+                    },
+                    "enriched_data": {
+                        "has_knowledge_item": has_knowledge_item,
+                        "details_visible": details_visible,
+                        "has_keywords": has_keywords,
+                        "has_relationships": has_relationships
+                    },
+                    "screenshots": {
+                        "queue": queue_screenshot,
+                        "analysis_tab": analysis_tab_screenshot,
+                        "completed": completed_screenshot,
+                        "results": results_screenshot,
+                        "details": details_screenshot if details_visible else None
+                    }
+                }
+            
+            # If analysis tab doesn't exist, return limited results
+            return {
+                "url": url,
+                "capture_success": True,
+                "pipeline_results": {
+                    "queue_exists": queue_exists,
+                    "queue_has_items": queue_has_items,
+                    "item_in_queue": item_in_queue,
+                    "analysis_tab_exists": False
+                },
+                "screenshots": {
+                    "queue": queue_screenshot
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error testing analysis pipeline: {str(e)}")
+            return {
+                "url": url,
+                "error": str(e),
+                "capture_success": False
             }
