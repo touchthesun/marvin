@@ -199,7 +199,7 @@ async def get_relevant_content(query: str, relevant_urls: List[str], app_state):
         # Try to use graph service if available
         if hasattr(app_state, "graph_service"):
             try:
-                results = await app_state.graph_service.search_pages(query, limit=3)
+                results = await app_state.graph_service.query_pages(query, limit=3)
                 for page in results:
                     content.append({
                         "url": page.get("url"),

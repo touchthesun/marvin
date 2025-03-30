@@ -1,5 +1,6 @@
 import traceback
 import json
+import os
 from typing import Union
 
 from core.utils.logger import get_logger
@@ -72,13 +73,20 @@ class TestHarnessController:
             self.components = {
                 "neo4j": environment.get("neo4j"),
                 "api": environment.get("api"),
-                "browser": environment.get("browser_simulator"),
+                "browser": environment.get("browser"),
                 "llm": environment.get("llm_mock")
             }
             
             self.logger.debug("Initialized components:")
             for name, component in self.components.items():
                 self.logger.debug(f"- {name}: {component.__class__.__name__}")
+            
+            # Log what services are available
+            for name, component in self.components.items():
+                if component:
+                    self.logger.debug(f"Component '{name}' initialized: {type(component).__name__}")
+                else:
+                    self.logger.warning(f"Component '{name}' is None!")
             
             self.logger.info("Test harness initialized successfully")
             return self
@@ -295,26 +303,34 @@ class TestHarnessController:
     def _load_scenario_data(self, scenario_name):
         """Load test data for a scenario."""
         try:
-            
-            # Construct the path to the scenario data file
+            # Try both the main fixtures directory and the test subdirectory
             fixtures_dir = self.config.get("fixtures", {}).get("dir", "fixtures")
-            data_file_path = f"{fixtures_dir}/{scenario_name}.json"
+            test_dir = self.config.get("fixtures", {}).get("test_dir", os.path.join(fixtures_dir, "test"))
             
-            self.logger.debug(f"Looking for scenario data at: {data_file_path}")
+            # Try paths in order of preference
+            possible_paths = [
+                f"{test_dir}/{scenario_name}.json",  # First try test subdirectory
+                f"{fixtures_dir}/test/{scenario_name}.json",  # Then try explicit test subdirectory
+                f"{fixtures_dir}/{scenario_name}.json"  # Finally try main fixtures directory
+            ]
             
-            try:
-                # Use our path resolution utility
-                resolved_path = resolve_path(data_file_path)
-                self.logger.debug(f"Resolved scenario data path: {resolved_path}")
-                
-                with open(resolved_path, 'r') as f:
-                    data = json.load(f)
-                    self.logger.debug(f"Loaded scenario data from {resolved_path}")
-                    return data
-            except FileNotFoundError:
-                self.logger.warning(f"Scenario data file not found: {data_file_path}")
-                return {}
+            for data_file_path in possible_paths:
+                self.logger.debug(f"Looking for scenario data at: {data_file_path}")
+                try:
+                    resolved_path = resolve_path(data_file_path)
+                    if resolved_path:
+                        self.logger.debug(f"Resolved scenario data path: {resolved_path}")
+                        with open(resolved_path, 'r') as f:
+                            data = json.load(f)
+                            self.logger.debug(f"Loaded scenario data from {resolved_path}")
+                            return data
+                except FileNotFoundError:
+                    continue
+            
+            self.logger.warning(f"Scenario data file not found in any of the searched locations")
+            return {}
         except Exception as e:
             self.logger.error(f"Error loading scenario data: {str(e)}")
             self.logger.error(traceback.format_exc())
             return {}
+        

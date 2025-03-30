@@ -50,7 +50,7 @@ class TestConfig(BaseConfig):
     
     # Browser test settings
     browser: Dict[str, Any] = field(default_factory=lambda: {
-        "browser_state": "fixtures/browser_state.json"
+        "browser_state": "fixtures/test/browser_state.json"
     })
     
     # Test fixtures

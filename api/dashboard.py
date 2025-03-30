@@ -34,7 +34,7 @@ class APIClient:
         return self._handle_response(
             self.session.post(
                 f"{self.base_url}/api/v1/analysis/analyze",
-                json={"url": url, "context": "ACTIVE_TAB"}
+                json={"url": url, "context": "active_tab"}
             )
         )
     

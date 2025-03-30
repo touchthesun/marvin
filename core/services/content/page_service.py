@@ -1,3 +1,7 @@
+import time
+from uuid import UUID
+
+from core.domain.content.types import PageRelationship
 from typing import Dict, Optional, Any, Set, List
 from core.domain.content.models.page import Page, BrowserContext, PageStatus
 from core.utils.url import extract_domain
@@ -17,7 +21,7 @@ class PageService(BaseService):
     def __init__(self, graph_service: GraphService):
         super().__init__()
         self.graph_service = graph_service
-        self._url_to_page = {}  # Local cache
+        self._url_to_page = {}
         self.logger = get_logger(__name__)
 
     async def initialize(self) -> None:
@@ -75,21 +79,48 @@ class PageService(BaseService):
         """Create a Page instance from a Neo4j Node.
         
         Args:
-            node: Neo4j Node object
+            node: Neo4j Node or dictionary representation
             
         Returns:
             Page instance
+        
+        Raises:
+            ValueError: If node is missing required properties
         """
-        # Extract data from Neo4j Node
-        data = dict(node.properties)
-        if hasattr(node, 'id'):
-            data['id'] = str(node.id)
+        try:
+            start_time = time.time()
             
-        # Convert Neo4j types to Python types as needed
-        if 'discovered_at' in data and hasattr(data['discovered_at'], 'to_native'):
-            data['discovered_at'] = data['discovered_at'].to_native()
+            # Extract data from Neo4j Node
+            if hasattr(node, 'properties'):
+                # Neo4j Node object
+                data = dict(node.properties)
+                # Add ID if available
+                if hasattr(node, 'id'):
+                    data['id'] = str(node.id)
+            else:
+                # Dictionary representation
+                data = dict(node)
             
-        return Page.from_dict(data)
+            # Create Page using existing GraphService method
+            page = self.graph_service._reconstruct_page_from_node(data)
+            
+            # Log performance
+            duration = time.time() - start_time
+            self.logger.debug(
+                f"Created Page from node in {duration:.3f}s",
+                extra={
+                    "url": page.url,
+                    "properties_count": len(data),
+                    "has_keywords": bool(page.keywords)
+                }
+            )
+            
+            return page
+            
+        except Exception as e:
+            self.logger.error(f"Error creating Page from node: {str(e)}", exc_info=True)
+            # Re-raise with more context
+            raise ValueError(f"Failed to create Page from node: {str(e)}") from e
 
     async def get_or_create_page(
         self,
@@ -199,58 +230,258 @@ class PageService(BaseService):
     async def query_pages(
         self,
         tx: Transaction,
+        query: Optional[str] = None,
         context: Optional[str] = None,
         status: Optional[str] = None,
-        domain: Optional[str] = None
+        domain: Optional[str] = None,
+        url: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        include_relationships: bool = False,
+        sort_by: Optional[str] = None
     ) -> List[Page]:
-        """Query pages based on filters."""
+        """
+        Query pages with flexible filtering options.
+        
+        Args:
+            tx: Transaction for database operations
+            query: Text search across url, title, and keywords
+            context: Browser context filter
+            status: Page status filter
+            domain: Domain filter
+            url: Specific URL filter
+            limit: Maximum number of results
+            offset: Result offset for pagination
+            include_relationships: Whether to include relationships
+            sort_by: Field to sort by
+            
+        Returns:
+            List of Page objects matching the query
+        """
+        start_time = time.time()
+        
         try:
-            self.logger.info("Starting page query...")
-            results = await self.graph_service.execute_in_transaction(
-                tx, "query_pages",
-                status=status.value if status else None,
-                domain=domain
+            # Build Cypher query parameters
+            params = {}
+            
+            # Start building Cypher query
+            cypher_query = "MATCH (p:Page) "
+            where_clauses = []
+            
+            # Add specific URL filter if provided
+            if url:
+                where_clauses.append("p.url = $url")
+                params["url"] = url
+            
+            # Add text search condition with simpler approach
+            if query:
+                # Search only URL and title for now (we'll fix keywords later)
+                search_clauses = [
+                    "toLower(p.url) CONTAINS toLower($query)",
+                    "toLower(p.title) CONTAINS toLower($query)"
+                ]
+                
+                # Skip the complex keywords search for now
+                where_clauses.append("(" + " OR ".join(search_clauses) + ")")
+                params["query"] = query
+            
+            # Add status filter
+            if status:
+                where_clauses.append("p.status = $status")
+                params["status"] = status
+            
+            # Add domain filter
+            if domain:
+                where_clauses.append("p.domain = $domain")
+                params["domain"] = domain
+            
+            # Add context filter
+            if context:
+                where_clauses.append("$context IN p.browser_contexts")
+                params["context"] = context
+            
+            # Combine WHERE clauses if any
+            if where_clauses:
+                cypher_query += "WHERE " + " AND ".join(where_clauses) + " "
+            
+            # First RETURN, then ORDER BY, then SKIP and LIMIT (correct Cypher order)
+            cypher_query += "RETURN p "
+            
+            # Add sorting
+            if sort_by:
+                # Sanitize sort field to prevent injection
+                valid_sort_fields = ["url", "title", "status", "domain", "discovered_at"]
+                sort_field = sort_by if sort_by in valid_sort_fields else "discovered_at"
+                cypher_query += f"ORDER BY p.{sort_field} "
+            else:
+                # Default sort by latest discovered
+                cypher_query += "ORDER BY p.discovered_at DESC "
+            
+            # Add pagination
+            cypher_query += "SKIP $offset LIMIT $limit"
+            params["offset"] = offset
+            params["limit"] = limit
+            
+            # Add debug logging for the query
+            self.logger.debug(
+                f"Executing Cypher query: {cypher_query}",
+                extra={"params": params}
             )
             
-            self.logger.debug(f"Raw query results: {results}")
+            # Pass the query through to the graph_service
+            result = await self.graph_service.graph_operations.connection.execute_query(
+                cypher_query,
+                parameters=params,
+                transaction=tx._neo4j_tx
+            )
             
+            # Convert to Page objects
             pages = []
-            url_cache_updates = {}  # Track updates to apply or rollback
-            
-            for result in results:
-                self.logger.debug(f"Processing result: {result}")
-                # Convert Node to dict if needed
-                if hasattr(result, 'properties'):
-                    self.logger.debug("Converting Node to dict")
-                    node_data = dict(result.properties)
-                    if hasattr(result, 'id'):
-                        node_data['id'] = str(result.id)
-                else:
-                    node_data = result
-                    
-                self.logger.debug(f"Node data: {node_data}")
-                    
-                # Create Page object
-                page = Page.from_dict(node_data)
-                self.logger.debug(f"Created page object: {page}")
+            for record in result:
+                page_node = record["p"]
+                page = self._create_page_from_node(page_node)
                 
-                # Filter by context if specified
-                if context and context not in {c.value for c in page.browser_contexts}:
-                    self.logger.debug(f"Filtering out page {page.url} due to context")
-                    continue
+                # Manual filtering for keywords if query parameter is provided
+                # This is a workaround for the complex Cypher keyword search
+                if query and page.keywords:
+                    # Only include page if no query, or if a keyword matches
+                    query_lower = query.lower()
+                    keyword_match = False
                     
+                    # Check if any keyword contains the query string
+                    for keyword in page.keywords.keys():
+                        if query_lower in keyword.lower():
+                            keyword_match = True
+                            break
+                    
+                    # If querying by keyword and no match, skip this page
+                    if not keyword_match and not (
+                        query_lower in page.url.lower() or 
+                        (page.title and query_lower in page.title.lower())
+                    ):
+                        continue
+                
+                # Get relationships if requested
+                if include_relationships:
+                    relationships = await self._get_page_relationships(tx, page.id)
+                    page.relationships = relationships
+                
                 pages.append(page)
-                url_cache_updates[page.url] = page
             
-            # Update cache and add rollback handler
-            self.logger.debug(f"Found {len(pages)} pages total")
-            self._url_to_page.update(url_cache_updates)
-            tx.add_rollback_handler(
-                lambda: self._url_to_page.update({url: None for url in url_cache_updates})
+            # Log performance
+            duration = time.time() - start_time
+            self.logger.info(
+                f"Query pages completed in {duration:.3f}s",
+                extra={
+                    "result_count": len(pages),
+                    "query_params": {
+                        "query": query,
+                        "context": context,
+                        "status": status,
+                        "domain": domain,
+                        "url": url
+                    },
+                    "duration": duration
+                }
             )
-                    
+            
             return pages
-                
+            
         except Exception as e:
-            self.logger.error(f"Error querying pages: {str(e)}")
+            self.logger.error(f"Error in query_pages: {str(e)}", exc_info=True)
             raise
+    
+
+    async def _get_page_relationships(self, tx: Transaction, page_id: UUID) -> List[PageRelationship]:
+        """
+        Get all relationships for a page.
+        
+        Args:
+            tx: Transaction for database operations
+            page_id: UUID of the page
+            
+        Returns:
+            List of PageRelationship objects
+        """
+        start_time = time.time()
+        relationship_count = 0
+        
+        try:
+            # Query to get outgoing relationships
+            query = """
+            MATCH (p:Page {id: $page_id})-[r]->(target:Page)
+            RETURN 
+                type(r) AS type,
+                target.id AS target_id,
+                r.strength AS strength,
+                properties(r) AS properties
+            """
+            
+            params = {"page_id": str(page_id)}
+            
+            # Execute query using graph operations dependency
+            result = await self.graph_operations.connection.execute_query(
+                query,
+                parameters=params,
+                transaction=tx._neo4j_tx
+            )
+            
+            # Convert to PageRelationship objects
+            relationships = []
+            for record in result:
+                # Extract relationship properties
+                rel_type = record["type"]
+                target_id_str = record["target_id"]
+                properties = record["properties"] if record["properties"] else {}
+                
+                try:
+                    # Convert target_id to UUID
+                    target_id = UUID(target_id_str)
+                    
+                    # Get relationship strength
+                    strength = float(record.get("strength", properties.get("strength", 0.5)))
+                    
+                    # Create relationship object
+                    relationship = PageRelationship(
+                        type=rel_type,
+                        target_id=target_id,
+                        strength=strength,
+                        metadata={
+                            k: v for k, v in properties.items() 
+                            if k not in ("strength",)
+                        }
+                    )
+                    
+                    relationships.append(relationship)
+                    relationship_count += 1
+                    
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(
+                        f"Skipping invalid relationship: {str(e)}",
+                        extra={
+                            "page_id": str(page_id),
+                            "target_id": target_id_str,
+                            "type": rel_type
+                        }
+                    )
+            
+            # Log performance
+            duration = time.time() - start_time
+            self.logger.debug(
+                f"Retrieved {relationship_count} relationships in {duration:.3f}s",
+                extra={
+                    "page_id": str(page_id),
+                    "relationship_count": relationship_count,
+                    "duration": duration
+                }
+            )
+            
+            return relationships
+            
+        except Exception as e:
+            self.logger.error(
+                f"Error retrieving relationships for page {page_id}: {str(e)}",
+                exc_info=True
+            )
+            # Return empty list on error rather than failing
+            return []

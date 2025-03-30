@@ -21,10 +21,12 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 - [Setup Guide](development/setup.md)
 - [Coding Conventions](development/conventions.md)
 - [Librariess & Dependencies](development/dependencies.md)
+- [Browser Extension](development/extension.md)
 - [LLM Provider System](development/llm-provider.md)
 - [Auth Provider System](development/auth-provider.md)
 - [Testing Strategy](development/testing.md)
 - [Testing Harness](development/test-harness-docs.md)
+- [Browser Extension Testing](development/browser_extension.md)
 - [Security Guidelines](development/security.md)
 - [Neo4J Implementation Guide](development/neo4j-integration.md)
 

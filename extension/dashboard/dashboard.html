@@ -1,0 +1,384 @@
+<!-- dashboard/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin Research Assistant</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Left sidebar for navigation -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <img src="../icons/icon48.png" alt="Marvin" class="logo">
+        <h1>Marvin</h1>
+      </div>
+      
+      <ul class="nav-links">
+        <li class="nav-item active" data-panel="overview">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Overview</span>
+        </li>
+        <li class="nav-item" data-panel="capture">
+          <span class="nav-icon">📥</span>
+          <span class="nav-label">Capture</span>
+        </li>
+        <li class="nav-item" data-panel="knowledge">
+          <span class="nav-icon">🧠</span>
+          <span class="nav-label">Knowledge</span>
+        </li>
+        <li class="nav-item" data-panel="assistant">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Assistant</span>
+        </li>
+        <li class="nav-item" data-panel="settings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Settings</span>
+        </li>
+      </ul>
+      
+      <div class="sidebar-footer">
+        <div class="status-indicator">
+          <span class="status-dot online"></span>
+          <span class="status-text">Online</span>
+        </div>
+        <div class="user-info">
+          <span class="username">Test User</span>
+          <button id="logout-btn" class="btn-text">Logout</button>
+        </div>
+      </div>
+    </nav>
+    
+    <!-- Main content area -->
+    <main class="main-content">
+      <!-- Overview Panel -->
+      <section id="overview-panel" class="content-panel active">
+        <header class="panel-header">
+          <h2>Overview</h2>
+          <div class="panel-actions">
+            <button id="force-init-overview" class="btn-secondary">Reload Overview</button>
+            <button class="refresh-btn">Refresh</button>
+          </div>
+        </header>
+        
+        <div class="dashboard-stats">
+          <div class="stat-card">
+            <h3>Captured Pages</h3>
+            <p class="stat-value" id="captured-count">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Knowledge Relationships</h3>
+            <p class="stat-value" id="relationship-count">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Research Queries</h3>
+            <p class="stat-value" id="query-count">0</p>
+          </div>
+        </div>
+        
+        <div class="dashboard-widgets">
+          <div class="widget recent-captures">
+            <h3>Recent Captures</h3>
+            <div class="widget-content">
+              <ul class="capture-list" id="recent-captures-list">
+                <!-- Will be populated dynamically -->
+                <li class="empty-state">No recent captures</li>
+              </ul>
+            </div>
+            <div class="widget-footer">
+              <button class="btn-secondary" id="view-all-captures">View All</button>
+            </div>
+          </div>
+          
+          <div class="widget knowledge-preview">
+            <h3>Knowledge Graph</h3>
+            <div class="widget-content">
+              <div class="graph-placeholder">
+                <p>Knowledge graph visualization will appear here</p>
+              </div>
+            </div>
+            <div class="widget-footer">
+              <button class="btn-secondary" id="explore-knowledge">Explore</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Capture Panel -->
+      <section id="capture-panel" class="content-panel">
+        <header class="panel-header">
+          <h2>Capture</h2>
+          <div class="panel-actions">
+            <button id="force-init-capture" class="btn-secondary">Reload Capture Data</button>
+            <button class="btn-primary" id="capture-selected">Capture Selected</button>
+          </div>
+        </header>
+        
+        <div class="capture-tabs">
+          <button class="tab-btn active" data-tab="tabs">Open Tabs</button>
+          <button class="tab-btn" data-tab="bookmarks">Bookmarks</button>
+          <button class="tab-btn" data-tab="history">History</button>
+        </div>
+        
+        <div class="capture-tab-content">
+          <!-- Tabs Tab -->
+          <div id="tabs-content" class="tab-pane active">
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="tabs-search" class="search-input" placeholder="Search tabs...">
+              </div>
+              <div class="filter-container">
+                <select id="tabs-window-filter" class="filter-select">
+                  <option value="all">All Windows</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-tabs" class="btn-text">Select All</button>
+                <button id="deselect-all-tabs" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="tabs-list">
+              <!-- Will be populated dynamically -->
+              <div class="loading-indicator">Loading tabs...</div>
+            </div>
+          </div>
+          
+          <!-- Bookmarks Tab -->
+          <div id="bookmarks-content" class="tab-pane">
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="bookmarks-search" class="search-input" placeholder="Search bookmarks...">
+              </div>
+              <div class="filter-container">
+                <select id="bookmarks-folder-filter" class="filter-select">
+                  <option value="all">All Folders</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-bookmarks" class="btn-text">Select All</button>
+                <button id="deselect-all-bookmarks" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="bookmarks-list">
+              <!-- Will be populated dynamically -->
+              <div class="loading-indicator">Loading bookmarks...</div>
+            </div>
+          </div>
+          
+          <!-- History Tab -->
+          <div id="history-content" class="tab-pane">
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="history-search" class="search-input" placeholder="Search history...">
+              </div>
+              <div class="filter-container">
+                <select id="history-time-filter" class="filter-select">
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                  <option value="week">Last 7 days</option>
+                  <option value="month">Last 30 days</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-history" class="btn-text">Select All</button>
+                <button id="deselect-all-history" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="history-list">
+              <!-- Will be populated dynamically -->
+              <div class="loading-indicator">Loading history...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Knowledge Panel -->
+      <section id="knowledge-panel" class="content-panel">
+        <header class="panel-header">
+          <h2>Knowledge</h2>
+          <div class="panel-actions">
+            <div class="search-container">
+              <button id="force-init-knowledge" class="btn-secondary">Reload Knowledge Data</button>
+              <input type="text" id="knowledge-search" class="search-input" placeholder="Search knowledge...">
+              <button id="search-btn" class="btn-icon">🔍</button>
+            </div>
+          </div>
+        </header>
+        
+        <div class="knowledge-view">
+          <div class="knowledge-filters">
+            <div class="filter-group">
+              <h3>Sources</h3>
+              <label class="checkbox-label">
+                <input type="checkbox" checked> Pages
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" checked> Bookmarks
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" checked> History
+              </label>
+            </div>
+            
+            <div class="filter-group">
+              <h3>Date Range</h3>
+              <input type="date" id="date-from">
+              <input type="date" id="date-to">
+            </div>
+          </div>
+          
+          <div class="knowledge-content">
+            <div class="knowledge-split-view">
+              <div class="knowledge-list-panel">
+                <div class="list-controls">
+                  <div class="search-container">
+                    <input type="text" id="pages-search" class="search-input" placeholder="Filter pages...">
+                  </div>
+                  <div class="sort-controls">
+                    <select id="sort-options">
+                      <option value="date-desc">Date (Newest)</option>
+                      <option value="date-asc">Date (Oldest)</option>
+                      <option value="domain">Domain</option>
+                      <option value="title">Title</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="knowledge-list">
+                  <!-- Pages will be populated here -->
+                </div>
+              </div>
+              
+              <div class="splitter" id="knowledge-splitter"></div>
+              
+              <div class="knowledge-graph-panel">
+                <div class="graph-container">
+                  <!-- Graph will be rendered here -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Assistant Panel -->
+      <section id="assistant-panel" class="content-panel">
+        <header class="panel-header">
+          <h2>Research Assistant</h2>
+          <div class="panel-actions">
+            <button id="force-init-assistant" class="btn-secondary">Reload Assistant</button>
+          </div>
+        </header>
+        
+        <div class="chat-container">
+          <div class="chat-messages" id="chat-messages">
+            <div class="message system">
+              <div class="message-content">
+                <p>Hello! I'm Marvin, your research assistant. How can I help you today?</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="chat-input-container">
+            <div class="context-selector">
+              <button class="context-btn" id="context-selector-btn">+ Add Context</button>
+              <div class="context-dropdown" id="context-dropdown">
+                <div class="context-options">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="context-current-tab"> Current Tab
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="context-active-tabs"> Active Tabs
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="context-recent-captures"> Recent Captures
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <textarea id="chat-input" placeholder="Ask me anything about your research..."></textarea>
+            
+            <button id="send-message" class="btn-send">Send</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Settings Panel -->
+      <section id="settings-panel" class="content-panel">
+        <header class="panel-header">
+          <h2>Settings</h2>
+          <div class="panel-actions">
+            <button id="force-init-settings" class="btn-secondary">Reload Settings</button>
+          </div>
+        </header>
+        
+        <div class="settings-container">
+          <div class="settings-group">
+            <h3>API Configuration</h3>
+            <form id="api-config-form" class="settings-form">
+              <div class="form-group">
+                <label for="api-url">API URL</label>
+                <input type="url" id="api-url" name="apiUrl" placeholder="http://localhost:8000">
+              </div>
+              <button type="submit" class="btn-primary">Save API Settings</button>
+            </form>
+          </div>
+          
+          <div class="settings-group">
+            <h3>Capture Settings</h3>
+            <form id="capture-settings-form" class="settings-form">
+              <div class="form-group checkbox">
+                <input type="checkbox" id="auto-capture" name="automaticCapture">
+                <label for="auto-capture">Enable automatic page capture</label>
+              </div>
+              
+              <div class="form-group">
+                <label for="min-time">Minimum time on page before capture (seconds)</label>
+                <input type="number" id="min-time" name="minTimeOnPage" min="1" max="300" value="10">
+              </div>
+              
+              <div class="form-group">
+                <label for="excluded-domains">Excluded Domains (one per line)</label>
+                <textarea id="excluded-domains" name="excludedDomains" rows="4" placeholder="example.com"></textarea>
+              </div>
+              
+              <div class="form-group">
+                <label for="included-domains">Only Include These Domains (one per line, leave empty for all)</label>
+                <textarea id="included-domains" name="includedDomains" rows="4" placeholder="research-site.com"></textarea>
+              </div>
+              
+              <button type="submit" class="btn-primary">Save Capture Settings</button>
+            </form>
+          </div>
+          
+          <div class="settings-group">
+            <h3>Advanced</h3>
+            <button id="clear-data-btn" class="btn-danger">Clear Local Data</button>
+            <p class="help-text">This will clear all locally stored capture history and settings. Your API authentication and server data will not be affected.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+    
+    <!-- Optional right sidebar for details -->
+    <aside class="details-sidebar" id="details-sidebar">
+      <div class="details-header">
+        <h3 class="details-title">Details</h3>
+        <button class="close-details-btn">×</button>
+      </div>
+      
+      <div class="details-content">
+        <!-- Will be populated dynamically based on selected item -->
+        <div class="empty-state">Select an item to view details</div>
+      </div>
+    </aside>
+  </div>
+  
+  <script src="dashboard.js" type="module"></script>
+</body>
+</html>

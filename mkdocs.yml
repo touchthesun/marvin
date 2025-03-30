@@ -32,6 +32,8 @@ nav:
   - Conventions: development/conventions.md
   - Testing: development/testing.md
   - Security: development/security.md
+  - Extension: development/extension.md
+  - Extension Testing: development/browser_extension.md
   - LLM Provider: development/llm-provider.md
   - Auth Provider: development/auth-provider.md
   - Testing Harness: development/test-harness-docs.md

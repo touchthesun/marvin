@@ -2,7 +2,6 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
-from neo4j.graph import Node
 
 from core.domain.content.types import PageMetadata
 from core.domain.content.models.page import Page
@@ -555,7 +554,6 @@ class GraphService(BaseService):
         except Exception as e:
             self.logger.error(f"Error querying pages: {str(e)}")
             raise ServiceError(
-                message="Failed to query pages",
                 details={"status": status, "domain": domain},
                 cause=e
             )

@@ -10,6 +10,7 @@ from api.routes.graph import router as graph_router
 from api.routes.auth import router as auth_router
 from api.routes.llm import router as llm_router
 from api.routes.agent import router as agent_router
+from api.routes.stats import router as stats_router
 from core.utils.logger import get_logger
 
 
@@ -89,6 +90,7 @@ def create_application() -> FastAPI:
     app.include_router(auth_router, prefix=prefix)
     app.include_router(llm_router, prefix=prefix)
     app.include_router(agent_router, prefix=prefix)
+    app.include_router(stats_router, prefix=prefix)
 
     @app.get("/health")
     async def health_check():

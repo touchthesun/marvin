@@ -41,6 +41,39 @@ async def run_tests(args: argparse.Namespace):
     if args.use_docker:
         logger.info("Using Docker for services (command line override)")
         config.use_docker = True
+
+    # Handle browser overrides
+
+    if args.use_real_browser:
+        logger.info("Using real browser (command line override)")
+        
+        # Initialize browser config if needed
+        if not hasattr(config, "browser") or config.browser is None:
+            config.browser = {}
+            
+        # Set use_real flag
+        config.browser["use_real"] = True
+        
+        # Apply other browser options
+        if args.browser_extension_path:
+            config.browser["extension_path"] = args.browser_extension_path
+            logger.info(f"Using extension path: {config.browser['extension_path']}")
+            
+        if args.browser_profile:
+            config.browser["user_data_dir"] = args.browser_profile
+            logger.info(f"Using browser profile: {config.browser['user_data_dir']}")
+            
+        if args.browser_headless:
+            config.browser["headless"] = True
+            logger.info("Running browser in headless mode")
+            
+        if args.browser_screenshot_dir:
+            config.browser["screenshot_dir"] = args.browser_screenshot_dir
+            logger.info(f"Saving screenshots to: {config.browser['screenshot_dir']}")
+            
+        if args.browser_enable_tracing:
+            config.browser["enable_tracing"] = True
+            logger.info("Browser tracing enabled")
     
     # Handle Neo4j integration overrides
     if args.use_real_neo4j:
@@ -309,6 +342,40 @@ def main(argv: Optional[List[str]] = None):
         help="Verify Neo4j connection before running tests"
     )
     
+    # Add browser-specific arguments
+    parser.add_argument(
+        "--use-real-browser",
+        action="store_true",
+        help="Use real browser for testing instead of simulator"
+    )
+
+    parser.add_argument(
+        "--browser-extension-path",
+        help="Path to browser extension directory"
+    )
+
+    parser.add_argument(
+        "--browser-profile",
+        help="Path to browser user profile directory"
+    )
+
+    parser.add_argument(
+        "--browser-headless",
+        action="store_true",
+        help="Run browser in headless mode (some extension features may be limited)"
+    )
+
+    parser.add_argument(
+        "--browser-screenshot-dir",
+        help="Directory to save browser screenshots"
+    )
+
+    parser.add_argument(
+        "--browser-enable-tracing",
+        action="store_true",
+        help="Enable browser tracing for debugging"
+    )
+
     # Test data options
     parser.add_argument(
         "--generate-test-data",

@@ -160,68 +160,35 @@ async def query_pages(
     context: Optional[str] = None,
     status: Optional[str] = None,
     domain: Optional[str] = None,
+    query: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    include_relationships: bool = False,
+    sort_by: Optional[str] = None,
     page_service = Depends(get_page_service)
 ) -> BatchPageResponse:
     try:
-        logger.info(f"Querying pages with status={status}, context={context}, domain={domain}")
+        logger.info(f"Querying pages with params: query={query}, status={status}, context={context}, domain={domain}")
         tx = Transaction()
         try:
+            # Call an enhanced query_pages method with all parameters
             results = await page_service.query_pages(
                 tx=tx,
+                query=query,
                 context=context,
                 status=status,
-                domain=domain
+                domain=domain,
+                limit=limit,
+                offset=offset,
+                include_relationships=include_relationships,
+                sort_by=sort_by
             )
             await tx.commit()
             
-            logger.debug(f"Query returned {len(results)} results")
+            # Convert to API models as before
+            page_data_list = [create_page_data(p) for p in results]
             
-            # Create PageData objects first
-            page_data_list = []
-            for p in results:
-                logger.debug(f"Processing page {p.url}")
-                # Convert metrics to dict format
-                metrics_data = {
-                    'quality_score': p.metadata.metrics.quality_score,
-                    'relevance_score': p.metadata.metrics.relevance_score,
-                    'last_visited': p.metadata.metrics.last_visited,
-                    'visit_count': p.metadata.metrics.visit_count,
-                    'processing_time': p.metadata.metrics.processing_time,
-                    'keyword_count': p.metadata.metrics.keyword_count
-                }
-                
-                logger.debug(f"Metrics data: {metrics_data}")
-                
-                # Create PageData object
-                page_data = PageData(
-                    id=p.id,
-                    url=p.url,
-                    domain=p.domain,
-                    title=p.title,
-                    status=p.status,
-                    keywords=p.keywords or {},
-                    relationships=p.relationships or [],
-                    discovered_at=p.metadata.discovered_at,
-                    processed_at=getattr(p.metadata, 'processed_at', None),
-                    updated_at=getattr(p.metadata, 'updated_at', None),
-                    browser_contexts=p.metadata.browser_contexts,
-                    tab_id=p.metadata.tab_id,
-                    window_id=p.metadata.window_id,
-                    bookmark_id=p.metadata.bookmark_id,
-                    last_active=getattr(p.metadata, 'last_active', None),
-                    metrics=PageMetrics(**metrics_data),
-                    metadata={
-                        k: v for k, v in p.metadata.to_dict().items()
-                        if k not in {
-                            'discovered_at', 'processed_at', 'updated_at',
-                            'browser_contexts', 'tab_id', 'window_id',
-                            'bookmark_id', 'last_active', 'metrics'
-                        }
-                    }
-                )
-                page_data_list.append(page_data)
-                
-            # Create BatchPageData
+            # Create batch response
             batch_data = BatchPageData(
                 pages=page_data_list,
                 total_count=len(results),
@@ -229,16 +196,22 @@ async def query_pages(
                 error_count=0
             )
             
-            # Create final response
-            response = BatchPageResponse(
+            return BatchPageResponse(
                 success=True,
-                data=batch_data,  # This is the key change
+                data=batch_data,
                 error=None,
-                metadata={"timestamp": datetime.now().isoformat()}
+                metadata={
+                    "timestamp": datetime.now().isoformat(),
+                    "query_params": {
+                        "query": query,
+                        "status": status,
+                        "context": context,
+                        "domain": domain,
+                        "limit": limit,
+                        "offset": offset
+                    }
+                }
             )
-            
-            logger.debug(f"Created batch response with {len(page_data_list)} pages")
-            return response
             
         except Exception as e:
             await tx.rollback()

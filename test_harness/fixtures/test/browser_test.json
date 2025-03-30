@@ -1,0 +1,19 @@
+{
+    "items": [
+      {
+        "url": "https://example.com/research",
+        "title": "Knowledge Graph Research",
+        "content": "<html><head><title>Knowledge Graph Research</title></head><body><h1>Knowledge Graph Research</h1><p>Knowledge graphs are a powerful way to represent information and relationships.</p><p>They enable complex queries across interconnected data.</p><h2>Key Benefits</h2><ul><li>Semantic relationships between entities</li><li>Flexible schema evolution</li><li>Support for inference and reasoning</li></ul></body></html>"
+      },
+      {
+        "url": "https://example.com/related",
+        "title": "Related Technologies",
+        "content": "<html><head><title>Related Technologies</title></head><body><h1>Technologies Related to Knowledge Graphs</h1><p>Several technologies work well with knowledge graphs:</p><ul><li>Graph Databases (Neo4j, Neptune)</li><li>Vector embeddings for semantic search</li><li>Large Language Models for content analysis</li></ul></body></html>"
+      },
+      {
+        "url": "https://example.com/implementation",
+        "title": "Implementation Guide",
+        "content": "<html><head><title>Implementation Guide</title></head><body><h1>Implementing Knowledge Graphs</h1><p>A step-by-step approach to implementing knowledge graphs:</p><ol><li>Define your domain entities</li><li>Establish relationships between entities</li><li>Choose appropriate storage solution</li><li>Develop input processing pipeline</li><li>Create query interfaces</li></ol></body></html>"
+      }
+    ]
+  }
