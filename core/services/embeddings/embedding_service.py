@@ -10,13 +10,15 @@ from core.domain.embeddings.models import (
 )
 from core.infrastructure.embeddings.factory import EmbeddingProviderFactory
 from core.services.base import BaseService
+from core.services.graph.graph_service import GraphService
+from core.infrastructure.database.db_connection import DatabaseConnection
 from core.infrastructure.database.transactions import Transaction
 from core.utils.logger import get_logger
 
 class EmbeddingService(BaseService):
     """Service for managing embeddings generation and retrieval."""
     
-    def __init__(self, provider_factory: EmbeddingProviderFactory, graph_service=None):
+    def __init__(self, provider_factory: EmbeddingProviderFactory, graph_service: GraphService):
         """
         Initialize the embedding service.
         
@@ -519,7 +521,7 @@ class EmbeddingService(BaseService):
                 # Page ID constraint (if not already exists)
                 """
                 CREATE CONSTRAINT embedding_page_id_unique IF NOT EXISTS
-                FOR (p:Page) REQUIRE p.id IS UNIQUE
+                FOR (p:Page) REQUIRE p.id IS NOT NULL
                 """,
                 
                 # Embedding indexes
@@ -548,7 +550,7 @@ class EmbeddingService(BaseService):
             # Run each schema query
             for query in schema_queries:
                 try:
-                    await self.graph_service.graph_operations.execute_query(tx, query, {})
+                    await self.graph_service.graph_operations.connection.execute_query(query, {}, transaction=tx)
                     self.logger.debug(f"Successfully executed schema query: {query[:50]}...")
                 except Exception as e:
                     self.logger.warning(f"Schema query failed: {query[:50]}... Error: {str(e)}")
@@ -564,7 +566,7 @@ class EmbeddingService(BaseService):
                 MERGE (n)-[r:SEMANTIC_SIMILAR {strength: 0.0}]->(m)
                 DELETE r
                 """
-                await self.graph_service.graph_operations.execute_query(tx, semantic_rel_query, {})
+                await self.graph_service.graph_operations.connection.execute_query(semantic_rel_query, {}, transaction=tx)
             except Exception as e:
                 self.logger.warning(f"Could not initialize SEMANTIC_SIMILAR relationship: {str(e)}")
             
