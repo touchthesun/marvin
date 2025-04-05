@@ -392,13 +392,13 @@ class PageService(BaseService):
             raise
     
 
-    async def _get_page_relationships(self, tx: Transaction, page_id: UUID) -> List[PageRelationship]:
+    async def _get_page_relationships(self, tx: Transaction, page_id: str) -> List[PageRelationship]:
         """
         Get all relationships for a page.
         
         Args:
             tx: Transaction for database operations
-            page_id: UUID of the page
+            page_id: ID of the page
             
         Returns:
             List of PageRelationship objects

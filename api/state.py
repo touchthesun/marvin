@@ -5,9 +5,11 @@ import asyncio
 from typing import Dict, Optional, Any, List
 from pathlib import Path
 
-from core.services.content.pipeline_service import PipelineService
+from core.services.graph.graph_service import GraphService
 from core.infrastructure.database.db_connection import DatabaseConnection, ConnectionConfig
+from core.infrastructure.database.graph_operations import GraphOperationManager
 from core.infrastructure.database.schema import SchemaManager
+from core.infrastructure.embeddings.factory import EmbeddingProviderFactory
 from core.utils.logger import get_logger
 from core.utils.config import load_config
 from core.infrastructure.auth.config import get_auth_provider_config
@@ -16,6 +18,8 @@ from core.llm.providers.base.provider import ProviderType
 from core.llm.providers.base.provider_base import BaseLLMProvider
 from core.llm.factory.factory import LLMProviderFactory
 from core.llm.providers.config.config_manager import ProviderConfigManager
+from core.services.embeddings.embedding_service import EmbeddingService
+from core.services.content.pipeline_service import PipelineService
 from core.domain.content.pipeline import (
     DefaultStateManager,
     DefaultComponentCoordinator,
@@ -28,8 +32,11 @@ class AppState:
     """Container for application state."""
     def __init__(self):
         self.pipeline_service: Optional[PipelineService] = None
+        self.graph_service: Optional[GraphService] = None
         self.db_connection: Optional[DatabaseConnection] = None
         self.schema_manager: Optional[SchemaManager] = None
+        self.embedding_factory: Optional[EmbeddingProviderFactory] = None
+        self.embedding_service: Optional[EmbeddingService] = None
         self.logger = get_logger(__name__)
         self._auth_config = None
         self.llm_factory: Optional[LLMProviderFactory] = None
@@ -75,6 +82,18 @@ class AppState:
             self.schema_manager = SchemaManager(self.db_connection)
             await self.schema_manager.initialize()
 
+            # Initialize graph service BEFORE embedding service
+            try:
+                self.logger.info("Initializing graph service")
+                graph_operations = GraphOperationManager(self.db_connection)
+                
+                # Create the GraphService instance
+                self.graph_service = GraphService(graph_operations)
+                self.logger.info("Graph service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize graph service: {str(e)}", exc_info=True)
+                self.graph_service = None  # Explicitly set to None on failure
+
             # Create pipeline config
             pipeline_config = PipelineConfig(
                 max_concurrent_pages=int(config.get("max_concurrent_pages", 10)),
@@ -94,6 +113,50 @@ class AppState:
             self.logger.info("Registering Anthropic provider")
             self.llm_factory.register_provider(ProviderType.ANTHROPIC, AnthropicProvider)
             
+            # Initialize Embedding provider factory
+            try:
+                self.logger.error(f"GRAPH SERVICE STATUS: {'AVAILABLE' if self.graph_service is not None else 'NOT AVAILABLE'}")
+                self.logger.info("Initializing embedding provider factory")
+                self.embedding_factory = EmbeddingProviderFactory(self.auth_config)
+                
+                # Add detailed logging for graph service
+                if self.graph_service is not None:
+                    self.logger.info("Graph service is available, initializing embedding service")
+                else:
+                    self.logger.error("CRITICAL: Graph service is None, embedding service cannot be initialized") 
+                    
+                # Initialize embedding service conditionally
+                if self.graph_service is not None:
+                    self.logger.info("Initializing embedding service")
+                    self.embedding_service = EmbeddingService(
+                        provider_factory=self.embedding_factory,
+                        graph_service=self.graph_service
+                    )
+                    self.logger.info("Embedding service initialized successfully")
+                else:
+                    self.embedding_service = None  # Explicitly set to None
+            except Exception as e:
+                self.logger.error(f"Failed to initialize embedding system: {str(e)}", exc_info=True)
+                self.embedding_factory = None  # Explicitly set to None
+                self.embedding_service = None 
+
+            # Initialize embedding schema if both services are available
+            if self.embedding_service is not None and self.graph_service is not None:
+                try:
+                    self.logger.info("Initializing embedding schema")
+                    
+                    # Create a transaction for schema initialization
+                    async with self.db_connection.transaction() as tx:
+                        # Initialize schema
+                        success = await self.embedding_service.initialize_schema(tx)
+                        
+                        if success:
+                            self.logger.info("Embedding schema initialized successfully")
+                        else:
+                            self.logger.warning("Embedding schema initialization returned False")
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize embedding schema: {str(e)}", exc_info=True)
+
             # Create pipeline dependencies
             self.logger.info("Creating pipeline components")
             state_manager = DefaultStateManager(config=pipeline_config)
@@ -182,6 +245,17 @@ class AppState:
                 self.logger.debug("Agent tasks cleanup complete")
             except Exception as e:
                 error_msg = f"Error cleaning up agent tasks: {str(e)}"
+                self.logger.error(error_msg)
+                cleanup_errors.append(error_msg)
+
+        # Clean up embedding providers
+        if hasattr(self, "embedding_factory"):
+            try:
+                self.logger.debug("Shutting down embedding providers")
+                await self.embedding_factory.shutdown()
+                self.logger.debug("Embedding providers shutdown complete")
+            except Exception as e:
+                error_msg = f"Error shutting down embedding providers: {str(e)}"
                 self.logger.error(error_msg)
                 cleanup_errors.append(error_msg)
         

@@ -8,7 +8,7 @@ from core.utils.logger import get_logger
 from core.services.graph.graph_service import GraphService
 from api.utils.helpers import get_domain_from_url
 from api.dependencies import get_graph_service
-
+from api.state import get_app_state
 from api.models.page.response import PageResponse
 from api.models.graph.response import GraphResponse
 from api.models.graph.response import (
@@ -133,11 +133,7 @@ async def get_page_by_url(
     url: str,
     graph_service: GraphService = Depends(get_graph_service)
 ):
-    """
-    Get a page by URL.
-    
-    This endpoint retrieves a single page from the knowledge graph by its URL.
-    """
+    """Get a page by URL."""
     try:
         # Ensure URL is properly decoded
         decoded_url = unquote(url)
@@ -145,7 +141,7 @@ async def get_page_by_url(
         
         # Use transaction for consistency
         async with graph_service.graph_operations.transaction() as tx:
-            # Use the _get_page_by_url helper from GraphService
+            # Get the page as a domain object
             page = await graph_service._get_page_by_url(tx, decoded_url)
             
             if not page:
@@ -158,20 +154,21 @@ async def get_page_by_url(
                     }
                 )
             
+            # Convert domain object to API model format
+            page_data = page.to_dict() if hasattr(page, 'to_dict') else page
+            
+            # Return success response with converted data
             return PageResponse(
                 success=True,
-                data=page
+                data=page_data
             )
             
     except Exception as e:
         logger.error(f"Error getting page: {str(e)}", exc_info=True)
-        # Return error response - but success=True for test compatibility
         return PageResponse(
-            success=True,  # Set to True for test compatibility
-            data=None,
-            metadata={
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
+            success=False, 
+            error={
+                "message": f"Error retrieving page: {str(e)}"
             }
         )
 
@@ -300,6 +297,75 @@ async def get_graph_overview(
                 "error_code": "GRAPH_ERROR",
                 "message": f"Failed to get graph overview: {str(e)}",
                 "details": {}
+            },
+            metadata={
+                "timestamp": datetime.now().isoformat()
+            }
+        )
+    
+
+@router.post("/initialize-schema", response_model=GraphResponse)
+async def initialize_schema(
+    graph_service: GraphService = Depends(get_graph_service),
+    app_state = Depends(get_app_state)
+):
+    """Initialize schema for embeddings and other graph operations."""
+    try:
+        logger.info("Initializing graph schema")
+        
+        if not app_state.embedding_service:
+            return GraphResponse(
+                success=False,
+                error={
+                    "error_code": "SERVICE_ERROR",
+                    "message": "Embedding service not available"
+                },
+                metadata={
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+        
+        # Create transaction for schema initialization
+        async with graph_service.graph_operations.transaction() as tx:
+            # Initialize schema using embedding service
+            success = await app_state.embedding_service.initialize_schema(tx)
+            
+            if success:
+                logger.info("Schema initialized successfully")
+                # Return an empty but valid graph response
+                return GraphResponse(
+                    success=True,
+                    data=GraphData(
+                        nodes=[],  # Empty nodes list
+                        edges=[],  # Empty edges list
+                        metadata={
+                            "message": "Schema initialized successfully",
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    ),
+                    metadata={
+                        "timestamp": datetime.now().isoformat()
+                    }
+                )
+            else:
+                logger.warning("Schema initialization returned false")
+                return GraphResponse(
+                    success=False,
+                    error={
+                        "error_code": "SCHEMA_ERROR",
+                        "message": "Schema initialization failed"
+                    },
+                    metadata={
+                        "timestamp": datetime.now().isoformat()
+                    }
+                )
+    except Exception as e:
+        logger.error(f"Error initializing schema: {str(e)}", exc_info=True)
+        return GraphResponse(
+            success=False,
+            error={
+                "error_code": "SCHEMA_ERROR",
+                "message": f"Failed to initialize schema: {str(e)}"
             },
             metadata={
                 "timestamp": datetime.now().isoformat()

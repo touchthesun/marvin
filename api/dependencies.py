@@ -23,6 +23,8 @@ from core.services.graph.graph_service import GraphService
 from core.services.content.page_service import PageService
 from core.services.content.pipeline_service import PipelineService
 from core.services.validation_service import ValidationRunner
+from core.services.embeddings.embedding_service import EmbeddingService
+from core.infrastructure.embeddings.factory import EmbeddingProviderFactory
 from core.domain.content.pipeline import (
     DefaultStateManager, DefaultComponentCoordinator,
     DefaultEventSystem, PipelineConfig
@@ -58,6 +60,7 @@ async def get_db_connection(
         yield connection
     finally:
         await connection.shutdown()
+
 
 async def get_graph_operations(
     connection: DatabaseConnection = Depends(get_db_connection)
@@ -129,6 +132,21 @@ async def get_page_service(
     """Provide PageService with lifecycle management."""
     async with manage_page_service(graph_service=graph_service) as service:
         yield service
+
+async def get_embedding_provider_factory(app_state = Depends(get_app_state)):
+    """Get embedding provider factory."""
+    if not hasattr(app_state, "embedding_factory"):
+        app_state.embedding_factory = EmbeddingProviderFactory(
+            auth_provider=app_state.auth_provider
+        )
+    return app_state.embedding_factory
+
+async def get_embedding_service(
+    factory = Depends(get_embedding_provider_factory),
+    graph_service = Depends(get_graph_service)
+):
+    """Get embedding service."""
+    return EmbeddingService(factory, graph_service)
 
 
 @asynccontextmanager
