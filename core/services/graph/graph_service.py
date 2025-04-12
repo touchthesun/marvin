@@ -1,4 +1,5 @@
 import time
+import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from urllib.parse import urlparse
@@ -311,70 +312,45 @@ class GraphService(BaseService):
         )
 
     def _prepare_page_data(self, page: Page) -> Dict[str, Any]:
-        """Prepare page data for Neo4j storage by flattening nested structures.
-        
-        Args:
-            page: Page object to prepare
-            
-        Returns:
-            Dict of flattened page data suitable for Neo4j
-        """
-        # Start with basic page fields
-        page_data = {
-            'url': str(page.url),
-            'domain': str(page.domain),
-            'status': str(page.status.value),  # Convert enum to string
-            'title': str(page.title) if page.title else None,
+        """Convert Page object to a flat dictionary for Neo4j storage."""
+        # Start with basic properties
+        result = {
+            "id": str(page.id),
+            "url": page.url,
+            "domain": page.domain,
+            "title": page.title,
+            "content": getattr(page, "content", None),
+            "status": page.status.value if hasattr(page.status, "value") else str(page.status)
         }
-        if hasattr(page, 'id') and page.id:
-            page_data['id'] = str(page.id)
         
-        # Handle keywords - ensure they're primitive types
-        if page.keywords:
-            page_data['keywords'] = {str(k): float(v) for k, v in page.keywords.items()}
+        # Get metadata as a flattened dictionary
+        if hasattr(page, "metadata") and page.metadata:
+            metadata_dict = page.metadata.to_dict()
+            # Merge flattened metadata into result
+            result.update(metadata_dict)
         
-        # Flatten metadata
-        if page.metadata:
-            metadata_dict = {
-                'discovered_at': page.metadata.discovered_at.isoformat() if page.metadata.discovered_at else None,
-                'last_accessed': page.metadata.last_accessed.isoformat() if page.metadata.last_accessed else None,
-                'metadata_quality_score': float(page.metadata.metadata_quality_score),
-                'tab_id': str(page.metadata.tab_id) if page.metadata.tab_id else None,
-                'window_id': str(page.metadata.window_id) if page.metadata.window_id else None,
-                'bookmark_id': str(page.metadata.bookmark_id) if page.metadata.bookmark_id else None,
-                'word_count': int(page.metadata.word_count) if page.metadata.word_count is not None else None,
-                'reading_time_minutes': float(page.metadata.reading_time_minutes) if page.metadata.reading_time_minutes is not None else None,
-                'language': str(page.metadata.language) if page.metadata.language else None,
-                'source_type': str(page.metadata.source_type) if page.metadata.source_type else None,
-                'author': str(page.metadata.author) if page.metadata.author else None,
-                'published_date': page.metadata.published_date.isoformat() if page.metadata.published_date else None,
-                'modified_date': page.metadata.modified_date.isoformat() if page.metadata.modified_date else None,
-                'browser_contexts': [str(context.value) for context in page.metadata.browser_contexts] if page.metadata.browser_contexts else []
-            }
-            page_data.update(metadata_dict)
-            
-            # Handle custom metadata - ensure primitive types
-            if page.metadata.custom_metadata:
-                for key, value in page.metadata.custom_metadata.items():
-                    if isinstance(value, (int, float, str, bool)):
-                        page_data[f'custom_{str(key)}'] = value
-                    else:
-                        page_data[f'custom_{str(key)}'] = str(value)
+        # Add keywords if present
+        if hasattr(page, "keywords") and page.keywords:
+            if isinstance(page.keywords, dict):
+                # Convert to JSON string for Neo4j
+                result["keywords_json"] = json.dumps(page.keywords)
+            else:
+                result["keywords"] = page.keywords
         
-        # Flatten metrics
-        if hasattr(page.metadata, 'metrics') and page.metadata.metrics:
-            metrics_dict = {
-                'metric_quality_score': float(page.metadata.metrics.quality_score),
-                'metric_relevance_score': float(page.metadata.metrics.relevance_score),
-                'metric_visit_count': int(page.metadata.metrics.visit_count),
-                'metric_keyword_count': int(page.metadata.metrics.keyword_count),
-                'metric_processing_time': float(page.metadata.metrics.processing_time) if page.metadata.metrics.processing_time is not None else None,
-                'metric_last_visited': page.metadata.metrics.last_visited.isoformat() if page.metadata.metrics.last_visited else None
-            }
-            page_data.update(metrics_dict)
+        # Finally, ensure all values are Neo4j-compatible primitive types
+        for key, value in list(result.items()):
+            if isinstance(value, dict):
+                # Dictionaries aren't allowed - convert to JSON string
+                result[key] = json.dumps(value)
+            elif not isinstance(value, (str, int, float, bool, list, type(None))):
+                # Convert non-primitive types to string
+                result[key] = str(value)
+            elif isinstance(value, list):
+                # Ensure lists only contain primitive types
+                if any(isinstance(item, (dict, list)) for item in value):
+                    result[key] = json.dumps(value)
         
-        # Remove any None values as Neo4j doesn't handle them well
-        return {k: v for k, v in page_data.items() if v is not None}
+        return result
     
 
     def _reconstruct_page_from_node(self, node_data: Dict[str, Any]) -> Page:
@@ -646,6 +622,43 @@ class GraphService(BaseService):
             model: Embedding model used
         """
         try:
+            page_check_query = "MATCH (p:Page {id: $page_id}) RETURN p.id as id"
+            page_check_result = await self.graph_operations.connection.execute_query(
+                page_check_query, 
+                {"page_id": page_id},
+                transaction=tx
+            )
+
+            if not page_check_result or len(page_check_result) == 0:
+                self.logger.error(f"Cannot store chunk embedding: Page {page_id} not found in database")
+                raise ValueError(f"Page {page_id} not found")
+            else:
+                self.logger.info(f"Found page {page_id}, proceeding with chunk creation")
+
+            # Validate embedding vector
+            if embedding is None:
+                self.logger.error(f"Cannot store None embedding for chunk {chunk_index} of page {page_id}")
+                raise ValueError("Embedding vector cannot be None")
+                
+            if not embedding or len(embedding) == 0:
+                self.logger.error(f"Cannot store empty embedding for chunk {chunk_index} of page {page_id}")
+                raise ValueError("Embedding vector cannot be empty")
+            
+            # Log embedding details
+            self.logger.info(f"Storing embedding for chunk {chunk_index}/{total_chunks} of page {page_id}")
+            self.logger.debug(f"Embedding vector: length={len(embedding)}, first 5 values={embedding[:5]}")
+            self.logger.debug(f"Chunk details: start_char={start_char}, end_char={end_char}, model={model}")
+            
+            # Add diagnostic vector check
+            try:
+                import numpy as np
+                embedding_array = np.array(embedding, dtype=float)
+                norm = np.linalg.norm(embedding_array)
+                has_nans = np.isnan(embedding_array).any()
+                self.logger.debug(f"Vector norm: {norm:.6f}, contains NaNs: {has_nans}")
+            except ImportError:
+                self.logger.debug("NumPy not available for vector diagnostics")
+            
             # Create a Chunk node and connect to Page
             query = """
             MATCH (p:Page {id: $page_id})
@@ -658,25 +671,63 @@ class GraphService(BaseService):
                 c.end_char = $end_char,
                 c.total_chunks = $total_chunks,
                 c.model = $model,
+                c.vector_length = size($embedding),
+                c.embedding_stored = true,  // Add a flag for easier verification
                 c.created_at = datetime()
             MERGE (p)-[:HAS_CHUNK]->(c)
+            RETURN page_found, 
+                c.chunk_index as chunk_index, 
+                exists((p)-[:HAS_CHUNK]->(c)) as relationship_created,
+                c.embedding_stored as stored, 
+                size(c.embedding) as vector_length,
+                c.chunk_index as index
             """
             
-            # Execute query
-            await self.graph_operations.connection.execute_query(
-                query,
-                {
-                    "page_id": page_id,
-                    "embedding": embedding,
-                    "chunk_index": chunk_index,
-                    "total_chunks": total_chunks,
-                    "start_char": start_char,
-                    "end_char": end_char,
-                    "model": model
-                },
-                transaction=tx
-            )
+            # Log query parameters (without the full embedding vector)
+            log_params = {
+                "page_id": page_id,
+                "chunk_index": chunk_index,
+                "total_chunks": total_chunks,
+                "start_char": start_char,
+                "end_char": end_char,
+                "model": model,
+                "embedding_length": len(embedding)
+            }
+            self.logger.debug(f"Executing query with parameters: {log_params}")
             
+            # Execute query with more detailed error handling
+            try:
+                result = await self.graph_operations.connection.execute_query(
+                    query,
+                    {
+                        "page_id": page_id,
+                        "embedding": embedding,
+                        "chunk_index": chunk_index,
+                        "total_chunks": total_chunks,
+                        "start_char": start_char,
+                        "end_char": end_char,
+                        "model": model
+                    },
+                    transaction=tx
+                )
+                
+                # Verify embedding was stored
+                if result and len(result) > 0:
+                    stored = result[0].get("stored", False)
+                    vector_length = result[0].get("vector_length", 0)
+                    index = result[0].get("index", -1)
+                    
+                    self.logger.info(f"Chunk {index} embedding stored: {stored}, vector length: {vector_length}")
+                    
+                    if not stored or vector_length == 0:
+                        self.logger.warning(f"Chunk embedding may not have been stored properly!")
+                else:
+                    self.logger.warning(f"No result returned from chunk embedding storage query")
+                    
+            except Exception as query_error:
+                self.logger.error(f"Error executing Neo4j query: {str(query_error)}", exc_info=True)
+                raise
+                
         except Exception as e:
             self.logger.error(f"Error storing chunk embedding: {str(e)}", exc_info=True)
             raise
@@ -781,8 +832,7 @@ class GraphService(BaseService):
         except Exception as e:
             self.logger.error(f"Error getting page embedding: {str(e)}", exc_info=True)
             return None
-        
-
+    
 
     async def find_similar_by_embedding(
         self, 
@@ -791,10 +841,23 @@ class GraphService(BaseService):
         embedding_type: str = "metadata",
         limit: int = 5,
         threshold: float = 0.7,
-        model: str = None
+        model: str = None,
+        similarity_function: str = "cosine"  # Add parameter for similarity function
     ) -> List[Dict[str, Any]]:
         """
         Find pages with similar embeddings using Neo4j's vector functions.
+        
+        Args:
+            tx: Database transaction
+            embedding: Query embedding vector
+            embedding_type: Type of embedding to compare against ("metadata", "full_content", "summary")
+            limit: Maximum number of results to return
+            threshold: Minimum similarity threshold (0-1)
+            model: Optional model filter
+            similarity_function: Similarity function to use ("cosine", "euclidean", "dot")
+            
+        Returns:
+            List of similar pages with similarity scores
         """
         try:
             # Determine which embedding field to use for comparison
@@ -809,13 +872,20 @@ class GraphService(BaseService):
             if model:
                 model_filter = "AND p.embedding_model = $model"
             
-            # Use vector.similarity function instead of manual calculation
+            # Determine similarity function to use
+            similarity_func = f"vector.similarity.{similarity_function.lower()}"
+            
+            # Log query parameters
+            self.logger.debug(f"Searching with {embedding_type} embeddings using {similarity_func}")
+            self.logger.debug(f"Vector dimensions: {len(embedding)}, threshold: {threshold}, limit: {limit}")
+            
+            # Build query with correct vector similarity syntax
             query = f"""
             MATCH (p:Page)
             WHERE p.{embedding_field} IS NOT NULL {model_filter}
             
-            // Use native vector similarity function
-            WITH p, vector.similarity(p.{embedding_field}, $embedding) AS similarity
+            // Use correct vector similarity function syntax
+            WITH p, {similarity_func}($embedding, p.{embedding_field}) AS similarity
             WHERE similarity >= $threshold
             
             RETURN p.id AS id, p.url AS url, p.title AS title, similarity
@@ -824,6 +894,7 @@ class GraphService(BaseService):
             """
             
             # Execute query
+            self.logger.debug("Executing vector similarity query")
             result = await self.graph_operations.connection.execute_query(
                 query,
                 parameters={
@@ -845,10 +916,15 @@ class GraphService(BaseService):
                     "similarity": item["similarity"]
                 })
             
+            self.logger.info(f"Found {len(similar_pages)} similar pages with {similarity_function} similarity >= {threshold}")
             return similar_pages
             
         except Exception as e:
-            self.logger.error(f"Error finding similar pages: {str(e)}", exc_info=True)
+            # Check if the error is related to the vector similarity function
+            error_str = str(e)
+            if "Unknown function 'vector.similarity" in error_str:
+                self.logger.warning("Vector similarity functions not available in this Neo4j instance")
+            self.logger.error(f"Error finding similar pages: {error_str}", exc_info=True)
             raise
                 
 

@@ -105,9 +105,51 @@ async def create_page(
         raise
 
 
+@router.post("/", response_model=PageResponse)
+async def create_page(
+    page_request: PageCreate,  # Renamed from 'page' to 'page_request'
+    page_service: PageService = Depends(get_page_service),
+):
+    """Create a new page."""
+    tx = Transaction()
+    try:
+        # Log the incoming content
+        if hasattr(page_request, 'content') and page_request.content:
+            logger.info(f"API create_page received content: {len(page_request.content)} chars")
+        else:
+            logger.warning("API create_page no content received")
+        
+        # Create page within transaction
+        result = await page_service.get_or_create_page(
+            tx=tx,
+            url=str(page_request.url),
+            context=page_request.context,
+            tab_id=page_request.tab_id,
+            window_id=page_request.window_id,
+            bookmark_id=page_request.bookmark_id,
+            content=page_request.content  # Explicitly pass content 
+        )
+        
+        # Commit transaction
+        await tx.commit()
+        
+        # Convert to API response
+        page_data = create_page_data(result)
+        return PageResponse(
+            success=True,
+            data=page_data,
+            error=None,
+            metadata={"timestamp": datetime.now().isoformat()}
+        )
+    except Exception as e:
+        # Ensure rollback on any error
+        await tx.rollback()
+        logger.error(f"Error creating page: {str(e)}", exc_info=True)
+        raise
+
 @router.post("/batch", response_model=BatchPageResponse)
 async def create_pages(
-    pages: BatchPageCreate,
+    batch_request: BatchPageCreate,  # Renamed for clarity
     page_service = Depends(get_page_service)
 ):
     """Create multiple pages in a batch."""
@@ -116,20 +158,27 @@ async def create_pages(
         page_data_list = []
         errors = 0
         
-        for page in pages.pages:
+        for page_item in batch_request.pages:  # Use a different variable name for the loop
             try:
+                # Log content info for debugging
+                if hasattr(page_item, 'content') and page_item.content:
+                    logger.info(f"Processing page with content: {len(page_item.content)} chars")
+                else:
+                    logger.warning(f"Page {page_item.url} has no content")
+                
                 result = await page_service.get_or_create_page(
                     tx=tx,
-                    url=str(page.url),
-                    context=page.context,
-                    tab_id=page.tab_id,
-                    window_id=page.window_id,
-                    bookmark_id=page.bookmark_id
+                    url=str(page_item.url),
+                    context=page_item.context,
+                    tab_id=page_item.tab_id,
+                    window_id=page_item.window_id,
+                    bookmark_id=page_item.bookmark_id,
+                    content=page_item.content  # Explicitly pass content
                 )
                 page_data_list.append(create_page_data(result))
                 
             except Exception as e:
-                logger.error(f"Error creating page {page.url}: {str(e)}")
+                logger.error(f"Error creating page {page_item.url}: {str(e)}")
                 errors += 1
         
         await tx.commit()
@@ -137,7 +186,7 @@ async def create_pages(
         # Create batch response
         batch_data = BatchPageData(
             pages=page_data_list,
-            total_count=len(pages.pages),
+            total_count=len(batch_request.pages),
             success_count=len(page_data_list),
             error_count=errors
         )

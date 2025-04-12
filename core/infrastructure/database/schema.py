@@ -273,7 +273,7 @@ class SchemaManager:
 
     async def verify_relationship_types(self) -> bool:
         """Verify that required relationship types exist in the database."""
-        required_types = ["HAS_KEYWORD", "LINKS_TO", "SIMILAR_TO"]
+        required_types = ["HAS_KEYWORD", "HAS_CHUNK", "LINKS_TO", "SIMILAR_TO"]
         missing_types = []
         
         try:
@@ -524,6 +524,20 @@ class SchemaManager:
     async def _setup_chunk_indexes(self, transaction=None) -> None:
         """Set up indexes for Chunk nodes."""
         self.logger.info("Creating indexes for Chunk nodes")
+
+        # First ensure the HAS_CHUNK relationship type exists
+        has_chunk_query = """
+        MERGE (source:_SchemaInit {id: 'chunk_source'})
+        MERGE (target:Chunk {id: 'schema_chunk'})
+        MERGE (source)-[r:HAS_CHUNK {chunk_index: 0, _schema_init: true}]->(target)
+        """
+        
+        await self.connection.execute_query(
+            has_chunk_query,
+            transaction=transaction,
+            transaction_id="create_has_chunk_relationship"
+        )
+        self.logger.info("Ensured HAS_CHUNK relationship type exists")
         
         chunk_indexes = [
             "CREATE INDEX chunk_page_id IF NOT EXISTS FOR (c:Chunk) ON (c.page_id)",

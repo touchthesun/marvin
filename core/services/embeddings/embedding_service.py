@@ -271,6 +271,7 @@ class EmbeddingService(BaseService):
                         chunk_embedding = chunk_embedding.normalize()
                     chunks[0].embedding = chunk_embedding
                 
+
                 # Store chunks
                 page_embeddings.chunk_embeddings = chunks
             
@@ -546,7 +547,7 @@ class EmbeddingService(BaseService):
                 FOR (c:Chunk) ON c.embedding
                 """
             ]
-            
+
             # Run each schema query
             for query in schema_queries:
                 try:
@@ -920,3 +921,4 @@ class EmbeddingService(BaseService):
                 "provider_id": provider_id,
                 "error": str(e)
             }
+        

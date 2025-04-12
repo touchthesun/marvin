@@ -127,7 +127,7 @@ async def search_graph(
         nodes=results,
         relationships=[]
     )
-
+ 
 @router.get("/page/{url:path}", response_model=PageResponse)
 async def get_page_by_url(
     url: str,
@@ -154,9 +154,19 @@ async def get_page_by_url(
                     }
                 )
             
-            # Convert domain object to API model format
-            page_data = page.to_dict() if hasattr(page, 'to_dict') else page
+            # Convert domain object to API model format - handle both dictionary and object formats
+            if hasattr(page, 'to_dict'):
+                page_data = page.to_dict()
+            elif isinstance(page, dict):
+                page_data = page
+            else:
+                # If it's neither a dict nor has to_dict method, try to convert it directly
+                page_data = dict(page) if hasattr(page, '__dict__') else page
             
+            # Ensure ID is properly formatted as string
+            if 'id' in page_data and page_data['id'] is not None:
+                page_data['id'] = str(page_data['id'])
+                
             # Return success response with converted data
             return PageResponse(
                 success=True,
@@ -171,6 +181,7 @@ async def get_page_by_url(
                 "message": f"Error retrieving page: {str(e)}"
             }
         )
+
 
 @router.get("/overview", response_model=GraphResponse)
 async def get_graph_overview(

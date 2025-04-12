@@ -61,6 +61,7 @@ class AppState:
             # Initialize database connection with better error logging
             db_config = ConnectionConfig(
                 uri=config["neo4j_uri"],
+                auth_enabled=False,
                 username=config["neo4j_username"],
                 password=config["neo4j_password"],
                 max_connection_pool_size=int(config.get("max_connection_pool_size", 50)),

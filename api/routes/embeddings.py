@@ -82,7 +82,18 @@ async def generate_page_embeddings(
     app_state = Depends(get_app_state)
 ):
     """Generate embeddings for a page."""
+    logger.info(f"Received embedding request: {request.model_dump()}")
+    logger.info(f"Starting embedding generation for page {page_id} with provider {request.provider_id}, model {request.model_id}")
+    logger.info(f"RAW PAGE EMBEDDING REQUEST: page_id={page_id}, request={request.model_dump()}")
+
+    if hasattr(request, 'chunk_size') and request.chunk_size:
+        logger.info(f"CHUNK SIZE RECEIVED: {request.chunk_size}, type: {type(request.chunk_size)}")
+    else:
+        logger.warning("NO CHUNK SIZE IN REQUEST")
+
+    
     if not app_state.embedding_service:
+        logger.error("Embedding service not available")
         return {
             "success": False,
             "error": {
@@ -92,17 +103,21 @@ async def generate_page_embeddings(
         
     try:
         # Use the session context manager with a transaction
+        logger.debug(f"Creating database session for page {page_id}")
         async with app_state.db_connection.session() as db_session:
             # Create and initialize transaction
             tx = Transaction()
             try:
                 # Initialize transaction with db session
+                logger.debug(f"Initializing transaction for page {page_id}")
                 await tx.initialize_db_transaction(db_session)
                 
                 # Get the page
+                logger.debug(f"Fetching page data for {page_id}")
                 page = await graph_service.get_page_by_id(tx, page_id)
                 
                 if not page:
+                    logger.warning(f"Page not found: {page_id}")
                     await tx.rollback()
                     return {
                         "success": False,
@@ -110,9 +125,13 @@ async def generate_page_embeddings(
                             "message": f"Page not found: {page_id}"
                         }
                     }
+                
+                logger.info(f"Retrieved page {page_id}: title='{page.title}', content_length={len(page.content) if hasattr(page, 'content') and page.content is not None else 'N/A'}")
                     
                 # Get the embedding provider
+                logger.debug(f"Getting embedding provider {request.provider_id}")
                 provider = await app_state.embedding_service.provider_factory.get_provider(request.provider_id)
+                logger.info(f"Using embedding provider: {provider.__class__.__name__}")
                 
                 results = {
                     "metadata_embedding": None,
@@ -122,10 +141,13 @@ async def generate_page_embeddings(
                 
                 # Generate metadata embedding if requested
                 if request.include_metadata:
+                    logger.info(f"Generating metadata embedding for page {page_id}")
                     # Build metadata text from relevant fields
                     metadata_text = f"{page.title or ''} {page.domain or ''}"
                     if hasattr(page, "keywords") and page.keywords:
                         metadata_text += " " + " ".join(page.keywords.keys())
+                    
+                    logger.debug(f"Metadata text for embedding: '{metadata_text[:100]}...' (length: {len(metadata_text)})")
                         
                     # Get embedding
                     metadata_embedding = await provider.get_embedding(
@@ -133,14 +155,18 @@ async def generate_page_embeddings(
                         model=request.model_id
                     )
                     
+                    logger.debug(f"Generated metadata embedding: dimension={metadata_embedding.dimension}, normalized={metadata_embedding.normalized}")
+                    
                     # Store embedding
-                    await graph_service.store_embedding(
+                    logger.debug(f"Storing metadata embedding for page {page_id}")
+                    store_result = await graph_service.store_embedding(
                         tx,
                         page_id,
                         metadata_embedding.vector,
                         embedding_type="metadata",
                         model=metadata_embedding.model
                     )
+                    logger.info(f"Metadata embedding storage result: {store_result if store_result is not None else 'No result returned'}")
                     
                     results["metadata_embedding"] = {
                         "dimension": metadata_embedding.dimension,
@@ -148,16 +174,36 @@ async def generate_page_embeddings(
                     }
                 
                 # Generate content embedding if requested
-                if request.include_content and hasattr(page, "content") and page.content:
+                if request.include_content:
+                    logger.info(f"Content requested for embedding, page has content attribute: {hasattr(page, 'content')}")
+                    
+                    # Check if content exists and is not None
+                    has_content = hasattr(page, "content") and page.content is not None
+                    
+                    if has_content:
+                        logger.info(f"Page content exists and is {len(page.content)} characters long")
+                        content = page.content
+                    else:
+                        # Create fallback content from title and URL
+                        logger.warning(f"Page does not have valid content, using fallback")
+                        content = f"{page.title or ''} {page.url or ''}"
+                        if hasattr(page, "domain") and page.domain:
+                            content += f" {page.domain}"
+                        logger.info(f"Created fallback content: {len(content)} characters")
+                    
                     # If chunking is requested, handle differently
                     if request.chunk_size and request.chunk_size > 0:
+                        logger.info(f"CHUNKING ACTIVATED: size={request.chunk_size}, overlap={request.chunk_overlap or 200}")
                         # Use embedding service's chunking method if available
                         if hasattr(app_state.embedding_service, "chunk_text"):
+                            logger.debug("Using embedding service's chunk_text method")
                             chunks = await app_state.embedding_service.chunk_text(
-                                page.content, 
+                                content, 
                                 chunk_size=request.chunk_size, 
                                 chunk_overlap=request.chunk_overlap or 200
                             )
+                            
+                            logger.info(f"Created {len(chunks)} chunks using embedding service chunker")
                             
                             # Convert to the format expected by the rest of the code
                             chunk_dicts = [
@@ -170,7 +216,7 @@ async def generate_page_embeddings(
                             ]
                         else:
                             # Simple chunking by character count as fallback
-                            content = page.content
+                            logger.debug("Using fallback chunking method")
                             chunk_size = request.chunk_size
                             chunk_overlap = request.chunk_overlap or 0
                             chunk_dicts = []
@@ -182,50 +228,80 @@ async def generate_page_embeddings(
                                     "start_char": i,
                                     "end_char": chunk_end
                                 })
+                            
+                            logger.info(f"Created {len(chunk_dicts)} chunks using fallback chunker")
                         
                         # Generate embeddings for each chunk
+                        logger.info(f"Beginning embedding generation for {len(chunk_dicts)} chunks")
+                        successful_chunks = 0
+                        failed_chunks = 0
+                        
                         for i, chunk in enumerate(chunk_dicts):
-                            # Get embedding for chunk
-                            chunk_embedding = await provider.get_embedding(
-                                text=chunk["text"],
-                                model=request.model_id
-                            )
-                            
-                            # Store chunk embedding
-                            await graph_service.store_chunk_embedding(
-                                tx,
-                                page_id,
-                                chunk_embedding.vector,
-                                chunk_index=i,
-                                total_chunks=len(chunk_dicts),
-                                start_char=chunk["start_char"],
-                                end_char=chunk["end_char"],
-                                model=chunk_embedding.model
-                            )
-                            
-                            # Add to results
-                            results["chunks"].append({
-                                "index": i,
-                                "start_char": chunk["start_char"],
-                                "end_char": chunk["end_char"],
-                                "dimension": chunk_embedding.dimension,
-                                "model": chunk_embedding.model
-                            })
+                            try:
+                                chunk_text_sample = chunk["text"][:50] + "..." if len(chunk["text"]) > 50 else chunk["text"]
+                                logger.debug(f"Processing chunk {i+1}/{len(chunk_dicts)}: chars {chunk['start_char']}-{chunk['end_char']}, text: '{chunk_text_sample}'")
+                                
+                                # Get embedding for chunk
+                                chunk_embedding = await provider.get_embedding(
+                                    text=chunk["text"],
+                                    model=request.model_id
+                                )
+                                
+                                # Log the embedding details
+                                logger.debug(f"Generated embedding for chunk {i+1}: dimension={chunk_embedding.dimension}, model={chunk_embedding.model}")
+                                logger.debug(f"Embedding vector sample (first 5 values): {chunk_embedding.vector[:5] if len(chunk_embedding.vector) >= 5 else chunk_embedding.vector}")
+                                
+                                # Store chunk embedding
+                                logger.debug(f"Storing chunk {i+1} embedding to database")
+                                store_result = await graph_service.store_chunk_embedding(
+                                    tx,
+                                    page_id,
+                                    chunk_embedding.vector,
+                                    chunk_index=i,
+                                    total_chunks=len(chunk_dicts),
+                                    start_char=chunk["start_char"],
+                                    end_char=chunk["end_char"],
+                                    model=chunk_embedding.model
+                                )
+                                
+                                logger.debug(f"Chunk {i+1} storage result: {store_result if store_result is not None else 'No result returned'}")
+                                successful_chunks += 1
+                                
+                                # Add to results
+                                results["chunks"].append({
+                                    "index": i,
+                                    "start_char": chunk["start_char"],
+                                    "end_char": chunk["end_char"],
+                                    "dimension": chunk_embedding.dimension,
+                                    "model": chunk_embedding.model
+                                })
+                            except Exception as e:
+                                failed_chunks += 1
+                                logger.error(f"Error processing chunk {i+1}/{len(chunk_dicts)}: {str(e)}", exc_info=True)
+                                logger.error(f"Chunk text sample: '{chunk['text'][:100]}...'")
+                        
+                        logger.info(f"Chunk embedding generation complete: {successful_chunks} successful, {failed_chunks} failed")
+
                     else:
                         # Generate single embedding for full content
+                        logger.info(f"Generating single embedding for full content (length: {len(content)})")
                         content_embedding = await provider.get_embedding(
-                            text=page.content,
+                            text=content,
                             model=request.model_id
                         )
                         
+                        logger.debug(f"Generated content embedding: dimension={content_embedding.dimension}")
+                        
                         # Store embedding
-                        await graph_service.store_embedding(
+                        logger.debug(f"Storing full content embedding for page {page_id}")
+                        store_result = await graph_service.store_embedding(
                             tx,
                             page_id,
                             content_embedding.vector,
                             embedding_type="full_content",
                             model=content_embedding.model
                         )
+                        logger.info(f"Full content embedding storage result: {store_result if store_result is not None else 'No result returned'}")
                         
                         results["content_embedding"] = {
                             "dimension": content_embedding.dimension,
@@ -233,19 +309,23 @@ async def generate_page_embeddings(
                         }
                 
                 # Commit transaction
+                logger.info(f"Committing transaction for page {page_id}")
                 await tx.commit()
+                logger.info(f"Transaction committed successfully for page {page_id}")
                 
                 # Update page embedding status (in a new transaction)
-                # Use the transaction context manager this time
+                logger.debug(f"Updating embedding status for page {page_id}")
                 async with app_state.db_connection.transaction() as status_tx:
-                    await graph_service.update_page_embedding_status(
+                    status_result = await graph_service.update_page_embedding_status(
                         status_tx,
                         page_id,
                         status="completed",
                         last_updated=None,  # Current time will be used
                         model=request.model_id
                     )
+                    logger.debug(f"Status update result: {status_result if status_result is not None else 'No result returned'}")
                 
+                logger.info(f"Successfully completed embedding generation for page {page_id}")
                 return {
                     "success": True,
                     "data": {
@@ -256,13 +336,16 @@ async def generate_page_embeddings(
                 }
             except Exception as e:
                 # Ensure transaction is rolled back
+                logger.error(f"Error in transaction, rolling back: {str(e)}", exc_info=True)
                 await tx.rollback()
+                logger.debug("Transaction rolled back")
                 raise
     except Exception as e:
         logger.error(f"Error generating page embeddings: {str(e)}", exc_info=True)
         
         # Try to update error status
         try:
+            logger.debug(f"Updating page {page_id} embedding status to 'failed'")
             # Use transaction context manager for error status update
             async with app_state.db_connection.transaction() as status_tx:
                 await graph_service.update_page_embedding_status(
@@ -272,6 +355,7 @@ async def generate_page_embeddings(
                     last_updated=None,
                     error=str(e)
                 )
+                logger.debug(f"Updated page {page_id} status to failed")
         except Exception as status_error:
             logger.error(f"Error updating embedding status: {str(status_error)}")
             
@@ -281,6 +365,8 @@ async def generate_page_embeddings(
                 "message": f"Error generating page embeddings: {str(e)}"
             }
         }
+
+
 
 @router.post("/search", response_model=APIResponse)
 async def search_with_embeddings(

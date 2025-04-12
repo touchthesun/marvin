@@ -1,5 +1,6 @@
 # test_harness/scenarios/embedding_system.py
 import time
+import json
 import asyncio
 import uuid
 import math
@@ -55,17 +56,20 @@ class EmbeddingSystemScenario(TestScenario):
         self.auth_token = await self.api_service.setup_test_auth()
         self.logger.info(f"Authentication set up with token: {self.auth_token[:5]}...")
 
-
         # Vector Embedding Initialization
-
         schema_initialized = await self._initialize_embedding_schema()
         if schema_initialized:
             self.logger.info("Successfully initialized embedding schema")
         else:
             self.logger.warning("Failed to initialize embedding schema, tests may fail")
         
+        # Initialize test_pages to empty list to avoid None
+        self.test_pages = []
+        
         # Try to create test pages
-        self.test_pages = await self._create_test_pages()
+        created_pages = await self._create_test_pages()
+        if created_pages:
+            self.test_pages = created_pages
         
         # If we couldn't create test pages through the API, load from fixtures instead
         if not self.test_pages and self.config.get("fixtures", {}).get("embedding_fixture"):
@@ -77,13 +81,16 @@ class EmbeddingSystemScenario(TestScenario):
                 self.logger.info(f"Loaded test data from fixture: {fixture_path}")
                 
                 # Query loaded pages to use in tests
-                self.test_pages = await self._query_fixture_pages()
-                self.logger.info(f"Using {len(self.test_pages)} pages from fixture")
+                fixture_pages = await self._query_fixture_pages()
+                if fixture_pages:
+                    self.test_pages = fixture_pages
+                    self.logger.info(f"Using {len(self.test_pages)} pages from fixture")
             except Exception as e:
                 self.logger.error(f"Error loading fixture data: {str(e)}", exc_info=True)
         
         if not self.test_pages:
             self.logger.warning("No test pages available - some tests will be skipped")
+
 
     async def _query_fixture_pages(self) -> List[Dict[str, Any]]:
         """Query pages loaded from fixture file."""
@@ -1046,7 +1053,7 @@ class EmbeddingSystemScenario(TestScenario):
                         "status": "error",
                         "error": str(e)
                     })
-            
+             
             # Calculate success metrics
             pages_with_embeddings = sum(1 for page in result["page_embeddings"] if page.get("verified", False))
             result["stored_in_neo4j"] = pages_with_embeddings > 0
@@ -1074,12 +1081,18 @@ class EmbeddingSystemScenario(TestScenario):
     async def _create_embedding_test_pages(self):
         """Create dedicated test pages for embedding with consistent IDs."""
         test_pages = []
+        large_content = "\n".join([
+                f"This is paragraph {i} " + 
+                "with some sample content for testing chunking functionality. " * 5
+                for i in range(self.config["large_content_paragraphs"])
+            ])
+        self.logger.info(f"Creating test pages with large content: {large_content}")
         
         for i in range(2):  # Just create 2 test pages to keep it simple
             page_data = {
                 "url": f"https://example.com/embedding-test-page-{i+1}-{self.test_run_id}",
                 "title": f"Embedding Test Page {i+1}",
-                "content": f"This is test content for embedding page {i+1}. " * 10,
+                "content": large_content,
                 "context": "active_tab",
                 "browser_contexts": ["active_tab"],
                 "tab_id": f"embedding-test-tab-{i}",
@@ -1102,7 +1115,25 @@ class EmbeddingSystemScenario(TestScenario):
                     ),
                     timeout=self.config["api_timeout"]
                 )
-                
+
+                # Verify content was saved
+                content_check = await self.neo4j_service.execute_query(
+                    """
+                    MATCH (p:Page {id: $page_id})
+                    RETURN p.content IS NOT NULL as has_content,
+                        SIZE(p.content) as content_length
+                    """,
+                    {"page_id": page_id}
+                )
+
+                if content_check and len(content_check) > 0:
+                    has_content = content_check[0].get("has_content", False)
+                    content_length = content_check[0].get("content_length", 0)
+                    self.logger.info(f"Page content check: has_content={has_content}, length={content_length}")
+                    
+                    if not has_content or content_length == 0:
+                        self.logger.warning("Page content not saved to Neo4j - this will cause chunking to be skipped!")
+                                
                 if api_response.get("success", False):
                     page_id = api_response.get("data", {}).get("id")
                     if page_id:
@@ -1390,17 +1421,20 @@ class EmbeddingSystemScenario(TestScenario):
                 page_id = response.get("data", {}).get("id")
                 self.logger.info(f"Created large test page with ID: {page_id}")
                 
-                # Generate embeddings with chunking
+                chunk_request_data = {
+                    "provider_id": self.config["default_provider"],
+                    "include_content": True,
+                    "chunk_size": self.config["chunk_size"],
+                    "chunk_overlap": self.config["chunk_overlap"]
+                }
+                self.logger.info(f"Chunking request config values: chunk_size={self.config['chunk_size']}, chunk_overlap={self.config['chunk_overlap']}")
+                self.logger.info(f"Full request data being sent: {json.dumps(chunk_request_data)}")
+
                 embed_response = await asyncio.wait_for(
                     self.api_service.send_request(
                         "POST",
                         f"/api/v1/embeddings/page/{page_id}",
-                        {
-                            "provider_id": self.config["default_provider"],
-                            "include_content": True,
-                            "chunk_size": self.config["chunk_size"],
-                            "chunk_overlap": self.config["chunk_overlap"]
-                        },
+                        chunk_request_data,
                         headers={"Authorization": f"Bearer {self.auth_token}"}
                     ),
                     timeout=self.config["api_timeout"] * 2  # Allow more time for chunking
@@ -1411,6 +1445,10 @@ class EmbeddingSystemScenario(TestScenario):
                     
                     # Allow some time for processing to complete
                     await asyncio.sleep(2)
+                    
+                    # Add detailed chunk inspection here
+                    chunk_properties = await self._inspect_chunk_properties(page_id)
+                    self.logger.info(f"Chunk inspection results: {chunk_properties}")
                     
                     # Check for chunk nodes in Neo4j
                     chunk_query = """
@@ -1470,6 +1508,68 @@ class EmbeddingSystemScenario(TestScenario):
             result["traceback"] = traceback.format_exc()
         
         return result
+
+
+    async def _inspect_chunk_properties(self, page_id: str) -> Dict[str, Any]:
+        """Inspect chunk properties directly to diagnose embedding issues."""
+        self.logger.info(f"Inspecting chunk properties for page {page_id}")
+        
+        try:
+            # Query to check all properties on chunk nodes
+            query = """
+            MATCH (p:Page {id: $page_id})-[:HAS_CHUNK]->(c:Chunk)
+            WITH c, keys(c) AS prop_keys
+            UNWIND prop_keys AS key
+            WITH c, key, c[key] AS value
+            RETURN 
+                c.chunk_index AS chunk_index,
+                collect({key: key, type: CASE 
+                    WHEN key = 'embedding' THEN
+                        CASE WHEN value IS NULL THEN 'NULL'
+                            WHEN size(value) > 0 THEN 'VECTOR[' + toString(size(value)) + ']'
+                            ELSE 'EMPTY_ARRAY'
+                        END
+                    ELSE type(value)
+                END}) AS properties
+            ORDER BY c.chunk_index
+            """
+            
+            # Execute the query
+            result = await self.neo4j_service.execute_query(
+                query, 
+                {"page_id": page_id}
+            )
+            
+            # Format the result for logging
+            if result and len(result) > 0:
+                for chunk in result:
+                    chunk_index = chunk.get("chunk_index", "unknown")
+                    props = chunk.get("properties", [])
+                    
+                    prop_details = []
+                    has_embedding = False
+                    embedding_type = "MISSING"
+                    
+                    for prop in props:
+                        prop_key = prop.get("key")
+                        prop_type = prop.get("type")
+                        
+                        if prop_key == "embedding":
+                            has_embedding = True
+                            embedding_type = prop_type
+                        
+                        prop_details.append(f"{prop_key}: {prop_type}")
+                    
+                    self.logger.info(f"Chunk {chunk_index} properties: {', '.join(prop_details)}")
+                    self.logger.info(f"Chunk {chunk_index} has embedding: {has_embedding}, type: {embedding_type}")
+                    
+                return {"has_results": True, "chunk_count": len(result)}
+            else:
+                self.logger.warning("No chunks found for inspection")
+                return {"has_results": False, "chunk_count": 0}
+        except Exception as e:
+            self.logger.error(f"Error inspecting chunk properties: {str(e)}", exc_info=True)
+            return {"has_results": False, "error": str(e)}
     
     @retry_async(max_attempts=3, delay=1.0)
     async def _test_semantic_relationships(self) -> Dict[str, Any]:
@@ -1782,6 +1882,10 @@ class EmbeddingSystemScenario(TestScenario):
                 # Check if the data contains successful results
                 if "data" in response and response["data"].get("success", False):
                     self.logger.info("Successfully initialized vector indexes")
+                    
+                    # Double-check for HAS_CHUNK specifically, since that's our issue
+                    await self._ensure_has_chunk_relationship()
+                    
                     return True
                 else:
                     # Log error details if available
@@ -1789,7 +1893,9 @@ class EmbeddingSystemScenario(TestScenario):
                     if "data" in response and "error" in response["data"]:
                         error_msg = response["data"]["error"]
                     self.logger.warning(f"Failed to initialize vector indexes: {error_msg}")
-                    return False
+                    
+                    # Fall back to direct initialization with focus on HAS_CHUNK
+                    return await self._ensure_has_chunk_relationship()
             else:
                 # Handle error response
                 error_msg = "Unknown error"
@@ -1799,12 +1905,64 @@ class EmbeddingSystemScenario(TestScenario):
                 
                 # Fall back to direct schema initialization
                 self.logger.info("Attempting direct Neo4j schema initialization")
-                return await self._initialize_schema_direct()
+                success = await self._initialize_schema_direct()
+                
+                # Ensure HAS_CHUNK relationship even if direct schema init failed
+                if not success:
+                    return await self._ensure_has_chunk_relationship()
+                return success
         except Exception as e:
             self.logger.error(f"Error initializing vector indexes: {str(e)}", exc_info=True)
             # Fall back to direct schema initialization
             self.logger.info("Falling back to direct Neo4j schema initialization")
-            return await self._initialize_schema_direct()
+            success = await self._initialize_schema_direct()
+            
+            # Ensure HAS_CHUNK relationship even if direct schema init failed
+            if not success:
+                return await self._ensure_has_chunk_relationship()
+            return success
+
+    async def _ensure_has_chunk_relationship(self):
+        """Ensure the HAS_CHUNK relationship type exists in Neo4j."""
+        try:
+            self.logger.info("Ensuring HAS_CHUNK relationship type exists")
+            
+            # Check if the relationship type already exists
+            rel_check_query = """
+            CALL db.relationshipTypes() YIELD relationshipType
+            WHERE relationshipType = 'HAS_CHUNK'
+            RETURN count(*) as count
+            """
+            
+            rel_check_result = await self.neo4j_service.execute_query(rel_check_query)
+            relationship_exists = rel_check_result and rel_check_result[0]["count"] > 0
+            
+            if relationship_exists:
+                self.logger.info("HAS_CHUNK relationship type already exists")
+                return True
+                
+            # Create the relationship type if it doesn't exist
+            self.logger.info("Creating HAS_CHUNK relationship type")
+            chunk_rel_query = """
+            MERGE (source:_SchemaInit {id: 'test_page'})
+            MERGE (target:Chunk {id: 'test_chunk'})
+            MERGE (source)-[r:HAS_CHUNK {chunk_index: 0}]->(target)
+            RETURN count(r) as count
+            """
+            
+            result = await self.neo4j_service.execute_query(chunk_rel_query)
+            success = result and result[0]["count"] > 0
+            
+            if success:
+                self.logger.info("Successfully created HAS_CHUNK relationship type")
+            else:
+                self.logger.warning("Failed to create HAS_CHUNK relationship type")
+                
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Error ensuring HAS_CHUNK relationship: {str(e)}", exc_info=True)
+            return False
 
     async def _initialize_schema_direct(self):
         """Initialize schema directly using Neo4j queries as a fallback."""

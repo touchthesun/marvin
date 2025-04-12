@@ -11,6 +11,8 @@ class PageCreate(BaseModel):
     window_id: Optional[str] = None
     bookmark_id: Optional[str] = None
     browser_contexts: Set[BrowserContext] = Field(default_factory=set)
+    content: Optional[str] = None
+    title: Optional[str] = None 
 
 class BatchPageCreate(BaseModel):
     """Model for creating multiple pages."""

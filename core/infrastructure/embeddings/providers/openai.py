@@ -1,6 +1,8 @@
 # core/infrastructure/embeddings/providers/openai.py
 import aiohttp
 import time
+import json
+import math
 from typing import List, Dict, Any, Optional
 
 from core.domain.embeddings.models import EmbeddingVector
@@ -74,7 +76,13 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         model_id = model or self.default_model
         text_length = len(text)
         
-        self.logger.debug(f"Getting embedding for text (length: {text_length}) with model: {model_id}")
+        # Log more details about the context - is this part of a chunk?
+        context_info = getattr(self, 'context', {})
+        self.logger.debug(f"Getting embedding for text (length: {text_length}) with model: {model_id}, context: {context_info}")
+        
+        # Check API key configuration
+        if not self.api_key:
+            self.logger.error("OpenAI API key not configured - this will likely fail")
         
         # Prepare request
         url = f"{self.api_base}/embeddings"
@@ -86,54 +94,94 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         
         # Log the full request details (but mask the API key)
         headers_log = {"Authorization": "Bearer sk-...REDACTED..."}
-        self.logger.info(f"OpenAI API Request: URL: {url}, Headers: {headers_log}, Payload: {payload}")
+        self.logger.info(f"OpenAI API Request: URL: {url}, Headers: {headers_log}, Payload size: {len(str(payload))} bytes")
+        
+        # Add text preview for debugging (first 50 chars)
+        self.logger.debug(f"Text preview: '{text[:50]}...'")
         
         # Make request to OpenAI
         start_time = time.time()
         try:
+            # Add logging for the request attempt
+            self.logger.debug(f"Sending API request to OpenAI at {time.strftime('%H:%M:%S')}")
+            
             async with self.session.post(url, json=payload) as response:
                 # Log raw response for debugging
                 response_text = await response.text()
-                self.logger.info(f"OpenAI API Response: Status: {response.status}, Body: {response_text[:200]}...")
+                self.logger.info(f"OpenAI API Response: Status: {response.status}, Body length: {len(response_text)}")
                 
+                # Add more details for non-200 responses
                 if response.status != 200:
-                    self.logger.error(f"Error from OpenAI: {response_text}")
+                    self.logger.error(f"Error from OpenAI: Status: {response.status}")
+                    self.logger.error(f"Response body: {response_text}")
                     self._status = EmbeddingProviderStatus.ERROR
                     self._last_error = f"Error from OpenAI API: {response.status} - {response_text}"
                     self._update_metrics(success=False, latency_ms=(time.time() - start_time) * 1000, tokens=0)
                     raise ValueError(f"Error from OpenAI API: {response.status} - {response_text}")
                 
-                data = await response.json()
-                
-                # Extract embedding
-                embedding = data["data"][0]["embedding"]
-                dimension = len(embedding)
-                
-                # Extract token usage information
-                usage = data.get("usage", {})
-                prompt_tokens = usage.get("prompt_tokens", 0)
-                total_tokens = usage.get("total_tokens", 0)
-                
-                elapsed = time.time() - start_time
-                self.logger.debug(f"Got embedding from OpenAI in {elapsed:.2f}s, dimension: {dimension}, tokens: {total_tokens}")
-                
-                # Update metrics
-                self._update_metrics(
-                    success=True,
-                    latency_ms=elapsed * 1000,
-                    tokens=total_tokens
-                )
-                
-                # Update status
-                self._status = EmbeddingProviderStatus.READY
-                
-                return EmbeddingVector(
-                    vector=embedding,
-                    model=model_id,
-                    dimension=dimension,
-                    normalized=False
-                )
-                
+                try:
+                    data = await response.json()
+                    
+                    # Log successful parsing of JSON
+                    self.logger.debug("Successfully parsed JSON response")
+                    
+                    # Validate the response structure
+                    if "data" not in data or not data["data"] or "embedding" not in data["data"][0]:
+                        error_msg = f"Invalid response structure: {data}"
+                        self.logger.error(error_msg)
+                        raise ValueError(error_msg)
+                    
+                    # Extract embedding
+                    embedding = data["data"][0]["embedding"]
+                    dimension = len(embedding)
+                    
+                    # Log embedding characteristics
+                    self.logger.debug(f"Embedding vector details: dimension={dimension}, first 3 values={embedding[:3]}")
+                    
+                    # Check for zero vectors or NaN values
+                    has_nans = any(math.isnan(x) for x in embedding if isinstance(x, float))
+                    has_zeros = all(x == 0 for x in embedding)
+                    if has_nans:
+                        self.logger.warning("Embedding contains NaN values")
+                    if has_zeros:
+                        self.logger.warning("Embedding contains all zeros")
+                    
+                    # Extract token usage information
+                    usage = data.get("usage", {})
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                    total_tokens = usage.get("total_tokens", 0)
+                    
+                    elapsed = time.time() - start_time
+                    self.logger.debug(f"Got embedding from OpenAI in {elapsed:.2f}s, dimension: {dimension}, tokens: {total_tokens}")
+                    
+                    # Update metrics
+                    self._update_metrics(
+                        success=True,
+                        latency_ms=elapsed * 1000,
+                        tokens=total_tokens
+                    )
+                    
+                    # Update status
+                    self._status = EmbeddingProviderStatus.READY
+                    
+                    # Create embedding vector
+                    vector = EmbeddingVector(
+                        vector=embedding,
+                        model=model_id,
+                        dimension=dimension,
+                        normalized=False
+                    )
+                    
+                    # Log success
+                    self.logger.info(f"Successfully created embedding vector: dimension={dimension}, model={model_id}")
+                    
+                    return vector
+                    
+                except json.JSONDecodeError as json_err:
+                    self.logger.error(f"Failed to parse JSON response: {str(json_err)}")
+                    self.logger.error(f"Raw response: {response_text[:500]}...")
+                    raise
+                    
         except Exception as e:
             elapsed = time.time() - start_time
             self.logger.error(f"Error getting embedding: {str(e)}", exc_info=True)
@@ -141,7 +189,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
             self._last_error = str(e)
             self._update_metrics(success=False, latency_ms=elapsed * 1000, tokens=0)
             raise
-    
+        
     async def batch_embed(self, texts: List[str], model: Optional[str] = None) -> List[EmbeddingVector]:
         """
         Get embeddings for multiple text strings.
