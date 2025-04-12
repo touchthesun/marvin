@@ -5,6 +5,7 @@ from core.utils.logger import get_logger
 from api.state import get_app_state
 from api.dependencies import get_graph_service
 from api.models.common import APIResponse
+from core.domain.embeddings.models import ContentChunk
 from api.models.embeddings.request import (
     GenerateEmbeddingRequest,
     PageEmbeddingRequest,
@@ -91,7 +92,6 @@ async def generate_page_embeddings(
     else:
         logger.warning("NO CHUNK SIZE IN REQUEST")
 
-    
     if not app_state.embedding_service:
         logger.error("Embedding service not available")
         return {
@@ -194,94 +194,213 @@ async def generate_page_embeddings(
                     # If chunking is requested, handle differently
                     if request.chunk_size and request.chunk_size > 0:
                         logger.info(f"CHUNKING ACTIVATED: size={request.chunk_size}, overlap={request.chunk_overlap or 200}")
+                        
                         # Use embedding service's chunking method if available
                         if hasattr(app_state.embedding_service, "chunk_text"):
                             logger.debug("Using embedding service's chunk_text method")
-                            chunks = await app_state.embedding_service.chunk_text(
-                                content, 
-                                chunk_size=request.chunk_size, 
-                                chunk_overlap=request.chunk_overlap or 200
-                            )
-                            
-                            logger.info(f"Created {len(chunks)} chunks using embedding service chunker")
-                            
-                            # Convert to the format expected by the rest of the code
-                            chunk_dicts = [
-                                {
-                                    "text": chunk.content,
-                                    "start_char": chunk.start_char,
-                                    "end_char": chunk.end_char
-                                }
-                                for chunk in chunks
-                            ]
+                            try:
+                                # This returns ContentChunk objects with all required fields
+                                chunks = await app_state.embedding_service.chunk_text(
+                                    content, 
+                                    chunk_size=request.chunk_size, 
+                                    chunk_overlap=request.chunk_overlap or 200
+                                )
+                                
+                                logger.info(f"Created {len(chunks)} chunks using embedding service chunker")
+                                
+                                # Generate embeddings for each chunk
+                                logger.info(f"Beginning embedding generation for {len(chunks)} chunks")
+                                successful_chunks = 0
+                                failed_chunks = 0
+                                
+                                for i, chunk in enumerate(chunks):
+                                    try:
+                                        chunk_text_sample = chunk.content[:50] + "..." if len(chunk.content) > 50 else chunk.content
+                                        logger.debug(f"Processing chunk {i+1}/{len(chunks)}: chars {chunk.start_char}-{chunk.end_char}, text: '{chunk_text_sample}'")
+                                        
+                                        # Get embedding for chunk
+                                        chunk_embedding = await provider.get_embedding(
+                                            text=chunk.content,
+                                            model=request.model_id
+                                        )
+                                        
+                                        # Log the embedding details
+                                        logger.debug(f"Generated embedding for chunk {i+1}: dimension={chunk_embedding.dimension}, model={chunk_embedding.model}")
+                                        
+                                        # Store chunk embedding - use the fields directly from the ContentChunk object
+                                        logger.debug(f"Storing chunk {i+1} embedding to database")
+                                        store_result = await graph_service.store_chunk_embedding(
+                                            tx,
+                                            page_id,
+                                            chunk_embedding.vector,
+                                            chunk_index=chunk.chunk_index,  # Use the field from ContentChunk
+                                            total_chunks=chunk.total_chunks,  # Use the field from ContentChunk
+                                            start_char=chunk.start_char,
+                                            end_char=chunk.end_char,
+                                            model=chunk_embedding.model
+                                        )
+                                        
+                                        logger.debug(f"Chunk {i+1} storage result: {store_result if store_result is not None else 'No result returned'}")
+                                        successful_chunks += 1
+                                        
+                                        # Add to results
+                                        results["chunks"].append({
+                                            "index": chunk.chunk_index,
+                                            "start_char": chunk.start_char,
+                                            "end_char": chunk.end_char,
+                                            "dimension": chunk_embedding.dimension,
+                                            "model": chunk_embedding.model
+                                        })
+                                    except Exception as e:
+                                        failed_chunks += 1
+                                        logger.error(f"Error processing chunk {i+1}/{len(chunks)}: {str(e)}", exc_info=True)
+                                        logger.error(f"Chunk text sample: '{chunk.content[:100]}...'")
+                                
+                                logger.info(f"Chunk embedding generation complete: {successful_chunks} successful, {failed_chunks} failed")
+                                
+                            except Exception as e:
+                                logger.error(f"Error using embedding service chunker: {str(e)}", exc_info=True)
+                                # Fall back to manual chunking
+                                logger.warning("Falling back to manual chunking due to error")
+                                
+                                # Simple chunking by character count as fallback
+                                logger.debug("Using fallback chunking method")
+                                chunk_size = request.chunk_size
+                                chunk_overlap = request.chunk_overlap or 0
+                                
+                                # Calculate total chunks for proper indexing
+                                total_chunks = max(1, (len(content) - chunk_overlap) // max(1, chunk_size - chunk_overlap))
+                                if (len(content) - chunk_overlap) % max(1, chunk_size - chunk_overlap) > 0:
+                                    total_chunks += 1
+                                    
+                                logger.debug(f"Calculated {total_chunks} total chunks for content length {len(content)}")
+                                
+                                # Generate chunks and embeddings
+                                successful_chunks = 0
+                                failed_chunks = 0
+                                
+                                for i in range(0, len(content), max(1, chunk_size - chunk_overlap)):
+                                    try:
+                                        chunk_end = min(i + chunk_size, len(content))
+                                        chunk_text = content[i:chunk_end]
+                                        
+                                        # Create a proper ContentChunk object
+                                        chunk = ContentChunk(
+                                            content=chunk_text,
+                                            start_char=i,
+                                            end_char=chunk_end,
+                                            chunk_index=i // max(1, chunk_size - chunk_overlap),
+                                            total_chunks=total_chunks
+                                        )
+                                        
+                                        chunk_text_sample = chunk.content[:50] + "..." if len(chunk.content) > 50 else chunk.content
+                                        logger.debug(f"Processing chunk {chunk.chunk_index+1}/{chunk.total_chunks}: chars {chunk.start_char}-{chunk.end_char}, text: '{chunk_text_sample}'")
+                                        
+                                        # Get embedding for chunk
+                                        chunk_embedding = await provider.get_embedding(
+                                            text=chunk.content,
+                                            model=request.model_id
+                                        )
+                                        
+                                        # Store chunk embedding
+                                        logger.debug(f"Storing chunk {chunk.chunk_index+1} embedding to database")
+                                        store_result = await graph_service.store_chunk_embedding(
+                                            tx,
+                                            page_id,
+                                            chunk_embedding.vector,
+                                            chunk_index=chunk.chunk_index,
+                                            total_chunks=chunk.total_chunks,
+                                            start_char=chunk.start_char,
+                                            end_char=chunk.end_char,
+                                            model=chunk_embedding.model
+                                        )
+                                        
+                                        logger.debug(f"Chunk {chunk.chunk_index+1} storage result: {store_result if store_result is not None else 'No result returned'}")
+                                        successful_chunks += 1
+                                        
+                                        # Add to results
+                                        results["chunks"].append({
+                                            "index": chunk.chunk_index,
+                                            "start_char": chunk.start_char,
+                                            "end_char": chunk.end_char,
+                                            "dimension": chunk_embedding.dimension,
+                                            "model": chunk_embedding.model
+                                        })
+                                    except Exception as e:
+                                        failed_chunks += 1
+                                        logger.error(f"Error processing chunk {i // max(1, chunk_size - chunk_overlap)+1}/{total_chunks}: {str(e)}", exc_info=True)
+                                
+                                logger.info(f"Chunk embedding generation complete: {successful_chunks} successful, {failed_chunks} failed")
                         else:
                             # Simple chunking by character count as fallback
-                            logger.debug("Using fallback chunking method")
+                            logger.debug("Using fallback chunking method - embedding service has no chunk_text method")
                             chunk_size = request.chunk_size
                             chunk_overlap = request.chunk_overlap or 0
-                            chunk_dicts = []
+                            
+                            # Calculate total chunks for proper indexing
+                            total_chunks = max(1, (len(content) - chunk_overlap) // max(1, chunk_size - chunk_overlap))
+                            if (len(content) - chunk_overlap) % max(1, chunk_size - chunk_overlap) > 0:
+                                total_chunks += 1
+                                
+                            logger.debug(f"Calculated {total_chunks} total chunks for content length {len(content)}")
+                            
+                            # Generate chunks and embeddings
+                            successful_chunks = 0
+                            failed_chunks = 0
                             
                             for i in range(0, len(content), max(1, chunk_size - chunk_overlap)):
-                                chunk_end = min(i + chunk_size, len(content))
-                                chunk_dicts.append({
-                                    "text": content[i:chunk_end],
-                                    "start_char": i,
-                                    "end_char": chunk_end
-                                })
+                                try:
+                                    chunk_end = min(i + chunk_size, len(content))
+                                    chunk_text = content[i:chunk_end]
+                                    chunk_index = i // max(1, chunk_size - chunk_overlap)
+                                    
+                                    # Create a proper ContentChunk object
+                                    chunk = ContentChunk(
+                                        content=chunk_text,
+                                        start_char=i,
+                                        end_char=chunk_end,
+                                        chunk_index=chunk_index,
+                                        total_chunks=total_chunks
+                                    )
+                                    
+                                    chunk_text_sample = chunk.content[:50] + "..." if len(chunk.content) > 50 else chunk.content
+                                    logger.debug(f"Processing chunk {chunk.chunk_index+1}/{chunk.total_chunks}: chars {chunk.start_char}-{chunk.end_char}, text: '{chunk_text_sample}'")
+                                    
+                                    # Get embedding for chunk
+                                    chunk_embedding = await provider.get_embedding(
+                                        text=chunk.content,
+                                        model=request.model_id
+                                    )
+                                    
+                                    # Store chunk embedding
+                                    logger.debug(f"Storing chunk {chunk.chunk_index+1} embedding to database")
+                                    store_result = await graph_service.store_chunk_embedding(
+                                        tx,
+                                        page_id,
+                                        chunk_embedding.vector,
+                                        chunk_index=chunk.chunk_index,
+                                        total_chunks=chunk.total_chunks,
+                                        start_char=chunk.start_char,
+                                        end_char=chunk.end_char,
+                                        model=chunk_embedding.model
+                                    )
+                                    
+                                    logger.debug(f"Chunk {chunk.chunk_index+1} storage result: {store_result if store_result is not None else 'No result returned'}")
+                                    successful_chunks += 1
+                                    
+                                    # Add to results
+                                    results["chunks"].append({
+                                        "index": chunk.chunk_index,
+                                        "start_char": chunk.start_char,
+                                        "end_char": chunk.end_char,
+                                        "dimension": chunk_embedding.dimension,
+                                        "model": chunk_embedding.model
+                                    })
+                                except Exception as e:
+                                    failed_chunks += 1
+                                    logger.error(f"Error processing chunk {chunk_index+1}/{total_chunks}: {str(e)}", exc_info=True)
                             
-                            logger.info(f"Created {len(chunk_dicts)} chunks using fallback chunker")
-                        
-                        # Generate embeddings for each chunk
-                        logger.info(f"Beginning embedding generation for {len(chunk_dicts)} chunks")
-                        successful_chunks = 0
-                        failed_chunks = 0
-                        
-                        for i, chunk in enumerate(chunk_dicts):
-                            try:
-                                chunk_text_sample = chunk["text"][:50] + "..." if len(chunk["text"]) > 50 else chunk["text"]
-                                logger.debug(f"Processing chunk {i+1}/{len(chunk_dicts)}: chars {chunk['start_char']}-{chunk['end_char']}, text: '{chunk_text_sample}'")
-                                
-                                # Get embedding for chunk
-                                chunk_embedding = await provider.get_embedding(
-                                    text=chunk["text"],
-                                    model=request.model_id
-                                )
-                                
-                                # Log the embedding details
-                                logger.debug(f"Generated embedding for chunk {i+1}: dimension={chunk_embedding.dimension}, model={chunk_embedding.model}")
-                                logger.debug(f"Embedding vector sample (first 5 values): {chunk_embedding.vector[:5] if len(chunk_embedding.vector) >= 5 else chunk_embedding.vector}")
-                                
-                                # Store chunk embedding
-                                logger.debug(f"Storing chunk {i+1} embedding to database")
-                                store_result = await graph_service.store_chunk_embedding(
-                                    tx,
-                                    page_id,
-                                    chunk_embedding.vector,
-                                    chunk_index=i,
-                                    total_chunks=len(chunk_dicts),
-                                    start_char=chunk["start_char"],
-                                    end_char=chunk["end_char"],
-                                    model=chunk_embedding.model
-                                )
-                                
-                                logger.debug(f"Chunk {i+1} storage result: {store_result if store_result is not None else 'No result returned'}")
-                                successful_chunks += 1
-                                
-                                # Add to results
-                                results["chunks"].append({
-                                    "index": i,
-                                    "start_char": chunk["start_char"],
-                                    "end_char": chunk["end_char"],
-                                    "dimension": chunk_embedding.dimension,
-                                    "model": chunk_embedding.model
-                                })
-                            except Exception as e:
-                                failed_chunks += 1
-                                logger.error(f"Error processing chunk {i+1}/{len(chunk_dicts)}: {str(e)}", exc_info=True)
-                                logger.error(f"Chunk text sample: '{chunk['text'][:100]}...'")
-                        
-                        logger.info(f"Chunk embedding generation complete: {successful_chunks} successful, {failed_chunks} failed")
-
+                            logger.info(f"Chunk embedding generation complete: {successful_chunks} successful, {failed_chunks} failed")
                     else:
                         # Generate single embedding for full content
                         logger.info(f"Generating single embedding for full content (length: {len(content)})")

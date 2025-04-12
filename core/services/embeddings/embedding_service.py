@@ -2,7 +2,7 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import time
-
+ 
 from core.domain.embeddings.models import (
     EmbeddingVector, EmbeddingStatus, 
     ContentChunk, PageEmbeddings, EmbeddingType,
@@ -11,7 +11,6 @@ from core.domain.embeddings.models import (
 from core.infrastructure.embeddings.factory import EmbeddingProviderFactory
 from core.services.base import BaseService
 from core.services.graph.graph_service import GraphService
-from core.infrastructure.database.db_connection import DatabaseConnection
 from core.infrastructure.database.transactions import Transaction
 from core.utils.logger import get_logger
 
@@ -175,7 +174,7 @@ class EmbeddingService(BaseService):
         # Use default config if not provided
         if config is None:
             config = EmbeddingRequestConfig()
-        
+         
         # Extract page properties
         try:
             page_id = str(page.id if hasattr(page, 'id') else page.get('id'))
@@ -441,10 +440,25 @@ class EmbeddingService(BaseService):
             # Get provider (use default)
             provider = await self.provider_factory.get_provider()
             
-            # Use provider's chunking method
-            chunks = await provider.chunk_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            # Calculate total chunks for proper indexing
+            total_chunks = max(1, (len(text) - chunk_overlap) // max(1, chunk_size - chunk_overlap))
+            if (len(text) - chunk_overlap) % max(1, chunk_size - chunk_overlap) > 0:
+                total_chunks += 1
             
-            self.logger.debug(f"Created {len(chunks)} chunks from text")
+            chunks = []
+            for i in range(0, len(text), max(1, chunk_size - chunk_overlap)):
+                chunk_end = min(i + chunk_size, len(text))
+                chunk_text = text[i:chunk_end]
+                
+                # Create ContentChunk with all required fields
+                chunks.append(ContentChunk(
+                    content=chunk_text,
+                    start_char=i,
+                    end_char=chunk_end,
+                    chunk_index=i // max(1, chunk_size - chunk_overlap),
+                    total_chunks=total_chunks 
+                ))
+            
             return chunks
             
         except Exception as e:

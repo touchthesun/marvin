@@ -1509,7 +1509,7 @@ class EmbeddingSystemScenario(TestScenario):
         
         return result
 
-
+ 
     async def _inspect_chunk_properties(self, page_id: str) -> Dict[str, Any]:
         """Inspect chunk properties directly to diagnose embedding issues."""
         self.logger.info(f"Inspecting chunk properties for page {page_id}")
@@ -1529,7 +1529,7 @@ class EmbeddingSystemScenario(TestScenario):
                             WHEN size(value) > 0 THEN 'VECTOR[' + toString(size(value)) + ']'
                             ELSE 'EMPTY_ARRAY'
                         END
-                    ELSE type(value)
+                    ELSE toString(value)
                 END}) AS properties
             ORDER BY c.chunk_index
             """

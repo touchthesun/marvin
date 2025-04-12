@@ -672,10 +672,10 @@ class GraphService(BaseService):
                 c.total_chunks = $total_chunks,
                 c.model = $model,
                 c.vector_length = size($embedding),
-                c.embedding_stored = true,  // Add a flag for easier verification
+                c.embedding_stored = true,
                 c.created_at = datetime()
             MERGE (p)-[:HAS_CHUNK]->(c)
-            RETURN page_found, 
+            RETURN p.id IS NOT NULL as page_found, 
                 c.chunk_index as chunk_index, 
                 exists((p)-[:HAS_CHUNK]->(c)) as relationship_created,
                 c.embedding_stored as stored, 
