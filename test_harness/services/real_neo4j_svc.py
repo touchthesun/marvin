@@ -173,7 +173,7 @@ class RealNeo4jService:
             # Constraints
             "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Page) REQUIRE p.url IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (s:Site) REQUIRE s.domain IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (k:Keyword) REQUIRE (k.text, k.language) IS NODE KEY",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (k:Keyword) REQUIRE (k.text, k.language) IS UNIQUE",
             
             # Indexes
             "CREATE INDEX IF NOT EXISTS FOR (p:Page) ON (p.discovered_at)",

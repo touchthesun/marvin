@@ -23,8 +23,9 @@ class ConnectionConfig:
     def __init__(
         self,
         uri: str,
-        username: str,
-        password: str,
+        username: str = None,
+        password: str = None,
+        auth_enabled: bool = True,
         max_connection_pool_size: int = 50,
         connection_timeout: int = 30,
         transaction_config: Optional[TransactionConfig] = None
@@ -32,6 +33,7 @@ class ConnectionConfig:
         self.uri = uri
         self.username = username
         self.password = password
+        self.auth_enabled = auth_enabled
         self.max_connection_pool_size = max_connection_pool_size
         self.connection_timeout = connection_timeout
         self.transaction_config = transaction_config or TransactionConfig()
@@ -59,19 +61,84 @@ class DatabaseConnection:
         try:
             if not self._driver:
                 self.logger.debug("Initializing database connection")
-                self._driver = AsyncGraphDatabase.driver(
-                    self.config.uri,
-                    auth=(self.config.username, self.config.password),
-                    max_connection_pool_size=self.config.max_connection_pool_size,
-                    connection_timeout=self.config.connection_timeout
-                )
-                # Verify connectivity
-                await self._driver.verify_connectivity()
-                self.logger.info(
-                    "Successfully initialized database connection",
-                    extra={"uri": self.config.uri}
-                )
                 
+                # Create the driver with appropriate auth
+                driver_args = {
+                    "uri": self.config.uri,
+                    "max_connection_pool_size": self.config.max_connection_pool_size,
+                    "connection_timeout": self.config.connection_timeout
+                }
+                
+                # Try connecting with the appropriate auth configuration
+                connection_attempts = []
+                
+                if self.config.auth_enabled and self.config.username and self.config.password:
+                    # Case 1: Authentication enabled with credentials
+                    self.logger.debug("Trying to connect with authentication")
+                    connection_attempts.append(
+                        ("With basic auth", 
+                        lambda: {"auth": neo4j.Auth("basic", self.config.username, self.config.password)})
+                    )
+                else:
+                    # Case 2: Authentication disabled - try several options
+                    self.logger.debug("Trying to connect without authentication")
+                    
+                    # Option 1: Try omitting auth parameter entirely
+                    connection_attempts.append(
+                        ("Without auth parameter", 
+                        lambda: {})
+                    )
+                    
+                    # Option 2: Try the "none" scheme with all required parameters
+                    connection_attempts.append(
+                        ("With 'none' scheme", 
+                        lambda: {"auth": neo4j.Auth("none", "", "", None)})
+                    )
+                    
+                    # Option 3: Try default neo4j user with empty password
+                    connection_attempts.append(
+                        ("With empty password", 
+                        lambda: {"auth": neo4j.Auth("basic", "neo4j", "")})
+                    )
+                
+                # Try each connection method until one works
+                last_error = None
+                for description, get_args in connection_attempts:
+                    try:
+                        self.logger.debug(f"Attempting connection: {description}")
+                        # Get the args for this attempt and merge with driver_args
+                        attempt_args = {**driver_args, **get_args()}
+                        
+                        # Create driver with these args
+                        self._driver = AsyncGraphDatabase.driver(**attempt_args)
+                        
+                        # Verify connectivity
+                        await self._driver.verify_connectivity()
+                        
+                        # If we get here, connection succeeded
+                        self.logger.info(
+                            f"Successfully connected to database using: {description}",
+                            extra={"uri": self.config.uri}
+                        )
+                        break
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Connection attempt failed: {description}",
+                            extra={"error": str(e)}
+                        )
+                        last_error = e
+                        # Close driver if it was created
+                        if self._driver:
+                            await self._driver.close()
+                            self._driver = None
+                
+                # If we got through all attempts without success, raise the last error
+                if not self._driver:
+                    if last_error:
+                        raise last_error
+                    else:
+                        raise RuntimeError("All connection attempts failed")
+                    
         except Exception as e:
             self.logger.error(
                 "Failed to initialize database connection",
@@ -84,7 +151,7 @@ class DatabaseConnection:
                 message="Failed to initialize database connection",
                 cause=e
             )
-        
+            
     async def shutdown(self) -> None:
         """Clean up database connections."""
         if self._driver:

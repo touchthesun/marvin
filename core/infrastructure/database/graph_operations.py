@@ -723,6 +723,11 @@ class GraphOperationManager:
         Returns:
             Created or updated node
         """
+        self.logger.debug(f"create_or_update_node called with properties: {list(properties.keys())}")
+        if 'content' in properties:
+            self.logger.debug(f"Content property length: {len(properties['content']) if properties['content'] else 'None'}")
+        else:
+            self.logger.warning("Content property missing from node creation/update!")
         try:
             labels_str = ':'.join(labels)
             match_properties = match_properties or []

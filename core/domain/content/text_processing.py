@@ -3,6 +3,9 @@ import nltk
 from readability import Document
 from bs4 import BeautifulSoup
 from typing import List, Set
+
+from api.utils.helpers import get_domain_from_url
+from core.domain.content.config import ContentProcessorConfig
 from core.utils.logger import get_logger
 
 
@@ -274,3 +277,34 @@ class HTMLProcessor:
         
         return content
     
+
+    def is_too_complex(self, html: str, url: str, config: ContentProcessorConfig) -> bool:
+        """Determine if a page is too complex for content extraction."""
+        # Check domain against skip list
+        domain = get_domain_from_url(url)
+        if any(skip in domain for skip in config.skip_domains):
+            self.logger.info(f"Skipping content extraction for blocked domain: {domain}")
+            return True
+            
+        # Quick check for single-page apps and complex UIs
+        if '<div id="app"' in html or '<div id="root"' in html:
+            # Count script tags as complexity indicator
+            script_count = html.count('<script')
+            if script_count > config.max_js_scripts:
+                self.logger.info(f"Skipping complex JS app with {script_count} scripts")
+                return True
+        
+        # Parse with BeautifulSoup for more complex checks
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            element_count = len(soup.find_all())
+            
+            if element_count > config.complex_dom_threshold:
+                self.logger.info(f"Skipping complex page with {element_count} elements")
+                return True
+                
+            return False
+        except Exception as e:
+            self.logger.warning(f"Error checking page complexity: {e}")
+            # Be conservative - if we can't check complexity, assume it's manageable
+            return False

@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Set, Optional
@@ -317,7 +318,8 @@ class PageMetadata:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metadata to dictionary format."""
-        return {
+        # Start with basic properties
+        result = {
             "discovered_at": self.discovered_at.isoformat(),
             "last_accessed": self.last_accessed.isoformat() if self.last_accessed else None,
             "status": self.status.value,
@@ -333,9 +335,26 @@ class PageMetadata:
             "author": self.author,
             "published_date": self.published_date.isoformat() if self.published_date else None,
             "modified_date": self.modified_date.isoformat() if self.modified_date else None,
-            "metrics": self.metrics.to_dict() if self.metrics else None,
-            "custom_metadata": self.custom_metadata
+            # Remove custom_metadata as a nested dictionary
         }
+        
+        # Flatten metrics with prefix
+        if self.metrics:
+            metrics_dict = self.metrics.to_dict()
+            for key, value in metrics_dict.items():
+                result[f"metric_{key}"] = value
+        
+        # Handle custom_metadata
+        if self.custom_metadata:
+            # Option 1: Serialize to JSON string (simplest approach)
+            result["custom_metadata_json"] = json.dumps(self.custom_metadata)
+            
+            # Option 2: Flatten with prefix (if values are primitive)
+            # for key, value in self.custom_metadata.items():
+            #     if isinstance(value, (str, int, float, bool)) or value is None:
+            #         result[f"custom_{key}"] = value
+        
+        return result
 
 
     @classmethod

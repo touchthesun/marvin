@@ -1,3 +1,5 @@
+import time
+import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from urllib.parse import urlparse
@@ -310,68 +312,45 @@ class GraphService(BaseService):
         )
 
     def _prepare_page_data(self, page: Page) -> Dict[str, Any]:
-        """Prepare page data for Neo4j storage by flattening nested structures.
-        
-        Args:
-            page: Page object to prepare
-            
-        Returns:
-            Dict of flattened page data suitable for Neo4j
-        """
-        # Start with basic page fields
-        page_data = {
-            'url': str(page.url),
-            'domain': str(page.domain),
-            'status': str(page.status.value),  # Convert enum to string
-            'title': str(page.title) if page.title else None,
+        """Convert Page object to a flat dictionary for Neo4j storage."""
+        # Start with basic properties
+        result = {
+            "id": str(page.id),
+            "url": page.url,
+            "domain": page.domain,
+            "title": page.title,
+            "content": getattr(page, "content", None),
+            "status": page.status.value if hasattr(page.status, "value") else str(page.status)
         }
         
-        # Handle keywords - ensure they're primitive types
-        if page.keywords:
-            page_data['keywords'] = {str(k): float(v) for k, v in page.keywords.items()}
+        # Get metadata as a flattened dictionary
+        if hasattr(page, "metadata") and page.metadata:
+            metadata_dict = page.metadata.to_dict()
+            # Merge flattened metadata into result
+            result.update(metadata_dict)
         
-        # Flatten metadata
-        if page.metadata:
-            metadata_dict = {
-                'discovered_at': page.metadata.discovered_at.isoformat() if page.metadata.discovered_at else None,
-                'last_accessed': page.metadata.last_accessed.isoformat() if page.metadata.last_accessed else None,
-                'metadata_quality_score': float(page.metadata.metadata_quality_score),
-                'tab_id': str(page.metadata.tab_id) if page.metadata.tab_id else None,
-                'window_id': str(page.metadata.window_id) if page.metadata.window_id else None,
-                'bookmark_id': str(page.metadata.bookmark_id) if page.metadata.bookmark_id else None,
-                'word_count': int(page.metadata.word_count) if page.metadata.word_count is not None else None,
-                'reading_time_minutes': float(page.metadata.reading_time_minutes) if page.metadata.reading_time_minutes is not None else None,
-                'language': str(page.metadata.language) if page.metadata.language else None,
-                'source_type': str(page.metadata.source_type) if page.metadata.source_type else None,
-                'author': str(page.metadata.author) if page.metadata.author else None,
-                'published_date': page.metadata.published_date.isoformat() if page.metadata.published_date else None,
-                'modified_date': page.metadata.modified_date.isoformat() if page.metadata.modified_date else None,
-                'browser_contexts': [str(context.value) for context in page.metadata.browser_contexts] if page.metadata.browser_contexts else []
-            }
-            page_data.update(metadata_dict)
-            
-            # Handle custom metadata - ensure primitive types
-            if page.metadata.custom_metadata:
-                for key, value in page.metadata.custom_metadata.items():
-                    if isinstance(value, (int, float, str, bool)):
-                        page_data[f'custom_{str(key)}'] = value
-                    else:
-                        page_data[f'custom_{str(key)}'] = str(value)
+        # Add keywords if present
+        if hasattr(page, "keywords") and page.keywords:
+            if isinstance(page.keywords, dict):
+                # Convert to JSON string for Neo4j
+                result["keywords_json"] = json.dumps(page.keywords)
+            else:
+                result["keywords"] = page.keywords
         
-        # Flatten metrics
-        if hasattr(page.metadata, 'metrics') and page.metadata.metrics:
-            metrics_dict = {
-                'metric_quality_score': float(page.metadata.metrics.quality_score),
-                'metric_relevance_score': float(page.metadata.metrics.relevance_score),
-                'metric_visit_count': int(page.metadata.metrics.visit_count),
-                'metric_keyword_count': int(page.metadata.metrics.keyword_count),
-                'metric_processing_time': float(page.metadata.metrics.processing_time) if page.metadata.metrics.processing_time is not None else None,
-                'metric_last_visited': page.metadata.metrics.last_visited.isoformat() if page.metadata.metrics.last_visited else None
-            }
-            page_data.update(metrics_dict)
+        # Finally, ensure all values are Neo4j-compatible primitive types
+        for key, value in list(result.items()):
+            if isinstance(value, dict):
+                # Dictionaries aren't allowed - convert to JSON string
+                result[key] = json.dumps(value)
+            elif not isinstance(value, (str, int, float, bool, list, type(None))):
+                # Convert non-primitive types to string
+                result[key] = str(value)
+            elif isinstance(value, list):
+                # Ensure lists only contain primitive types
+                if any(isinstance(item, (dict, list)) for item in value):
+                    result[key] = json.dumps(value)
         
-        # Remove any None values as Neo4j doesn't handle them well
-        return {k: v for k, v in page_data.items() if v is not None}
+        return result
     
 
     def _reconstruct_page_from_node(self, node_data: Dict[str, Any]) -> Page:
@@ -560,10 +539,735 @@ class GraphService(BaseService):
 
     async def check_task_exists(self, task_id):
         """Check if a task exists in the database."""
-        result = await self.execute_query(
+        result = await self.graph_operations.connection.execute_query(
             "MATCH (t:Task {id: $task_id}) RETURN count(t) as count",
             {"task_id": task_id}
         )
         exists = result[0]["count"] > 0
         self.logger.info(f"Task {task_id} exists in database: {exists}")
         return exists
+    
+    # Embedding Service Integration
+    async def store_embedding(
+        self, 
+        tx: Transaction, 
+        page_id: str, 
+        embedding: List[float],
+        embedding_type: str = "metadata",
+        model: str = "text-embedding-ada-002"
+    ) -> None:
+        """Store embedding for a page in Neo4j."""
+        self.logger.debug(f"Storing {embedding_type} embedding for page {page_id}, model: {model}")
+        try:
+            # Use graph operations to store embedding
+            query = """
+            MATCH (p:Page {id: $page_id})
+            SET p.embedding_model = $model,
+                p.embedding_updated_at = datetime(),
+                p.embedding_status = 'completed'
+            """
+            
+            # Add embedding based on type
+            if embedding_type == "metadata":
+                query += ", p.metadata_embedding = $embedding"
+            elif embedding_type == "full_content":
+                query += ", p.content_embedding = $embedding"
+            elif embedding_type == "summary":
+                query += ", p.summary_embedding = $embedding"
+            else:
+                # Default to metadata
+                query += ", p.metadata_embedding = $embedding"
+                self.logger.warning(f"Unknown embedding type: {embedding_type}, defaulting to metadata")
+            
+            # Execute query
+            start_time = time.time()
+            await self.graph_operations.connection.execute_query(
+                query,
+                {
+                    "page_id": page_id,
+                    "embedding": embedding,
+                    "model": model
+                },
+                transaction=tx
+            )
+            elapsed = time.time() - start_time
+            self.logger.debug(f"Embedding stored in Neo4j in {elapsed:.2f}s")
+            
+        except Exception as e:
+            self.logger.error(f"Error storing embedding: {str(e)}", exc_info=True)
+            raise
+
+    async def store_chunk_embedding(
+        self, 
+        tx: Transaction, 
+        page_id: str, 
+        embedding: List[float],
+        chunk_index: int,
+        total_chunks: int,
+        start_char: int,
+        end_char: int,
+        model: str = "text-embedding-ada-002"
+    ) -> None:
+        """
+        Store embedding for a content chunk in Neo4j.
+        
+        Args:
+            tx: Database transaction
+            page_id: Page ID
+            embedding: Embedding vector
+            chunk_index: Index of this chunk
+            total_chunks: Total number of chunks
+            start_char: Start character position
+            end_char: End character position
+            model: Embedding model used
+        """
+        try:
+            page_check_query = "MATCH (p:Page {id: $page_id}) RETURN p.id as id"
+            page_check_result = await self.graph_operations.connection.execute_query(
+                page_check_query, 
+                {"page_id": page_id},
+                transaction=tx
+            )
+
+            if not page_check_result or len(page_check_result) == 0:
+                self.logger.error(f"Cannot store chunk embedding: Page {page_id} not found in database")
+                raise ValueError(f"Page {page_id} not found")
+            else:
+                self.logger.info(f"Found page {page_id}, proceeding with chunk creation")
+
+            # Validate embedding vector
+            if embedding is None:
+                self.logger.error(f"Cannot store None embedding for chunk {chunk_index} of page {page_id}")
+                raise ValueError("Embedding vector cannot be None")
+                
+            if not embedding or len(embedding) == 0:
+                self.logger.error(f"Cannot store empty embedding for chunk {chunk_index} of page {page_id}")
+                raise ValueError("Embedding vector cannot be empty")
+            
+            # Log embedding details
+            self.logger.info(f"Storing embedding for chunk {chunk_index}/{total_chunks} of page {page_id}")
+            self.logger.debug(f"Embedding vector: length={len(embedding)}, first 5 values={embedding[:5]}")
+            self.logger.debug(f"Chunk details: start_char={start_char}, end_char={end_char}, model={model}")
+            
+            # Add diagnostic vector check
+            try:
+                import numpy as np
+                embedding_array = np.array(embedding, dtype=float)
+                norm = np.linalg.norm(embedding_array)
+                has_nans = np.isnan(embedding_array).any()
+                self.logger.debug(f"Vector norm: {norm:.6f}, contains NaNs: {has_nans}")
+            except ImportError:
+                self.logger.debug("NumPy not available for vector diagnostics")
+            
+            # Create a Chunk node and connect to Page
+            query = """
+            MATCH (p:Page {id: $page_id})
+            MERGE (c:Chunk {
+                page_id: $page_id,
+                chunk_index: $chunk_index
+            })
+            SET c.embedding = $embedding,
+                c.start_char = $start_char,
+                c.end_char = $end_char,
+                c.total_chunks = $total_chunks,
+                c.model = $model,
+                c.vector_length = size($embedding),
+                c.embedding_stored = true,
+                c.created_at = datetime()
+            MERGE (p)-[:HAS_CHUNK]->(c)
+            RETURN p.id IS NOT NULL as page_found, 
+                c.chunk_index as chunk_index, 
+                exists((p)-[:HAS_CHUNK]->(c)) as relationship_created,
+                c.embedding_stored as stored, 
+                size(c.embedding) as vector_length,
+                c.chunk_index as index
+            """
+            
+            # Log query parameters (without the full embedding vector)
+            log_params = {
+                "page_id": page_id,
+                "chunk_index": chunk_index,
+                "total_chunks": total_chunks,
+                "start_char": start_char,
+                "end_char": end_char,
+                "model": model,
+                "embedding_length": len(embedding)
+            }
+            self.logger.debug(f"Executing query with parameters: {log_params}")
+            
+            # Execute query with more detailed error handling
+            try:
+                result = await self.graph_operations.connection.execute_query(
+                    query,
+                    {
+                        "page_id": page_id,
+                        "embedding": embedding,
+                        "chunk_index": chunk_index,
+                        "total_chunks": total_chunks,
+                        "start_char": start_char,
+                        "end_char": end_char,
+                        "model": model
+                    },
+                    transaction=tx
+                )
+                
+                # Verify embedding was stored
+                if result and len(result) > 0:
+                    stored = result[0].get("stored", False)
+                    vector_length = result[0].get("vector_length", 0)
+                    index = result[0].get("index", -1)
+                    
+                    self.logger.info(f"Chunk {index} embedding stored: {stored}, vector length: {vector_length}")
+                    
+                    if not stored or vector_length == 0:
+                        self.logger.warning(f"Chunk embedding may not have been stored properly!")
+                else:
+                    self.logger.warning(f"No result returned from chunk embedding storage query")
+                    
+            except Exception as query_error:
+                self.logger.error(f"Error executing Neo4j query: {str(query_error)}", exc_info=True)
+                raise
+                
+        except Exception as e:
+            self.logger.error(f"Error storing chunk embedding: {str(e)}", exc_info=True)
+            raise
+
+    async def update_page_embedding_status(
+        self, 
+        tx: Transaction, 
+        page_id: str,
+        status: str,
+        last_updated: datetime = None,  # Make it optional
+        model: str = None,
+        error: str = None
+    ) -> None:
+        try:
+            # Update page status
+            query = """
+            MATCH (p:Page {id: $page_id})
+            SET p.embedding_status = $status
+            """
+            
+            if model:
+                query += ", p.embedding_model = $model"
+            
+            if error:
+                query += ", p.embedding_error = $error"
+            
+            # Only add last_updated if it's not None
+            if last_updated:
+                query += ", p.embedding_updated_at = $last_updated"
+                
+            # Build parameters dict
+            params = {
+                "page_id": page_id,
+                "status": status,
+                "model": model,
+                "error": error
+            }
+            
+            # Only add last_updated parameter if it exists
+            if last_updated:
+                params["last_updated"] = last_updated.isoformat()
+            else:
+                # Use current time if no timestamp provided
+                params["last_updated"] = datetime.now().isoformat()
+                query += ", p.embedding_updated_at = $last_updated"
+            
+            # Execute query with correct parameter order
+            await self.graph_operations.connection.execute_query(
+                query,
+                parameters=params,
+                transaction=tx
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error updating embedding status: {str(e)}", exc_info=True)
+            raise
+
+    async def get_page_embedding(
+        self, 
+        tx: Transaction, 
+        page_id: str,
+        embedding_type: str = "metadata"
+    ) -> Optional[List[float]]:
+        """
+        Get embedding for a page.
+        
+        Args:
+            tx: Database transaction
+            page_id: Page ID
+            embedding_type: Type of embedding to retrieve
+            
+        Returns:
+            Embedding vector or None if not found
+        """
+        try:
+            # Determine which embedding to retrieve
+            embedding_field = "metadata_embedding"
+            if embedding_type == "full_content":
+                embedding_field = "content_embedding"
+            elif embedding_type == "summary":
+                embedding_field = "summary_embedding"
+            
+            # Query to get embedding
+            query = f"""
+            MATCH (p:Page {{id: $page_id}})
+            RETURN p.{embedding_field} AS embedding
+            """
+            
+            # Execute query
+            result = await self.graph_operations.connection.execute_query(
+                query,
+                {"page_id": page_id},
+                transaction=tx
+            )
+            
+            # Check if embedding exists
+            if result and result[0].get("embedding"):
+                return result[0]["embedding"]
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error getting page embedding: {str(e)}", exc_info=True)
+            return None
+    
+
+    async def find_similar_by_embedding(
+        self, 
+        tx: Transaction, 
+        embedding: List[float],
+        embedding_type: str = "metadata",
+        limit: int = 5,
+        threshold: float = 0.7,
+        model: str = None,
+        similarity_function: str = "cosine"  # Add parameter for similarity function
+    ) -> List[Dict[str, Any]]:
+        """
+        Find pages with similar embeddings using Neo4j's vector functions.
+        
+        Args:
+            tx: Database transaction
+            embedding: Query embedding vector
+            embedding_type: Type of embedding to compare against ("metadata", "full_content", "summary")
+            limit: Maximum number of results to return
+            threshold: Minimum similarity threshold (0-1)
+            model: Optional model filter
+            similarity_function: Similarity function to use ("cosine", "euclidean", "dot")
+            
+        Returns:
+            List of similar pages with similarity scores
+        """
+        try:
+            # Determine which embedding field to use for comparison
+            embedding_field = "metadata_embedding"
+            if embedding_type == "full_content":
+                embedding_field = "content_embedding"
+            elif embedding_type == "summary":
+                embedding_field = "summary_embedding"
+            
+            # Model filter
+            model_filter = ""
+            if model:
+                model_filter = "AND p.embedding_model = $model"
+            
+            # Determine similarity function to use
+            similarity_func = f"vector.similarity.{similarity_function.lower()}"
+            
+            # Log query parameters
+            self.logger.debug(f"Searching with {embedding_type} embeddings using {similarity_func}")
+            self.logger.debug(f"Vector dimensions: {len(embedding)}, threshold: {threshold}, limit: {limit}")
+            
+            # Build query with correct vector similarity syntax
+            query = f"""
+            MATCH (p:Page)
+            WHERE p.{embedding_field} IS NOT NULL {model_filter}
+            
+            // Use correct vector similarity function syntax
+            WITH p, {similarity_func}($embedding, p.{embedding_field}) AS similarity
+            WHERE similarity >= $threshold
+            
+            RETURN p.id AS id, p.url AS url, p.title AS title, similarity
+            ORDER BY similarity DESC
+            LIMIT $limit
+            """
+            
+            # Execute query
+            self.logger.debug("Executing vector similarity query")
+            result = await self.graph_operations.connection.execute_query(
+                query,
+                parameters={
+                    "embedding": embedding,
+                    "threshold": threshold,
+                    "limit": limit,
+                    "model": model
+                },
+                transaction=tx
+            )
+            
+            # Process results
+            similar_pages = []
+            for item in result:
+                similar_pages.append({
+                    "id": item["id"],
+                    "url": item["url"],
+                    "title": item["title"],
+                    "similarity": item["similarity"]
+                })
+            
+            self.logger.info(f"Found {len(similar_pages)} similar pages with {similarity_function} similarity >= {threshold}")
+            return similar_pages
+            
+        except Exception as e:
+            # Check if the error is related to the vector similarity function
+            error_str = str(e)
+            if "Unknown function 'vector.similarity" in error_str:
+                self.logger.warning("Vector similarity functions not available in this Neo4j instance")
+            self.logger.error(f"Error finding similar pages: {error_str}", exc_info=True)
+            raise
+                
+
+    async def get_page_embeddings(
+        self, 
+        tx: Transaction, 
+        page_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get all embeddings associated with a page.
+        
+        Args:
+            tx: Database transaction
+            page_id: Page ID
+                
+        Returns:
+            Dictionary containing all embedding types for the page
+        """
+        try:
+            self.logger.debug(f"Getting all embeddings for page {page_id}")
+            
+            # Query to get all embedding types
+            query = """
+            MATCH (p:Page {id: $page_id})
+            RETURN p.metadata_embedding AS metadata_embedding,
+                p.content_embedding AS content_embedding,
+                p.summary_embedding AS summary_embedding,
+                p.embedding_model AS model,
+                p.embedding_status AS status,
+                p.embedding_updated_at AS last_updated
+            """
+            
+            # Execute query
+            result = await self.graph_operations.connection.execute_query(
+                query,
+                {"page_id": page_id},
+                transaction=tx
+            )
+            
+            # Check if page and embeddings exist
+            if not result:
+                self.logger.warning(f"No page found with ID: {page_id}")
+                return {}
+                
+            # Get chunk embeddings
+            chunk_query = """
+            MATCH (p:Page {id: $page_id})-[:HAS_CHUNK]->(c:Chunk)
+            RETURN c.chunk_index AS index, 
+                c.embedding AS embedding,
+                c.start_char AS start_char,
+                c.end_char AS end_char,
+                c.total_chunks AS total_chunks,
+                c.model AS model,
+                c.created_at AS created_at
+            ORDER BY c.chunk_index
+            """
+            
+            chunk_result = await self.graph_operations.connection.execute_query(
+                chunk_query,
+                {"page_id": page_id},
+                transaction=tx
+            )
+            
+            # Assemble response
+            embeddings = {
+                "metadata_embedding": result[0].get("metadata_embedding"),
+                "content_embedding": result[0].get("content_embedding"),
+                "summary_embedding": result[0].get("summary_embedding"),
+                "model": result[0].get("model"),
+                "status": result[0].get("status"),
+                "last_updated": result[0].get("last_updated"),
+                "chunks": [
+                    {
+                        "index": chunk.get("index"),
+                        "embedding": chunk.get("embedding"),
+                        "start_char": chunk.get("start_char"),
+                        "end_char": chunk.get("end_char"),
+                        "total_chunks": chunk.get("total_chunks"),
+                        "model": chunk.get("model"),
+                        "created_at": chunk.get("created_at")
+                    }
+                    for chunk in chunk_result
+                ]
+            }
+            
+            self.logger.debug(f"Retrieved {len(embeddings['chunks'])} chunk embeddings for page {page_id}")
+            return embeddings
+            
+        except Exception as e:
+            self.logger.error(f"Error getting page embeddings: {str(e)}", exc_info=True)
+            raise ServiceError(
+                message="Failed to get page embeddings",
+                details={"page_id": page_id},
+                cause=e
+            )
+            
+    async def delete_page_embeddings(
+        self, 
+        tx: Transaction, 
+        page_id: str,
+        embedding_types: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Delete embeddings for a page.
+        
+        Args:
+            tx: Database transaction
+            page_id: Page ID
+            embedding_types: List of embedding types to delete (if None, delete all)
+                
+        Returns:
+            Dictionary with deletion results
+        """
+        try:
+            self.logger.info(f"Deleting embeddings for page {page_id}, types: {embedding_types}")
+            
+            # If specific types are specified, delete only those
+            if embedding_types:
+                # Build the SET clause dynamically
+                set_clauses = []
+                if "metadata" in embedding_types:
+                    set_clauses.append("p.metadata_embedding = NULL")
+                if "content" in embedding_types:
+                    set_clauses.append("p.content_embedding = NULL")
+                if "summary" in embedding_types:
+                    set_clauses.append("p.summary_embedding = NULL")
+                
+                if set_clauses:
+                    # Delete specific embedding types
+                    query = f"""
+                    MATCH (p:Page {{id: $page_id}})
+                    SET {', '.join(set_clauses)},
+                        p.embedding_updated_at = datetime(),
+                        p.embedding_status = 'partial'
+                    RETURN p.id AS id
+                    """
+                    
+                    await self.graph_operations.connection.execute_query(
+                        query,
+                        {"page_id": page_id},
+                        transaction=tx
+                    )
+            else:
+                # Delete all embeddings
+                query = """
+                MATCH (p:Page {id: $page_id})
+                SET p.metadata_embedding = NULL,
+                    p.content_embedding = NULL, 
+                    p.summary_embedding = NULL,
+                    p.embedding_updated_at = datetime(),
+                    p.embedding_status = 'pending'
+                RETURN p.id AS id
+                """
+                
+                await self.graph_operations.connection.execute_query(
+                    query,
+                    {"page_id": page_id},
+                    transaction=tx
+                )
+            
+            # Delete chunk embeddings if requested
+            if not embedding_types or "chunks" in embedding_types:
+                # Delete chunk nodes
+                chunk_query = """
+                MATCH (p:Page {id: $page_id})-[:HAS_CHUNK]->(c:Chunk)
+                DETACH DELETE c
+                """
+                
+                await self.graph_operations.connection.execute_query(
+                    chunk_query,
+                    {"page_id": page_id},
+                    transaction=tx
+                )
+                
+                self.logger.debug(f"Deleted chunk embeddings for page {page_id}")
+            
+            return {
+                "success": True,
+                "page_id": page_id,
+                "deleted_types": embedding_types if embedding_types else "all"
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting page embeddings: {str(e)}", exc_info=True)
+            raise ServiceError(
+                message="Failed to delete page embeddings",
+                details={"page_id": page_id},
+                cause=e
+            )
+            
+
+    async def get_embedding_stats(
+        self, 
+        tx: Transaction
+    ) -> Dict[str, Any]:
+        """
+        Get statistics about embeddings in the knowledge graph.
+        
+        Args:
+            tx: Database transaction
+                
+        Returns:
+            Dictionary with embedding statistics
+        """
+        try:
+            self.logger.debug("Getting embedding statistics")
+            
+            # Query to get counts of pages with different embedding types
+            query = """
+            MATCH (p:Page)
+            RETURN 
+                count(p) AS total_pages,
+                count(p.metadata_embedding) AS pages_with_metadata_embedding,
+                count(p.content_embedding) AS pages_with_content_embedding,
+                count(p.summary_embedding) AS pages_with_summary_embedding,
+                count(CASE WHEN p.embedding_status = 'completed' THEN 1 END) AS completed,
+                count(CASE WHEN p.embedding_status = 'pending' THEN 1 END) AS pending,
+                count(CASE WHEN p.embedding_status = 'processing' THEN 1 END) AS processing,
+                count(CASE WHEN p.embedding_status = 'failed' THEN 1 END) AS failed,
+                count(CASE WHEN p.embedding_status = 'partial' THEN 1 END) AS partial
+            """
+            
+            result = await self.graph_operations.connection.execute_query(
+                query,
+                {},
+                transaction=tx
+            )
+            
+            # Get counts of chunk embeddings
+            chunk_query = """
+            MATCH (c:Chunk)
+            RETURN count(c) AS total_chunks,
+                avg(c.end_char - c.start_char) AS avg_chunk_size
+            """
+            
+            chunk_result = await self.graph_operations.connection.execute_query(
+                chunk_query,
+                {},
+                transaction=tx
+            )
+            
+            # Get model distribution
+            model_query = """
+            MATCH (p:Page)
+            WHERE p.embedding_model IS NOT NULL
+            RETURN p.embedding_model AS model, count(p) AS count
+            ORDER BY count DESC
+            """
+            
+            model_result = await self.graph_operations.connection.execute_query(
+                model_query,
+                {},
+                transaction=tx
+            )
+            
+            # Assemble response
+            stats = {
+                "total_pages": result[0].get("total_pages", 0),
+                "embedding_coverage": {
+                    "metadata": result[0].get("pages_with_metadata_embedding", 0),
+                    "content": result[0].get("pages_with_content_embedding", 0),
+                    "summary": result[0].get("pages_with_summary_embedding", 0)
+                },
+                "embedding_status": {
+                    "completed": result[0].get("completed", 0),
+                    "pending": result[0].get("pending", 0),
+                    "processing": result[0].get("processing", 0),
+                    "failed": result[0].get("failed", 0),
+                    "partial": result[0].get("partial", 0)
+                },
+                "chunks": {
+                    "total": chunk_result[0].get("total_chunks", 0),
+                    "avg_size": chunk_result[0].get("avg_chunk_size", 0)
+                },
+                "models": {
+                    item.get("model"): item.get("count")
+                    for item in model_result
+                }
+            }
+            
+            # Calculate percentages
+            if stats["total_pages"] > 0:
+                for key, value in stats["embedding_coverage"].items():
+                    stats["embedding_coverage"][f"{key}_pct"] = round(value / stats["total_pages"] * 100, 2)
+                    
+                for key, value in stats["embedding_status"].items():
+                    stats["embedding_status"][f"{key}_pct"] = round(value / stats["total_pages"] * 100, 2)
+            
+            self.logger.debug(f"Retrieved embedding statistics: {stats}")
+            return stats
+            
+        except Exception as e:
+            self.logger.error(f"Error getting embedding statistics: {str(e)}", exc_info=True)
+            raise ServiceError(
+                message="Failed to get embedding statistics",
+                cause=e
+            )
+
+    async def get_page_by_id(self, tx: Transaction, page_id: str) -> Optional[Page]:
+        """Get a page by its ID using the provided transaction.
+        
+        Args:
+            tx: Transaction object
+            page_id: ID of the page to retrieve
+            
+        Returns:
+            Page instance if found, None otherwise
+        """
+        try:
+            self.logger.debug(f"Retrieving page with ID: {page_id}")
+            
+            node = await self.graph_operations.get_node_by_property(
+                label="Page",
+                property_name="id",
+                property_value=page_id,
+                transaction=tx
+            )
+            
+            # Handle the None case explicitly
+            if node is None:
+                self.logger.debug(f"No page found with ID: {page_id}")
+                return None
+                
+            self.logger.debug(f"Retrieved page node: {node}")
+            
+            # Convert node to Page object
+            if hasattr(node, 'properties'):
+                node_data = dict(node.properties)
+                node_data['id'] = str(node.id) if hasattr(node, 'id') else page_id
+                return self._reconstruct_page_from_node(node_data)
+            
+            # If node is already dict-like
+            if isinstance(node, dict):
+                return self._reconstruct_page_from_node(node)
+                
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error getting page by ID: {str(e)}", exc_info=True)
+            raise ServiceError(
+                message="Failed to get page by ID",
+                details={"page_id": page_id},
+                cause=e
+            )
+        
+    

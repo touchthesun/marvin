@@ -27,6 +27,7 @@ class Page:
     
     # Content
     title: Optional[str] = None
+    content: Optional[str] = None
     keywords: Dict[str, float] = field(default_factory=dict)
     
     # Metadata, relationships, and metrics
@@ -154,7 +155,7 @@ class Page:
         """Remove a browser context."""
         self.browser_contexts.discard(context)
         self.metadata.updated_at = datetime.now()
-    
+     
     def mark_processed(self, processing_time: float = None):
         """Mark the page as processed and record metrics."""
         self.status = PageStatus.ACTIVE
@@ -171,6 +172,7 @@ class Page:
             'domain': self.domain,
             'status': self.status.value,
             'title': self.title,
+            'content': self.content,
             'keywords': self.keywords,
             'metadata': self.metadata.to_dict(),
             'relationships': [

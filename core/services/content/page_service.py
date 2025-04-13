@@ -130,7 +130,18 @@ class PageService(BaseService):
         **context_data
     ) -> Page:
         """Get or create a page with browser context."""
+        # Check if content is in context_data
+        if 'content' in context_data:
+            self.logger.info(f"get_or_create_page received content: {len(context_data['content'])} chars")
+        else:
+            self.logger.warning("get_or_create_page did not receive content in context_data")
+            
         page = await self._get_page(tx, url, create_if_missing=True)
+        
+        # Add content if provided
+        if 'content' in context_data and context_data['content']:
+            page.content = context_data['content']
+            self.logger.info(f"Set page.content: {len(page.content)} chars")
         
         # Save old state for rollback
         old_contexts = page.browser_contexts.copy()
@@ -139,6 +150,12 @@ class PageService(BaseService):
         # Update contexts and visit info
         page.update_browser_contexts(context, **context_data)
         page.record_visit()
+        
+        # Check if page has content before persistence
+        if hasattr(page, 'content') and page.content:
+            self.logger.info(f"Page has content before persist: {len(page.content)} chars")
+        else:
+            self.logger.warning("Page missing content before persist")
         
         # Persist changes
         await self.graph_service.execute_in_transaction(
@@ -392,13 +409,13 @@ class PageService(BaseService):
             raise
     
 
-    async def _get_page_relationships(self, tx: Transaction, page_id: UUID) -> List[PageRelationship]:
+    async def _get_page_relationships(self, tx: Transaction, page_id: str) -> List[PageRelationship]:
         """
         Get all relationships for a page.
         
         Args:
             tx: Transaction for database operations
-            page_id: UUID of the page
+            page_id: ID of the page
             
         Returns:
             List of PageRelationship objects

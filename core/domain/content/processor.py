@@ -15,7 +15,6 @@ from .keyword_identifier import (
 from .models.relationships import RelationshipManager
 from .text_processing import TextCleaner, HTMLProcessor
 from .extractors import (
-    ExtractorConfig,
     RakeExtractor,
     TfidfExtractor,
     NamedEntityExtractor,
@@ -29,6 +28,7 @@ from core.domain.content.pipeline import (
     ComponentError,
     ValidationError
 )
+from core.domain.content.config import ContentProcessorConfig
 from core.domain.content.models.page import Page
 from core.common.errors import ProcessingError
 from core.utils.logger import get_logger
@@ -251,39 +251,6 @@ class KeywordProcessor:
 
 
 
-@dataclass
-class ContentProcessorConfig:
-    """Configuration for content processing component.
-    
-    Attributes:
-        min_content_length: Minimum length for meaningful content
-        min_keyword_score: Minimum score to include keyword
-        max_variants: Maximum number of variants per keyword
-        enable_stemming: Whether to use stemming in normalization
-        extractor_config: Configuration for keyword extractors
-    """ 
-    min_content_length: int = 100
-    min_keyword_score: float = 0.3
-    max_variants: int = 5
-    enable_stemming: bool = True
-    relationship_confidence_threshold: float = 0.5
-    extractor_config: ExtractorConfig = ExtractorConfig(
-        min_chars=3,
-        max_words=4,
-        min_frequency=1,
-        min_keyword_score=0.25,
-        score_threshold=0.5
-    )
-
-    def __post_init__(self):
-        """Validate configuration parameters."""
-        if self.min_content_length < 0:
-            raise ValueError("min_content_length must be non-negative")
-        if not 0 <= self.min_keyword_score <= 1:
-            raise ValueError("min_keyword_score must be between 0 and 1")
-        if self.max_variants < 1:
-            raise ValueError("max_variants must be positive")
-
 class ContentProcessor(PipelineComponent):
     """Content processing pipeline component.
     
@@ -433,19 +400,47 @@ class ContentProcessor(PipelineComponent):
 
 
     async def process(self, page: Page) -> None:
-        """Process page content and update with results.
-        
-        Args:
-            page: Page to process
-            
-        Raises:
-            ComponentError: If processing fails
-        """
+        """Process page content and update with results."""
         try:
             start_time = datetime.now()
             
-            # Get content directly from page
-            raw_content = page.content
+            # Get the raw HTML content from somewhere (source depends on how it's supplied)
+            raw_html = page.raw_html  # This would come from browser extension
+            
+            # Skip content extraction if disabled or page is too complex
+            if not self.config.extract_content or self.html_processor.is_too_complex(
+                    raw_html, page.url, self.config):
+                self.logger.info(f"Skipping content extraction for {page.url}")
+                page.content = None  # Explicitly set to None to indicate skipped
+            else:
+                # Try content extraction with timeout
+                try:
+                    # Run cleaning in a separate thread with timeout
+                    loop = asyncio.get_event_loop()
+                    cleaned_content = await asyncio.wait_for(
+                        loop.run_in_executor(None, 
+                                            self.html_processor.clean_html, 
+                                            raw_html),
+                        timeout=self.config.content_extraction_timeout
+                    )
+                    
+                    # Cap content length if needed
+                    if len(cleaned_content) > self.config.max_content_length:
+                        cleaned_content = cleaned_content[:self.config.max_content_length]
+                        self.logger.info(f"Truncated long content for {page.url}")
+                        
+                    # Store content
+                    page.content = cleaned_content
+                    self.logger.info(f"Extracted {len(cleaned_content)} chars of content")
+                    
+                except asyncio.TimeoutError:
+                    self.logger.warning(f"Content extraction timed out for {page.url}")
+                    page.content = None
+                except Exception as e:
+                    self.logger.error(f"Content extraction failed: {e}", exc_info=True)
+                    page.content = None
+            
+            raw_content = page.content or page.title or ""
             self.logger.debug(f"Processing content of length: {len(raw_content) if raw_content else 0}")
             
             if not raw_content:
