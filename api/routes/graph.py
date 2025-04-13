@@ -246,10 +246,10 @@ async def get_graph_overview(
             # Get edges between these nodes
             edges_query = f"""
             MATCH (p1:Page)-[r]->(p2:Page)
-            WHERE id(p1) IN $node_ids AND id(p2) IN $node_ids
+            WHERE elementId(p1) IN $node_ids AND elementId(p2) IN $node_ids
             RETURN 
-                id(p1) as source_id,
-                id(p2) as target_id,
+                elementId(p1) as source_id,
+                elementId(p2) as target_id,
                 type(r) as rel_type,
                 r.score as score,
                 properties(r) as properties
@@ -271,11 +271,14 @@ async def get_graph_overview(
                 
                 # Use our mapping to get the corresponding UUIDs
                 if source_neo4j_id in id_mapping and target_neo4j_id in id_mapping:
+                    score = item.get("score")
+                    strength = 0.5 if score is None else float(score)
+                    
                     edges.append(GraphEdge(
                         source_id=id_mapping[source_neo4j_id],
                         target_id=id_mapping[target_neo4j_id],
                         type=item["rel_type"],
-                        strength=float(item.get("score", 0.5)),
+                        strength=strength,
                         metadata=item.get("properties", {})
                     ))
             
