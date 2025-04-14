@@ -1,0 +1,152 @@
+/* options.css */
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+    background-color: #f9f9fa;
+  }
+  
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+  }
+  
+  header {
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  header h1 {
+    margin: 0 0 10px;
+    color: #1a73e8;
+    font-size: 24px;
+  }
+  
+  header p {
+    margin: 0;
+    color: #5f6368;
+  }
+  
+  .settings-section {
+    margin-bottom: 30px;
+  }
+  
+  .settings-section h2 {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 15px;
+    color: #202124;
+  }
+  
+  .setting-item {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .setting-item label {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  
+  .setting-item input[type="checkbox"] {
+    margin-right: 8px;
+  }
+  
+  .setting-item input[type="text"],
+  .setting-item input[type="number"] {
+    padding: 8px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-size: 14px;
+    max-width: 400px;
+  }
+  
+  .setting-item input[type="number"] {
+    width: 80px;
+  }
+  
+  .setting-description {
+    margin: 5px 0 0;
+    color: #5f6368;
+    font-size: 13px;
+  }
+  
+  footer {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .actions {
+    display: flex;
+    gap: 10px;
+  }
+  
+  button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+  }
+  
+  .primary-button {
+    background-color: #1a73e8;
+    color: white;
+  }
+  
+  .primary-button:hover {
+    background-color: #1765cc;
+  }
+  
+  .secondary-button {
+    background-color: #f8f9fa;
+    color: #3c4043;
+    border: 1px solid #dadce0;
+  }
+  
+  .secondary-button:hover {
+    background-color: #f1f3f4;
+  }
+  
+  .danger-button {
+    background-color: #fce8e6;
+    color: #c5221f;
+    border: 1px solid #fad2cf;
+  }
+  
+  .danger-button:hover {
+    background-color: #fad2cf;
+  }
+  
+  #status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-weight: 500;
+    margin-right: 10px;
+  }
+  
+  .status-success {
+    background-color: #e6f4ea;
+    color: #137333;
+  }
+  
+  .status-error {
+    background-color: #fce8e6;
+    color: #c5221f;
+  }

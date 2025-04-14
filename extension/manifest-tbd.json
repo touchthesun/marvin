@@ -1,0 +1,48 @@
+{
+    "manifest_version": 3,
+    "name": "Marvin",
+    "version": "0.1.0",
+    "description": "Marvin Browser Extension - Intelligent Research Assistant",
+    "permissions": [
+      "storage",
+      "activeTab",
+      "tabs",
+      "scripting",
+      "bookmarks",
+      "history"
+    ],
+    "host_permissions": [
+      "http://localhost:8000/*"
+    ],
+    "background": {
+      "service_worker": "background/background.js",
+      "type": "module"
+    },
+    "action": {
+      "default_popup": "popup/popup.html",
+      "default_icon": {
+        "16": "icons/marvin-16.png",
+        "48": "icons/marvin-48.png",
+        "128": "icons/marvin-128.png"
+      }
+    },
+    "icons": {
+      "16": "icons/marvin-16.png",
+      "48": "icons/marvin-48.png",
+      "128": "icons/marvin-128.png"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content/content.js"],
+        "run_at": "document_idle"
+      }
+    ],
+    "options_page": "options/options.html",
+    "web_accessible_resources": [
+      {
+        "resources": ["dashboard/dashboard.html"],
+        "matches": ["<all_urls>"]
+      }
+    ]
+  }

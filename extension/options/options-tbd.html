@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Marvin Settings</h1>
+      <p>Configure how Marvin assists with your browsing experience</p>
+    </header>
+    
+    <main>
+      <section class="settings-section">
+        <h2>API Configuration</h2>
+        
+        <div class="setting-item">
+          <label for="apiBaseUrl">API Base URL</label>
+          <input type="text" id="apiBaseUrl" placeholder="http://localhost:8000">
+          <p class="setting-description">The base URL for Marvin's API server</p>
+        </div>
+      </section>
+      
+      <section class="settings-section">
+        <h2>Capture Settings</h2>
+        
+        <div class="setting-item">
+          <label for="autoCapture">
+            <input type="checkbox" id="autoCapture">
+            Automatically capture pages as you browse
+          </label>
+          <p class="setting-description">When enabled, Marvin will capture pages you visit without manual action</p>
+        </div>
+        
+        <div class="setting-item">
+          <label for="autoAnalyze">
+            <input type="checkbox" id="autoAnalyze" checked>
+            Automatically analyze captured pages
+          </label>
+          <p class="setting-description">When enabled, captured pages will be queued for analysis automatically</p>
+        </div>
+        
+        <div class="setting-item">
+          <label for="captureTimeout">Capture delay (seconds)</label>
+          <input type="number" id="captureTimeout" min="1" max="60" value="5">
+          <p class="setting-description">Wait this many seconds after page load before auto-capturing</p>
+        </div>
+      </section>
+      
+      <section class="settings-section">
+        <h2>Analysis Settings</h2>
+        
+        <div class="setting-item">
+          <label for="extractContent">
+            <input type="checkbox" id="extractContent" checked>
+            Extract and analyze page content
+          </label>
+          <p class="setting-description">When enabled, Marvin will extract and analyze page content, not just metadata</p>
+        </div>
+        
+        <div class="setting-item">
+          <label for="maxConcurrentAnalysis">Maximum concurrent analysis tasks</label>
+          <input type="number" id="maxConcurrentAnalysis" min="1" max="5" value="2">
+          <p class="setting-description">Maximum number of analysis tasks to run simultaneously</p>
+        </div>
+      </section>
+      
+      <section class="settings-section">
+        <h2>Storage</h2>
+        
+        <div class="setting-item">
+          <button id="clearDataBtn" class="danger-button">Clear All Marvin Data</button>
+          <p class="setting-description">Removes all stored Marvin data from this browser</p>
+        </div>
+      </section>
+    </main>
+    
+    <footer>
+      <div id="status" style="display: none;"></div>
+      <div class="actions">
+        <button id="saveBtn" class="primary-button">Save Settings</button>
+        <button id="resetBtn" class="secondary-button">Reset to Defaults</button>
+      </div>
+    </footer>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>

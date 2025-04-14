@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h1 class="title">Marvin</h1>
+    <div class="header-actions">
+      <button id="settingsBtn" class="button secondary small">Settings</button>
+    </div>
+  </div>
+  
+  <div id="status" class="status status-info" style="display: none;"></div>
+  
+  <div class="main-actions">
+    <button id="captureBtn" class="button">Capture Page</button>
+    <button id="analyzeBtn" class="button secondary">Analyze Page</button>
+  </div>
+  
+  <h2 class="section-title">Active Tasks</h2>
+  <div class="tasks-container">
+    <div id="activeTasks">
+      <div class="no-tasks">No active analysis tasks</div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <div class="footer-info">
+      <span>v0.1.0</span>
+    </div>
+    <div class="footer-actions">
+      <span id="dashboardBtn" class="footer-action">Open Dashboard</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

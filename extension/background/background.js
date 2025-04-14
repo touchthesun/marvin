@@ -1,3 +1,10 @@
+// Import dependencies
+import AuthManager from './auth-manager.js';
+import MarvinAPIClient from './api-client.js';
+import StateManager from './state-manager.js';
+import { captureUrl } from '../shared/utils/capture.js';
+
+
 // Add log deduplication to prevent double logging
 const logCache = new Map();
 const CACHE_TIMEOUT = 1000; // 1 second
@@ -74,11 +81,7 @@ console.warn = function(...args) {
 };
 
 
-// Import dependencies
-import AuthManager from './auth-manager.js';
-import MarvinAPIClient from './api-client.js';
-import StateManager from './state-manager.js';
-import { captureUrl } from '../shared/utils/capture.js';
+
 
 // Configuration (would be loaded from storage in real implementation)
 const API_BASE_URL = 'http://localhost:8000';
