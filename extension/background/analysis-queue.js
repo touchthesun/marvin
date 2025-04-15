@@ -1,7 +1,7 @@
 // analysis-queue.js
 // Manages queue of URL analysis tasks
 
-import { ProgressTracker } from './progress-tracker.js';
+import { ProgressTracker } from '../shared/utils/progress-tracker.js';
 import { ApiClient } from './api-client.js';
 
 /**

@@ -33,6 +33,10 @@
           <span class="nav-icon">💬</span>
           <span class="nav-label">Assistant</span>
         </li>
+        <li class="nav-item" data-panel="analysis">
+          <span class="nav-icon">🔍</span>
+          <span class="nav-label">Analysis</span>
+        </li>
         <li class="nav-item" data-panel="settings">
           <span class="nav-icon">⚙️</span>
           <span class="nav-label">Settings</span>
@@ -265,6 +269,52 @@
         </div>
       </section>
       
+      <!-- Analysis Panel (New) -->
+      <section id="analysis-panel" class="content-panel">
+        <header class="panel-header">
+          <h2>Analysis Tasks</h2>
+          <div class="panel-actions">
+            <button id="force-init-analysis" class="btn-secondary">Reload Analysis Data</button>
+            <button id="cancelAllBtn" class="btn-danger">Cancel All</button>
+          </div>
+        </header>
+        
+        <div class="analysis-tabs">
+          <button class="tab-btn active" data-tab="active-tasks">Active Tasks</button>
+          <button class="tab-btn" data-tab="completed-tasks">Completed</button>
+        </div>
+        
+        <div class="analysis-tab-content">
+          <!-- Active Tasks Tab -->
+          <div id="active-tasks" class="tab-pane active">
+            <div class="section-header">
+              <h3>Active Analysis Tasks</h3>
+              <div class="search-container">
+                <input type="text" id="active-tasks-search" class="search-input" placeholder="Search tasks...">
+              </div>
+            </div>
+            
+            <div class="task-list" id="activeTasks">
+              <div class="loading-indicator">Loading tasks...</div>
+            </div>
+          </div>
+          
+          <!-- Completed Tasks Tab -->
+          <div id="completed-tasks" class="tab-pane">
+            <div class="section-header">
+              <h3>Completed Analysis Tasks</h3>
+              <div class="controls">
+                <button id="clearCompletedBtn" class="btn-danger small">Clear History</button>
+              </div>
+            </div>
+            
+            <div class="task-list" id="completedTasks">
+              <div class="loading-indicator">Loading tasks...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
       <!-- Assistant Panel -->
       <section id="assistant-panel" class="content-panel">
         <header class="panel-header">
@@ -323,62 +373,131 @@
             <form id="api-config-form" class="settings-form">
               <div class="form-group">
                 <label for="api-url">API URL</label>
-                <input type="url" id="api-url" name="apiUrl" placeholder="http://localhost:8000">
+                <input type="url" id="api-url" name="api-url" placeholder="http://localhost:8000">
+                <div id="api-status" class="status-message"></div>
               </div>
-              <button type="submit" class="btn-primary">Save API Settings</button>
+              <div class="form-actions">
+                <button type="button" id="test-api-btn" class="btn-secondary">Test Connection</button>
+                <button type="submit" class="btn-primary">Save</button>
+              </div>
             </form>
           </div>
           
           <div class="settings-group">
             <h3>Capture Settings</h3>
             <form id="capture-settings-form" class="settings-form">
-              <div class="form-group checkbox">
-                <input type="checkbox" id="auto-capture" name="automaticCapture">
-                <label for="auto-capture">Enable automatic page capture</label>
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="auto-capture" name="auto-capture">
+                  Automatically capture pages
+                </label>
               </div>
               
               <div class="form-group">
-                <label for="min-time">Minimum time on page before capture (seconds)</label>
-                <input type="number" id="min-time" name="minTimeOnPage" min="1" max="300" value="10">
+                <label for="min-time">Minimum time on page (seconds)</label>
+                <input type="number" id="min-time" name="min-time" min="0" value="10">
               </div>
               
               <div class="form-group">
-                <label for="excluded-domains">Excluded Domains (one per line)</label>
-                <textarea id="excluded-domains" name="excludedDomains" rows="4" placeholder="example.com"></textarea>
+                <label for="excluded-domains">Excluded domains (one per line)</label>
+                <textarea id="excluded-domains" name="excluded-domains" rows="4" placeholder="facebook.com&#10;twitter.com"></textarea>
               </div>
               
               <div class="form-group">
-                <label for="included-domains">Only Include These Domains (one per line, leave empty for all)</label>
-                <textarea id="included-domains" name="includedDomains" rows="4" placeholder="research-site.com"></textarea>
+                <label for="included-domains">Included domains (one per line)</label>
+                <textarea id="included-domains" name="included-domains" rows="4" placeholder="example.com&#10;research-site.org"></textarea>
               </div>
               
-              <button type="submit" class="btn-primary">Save Capture Settings</button>
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">Save</button>
+              </div>
             </form>
           </div>
           
           <div class="settings-group">
-            <h3>Advanced</h3>
-            <button id="clear-data-btn" class="btn-danger">Clear Local Data</button>
-            <p class="help-text">This will clear all locally stored capture history and settings. Your API authentication and server data will not be affected.</p>
+            <h3>Analysis Settings</h3>
+            <form id="analysis-settings-form" class="settings-form">
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="auto-analyze" name="auto-analyze" checked>
+                  Automatically analyze captured pages
+                </label>
+              </div>
+              
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">Save</button>
+              </div>
+            </form>
+          </div>
+          
+          <div class="settings-group">
+            <h3>Data Management</h3>
+            <div class="form-group">
+              <button id="clear-data-btn" class="btn-danger">Clear Local Data</button>
+              <p class="help-text">This will clear all locally stored data, including capture history and settings.</p>
+            </div>
           </div>
         </div>
       </section>
     </main>
     
-    <!-- Optional right sidebar for details -->
-    <aside class="details-sidebar" id="details-sidebar">
+    <!-- Details sidebar for knowledge items -->
+    <aside id="details-sidebar" class="details-sidebar">
       <div class="details-header">
-        <h3 class="details-title">Details</h3>
-        <button class="close-details-btn">×</button>
+        <h3>Details</h3>
+        <button class="close-details-btn">&times;</button>
       </div>
-      
       <div class="details-content">
-        <!-- Will be populated dynamically based on selected item -->
-        <div class="empty-state">Select an item to view details</div>
+        <!-- Will be populated dynamically -->
       </div>
     </aside>
   </div>
   
-  <script src="dashboard.js" type="module"></script>
+  <!-- Task Card Template -->
+  <template id="taskCardTemplate">
+    <div class="task-card">
+      <div class="task-header">
+        <div class="task-title">Task Title</div>
+        <div class="task-status">Status</div>
+      </div>
+      <div class="progress-container">
+        <div class="progress-bar"></div>
+        <div class="progress-text">0%</div>
+      </div>
+      <div class="task-info">
+        <div class="task-url">URL goes here</div>
+        <div class="task-time">Time info</div>
+      </div>
+      <div class="task-details">
+        <div class="task-stage">Current Stage</div>
+        <div class="task-actions">
+          <!-- Actions will be added dynamically -->
+        </div>
+      </div>
+    </div>
+  </template>
+  
+  <!-- Task Details Modal -->
+  <div id="taskDetails" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Task Details</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="loading">Loading task details...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="button secondary close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Tasks Panel for floating display -->
+  <div id="tasks-panel" class="tasks-panel">
+    <!-- Will be populated dynamically -->
+  </div>
+  
+  <script type="module" src="dashboard.js"></script>
 </body>
 </html>

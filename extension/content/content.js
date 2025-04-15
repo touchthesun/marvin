@@ -1,4 +1,5 @@
-// content/content.js
+// Import Readability for content extraction
+import { Readability } from '@mozilla/readability';
 
 // Helper function to safely send messages to the extension
 function safeSendMessage(message) {
@@ -11,41 +12,253 @@ function safeSendMessage(message) {
   }
 }
 
-// Notify background script that content script is active
-safeSendMessage({ 
-  action: 'contentScriptLoaded', 
-  url: window.location.href 
-});
+// Initialize the content script
+function initialize() {
+  console.log('Marvin content script initialized');
+  
+  // Notify background script that content script is active
+  safeSendMessage({ 
+    action: 'contentScriptLoaded', 
+    url: window.location.href 
+  });
+  
+  // Report initial network status
+  reportNetworkStatus();
+  
+  // Set up event listeners
+  setupEventListeners();
+}
 
-// Listen for messages from background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'extractContent') {
-    try {
-      // Extract page content
-      const content = document.documentElement.outerHTML;
-      
-      // Basic metadata extraction
-      const metadata = {
-        title: document.title,
-        description: document.querySelector('meta[name="description"]')?.content || '',
-        keywords: document.querySelector('meta[name="keywords"]')?.content || '',
-        author: document.querySelector('meta[name="author"]')?.content || '',
-        // Open Graph metadata
-        ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
-        ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
-        ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
-      };
-      
-      sendResponse({ content, metadata });
-    } catch (error) {
-      sendResponse({ error: error.message });
+// Set up event listeners
+function setupEventListeners() {
+  // Listen for online/offline events
+  window.addEventListener('online', reportNetworkStatus);
+  window.addEventListener('offline', reportNetworkStatus);
+  
+  // Handle page visibility for auto-capture logic
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      safeSendMessage({ action: 'pageVisible', url: window.location.href });
+    } else {
+      safeSendMessage({ action: 'pageHidden', url: window.location.href });
     }
-    return true;
-  } else if (message.action === 'updateCaptureStatus') {
-    showCaptureOverlay(message.status);
-    return true;
+  });
+  
+  // Re-establish connection with extension after reloads
+  window.addEventListener('focus', () => {
+    // Try to reconnect with extension
+    if (safeSendMessage({ action: 'contentScriptPing' })) {
+      console.log('Reconnected with extension');
+    }
+  });
+}
+
+// Report network status to service worker
+function reportNetworkStatus() {
+  safeSendMessage({ 
+    action: 'networkStatusChange', 
+    isOnline: navigator.onLine 
+  });
+}
+
+/**
+ * Get the content of the current page
+ * @returns {Promise<string>} Page content
+ */
+async function getPageContent() {
+  try {
+    // Create a clone of the document
+    const documentClone = document.cloneNode(true);
+    
+    // Use Readability to extract content
+    const reader = new Readability(documentClone);
+    const article = reader.parse();
+    
+    if (!article) {
+      throw new Error('Could not extract content');
+    }
+    
+    return article.content;
+  } catch (e) {
+    console.error('Error in getPageContent:', e);
+    
+    // Fallback: Just get the HTML of the body
+    return document.body.innerHTML;
   }
-});
+}
+
+/**
+ * Get metadata from the current page
+ * @returns {object} Page metadata
+ */
+function getPageMetadata() {
+  const metadata = {
+    title: document.title,
+    url: window.location.href,
+    domain: window.location.hostname,
+    canonicalUrl: getCanonicalUrl(),
+    description: getMetaDescription(),
+    keywords: getMetaKeywords(),
+    author: getMetaAuthor(),
+    publicationDate: getPublicationDate(),
+    modifiedDate: getModifiedDate(),
+    language: document.documentElement.lang || navigator.language,
+    ogTags: getOpenGraphTags(),
+    twitterTags: getTwitterTags(),
+    headings: extractHeadings()
+  };
+  
+  return metadata;
+}
+
+/**
+ * Get canonical URL
+ * @returns {string|null} Canonical URL
+ */
+function getCanonicalUrl() {
+  const link = document.querySelector('link[rel="canonical"]');
+  return link ? link.href : null;
+}
+
+/**
+ * Get meta description
+ * @returns {string|null} Meta description
+ */
+function getMetaDescription() {
+  const meta = document.querySelector('meta[name="description"]');
+  return meta ? meta.content : null;
+}
+
+/**
+ * Get meta keywords
+ * @returns {string[]|null} Meta keywords
+ */
+function getMetaKeywords() {
+  const meta = document.querySelector('meta[name="keywords"]');
+  if (!meta || !meta.content) return null;
+  
+  return meta.content.split(',').map(keyword => keyword.trim());
+}
+
+/**
+ * Get meta author
+ * @returns {string|null} Meta author
+ */
+function getMetaAuthor() {
+  const meta = document.querySelector('meta[name="author"]');
+  return meta ? meta.content : null;
+}
+
+/**
+ * Get publication date
+ * @returns {string|null} Publication date
+ */
+function getPublicationDate() {
+  // Try various methods to find publication date
+  
+  // Method 1: Look for <time> elements with pubdate attribute
+  const pubTimeEl = document.querySelector('time[pubdate]');
+  if (pubTimeEl && pubTimeEl.dateTime) {
+    return pubTimeEl.dateTime;
+  }
+  
+  // Method 2: Look for <meta> tags
+  const pubDateMeta = document.querySelector('meta[property="article:published_time"]');
+  if (pubDateMeta && pubDateMeta.content) {
+    return pubDateMeta.content;
+  }
+  
+  // Method 3: Look for elements with datePublished in itemProp
+  const pubDateEl = document.querySelector('[itemprop="datePublished"]');
+  if (pubDateEl && pubDateEl.content) {
+    return pubDateEl.content;
+  }
+  
+  return null;
+}
+
+/**
+ * Get modified date
+ * @returns {string|null} Modified date
+ */
+function getModifiedDate() {
+  // Try various methods to find modified date
+  
+  // Method 1: Look for <meta> tags
+  const modDateMeta = document.querySelector('meta[property="article:modified_time"]');
+  if (modDateMeta && modDateMeta.content) {
+    return modDateMeta.content;
+  }
+  
+  // Method 2: Look for elements with dateModified in itemProp
+  const modDateEl = document.querySelector('[itemprop="dateModified"]');
+  if (modDateEl && modDateEl.content) {
+    return modDateEl.content;
+  }
+  
+  return null;
+}
+
+/**
+ * Get OpenGraph tags
+ * @returns {object} OpenGraph tags
+ */
+function getOpenGraphTags() {
+  const ogTags = {};
+  const metaTags = document.querySelectorAll('meta[property^="og:"]');
+  
+  metaTags.forEach(tag => {
+    const property = tag.getAttribute('property').substring(3); // Remove 'og:' prefix
+    ogTags[property] = tag.content;
+  });
+  
+  return ogTags;
+}
+
+/**
+ * Get Twitter card tags
+ * @returns {object} Twitter card tags
+ */
+function getTwitterTags() {
+  const twitterTags = {};
+  const metaTags = document.querySelectorAll('meta[name^="twitter:"]');
+  
+  metaTags.forEach(tag => {
+    const name = tag.getAttribute('name').substring(8); // Remove 'twitter:' prefix
+    twitterTags[name] = tag.content;
+  });
+  
+  return twitterTags;
+}
+
+/**
+ * Extract headings from the page
+ * @returns {object} Extracted headings
+ */
+function extractHeadings() {
+  const headings = {
+    h1: [],
+    h2: [],
+    h3: []
+  };
+  
+  // Extract h1 headings
+  document.querySelectorAll('h1').forEach(h1 => {
+    headings.h1.push(h1.textContent.trim());
+  });
+  
+  // Extract h2 headings
+  document.querySelectorAll('h2').forEach(h2 => {
+    headings.h2.push(h2.textContent.trim());
+  });
+  
+  // Extract h3 headings
+  document.querySelectorAll('h3').forEach(h3 => {
+    headings.h3.push(h3.textContent.trim());
+  });
+  
+  return headings;
+}
 
 // Show status overlay when a page is captured
 function showCaptureOverlay(status) {
@@ -97,34 +310,71 @@ function showCaptureOverlay(status) {
   }
 }
 
-// Report network status to service worker
-function reportNetworkStatus() {
-  safeSendMessage({ 
-    action: 'networkStatusChange', 
-    isOnline: navigator.onLine 
-  });
+/**
+ * Handle messages from the extension
+ * @param {object} message - Message object
+ * @param {object} sender - Sender information
+ * @param {function} sendResponse - Function to send response
+ * @returns {boolean} Whether response will be sent asynchronously
+ */
+function handleMessages(message, sender, sendResponse) {
+  console.log('Content script received message:', message);
+  
+  switch (message.action) {
+    case 'extractContent':
+      try {
+        // Extract page content
+        const content = document.documentElement.outerHTML;
+        
+        // Basic metadata extraction
+        const metadata = {
+          title: document.title,
+          description: document.querySelector('meta[name="description"]')?.content || '',
+          keywords: document.querySelector('meta[name="keywords"]')?.content || '',
+          author: document.querySelector('meta[name="author"]')?.content || '',
+          // Open Graph metadata
+          ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
+          ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
+          ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
+        };
+        
+        sendResponse({ content, metadata });
+      } catch (error) {
+        sendResponse({ error: error.message });
+      }
+      return true;
+      
+    case 'updateCaptureStatus':
+      showCaptureOverlay(message.status);
+      return true;
+      
+    case 'getPageContent':
+      // Extract and return page content
+      getPageContent()
+        .then(content => {
+          console.log('Extracted content length:', content.length);
+          sendResponse({ success: true, content });
+        })
+        .catch(error => {
+          console.error('Error extracting content:', error);
+          sendResponse({ success: false, error: String(error) });
+        });
+      
+      // Return true to indicate we'll send response asynchronously
+      return true;
+      
+    case 'getPageMetadata':
+      // Extract and return page metadata
+      const metadata = getPageMetadata();
+      sendResponse({ success: true, metadata });
+      return false; // Synchronous response
+  }
+  
+  return false; // Not handled
 }
 
-// Listen for online/offline events
-window.addEventListener('online', reportNetworkStatus);
-window.addEventListener('offline', reportNetworkStatus);
+// Listen for messages from background script
+chrome.runtime.onMessage.addListener(handleMessages);
 
-// Report initial network status
-reportNetworkStatus();
-
-// Handle page visibility for auto-capture logic
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    safeSendMessage({ action: 'pageVisible', url: window.location.href });
-  } else {
-    safeSendMessage({ action: 'pageHidden', url: window.location.href });
-  }
-});
-
-// Re-establish connection with extension after reloads
-window.addEventListener('focus', () => {
-  // Try to reconnect with extension
-  if (safeSendMessage({ action: 'contentScriptPing' })) {
-    console.log('Reconnected with extension');
-  }
-});
+// Initialize the content script
+initialize();

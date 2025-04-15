@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const apiConfigForm = document.getElementById('api-config-form');
   const captureSettingsForm = document.getElementById('capture-settings-form');
   const syncSettingsForm = document.getElementById('sync-settings-form');
+  const analysisSettingsForm = document.getElementById('analysis-settings-form');
   const authForm = document.getElementById('auth-form');
   
   // Auth elements
@@ -14,22 +15,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Other elements
   const clearDataBtn = document.getElementById('clear-data-btn');
+  const resetSettingsBtn = document.getElementById('reset-settings-btn');
+  
+  // Default settings (from options-tbd.js)
+  const DEFAULT_SETTINGS = {
+    apiBaseUrl: 'http://localhost:8000',
+    autoCapture: false,
+    autoAnalyze: true,
+    captureTimeout: 5,
+    extractContent: true,
+    maxConcurrentAnalysis: 2
+  };
   
   // Load current settings
   async function loadSettings() {
     const data = await chrome.storage.local.get([
       'apiConfig',
       'captureSettings',
-      'stateSettings'
+      'stateSettings',
+      'analysisSettings'
     ]);
     
     // API settings
-    const apiConfig = data.apiConfig || { baseUrl: 'http://localhost:8000' };
+    const apiConfig = data.apiConfig || { baseUrl: DEFAULT_SETTINGS.apiBaseUrl };
     document.getElementById('api-url').value = apiConfig.baseUrl;
     
     // Capture settings
     const captureSettings = data.captureSettings || {
-      automaticCapture: true,
+      automaticCapture: DEFAULT_SETTINGS.autoCapture,
       minTimeOnPage: 10,
       excludedDomains: [],
       includedDomains: []
@@ -50,6 +63,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('enable-sync').checked = stateSettings.syncEnabled;
     document.getElementById('sync-interval').value = stateSettings.syncInterval / 1000; // Convert to seconds
     document.getElementById('sync-bookmarks').checked = stateSettings.syncBookmarks;
+    
+    // Analysis settings (new from options-tbd.js)
+    const analysisSettings = data.analysisSettings || {
+      autoAnalyze: DEFAULT_SETTINGS.autoAnalyze,
+      extractContent: DEFAULT_SETTINGS.extractContent,
+      maxConcurrentAnalysis: DEFAULT_SETTINGS.maxConcurrentAnalysis
+    };
+    
+    if (document.getElementById('auto-analyze')) {
+      document.getElementById('auto-analyze').checked = analysisSettings.autoAnalyze;
+    }
+    
+    if (document.getElementById('extract-content')) {
+      document.getElementById('extract-content').checked = analysisSettings.extractContent;
+    }
+    
+    if (document.getElementById('max-concurrent-analysis')) {
+      document.getElementById('max-concurrent-analysis').value = analysisSettings.maxConcurrentAnalysis;
+    }
   }
   
   // Check authentication status
@@ -149,6 +181,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     showSaveConfirmation(syncSettingsForm);
   });
   
+  // New form handler for analysis settings
+  if (analysisSettingsForm) {
+    analysisSettingsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const autoAnalyze = document.getElementById('auto-analyze').checked;
+      const extractContent = document.getElementById('extract-content').checked;
+      const maxConcurrentAnalysis = parseInt(document.getElementById('max-concurrent-analysis').value, 10);
+      
+      // Validate settings
+      const validatedMaxConcurrent = isNaN(maxConcurrentAnalysis) || 
+                                    maxConcurrentAnalysis < 1 || 
+                                    maxConcurrentAnalysis > 5 
+                                      ? DEFAULT_SETTINGS.maxConcurrentAnalysis 
+                                      : maxConcurrentAnalysis;
+      
+      const settings = {
+        autoAnalyze,
+        extractContent,
+        maxConcurrentAnalysis: validatedMaxConcurrent
+      };
+      
+      // Save settings
+      await chrome.storage.local.set({ analysisSettings: settings });
+      
+      // Update analysis queue in background
+      chrome.runtime.sendMessage({
+        action: 'updateAnalysisSettings',
+        settings
+      });
+      
+      showSaveConfirmation(analysisSettingsForm);
+    });
+  }
+  
   authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -196,6 +263,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
+  // New reset settings button from options-tbd.js
+  if (resetSettingsBtn) {
+    resetSettingsBtn.addEventListener('click', async () => {
+      if (confirm('Reset all settings to defaults?')) {
+        // Save default API config
+        await chrome.storage.local.set({
+          apiConfig: { baseUrl: DEFAULT_SETTINGS.apiBaseUrl }
+        });
+        
+        // Save default capture settings
+        await chrome.storage.local.set({
+          captureSettings: {
+            automaticCapture: DEFAULT_SETTINGS.autoCapture,
+            minTimeOnPage: 10,
+            excludedDomains: [],
+            includedDomains: []
+          }
+        });
+        
+        // Save default sync settings
+        await chrome.storage.local.set({
+          stateSettings: {
+            syncEnabled: true,
+            syncInterval: 60000,
+            syncBookmarks: true
+          }
+        });
+        
+        // Save default analysis settings
+        await chrome.storage.local.set({
+          analysisSettings: {
+            autoAnalyze: DEFAULT_SETTINGS.autoAnalyze,
+            extractContent: DEFAULT_SETTINGS.extractContent,
+            maxConcurrentAnalysis: DEFAULT_SETTINGS.maxConcurrentAnalysis
+          }
+        });
+        
+        // Reload settings
+        loadSettings();
+        
+        // Notify background script
+        chrome.runtime.sendMessage({ action: 'reinitialize' });
+        
+        alert('All settings have been reset to defaults.');
+      }
+    });
+  }
+  
   // Helper function to show save confirmation
   function showSaveConfirmation(form) {
     const confirmation = document.createElement('div');
@@ -212,6 +327,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 2000);
   }
   
+  // Helper function to validate settings (from options-tbd.js)
+  function validateSettings(settings, defaults) {
+    const validated = { ...settings };
+    
+    // Validate API URL
+    if (!validated.apiBaseUrl) {
+      validated.apiBaseUrl = defaults.apiBaseUrl;
+    }
+    
+    // Validate numeric values
+    if (isNaN(validated.maxConcurrentAnalysis) || 
+        validated.maxConcurrentAnalysis < 1 || 
+        validated.maxConcurrentAnalysis > 5) {
+      validated.maxConcurrentAnalysis = defaults.maxConcurrentAnalysis;
+    }
+    
+    return validated;
+  }
+  
   // Initialize page
   loadSettings();
   checkAuthStatus();
@@ -220,5 +354,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.runtime.sendMessage({ 
     action: 'networkStatusChange',
     isOnline: navigator.onLine
+  });
+  
+  // Add network status event listeners
+  window.addEventListener('online', () => {
+    chrome.runtime.sendMessage({ 
+      action: 'networkStatusChange',
+      isOnline: true
+    });
+  });
+  
+  window.addEventListener('offline', () => {
+    chrome.runtime.sendMessage({ 
+      action: 'networkStatusChange',
+      isOnline: false
+    });
   });
 });

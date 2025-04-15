@@ -1,4 +1,3 @@
-<!-- options.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,8 +20,12 @@
           <div class="form-group">
             <label for="api-url">API URL</label>
             <input type="url" id="api-url" name="apiUrl" placeholder="http://localhost:8000">
+            <p class="setting-description">The base URL for Marvin's API server</p>
           </div>
-          <button type="submit" class="btn-primary">Save API Settings</button>
+          <div class="form-actions">
+            <button type="button" id="test-api-btn" class="btn-secondary">Test Connection</button>
+            <button type="submit" class="btn-primary">Save API Settings</button>
+          </div>
         </form>
       </section>
       
@@ -32,11 +35,13 @@
           <div class="form-group checkbox">
             <input type="checkbox" id="auto-capture" name="automaticCapture">
             <label for="auto-capture">Enable automatic page capture</label>
+            <p class="setting-description">When enabled, Marvin will capture pages you visit without manual action</p>
           </div>
           
           <div class="form-group">
             <label for="min-time">Minimum time on page before capture (seconds)</label>
             <input type="number" id="min-time" name="minTimeOnPage" min="1" max="300" value="10">
+            <p class="setting-description">Wait this many seconds after page load before auto-capturing</p>
           </div>
           
           <div class="form-group">
@@ -50,6 +55,31 @@
           </div>
           
           <button type="submit" class="btn-primary">Save Capture Settings</button>
+        </form>
+      </section>
+      
+      <section class="options-section">
+        <h3>Analysis Settings</h3>
+        <form id="analysis-settings-form">
+          <div class="form-group checkbox">
+            <input type="checkbox" id="auto-analyze" name="autoAnalyze" checked>
+            <label for="auto-analyze">Automatically analyze captured pages</label>
+            <p class="setting-description">When enabled, captured pages will be queued for analysis automatically</p>
+          </div>
+          
+          <div class="form-group checkbox">
+            <input type="checkbox" id="extract-content" name="extractContent" checked>
+            <label for="extract-content">Extract and analyze page content</label>
+            <p class="setting-description">When enabled, Marvin will extract and analyze page content, not just metadata</p>
+          </div>
+          
+          <div class="form-group">
+            <label for="max-concurrent-analysis">Maximum concurrent analysis tasks</label>
+            <input type="number" id="max-concurrent-analysis" name="maxConcurrentAnalysis" min="1" max="5" value="2">
+            <p class="setting-description">Maximum number of analysis tasks to run simultaneously</p>
+          </div>
+          
+          <button type="submit" class="btn-primary">Save Analysis Settings</button>
         </form>
       </section>
       
@@ -101,12 +131,19 @@
       
       <section class="options-section">
         <h3>Advanced</h3>
-        <button id="clear-data-btn" class="btn-danger">Clear Local Data</button>
-        <p class="help-text">This will clear all locally stored capture history and settings. Your API authentication and server data will not be affected.</p>
+        <div class="form-group">
+          <button id="clear-data-btn" class="btn-danger">Clear Local Data</button>
+          <p class="help-text">This will clear all locally stored capture history and settings. Your API authentication and server data will not be affected.</p>
+        </div>
+        <div class="form-group">
+          <button id="reset-settings-btn" class="btn-secondary">Reset to Defaults</button>
+          <p class="help-text">Reset all settings to their default values.</p>
+        </div>
       </section>
     </main>
     
     <footer>
+      <div id="status" class="status-message"></div>
       <p>Marvin Research Assistant v0.1.0</p>
     </footer>
   </div>

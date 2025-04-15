@@ -5,51 +5,62 @@
  * @returns {Promise<object>} Capture result
  */
 export async function captureUrl(url, options = {}) {
-    const { 
-      context = 'active_tab', 
-      tabId = null,
-      windowId = null,
-      title = null,
-      content = null
-    } = options;
+  const { 
+    context = 'active_tab', 
+    tabId = null,
+    windowId = null,
+    title = null,
+    content = null,
+    metadata = null,
+    browser_contexts = null
+  } = options;
+  
+  try {
+    console.log(`Capture request for ${url}`, options);
     
-    try {
-      console.log(`Capture request for ${url}`);
-      
-      // Always use a structured message
-      const message = {
-        action: 'captureUrl',
-        data: {
-          url,
-          context,
-          tabId,
-          windowId,
-          title,
-          content,
-          browser_contexts: [context]
-        }
-      };
-      
-      // Send message to background script
-      const response = await chrome.runtime.sendMessage(message);
-      
-      console.log('Capture response:', response);
-      
-      // Validate response structure
-      if (!response) {
-        throw new Error('No response from background script');
+    // Create consistent browser_contexts array
+    const contexts = browser_contexts || [context];
+    
+    // Always use a structured message
+    const message = {
+      action: 'captureUrl',
+      data: {
+        url,
+        context,
+        tabId,
+        windowId,
+        title,
+        content,
+        metadata,
+        browser_contexts: contexts
       }
-      
-      return response;
-    } catch (error) {
-      console.error('Capture error:', error);
-      // Return a structured error response
-      return {
-        success: false,
-        error: error.message || 'Unknown error'
-      };
+    };
+    
+    // Send message to background script with timeout handling
+    const response = await Promise.race([
+      chrome.runtime.sendMessage(message),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out')), 30000)
+      )
+    ]);
+    
+    console.log('Capture response:', response);
+    
+    // Validate response structure
+    if (!response) {
+      throw new Error('No response from background script');
     }
+    
+    return response;
+  } catch (error) {
+    console.error('Capture error:', error);
+    // Return a structured error response
+    return {
+      success: false,
+      error: error.message || 'Unknown error'
+    };
   }
+}
   
   /**
    * Capture the current active tab

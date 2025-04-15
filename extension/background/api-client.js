@@ -1,15 +1,41 @@
+/**
+ * Client for interacting with the Marvin API
+ */
 class MarvinAPIClient {
+  /**
+   * Create a new API client
+   * @param {string} baseURL - API base URL
+   * @param {object} authManager - Authentication manager
+   */
   constructor(baseURL, authManager) {
     this.baseURL = baseURL;
     this.authManager = authManager;
     this.pendingRequests = [];
     this.isOnline = true; // Default to online in service worker
+    this.requestTimeout = 30000; // 30 seconds timeout
   }
   
+  /**
+   * Set the API base URL
+   * @param {string} baseUrl - New base URL
+   */
+  setBaseUrl(baseUrl) {
+    this.baseURL = baseUrl;
+  }
+  
+  /**
+   * Make an API request
+   * @param {string} method - HTTP method
+   * @param {string} endpoint - API endpoint
+   * @param {object} data - Request data
+   * @param {object} options - Additional options
+   * @returns {Promise<object>} Response data
+   */
   async request(method, endpoint, data = null, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
+    const url = this._buildUrl(endpoint);
     const headers = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...options.headers
     };
     
@@ -20,12 +46,16 @@ class MarvinAPIClient {
     }
     
     const requestOptions = {
-      method,
+      method: method.toUpperCase(),
       headers,
+      mode: 'cors',
+      cache: 'no-cache',
+      redirect: 'follow',
       ...options
     };
     
-    if (data) {
+    // Add body for methods that support it
+    if (data !== null && ['POST', 'PUT', 'PATCH'].includes(requestOptions.method)) {
       requestOptions.body = JSON.stringify(data);
     }
     
@@ -35,7 +65,17 @@ class MarvinAPIClient {
     }
     
     try {
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      requestOptions.signal = controller.signal;
+      
+      // Set timeout
+      const timeoutId = setTimeout(() => controller.abort(), this.requestTimeout);
+      
       const response = await fetch(url, requestOptions);
+      
+      // Clear timeout
+      clearTimeout(timeoutId);
       
       // Handle authentication errors
       if (response.status === 401) {
@@ -60,33 +100,141 @@ class MarvinAPIClient {
         };
       }
       
-      const result = await response.json();
-      return result;
+      // Parse response
+      let responseData;
+      
+      try {
+        responseData = await response.json();
+      } catch (e) {
+        // Not JSON, return text content
+        if (response.ok) {
+          return {
+            success: true,
+            data: await response.text()
+          };
+        }
+        
+        throw new Error(`Invalid response: ${await response.text()}`);
+      }
+      
+      // Return structured response
+      if (response.ok) {
+        // If API returns success flag, respect it
+        if (typeof responseData.success === 'boolean') {
+          return responseData;
+        }
+        
+        // Otherwise build our own success response
+        return {
+          success: true,
+          data: responseData
+        };
+      }
+      
+      // Error response
+      return {
+        success: false,
+        error: {
+          status: response.status,
+          message: responseData.error?.message || responseData.message || 'Unknown error',
+          details: responseData.error?.details || responseData.error || responseData
+        }
+      };
     } catch (error) {
       console.error('API request error:', error);
+      
+      // Handle fetch errors
+      if (error.name === 'AbortError') {
+        return {
+          success: false,
+          error: {
+            message: 'Request timed out',
+            details: { timeout: this.requestTimeout }
+          }
+        };
+      }
       
       if (!this.isOnline) {
         return this.queueRequest(method, endpoint, data, options);
       }
-      throw error;
+      
+      // Other errors
+      return {
+        success: false,
+        error: {
+          message: error.message,
+          details: { type: error.name }
+        }
+      };
     }
   }
   
-  // Convenience methods for common HTTP verbs
+  /**
+   * Make a GET request
+   * @param {string} endpoint - API endpoint
+   * @param {object} options - Additional options
+   * @returns {Promise<object>} Response data
+   */
   async get(endpoint, options = {}) {
     return this.request('GET', endpoint, null, options);
   }
   
-  async post(endpoint, data, options = {}) {
+  /**
+   * Make a POST request
+   * @param {string} endpoint - API endpoint
+   * @param {object} data - Request data
+   * @param {object} options - Additional options
+   * @returns {Promise<object>} Response data
+   */
+  async post(endpoint, data = null, options = {}) {
     return this.request('POST', endpoint, data, options);
   }
   
-  async put(endpoint, data, options = {}) {
+  /**
+   * Make a PUT request
+   * @param {string} endpoint - API endpoint
+   * @param {object} data - Request data
+   * @param {object} options - Additional options
+   * @returns {Promise<object>} Response data
+   */
+  async put(endpoint, data = null, options = {}) {
     return this.request('PUT', endpoint, data, options);
   }
   
+  /**
+   * Make a DELETE request
+   * @param {string} endpoint - API endpoint
+   * @param {object} options - Additional options
+   * @returns {Promise<object>} Response data
+   */
   async delete(endpoint, options = {}) {
     return this.request('DELETE', endpoint, null, options);
+  }
+  
+  /**
+   * Build full URL from endpoint
+   * @private
+   * @param {string} endpoint - API endpoint
+   * @returns {string} Full URL
+   */
+  _buildUrl(endpoint) {
+    // Handle absolute URLs
+    if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+      return endpoint;
+    }
+    
+    // Ensure endpoint starts with slash
+    if (!endpoint.startsWith('/')) {
+      endpoint = '/' + endpoint;
+    }
+    
+    // Remove trailing slash from base URL if present
+    let baseUrl = this.baseURL;
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+    
+    return `${baseUrl}${endpoint}`;
   }
   
   // Handle offline queuing

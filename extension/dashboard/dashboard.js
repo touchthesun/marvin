@@ -4,6 +4,10 @@ import { fetchAPI } from '../shared/utils/api.js';
 import { captureUrl } from '../shared/utils/capture.js';
 import { loadGraphData } from './components/graph-data.js';
 import { BrowserContext, TabTypeToContext, BrowserContextLabels } from '../shared/constants.js';
+import { ProgressTracker } from '../shared/utils/progress-tracker.js';
+
+// Background script connection
+const backgroundPage = chrome.extension.getBackgroundPage();
 
 // Panel initialization flags
 let overviewInitialized = false;
@@ -14,11 +18,21 @@ let settingsInitialized = false;
 let navigationInitialized = false;
 let tabsFilterInitialized = false;
 let statusMonitoringInitialized = false;
+let tasksInitialized = false;
+
+// Task lists
+let activeTasks = [];
+let completedTasks = [];
+
+// Page data
+let capturedPages = [];
+
+// Filters
+let pageSearchQuery = '';
 
 function logWithStack(message) {
   console.log(`${message} | Stack: ${new Error().stack.split('\n')[2]}`);
 }
-
 
 function debounce(func, wait) {
   let timeout;
@@ -28,12 +42,12 @@ function debounce(func, wait) {
   };
 }
 
-
 // Create debounced versions of functions
 const debouncedSearchKnowledge = debounce(searchKnowledge, 300);
 const debouncedFilterTabs = debounce(filterTabs, 200);
 const debouncedFilterBookmarks = debounce(filterBookmarks, 200);
 const debouncedFilterHistory = debounce(filterHistory, 200);
+const debouncedHandlePageSearch = debounce(handlePageSearch, 300);
 
 function debugCaptureButton() {
   const captureBtn = document.getElementById('capture-selected');
@@ -80,30 +94,35 @@ document.addEventListener('click', function(event) {
   }
 });
 
-
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Dashboard loaded');
-
-  // Log the existence of the capture button
+  
+  // Setup the capture button once, with clear logging
   const captureSelectedBtn = document.getElementById('capture-selected');
-  console.log(`Capture button found: ${!!captureSelectedBtn}`);
   if (captureSelectedBtn) {
-    console.log('Adding click handler to capture-selected button');
-    captureSelectedBtn.addEventListener('click', () => {
-      console.log('Capture selected button clicked');
+    console.log('Found capture-selected button, setting up click handler');
+    
+    // Remove any existing event listeners by cloning the button
+    const newCaptureBtn = captureSelectedBtn.cloneNode(true);
+    captureSelectedBtn.parentNode.replaceChild(newCaptureBtn, captureSelectedBtn);
+    
+    // Add the event listener
+    newCaptureBtn.addEventListener('click', function(event) {
+      console.log('Capture button clicked!');
       captureSelectedItems();
+      event.preventDefault();
+      event.stopPropagation();
     });
   } else {
     console.error('capture-selected button not found!');
   }
-   
+  
   // Initialize navigation
   initNavigation();
   initTabs();
   
   // Load dashboard data
   await loadDashboardData();
-  
   
   // Setup status monitoring
   setupStatusMonitoring();
@@ -144,10 +163,82 @@ document.addEventListener('DOMContentLoaded', async () => {
     initSettingsPanel();
   }
 
+  const tasksPanel = document.getElementById('tasks-panel');
+  if (tasksPanel && tasksPanel.classList.contains('active')) {
+    console.log('Initializing tasks panel from DOMContentLoaded');
+    initTasksPanel();
+  }
+
   // Force initialization button handlers for all panels
   setupForceInitButtons();
+  
+  // Set up tab switching
+  setupTabSwitching();
+  
+  // Set up event listeners for task management
+  setupTaskEventListeners();
+  
+  // Set up event listeners for page management
+  setupPageEventListeners();
 });
 
+/**
+ * Set up tab switching
+ */
+function setupTabSwitching() {
+  const tabs = document.querySelectorAll('.tab');
+  
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Remove active class from all tabs
+      tabs.forEach(t => t.classList.remove('active'));
+      
+      // Add active class to clicked tab
+      tab.classList.add('active');
+      
+      // Show corresponding tab pane
+      const tabId = tab.dataset.tab;
+      document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+      });
+      document.getElementById(tabId).classList.add('active');
+      
+      // Initialize panel if needed
+      if (tabId === 'active-tasks' || tabId === 'completed-tasks') {
+        refreshAllTasks();
+      } else if (tabId === 'pages') {
+        refreshPages();
+      }
+    });
+  });
+}
+
+/**
+ * Set up event listeners for task management
+ */
+function setupTaskEventListeners() {
+  // Set up refresh button
+  document.getElementById('refreshBtn')?.addEventListener('click', refreshData);
+  
+  // Set up cancel all button
+  document.getElementById('cancelAllBtn')?.addEventListener('click', cancelAllTasks);
+  
+  // Set up clear completed button
+  document.getElementById('clearCompletedBtn')?.addEventListener('click', clearCompletedTasks);
+}
+
+/**
+ * Set up event listeners for page management
+ */
+function setupPageEventListeners() {
+  // Set up page search
+  document.getElementById('pageSearch')?.addEventListener('input', (e) => {
+    debouncedHandlePageSearch(e);
+  });
+  
+  // Set up capture button
+  document.getElementById('captureBtn')?.addEventListener('click', captureCurrentTab);
+}
 
 async function setupForceInitButtons() {
   logWithStack('setupForceInitButtons called');
@@ -226,9 +317,21 @@ async function setupForceInitButtons() {
     const overviewBtn = document.getElementById('overview-selected');
     console.log(`Overview button after force init: ${!!overviewBtn}, disabled=${overviewBtn?.disabled}, text=${overviewBtn?.textContent}`);
   }
+  
+  // Tasks panel force init
+  const forceInitTasksButton = document.getElementById('force-init-tasks');
+  console.log('Force init tasks button found:', !!forceInitTasksButton);
+  if (forceInitTasksButton) {
+    forceInitTasksButton.addEventListener('click', async () => {
+      console.log('Force initializing tasks panel');
+      tasksInitialized = false; 
+      await initTasksPanel(); 
+    });
+
+    const tasksBtn = document.getElementById('tasks-selected');
+    console.log(`Tasks button after force init: ${!!tasksBtn}, disabled=${tasksBtn?.disabled}, text=${tasksBtn?.textContent}`);
+  }
 }
-
-
 
 function initNavigation() {
   logWithStack('initNavigation called');
@@ -288,10 +391,14 @@ function initNavigation() {
       } else if (targetPanel === 'settings') {
         console.log('Initializing settings panel from navigation');
         initSettingsPanel();
+      } else if (targetPanel === 'tasks') {
+        console.log('Initializing tasks panel from navigation');
+        initTasksPanel();
       }
     });
   });
 }
+
 
 // Initialization function for capture panel
 async function initCapturePanel() {
@@ -384,87 +491,844 @@ async function initCapturePanel() {
   }
 }
 
-
-function updateWindowFilter(windows) {
-  console.log('Updating window filter with', windows.length, 'windows');
-  const windowFilter = document.getElementById('tabs-window-filter');
-  if (!windowFilter) {
-    console.error('tabs-window-filter element not found');
+// Initialize tasks panel
+async function initTasksPanel() {
+  if (tasksInitialized) {
+    console.log('Tasks panel already initialized, skipping');
     return;
   }
   
-  // Clear existing options
-  windowFilter.innerHTML = '<option value="all">All Windows</option>';
+  console.log('Initializing tasks panel');
+  tasksInitialized = true;
   
-  // Add options for each window
-  windows.forEach(window => {
-    const option = document.createElement('option');
-    option.value = window.id.toString();
-    option.textContent = `Window ${window.id} (${window.tabs.length} tabs)`;
-    windowFilter.appendChild(option);
-  });
+  // Set up refresh button
+  const refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', refreshAllTasks);
+  }
+  
+  // Set up cancel all button
+  const cancelAllBtn = document.getElementById('cancelAllBtn');
+  if (cancelAllBtn) {
+    cancelAllBtn.addEventListener('click', cancelAllTasks);
+  }
+  
+  // Set up clear completed button
+  const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+  if (clearCompletedBtn) {
+    clearCompletedBtn.addEventListener('click', clearCompletedTasks);
+  }
+  
+  // Initial load of tasks
+  await refreshAllTasks();
 }
 
-// Tabs within panels (e.g., Capture panel)
-function initTabs() {
-  const tabButtons = document.querySelectorAll('.tab-btn');
-  const tabPanes = document.querySelectorAll('.tab-pane');
-  
-  tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
-      const targetTab = button.getAttribute('data-tab');
-      
-      // Update tab highlighting
-      tabButtons.forEach(btn => btn.classList.remove('active'));
-      button.classList.add('active');
-      
-      // Show corresponding tab content
-      tabPanes.forEach(pane => {
-        if (pane.id === `${targetTab}-content`) {
-          pane.classList.add('active');
-        } else {
-          pane.classList.remove('active');
-        }
-      });
-    });
-  });
-}
-
-async function loadDashboardData() {
+/**
+ * Refresh all tasks (active and completed)
+ */
+async function refreshAllTasks() {
   try {
     // Show loading state
-    document.getElementById('recent-captures-list').innerHTML = '<div class="loading-indicator">Loading data...</div>';
+    document.getElementById('active-tasks-list').innerHTML = '<div class="loading">Loading active tasks...</div>';
+    document.getElementById('completed-tasks-list').innerHTML = '<div class="loading">Loading completed tasks...</div>';
     
-    // Fetch data from storage
-    const storage = await chrome.storage.local.get(['captureHistory', 'stats']);
-    const captureHistory = storage.captureHistory || [];
+    // Get tasks from background page
+    const tasks = await backgroundPage.marvin.getActiveTasks();
     
-    // Default stats from storage or use zeros
-    let stats = storage.stats || { captures: captureHistory.length, relationships: 0, queries: 0 };
+    // Split into active and completed
+    activeTasks = tasks.filter(task => 
+      task.status === 'pending' || 
+      task.status === 'processing' || 
+      task.status === 'analyzing'
+    );
     
-    // Update stats
-    document.getElementById('captured-count').textContent = stats.captures;
-    document.getElementById('relationship-count').textContent = stats.relationships;
-    document.getElementById('query-count').textContent = stats.queries;
+    completedTasks = tasks.filter(task => 
+      task.status === 'complete' || 
+      task.status === 'error'
+    );
     
-    // Update recent captures
-    updateRecentCaptures(captureHistory);
+    // Update UI
+    renderActiveTasks();
+    renderCompletedTasks();
     
-    // Load mini graph visualization
-    const graphPlaceholder = document.querySelector('.graph-placeholder');
-    if (graphPlaceholder) {
+    // Update counts
+    document.getElementById('active-count').textContent = activeTasks.length;
+    document.getElementById('completed-count').textContent = completedTasks.length;
+  } catch (error) {
+    console.error('Error refreshing tasks:', error);
+    document.getElementById('active-tasks-list').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    document.getElementById('completed-tasks-list').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+  }
+}
+
+/**
+ * Render active tasks
+ */
+function renderActiveTasks() {
+  const container = document.getElementById('active-tasks-list');
+  
+  if (activeTasks.length === 0) {
+    container.innerHTML = '<div class="empty-state">No active tasks</div>';
+    return;
+  }
+  
+  container.innerHTML = '';
+  
+  activeTasks.forEach(task => {
+    const taskElement = document.createElement('div');
+    taskElement.className = 'task-item';
+    taskElement.dataset.taskId = task.id;
+    
+    // Format progress
+    const progress = task.progress || 0;
+    const progressPercent = Math.round(progress * 100);
+    
+    // Format time
+    const startTime = new Date(task.created_at || task.timestamp);
+    const timeAgo = formatTimeAgo(startTime);
+    
+    taskElement.innerHTML = `
+      <div class="task-header">
+        <div class="task-title">${task.url || 'Unknown URL'}</div>
+        <div class="task-actions">
+          <button class="btn-icon cancel-task" title="Cancel Task">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div class="task-details">
+        <div class="task-status">${formatTaskStatus(task.status)}</div>
+        <div class="task-time">${timeAgo}</div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${progressPercent}%"></div>
+      </div>
+    `;
+    
+    // Add event listeners
+    taskElement.querySelector('.cancel-task').addEventListener('click', () => {
+      cancelTask(task.id);
+    });
+    
+    container.appendChild(taskElement);
+  });
+}
+
+/**
+ * Render completed tasks
+ */
+function renderCompletedTasks() {
+  const container = document.getElementById('completed-tasks-list');
+  
+  if (completedTasks.length === 0) {
+    container.innerHTML = '<div class="empty-state">No completed tasks</div>';
+    return;
+  }
+  
+  container.innerHTML = '';
+  
+  // Sort by completion time (most recent first)
+  completedTasks.sort((a, b) => {
+    const timeA = new Date(a.completed_at || a.timestamp);
+    const timeB = new Date(b.completed_at || b.timestamp);
+    return timeB - timeA;
+  });
+  
+  completedTasks.forEach(task => {
+    const taskElement = document.createElement('div');
+    taskElement.className = 'task-item';
+    taskElement.dataset.taskId = task.id;
+    
+    // Add status-specific class
+    if (task.status === 'error') {
+      taskElement.classList.add('task-error');
+    } else {
+      taskElement.classList.add('task-complete');
+    }
+    
+    // Format time
+    const completionTime = new Date(task.completed_at || task.timestamp);
+    const timeAgo = formatTimeAgo(completionTime);
+    
+    taskElement.innerHTML = `
+      <div class="task-header">
+        <div class="task-title">${task.url || 'Unknown URL'}</div>
+        <div class="task-actions">
+          ${task.status === 'error' ? 
+            `<button class="btn-icon retry-task" title="Retry Task">
+              <i class="fas fa-redo"></i>
+            </button>` : ''}
+          <button class="btn-icon remove-task" title="Remove Task">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="task-details">
+        <div class="task-status">${formatTaskStatus(task.status)}</div>
+        <div class="task-time">${timeAgo}</div>
+      </div>
+      ${task.status === 'error' ? 
+        `<div class="task-error-message">${task.error || 'Unknown error'}</div>` : ''}
+    `;
+    
+    // Add event listeners
+    if (task.status === 'error') {
+      taskElement.querySelector('.retry-task').addEventListener('click', () => {
+        retryTask(task.id);
+      });
+    }
+    
+    taskElement.querySelector('.remove-task').addEventListener('click', () => {
+      removeTask(task.id);
+    });
+    
+    container.appendChild(taskElement);
+  });
+}
+
+/**
+ * Format task status for display
+ */
+function formatTaskStatus(status) {
+  switch (status) {
+    case 'pending':
+      return 'Pending';
+    case 'processing':
+      return 'Processing';
+    case 'analyzing':
+      return 'Analyzing';
+    case 'complete':
+      return 'Completed';
+    case 'error':
+      return 'Failed';
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+}
+
+/**
+ * Format time ago
+ */
+function formatTimeAgo(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffSec = Math.floor(diffMs / 1000);
+  
+  if (diffSec < 60) {
+    return `${diffSec} seconds ago`;
+  }
+  
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) {
+    return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+  }
+  
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) {
+    return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`;
+  }
+  
+  const diffDay = Math.floor(diffHour / 24);
+  return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+}
+
+/**
+ * Cancel a task
+ */
+async function cancelTask(taskId) {
+  try {
+    const result = await backgroundPage.marvin.cancelTask(taskId);
+    
+    if (result) {
+      // Remove from active tasks
+      activeTasks = activeTasks.filter(task => task.id !== taskId);
+      renderActiveTasks();
+      
+      // Update count
+      document.getElementById('active-count').textContent = activeTasks.length;
+      
+      // Show notification
+      showNotification('Task cancelled successfully');
+    } else {
+      throw new Error('Failed to cancel task');
+    }
+  } catch (error) {
+    console.error('Error cancelling task:', error);
+    showNotification('Error cancelling task: ' + error.message, 'error');
+  }
+}
+
+/**
+ * Retry a failed task
+ */
+async function retryTask(taskId) {
+  try {
+    const result = await backgroundPage.marvin.retryTask(taskId);
+    
+    if (result) {
+      // Remove from completed tasks
+      completedTasks = completedTasks.filter(task => task.id !== taskId);
+      renderCompletedTasks();
+      
+      // Update count
+      document.getElementById('completed-count').textContent = completedTasks.length;
+      
+      // Refresh active tasks
+      await refreshAllTasks();
+      
+      // Show notification
+      showNotification('Task retried successfully');
+    } else {
+      throw new Error('Failed to retry task');
+    }
+  } catch (error) {
+    console.error('Error retrying task:', error);
+    showNotification('Error retrying task: ' + error.message, 'error');
+  }
+}
+
+/**
+ * Remove a task from the list
+ */
+function removeTask(taskId) {
+  // Remove from completed tasks
+  completedTasks = completedTasks.filter(task => task.id !== taskId);
+  renderCompletedTasks();
+  
+  // Update count
+  document.getElementById('completed-count').textContent = completedTasks.length;
+}
+
+/**
+ * Cancel all active tasks
+ */
+async function cancelAllTasks() {
+  if (activeTasks.length === 0) {
+    showNotification('No active tasks to cancel');
+    return;
+  }
+  
+  if (!confirm(`Cancel all ${activeTasks.length} active tasks?`)) {
+    return;
+  }
+  
+  try {
+    let successCount = 0;
+    
+    for (const task of activeTasks) {
       try {
-        // Try to get data from API
-        const response = await fetchAPI('/api/v1/graph/overview?limit=10');
+        const result = await backgroundPage.marvin.cancelTask(task.id);
+        if (result) {
+          successCount++;
+        }
+      } catch (error) {
+        console.error(`Error cancelling task ${task.id}:`, error);
+      }
+    }
+    
+    // Refresh tasks
+    await refreshAllTasks();
+    
+    // Show notification
+    showNotification(`Cancelled ${successCount} of ${activeTasks.length} tasks`);
+  } catch (error) {
+    console.error('Error cancelling all tasks:', error);
+    showNotification('Error cancelling tasks: ' + error.message, 'error');
+  }
+}
+
+/**
+ * Clear all completed tasks
+ */
+function clearCompletedTasks() {
+  if (completedTasks.length === 0) {
+    showNotification('No completed tasks to clear');
+    return;
+  }
+  
+  if (!confirm(`Clear all ${completedTasks.length} completed tasks?`)) {
+    return;
+  }
+  
+  // Clear completed tasks
+  completedTasks = [];
+  renderCompletedTasks();
+  
+  // Update count
+  document.getElementById('completed-count').textContent = '0';
+
+   // Show notification
+   showNotification('Completed tasks cleared');
+  }
+  
+// Improved notification handling with progress bar
+function showNotification(message, type = 'success', progress = null) {
+  // Remove any existing notification with the same ID
+  const existingNotification = document.querySelector('.notification.progress-notification');
+  if (existingNotification) {
+    existingNotification.remove();
+  }
+  
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  
+  if (progress !== null) {
+    notification.classList.add('progress-notification');
+    notification.innerHTML = `
+      <span class="notification-message">${message}</span>
+      <div class="notification-progress-container">
+        <div class="notification-progress-bar" style="width: ${progress}%"></div>
+      </div>
+    `;
+  } else {
+    notification.textContent = message;
+    
+    // Auto-hide non-progress notifications
+    setTimeout(() => {
+      notification.classList.remove('show');
+      setTimeout(() => {
+        notification.remove();
+      }, 300);
+    }, 3000);
+  }
+  
+  document.body.appendChild(notification);
+  
+  // Fade in
+  setTimeout(() => {
+    notification.classList.add('show');
+  }, 10);
+  
+  return notification;
+}
+
+  
+  /**
+   * Capture the current tab
+   */
+  async function captureCurrentTab() {
+    try {
+      const captureBtn = document.getElementById('captureBtn');
+      if (captureBtn) {
+        captureBtn.disabled = true;
+        captureBtn.textContent = 'Capturing...';
+      }
+      
+      const response = await backgroundPage.marvin.captureCurrentTab();
+      
+      if (response.success) {
+        showNotification('Page captured successfully');
         
-        if (response.success && response.data?.nodes?.length > 0) {
-          renderMiniGraph(response.data.nodes, response.data.edges, graphPlaceholder);
-        } else {
-          // Try to use capture data to create a simple graph
-          const pagesResponse = await fetchAPI('/api/v1/pages/');
-          if (pagesResponse.success && pagesResponse.data?.pages?.length > 0) {
-            const pages = pagesResponse.data.pages || [];
+        // Refresh pages list
+        await refreshPages();
+      } else {
+        throw new Error(response.error || 'Failed to capture page');
+      }
+    } catch (error) {
+      console.error('Error capturing current tab:', error);
+      showNotification('Error capturing page: ' + error.message, 'error');
+    } finally {
+      const captureBtn = document.getElementById('captureBtn');
+      if (captureBtn) {
+        captureBtn.disabled = false;
+        captureBtn.textContent = 'Capture Current Tab';
+      }
+    }
+  }
+  
+  /**
+   * Refresh the pages list
+   */
+  async function refreshPages() {
+    try {
+      // Show loading state
+      document.getElementById('pages-list').innerHTML = '<div class="loading">Loading pages...</div>';
+      
+      // Get pages from API
+      const response = await fetchAPI('/api/v1/pages/');
+      
+      if (response.success) {
+        capturedPages = response.data.pages || [];
+        
+        // Apply search filter if active
+        if (pageSearchQuery) {
+          capturedPages = filterPages(capturedPages, pageSearchQuery);
+        }
+        
+        // Render pages
+        renderPages(capturedPages);
+        
+        // Update count
+        document.getElementById('page-count').textContent = capturedPages.length;
+      } else {
+        throw new Error(response.error?.message || 'Failed to load pages');
+      }
+    } catch (error) {
+      console.error('Error refreshing pages:', error);
+      document.getElementById('pages-list').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+    }
+  }
+  
+  /**
+   * Render pages list
+   */
+  function renderPages(pages) {
+    const container = document.getElementById('pages-list');
+    
+    if (pages.length === 0) {
+      container.innerHTML = '<div class="empty-state">No pages found</div>';
+      return;
+    }
+    
+    container.innerHTML = '';
+    
+    // Sort by capture time (most recent first)
+    pages.sort((a, b) => {
+      const timeA = new Date(a.discovered_at || a.timestamp);
+      const timeB = new Date(b.discovered_at || b.timestamp);
+      return timeB - timeA;
+    });
+    
+    pages.forEach(page => {
+      const pageElement = document.createElement('div');
+      pageElement.className = 'page-item';
+      pageElement.dataset.pageId = page.id;
+      
+      // Try to get favicon
+      let favicon = '';
+      try {
+        const urlObj = new URL(page.url);
+        favicon = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}`;
+      } catch (e) {
+        // Use default if URL parsing fails
+        favicon = '../icons/icon16.png';
+      }
+      
+      // Format date
+      const captureDate = new Date(page.discovered_at || page.timestamp);
+      const dateStr = captureDate.toLocaleDateString();
+      
+      pageElement.innerHTML = `
+        <div class="page-icon">
+          <img src="${favicon}" alt="" class="favicon">
+        </div>
+        <div class="page-content">
+          <div class="page-title">${page.title || 'Untitled'}</div>
+          <div class="page-url">${truncateText(page.url, 50)}</div>
+          <div class="page-meta">
+            <span class="page-date">Captured: ${dateStr}</span>
+            <span class="page-source">${formatContext(page.browser_contexts)}</span>
+          </div>
+        </div>
+        <div class="page-actions">
+          <button class="btn-action view-page">View</button>
+          <button class="btn-icon delete-page" title="Delete Page">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `;
+      
+      // Add event listeners
+      pageElement.querySelector('.view-page').addEventListener('click', () => {
+        viewPage(page);
+      });
+      
+      pageElement.querySelector('.delete-page').addEventListener('click', () => {
+        deletePage(page.id);
+      });
+      
+      container.appendChild(pageElement);
+    });
+  }
+  
+  /**
+   * Filter pages based on search query
+   */
+  function filterPages(pages, query) {
+    if (!query) return pages;
+    
+    const lowerQuery = query.toLowerCase();
+    
+    return pages.filter(page => 
+      page.title?.toLowerCase().includes(lowerQuery) || 
+      page.url.toLowerCase().includes(lowerQuery) ||
+      Object.keys(page.keywords || {}).some(k => 
+        k.toLowerCase().includes(lowerQuery)
+      )
+    );
+  }
+  
+  /**
+   * Handle page search
+   */
+  function handlePageSearch(event) {
+    pageSearchQuery = event.target.value;
+    
+    if (capturedPages.length > 0) {
+      const filtered = filterPages(capturedPages, pageSearchQuery);
+      renderPages(filtered);
+    }
+  }
+  
+  /**
+   * View page details
+   */
+  function viewPage(page) {
+    // Get the details sidebar
+    const sidebar = document.getElementById('details-sidebar');
+    
+    // Update sidebar content
+    const detailsContent = sidebar.querySelector('.details-content');
+    
+    // Format date
+    const discoveredDate = new Date(page.discovered_at || page.timestamp);
+    const dateStr = discoveredDate.toLocaleDateString();
+    
+    // Create HTML content for details
+    detailsContent.innerHTML = `
+      <div class="details-item">
+        <h3>${page.title || 'Untitled'}</h3>
+        <div class="details-url">
+          <a href="${page.url}" target="_blank">${page.url}</a>
+        </div>
+        
+        <div class="details-section">
+          <h4>Metadata</h4>
+          <dl class="details-data">
+            <dt>Captured</dt>
+            <dd>${dateStr}</dd>
             
+            <dt>Source</dt>
+            <dd>${formatContext(page.browser_contexts)}</dd>
+            
+            <dt>Status</dt>
+            <dd>${page.status || 'Unknown'}</dd>
+            
+            <dt>Domain</dt>
+            <dd>${page.domain || 'Unknown'}</dd>
+          </dl>
+        </div>
+        
+        ${page.keywords && Object.keys(page.keywords).length > 0 
+          ? `<div class="details-section">
+              <h4>Keywords</h4>
+              <div class="keyword-cloud">
+                ${Object.entries(page.keywords).map(([keyword, score]) => 
+                  `<div class="keyword-tag" style="font-size: ${Math.min(100, score * 100) + 80}%">
+                    ${keyword} <span class="keyword-score">${(score * 100).toFixed(0)}%</span>
+                  </div>`
+                ).join('')}
+              </div>
+            </div>` 
+          : ''}
+        
+        <div class="details-actions">
+          <button class="btn-secondary" id="view-in-browser">Open in Browser</button>
+          <button class="btn-secondary" id="recapture-page">Recapture</button>
+          <button class="btn-secondary" id="analyze-page">Analyze</button>
+        </div>
+      </div>
+    `;
+    
+    // Add event listeners
+    detailsContent.querySelector('#view-in-browser').addEventListener('click', () => {
+      chrome.tabs.create({ url: page.url });
+    });
+    
+    detailsContent.querySelector('#recapture-page').addEventListener('click', async () => {
+      const button = detailsContent.querySelector('#recapture-page');
+      button.disabled = true;
+      button.textContent = 'Recapturing...';
+      
+      try {
+        // Request recapture
+        const response = await backgroundPage.marvin.captureUrl(page.url, {
+          context: page.browser_contexts?.[0] || 'active_tab'
+        });
+        
+        if (response.success) {
+          button.textContent = 'Recaptured!';
+          showNotification('Page recaptured successfully');
+          
+          // Refresh pages list
+          setTimeout(() => {
+            refreshPages();
+            button.disabled = false;
+            button.textContent = 'Recapture';
+          }, 2000);
+        } else {
+          throw new Error(response.error || 'Failed to recapture page');
+        }
+      } catch (error) {
+        console.error('Recapture error:', error);
+        button.textContent = 'Recapture Failed';
+        showNotification('Error recapturing page: ' + error.message, 'error');
+        
+        setTimeout(() => {
+          button.disabled = false;
+          button.textContent = 'Recapture';
+        }, 2000);
+      }
+    });
+    
+    detailsContent.querySelector('#analyze-page').addEventListener('click', async () => {
+      const button = detailsContent.querySelector('#analyze-page');
+      button.disabled = true;
+      button.textContent = 'Analyzing...';
+      
+      try {
+        // Request analysis
+        const response = await backgroundPage.marvin.analyzeUrl(page.url);
+        
+        if (response.success) {
+          button.textContent = 'Analysis Started!';
+          showNotification('Analysis started successfully');
+          
+          setTimeout(() => {
+            button.disabled = false;
+            button.textContent = 'Analyze';
+            
+            // Switch to tasks panel to show progress
+            document.querySelector('[data-panel="tasks"]').click();
+          }, 2000);
+        } else {
+          throw new Error(response.error || 'Failed to start analysis');
+        }
+      } catch (error) {
+        console.error('Analysis error:', error);
+        button.textContent = 'Analysis Failed';
+        showNotification('Error starting analysis: ' + error.message, 'error');
+        
+        setTimeout(() => {
+          button.disabled = false;
+          button.textContent = 'Analyze';
+        }, 2000);
+      }
+    });
+    
+    // Display the sidebar
+    sidebar.classList.add('active');
+    
+    // Set up close button
+    sidebar.querySelector('.close-details-btn').addEventListener('click', () => {
+      sidebar.classList.remove('active');
+    });
+  }
+  
+  /**
+   * Delete a page
+   */
+  async function deletePage(pageId) {
+    if (!confirm('Are you sure you want to delete this page?')) {
+      return;
+    }
+    
+    try {
+      // Request deletion
+      const response = await fetchAPI(`/api/v1/pages/${pageId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.success) {
+        showNotification('Page deleted successfully');
+        
+        // Remove from list
+        capturedPages = capturedPages.filter(page => page.id !== pageId);
+        
+        // Update UI
+        renderPages(capturedPages);
+        
+        // Update count
+        document.getElementById('page-count').textContent = capturedPages.length;
+      } else {
+        throw new Error(response.error?.message || 'Failed to delete page');
+      }
+    } catch (error) {
+      console.error('Error deleting page:', error);
+      showNotification('Error deleting page: ' + error.message, 'error');
+    }
+  }
+  
+  function updateWindowFilter(windows) {
+    console.log('Updating window filter with', windows.length, 'windows');
+    const windowFilter = document.getElementById('tabs-window-filter');
+    if (!windowFilter) {
+      console.error('tabs-window-filter element not found');
+      return;
+    }
+    
+    // Clear existing options
+    windowFilter.innerHTML = '<option value="all">All Windows</option>';
+    
+    // Add options for each window
+    windows.forEach(window => {
+      const option = document.createElement('option');
+      option.value = window.id.toString();
+      option.textContent = `Window ${window.id} (${window.tabs.length} tabs)`;
+      windowFilter.appendChild(option);
+    });
+  }
+  
+  // Tabs within panels (e.g., Capture panel)
+  function initTabs() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const targetTab = button.getAttribute('data-tab');
+        
+        // Update tab highlighting
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        
+        // Show corresponding tab content
+        tabPanes.forEach(pane => {
+          if (pane.id === `${targetTab}-content`) {
+            pane.classList.add('active');
+          } else {
+            pane.classList.remove('active');
+          }
+        });
+      });
+    });
+  }
+  
+  async function loadDashboardData() {
+    try {
+      // Show loading state
+      document.getElementById('recent-captures-list').innerHTML = '<div class="loading-indicator">Loading data...</div>';
+      
+      // Fetch data from storage
+      const storage = await chrome.storage.local.get(['captureHistory', 'stats']);
+      const captureHistory = storage.captureHistory || [];
+      
+      // Default stats from storage or use zeros
+      let stats = storage.stats || { captures: captureHistory.length, relationships: 0, queries: 0 };
+      
+      // Update stats
+      document.getElementById('captured-count').textContent = stats.captures;
+      document.getElementById('relationship-count').textContent = stats.relationships;
+      document.getElementById('query-count').textContent = stats.queries;
+      
+      // Update recent captures
+      updateRecentCaptures(captureHistory);
+      
+      // Load mini graph visualization
+      const graphPlaceholder = document.querySelector('.graph-placeholder');
+      if (graphPlaceholder) {
+        try {
+          // Try to get data from API
+          const response = await fetchAPI('/api/v1/graph/overview?limit=10');
+          
+          if (response.success && response.data?.nodes?.length > 0) {
+            renderMiniGraph(response.data.nodes, response.data.edges, graphPlaceholder);
+          } else {
+            // Try to use capture data to create a simple graph
+            const pagesResponse = await fetchAPI('/api/v1/pages/');
+            if (pagesResponse.success && pagesResponse.data?.pages?.length > 0) {
+              const pages = pagesResponse.data.pages || [];
+              
             // Create simple nodes
             const nodes = pages.slice(0, 10).map(page => ({
               id: page.id,
@@ -563,8 +1427,75 @@ async function initOverviewPanel() {
   
   // Load recent captures list
   await loadRecentCaptures();
+  
+  // Load active tasks summary
+  await loadActiveTasks();
 }
 
+async function loadActiveTasks() {
+  try {
+    const tasksSummary = document.getElementById('tasks-summary');
+    if (!tasksSummary) return;
+    
+    tasksSummary.innerHTML = '<div class="loading">Loading tasks...</div>';
+    
+    // Get tasks from background page
+    const tasks = await backgroundPage.marvin.getActiveTasks();
+    
+    // Filter active tasks
+    const active = tasks.filter(task => 
+      task.status === 'pending' || 
+      task.status === 'processing' || 
+      task.status === 'analyzing'
+    );
+    
+    if (active.length === 0) {
+      tasksSummary.innerHTML = '<div class="empty-state">No active tasks</div>';
+      return;
+    }
+    
+    tasksSummary.innerHTML = '';
+    
+    // Show up to 3 active tasks
+    active.slice(0, 3).forEach(task => {
+      const taskItem = document.createElement('div');
+      taskItem.className = 'task-summary-item';
+      
+      // Format progress
+      const progress = task.progress || 0;
+      const progressPercent = Math.round(progress * 100);
+      
+      taskItem.innerHTML = `
+        <div class="task-summary-title">${truncateText(task.url || 'Unknown URL', 40)}</div>
+        <div class="task-summary-status">${formatTaskStatus(task.status)}</div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progressPercent}%"></div>
+        </div>
+      `;
+      
+      tasksSummary.appendChild(taskItem);
+    });
+    
+    // Add "View All" link if there are more tasks
+    if (active.length > 3) {
+      const viewAllLink = document.createElement('a');
+      viewAllLink.href = '#';
+      viewAllLink.className = 'view-all-link';
+      viewAllLink.textContent = `View all ${active.length} active tasks`;
+      
+      viewAllLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelector('[data-panel="tasks"]').click();
+      });
+      
+      tasksSummary.appendChild(viewAllLink);
+    }
+  } catch (error) {
+    console.error('Error loading active tasks:', error);
+    document.getElementById('tasks-summary').innerHTML = 
+      `<div class="error">Error loading tasks: ${error.message}</div>`;
+  }
+}
 
 async function loadOverviewStats() {
   try {
@@ -675,7 +1606,6 @@ async function loadRecentCaptures() {
   }
 }
 
-
 function renderMiniGraph(nodes, edges, container) {
   // Clear container
   container.innerHTML = '';
@@ -739,7 +1669,6 @@ async function loadOpenTabs() {
   }
 
   tabsList.innerHTML = '<div class="loading-indicator">Loading tabs...</div>';
-  
   
   try {
     // Get all windows with tabs
@@ -1074,7 +2003,6 @@ function createTabListItem(tab, windowId) {
   return item;
 }
 
-
 // Set up filtering for tabs
 function setupTabsFilter(allTabs) {
   if (tabsFilterInitialized) {
@@ -1110,7 +2038,6 @@ function setupTabsFilter(allTabs) {
     debouncedFilterTabs(allTabs, searchTerm, windowId);
   });
 }
-
 
 // Filter tabs based on search term and window
 function filterTabs(allTabs, searchTerm, windowId) {
@@ -1162,7 +2089,6 @@ function setupSelectionControls(type) {
     });
   });
 }
-
 
 async function loadBookmarks() {
   const bookmarksList = document.getElementById('bookmarks-list');
@@ -1234,7 +2160,7 @@ function populateBookmarkFolders(bookmarks) {
   
   // Get unique folders
   const folders = [...new Set(bookmarks.map(b => b.path))].filter(path => path);
-  
+
   // Add options for each folder
   folders.sort().forEach(folder => {
     const option = document.createElement('option');
@@ -1242,7 +2168,7 @@ function populateBookmarkFolders(bookmarks) {
     option.textContent = folder;
     folderFilter.appendChild(option);
   });
-  
+
   // Set up event listener for filtering
   document.getElementById('bookmarks-search').addEventListener('input', (e) => {
     const searchTerm = e.target.value.toLowerCase();
@@ -1335,7 +2261,6 @@ function formatDate(timestamp) {
   const date = new Date(timestamp);
   return date.toLocaleDateString();
 }
-
 
 async function loadHistory() {
   const historyList = document.getElementById('history-list');
@@ -1533,15 +2458,12 @@ function filterHistory(allItems, searchTerm) {
 
 async function captureSelectedItems() {
   console.log('captureSelectedItems function called');
-  logWithStack('captureSelectedItems called');
   
   // Get active tab panel
   const activeTabPane = document.querySelector('.capture-tab-content .tab-pane.active');
-  console.log(`Active tab pane: ${activeTabPane?.id || 'none'}`);
-  
   if (!activeTabPane) {
     console.error('No capture tab is active');
-    alert('No capture tab is active');
+    showNotification('Error: No capture tab is active', 'error');
     return;
   }
   
@@ -1555,124 +2477,140 @@ async function captureSelectedItems() {
   } else {
     selectedCheckboxes = activeTabPane.querySelectorAll('.item-checkbox:checked');
   }
-  console.log(`Selected checkboxes: ${selectedCheckboxes.length}`);
   
   if (selectedCheckboxes.length === 0) {
     console.log('No items selected');
-    alert('Please select at least one item to capture');
+    showNotification('Please select at least one item to capture', 'warning');
     return;
   }
   
-  // Gather selected items - ADD SAFETY CHECKS HERE
-  const selectedItems = Array.from(selectedCheckboxes).map(checkbox => {
-    const item = checkbox.closest('.list-item') || checkbox.closest('.tab-item');
-    
-    // Safety check - if we can't find the parent item, skip it
-    if (!item) {
-      console.error('Could not find parent item for checkbox', checkbox);
-      return null;
-    }
-    
-    const id = item.getAttribute('data-id');
-    const url = item.getAttribute('data-url');
-    const titleElement = item.querySelector('.item-title') || item.querySelector('.tab-title');
-    const title = titleElement ? titleElement.textContent : 'Untitled';
-    
-    console.log(`Selected item: id=${id}, url=${url}, title=${title}`);
-    
-    return {
-      id: id,
-      url: url,
-      title: title,
-      type: type,
-      context: getContextForType(type)
-    };
-  }).filter(item => item !== null); // Remove any null items
+  // Create batch ID for tracking multiple captures
+  const batchId = `batch_${Date.now()}`;
+  const batchTracker = new ProgressTracker(batchId, {
+    stages: ['preparing', 'capturing', 'processing', 'complete'],
+    persistence: true
+  });
   
-  // Check if we have any valid items after filtering
-  if (selectedItems.length === 0) {
-    console.error('No valid items found after processing');
-    alert('Error: Could not process selected items');
-    return;
-  }
-  
-  // Show capturing status
+  // Update UI to show capture in progress
   const captureBtn = document.getElementById('capture-selected');
-  console.log(`Capture button before capture: ${!!captureBtn}, disabled=${captureBtn?.disabled}, text=${captureBtn?.textContent}`);
+  const originalText = captureBtn?.textContent || 'Capture Selected';
   
-  if (!captureBtn) {
-    console.error('capture-selected button not found!');
-    return;
+  if (captureBtn) {
+    captureBtn.textContent = `Capturing ${selectedCheckboxes.length} items...`;
+    captureBtn.disabled = true;
   }
   
-  const originalText = captureBtn.textContent;
-  captureBtn.textContent = `Capturing ${selectedItems.length} items...`;
-  captureBtn.disabled = true;
+  // Create a notification for overall progress
+  showNotification(`Capturing ${selectedCheckboxes.length} items...`, 'info', 0);
   
   try {
-    console.log(`Starting capture of ${selectedItems.length} items`, selectedItems);
+    // Gather selected items with proper error handling
+    const selectedItems = [];
     
-    // Determine context based on source type
-    const contextType = TabTypeToContext[type] || BrowserContext.ACTIVE_TAB;
+    Array.from(selectedCheckboxes).forEach(checkbox => {
+      const item = checkbox.closest('.list-item') || checkbox.closest('.tab-item');
+      if (!item) return;
+      
+      const id = item.getAttribute('data-id');
+      const url = item.getAttribute('data-url');
+      const titleElement = item.querySelector('.item-title') || item.querySelector('.tab-title');
+      const title = titleElement ? titleElement.textContent : 'Untitled';
+      
+      if (url) {
+        selectedItems.push({
+          id,
+          url,
+          title,
+          type,
+          context: getContextForType(type)
+        });
+      }
+    });
+    
+    // Update batch progress
+    batchTracker.update(10, 0, 'preparing');
     
     // Track results for all captures
     const captureResults = [];
-    const failedItems = [];
+    let completedCount = 0;
     
-    // Process items one by one
-    for (const item of selectedItems) {
+    // Start capturing items
+    batchTracker.update(20, 1, 'capturing');
+    
+    for (const [index, item] of selectedItems.entries()) {
       try {
-        let content = "";
+        // Update the notification for each item
+        const currentItem = index + 1;
+        const progressPercent = Math.round((currentItem / selectedItems.length) * 100);
+        updateNotificationProgress(`Capturing item ${currentItem}/${selectedItems.length}: ${item.title}`, progressPercent);
+        
+        // Create individual tracker for this item
+        const itemTracker = new ProgressTracker(`capture_${Date.now()}_${index}`, {
+          stages: ['preparing', 'extracting', 'sending', 'complete'],
+          persistence: true
+        });
+        
+        itemTracker.update(0, 0, 'preparing');
+        
+        // Extract content for tabs if needed
+        let content = null;
         let extractedTitle = item.title;
         let metadata = {};
         
-        // Extract content for tabs if needed
         if (type === 'tabs') {
-          const tabId = parseInt(item.id);
+          itemTracker.update(20, 1, 'extracting');
+          
           try {
+            const tabId = parseInt(item.id);
             const extractedData = await extractTabContent(tabId);
+            
             content = extractedData.content || "";
             extractedTitle = extractedData.title || item.title;
             metadata = extractedData.metadata || {};
             
-            console.log(`Extracted content from tab ${tabId}:`, {
-              title: extractedData.title,
-              contentLength: extractedData.content?.length || 0,
-              hasMetadata: !!extractedData.metadata
-            });
+            itemTracker.update(50, 1, 'extracting');
           } catch (extractError) {
-            console.error(`Error extracting content for tab ${tabId}:`, extractError);
+            console.error(`Error extracting content for tab ${item.id}:`, extractError);
+            itemTracker.update(40, 1, 'extracting');
           }
         }
         
-        // Use the captureUrl utility for each item
+        // Prepare capture options
         const captureOptions = {
-          context: contextType,
+          context: item.context,
           title: extractedTitle,
           content: content,
-          metadata: metadata
+          metadata: metadata,
+          browser_contexts: [item.context]
         };
         
         // Add source-specific fields
         if (type === 'tabs') {
           captureOptions.tabId = item.id.toString();
-          captureOptions.windowId = "1";
+          captureOptions.windowId = "1"; // Default window ID
         } else if (type === 'bookmarks') {
           captureOptions.bookmarkId = item.id.toString();
         }
         
-        // Capture the URL using the shared utility
-        const response = await captureUrl(item.url, captureOptions);
+        // Send capture request
+        itemTracker.update(70, 2, 'sending');
         
-        // Track result
+        // Use the background page API directly for more control
+        const response = await backgroundPage.marvin.captureUrl(item.url, captureOptions);
+        
+        // Process response
         if (response.success) {
+          itemTracker.update(100, 3, 'complete');
+          completedCount++;
+          
           captureResults.push({
             url: item.url,
             success: true,
             data: response.data
           });
         } else {
-          failedItems.push(item);
+          itemTracker.fail(response.error || 'Capture failed');
+          
           captureResults.push({
             url: item.url,
             success: false,
@@ -1680,28 +2618,35 @@ async function captureSelectedItems() {
           });
         }
         
-        // Small delay to prevent overwhelming the browser
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Update batch progress
+        const batchProgress = 20 + Math.round((currentItem / selectedItems.length) * 60);
+        batchTracker.update(batchProgress, 1, 'capturing');
+        
       } catch (itemError) {
         console.error(`Error capturing ${item.url}:`, itemError);
-        failedItems.push(item);
+        
         captureResults.push({
           url: item.url,
           success: false,
           error: itemError.message
         });
       }
+      
+      // Small delay between captures to avoid overwhelming the API
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     
-    // Check if we have any successful captures
-    const successCount = captureResults.filter(r => r.success).length;
-    console.log(`Capture results: ${successCount} successful, ${failedItems.length} failed`);
+    // Update batch to processing
+    batchTracker.update(80, 2, 'processing');
     
-    if (successCount > 0) {
-      console.log("Some captures successful, updating history and stats");
-      
-      // Update capture history
-      const captureHistory = (await chrome.storage.local.get('captureHistory')).captureHistory || [];
+    // Update notification
+    updateNotificationProgress(`Finishing capture: ${completedCount}/${selectedItems.length} successful`, 90);
+    
+    // Update capture history
+    if (completedCount > 0) {
+      // Fetch current history
+      const data = await chrome.storage.local.get('captureHistory');
+      const captureHistory = data.captureHistory || [];
       
       // Add new captures to history
       const newCaptures = captureResults
@@ -1725,61 +2670,70 @@ async function captureSelectedItems() {
       
       // Update stats
       const stats = (await chrome.storage.local.get('stats')).stats || { captures: 0, relationships: 0, queries: 0 };
-      stats.captures += successCount;
+      stats.captures += completedCount;
       await chrome.storage.local.set({ stats });
-      
-      // Show success or partial success message
-      if (failedItems.length === 0) {
-        captureBtn.textContent = 'Capture Successful!';
-      } else {
-        captureBtn.textContent = `${successCount}/${selectedItems.length} Captured`;
-      }
-      
-      // Dispatch success event
-      const captureSuccessEvent = new CustomEvent('marvin:capture-success', { 
-        detail: { 
-          items: captureResults.filter(r => r.success).map(r => r.url), 
-          count: successCount 
-        } 
-      });
-      document.dispatchEvent(captureSuccessEvent);
-    } else {
-      // All captures failed
-      throw new Error(`All ${selectedItems.length} captures failed`);
     }
     
-    // Reset button after delay
-    setTimeout(() => {
-      captureBtn.textContent = originalText;
-      captureBtn.disabled = false;
+    // Complete batch
+    batchTracker.update(100, 3, 'complete');
+    
+    // Update UI
+    if (captureBtn) {
+      if (completedCount === selectedItems.length) {
+        captureBtn.textContent = 'Capture Successful!';
+        showNotification(`Successfully captured ${completedCount} items`, 'success');
+      } else if (completedCount > 0) {
+        captureBtn.textContent = `${completedCount}/${selectedItems.length} Captured`;
+        showNotification(`Partially successful: ${completedCount}/${selectedItems.length} captured`, 'warning');
+      } else {
+        captureBtn.textContent = 'Capture Failed';
+        showNotification('All captures failed', 'error');
+      }
       
-      // Uncheck all items
-      selectedCheckboxes.forEach(checkbox => {
-        checkbox.checked = false;
-      });
-      
-      // Refresh dashboard data
-      loadDashboardData();
-    }, 2000);
+      // Reset button after delay
+      setTimeout(() => {
+        captureBtn.textContent = originalText;
+        captureBtn.disabled = false;
+        
+        // Uncheck all items
+        selectedCheckboxes.forEach(checkbox => {
+          checkbox.checked = false;
+        });
+        
+        // Refresh dashboard data
+        loadDashboardData();
+      }, 2000);
+    }
+    
   } catch (error) {
     console.error('Error capturing items:', error);
-    captureBtn.textContent = 'Capture Failed';
     
-    // Dispatch error event
-    const captureErrorEvent = new CustomEvent('marvin:capture-error', { 
-      detail: { 
-        error: error.message, 
-        items: selectedItems 
-      } 
-    });
-    document.dispatchEvent(captureErrorEvent);
-    
-    setTimeout(() => {
-      captureBtn.textContent = originalText;
+    if (captureBtn) {
+      captureBtn.textContent = 'Capture Failed';
       captureBtn.disabled = false;
-    }, 2000);
+      
+      setTimeout(() => {
+        captureBtn.textContent = originalText;
+      }, 2000);
+    }
     
-    alert(`Error capturing items: ${error.message}`);
+    showNotification(`Error capturing items: ${error.message}`, 'error');
+  }
+}
+
+// Update an existing progress notification
+function updateNotificationProgress(message, progress) {
+  const notification = document.querySelector('.notification.progress-notification');
+  
+  if (notification) {
+    const messageEl = notification.querySelector('.notification-message');
+    const progressBar = notification.querySelector('.notification-progress-bar');
+    
+    if (messageEl) messageEl.textContent = message;
+    if (progressBar) progressBar.style.width = `${progress}%`;
+  } else {
+    // Create a new one if it doesn't exist
+    showNotification(message, 'info', progress);
   }
 }
 
@@ -1878,7 +2832,6 @@ async function initKnowledgePanel() {
   }
 }
 
-
 async function loadKnowledgeData() {
   const knowledgeList = document.querySelector('.knowledge-list');
   knowledgeList.innerHTML = '<div class="loading-indicator">Loading knowledge items...</div>';
@@ -1976,8 +2929,6 @@ const debouncedLoadKnowledgeData = (() => {
     return pendingPromise;
   };
 })();
-
-
 
 function displayKnowledgeItems(items) {
   const knowledgeList = document.querySelector('.knowledge-list');
@@ -2111,7 +3062,8 @@ async function searchKnowledge(searchTerm) {
         };
       }
     }
-    
+
+
     if (response.success) {
       displayKnowledgeItems(response.data.pages || []);
     } else {
@@ -2122,6 +3074,7 @@ async function searchKnowledge(searchTerm) {
     knowledgeList.innerHTML = `<div class="error-state">Search error: ${error.message}</div>`;
   }
 }
+
 
 function showKnowledgeDetails(item) {
   // Get the details sidebar
@@ -2191,6 +3144,7 @@ function showKnowledgeDetails(item) {
       <div class="details-actions">
         <button class="btn-secondary" id="view-in-browser">Open in Browser</button>
         <button class="btn-secondary" id="recapture-page">Recapture</button>
+        <button class="btn-secondary" id="analyze-page">Analyze</button>
       </div>
     </div>
   `;
@@ -2241,6 +3195,48 @@ function showKnowledgeDetails(item) {
     }
   });
   
+  // Add analyze button handler
+  detailsContent.querySelector('#analyze-page').addEventListener('click', async () => {
+    const button = detailsContent.querySelector('#analyze-page');
+    button.disabled = true;
+    button.textContent = 'Analyzing...';
+    
+    try {
+      // Request analysis
+      const response = await fetchAPI('/api/v1/analysis/analyze', {
+        method: 'POST',
+        body: JSON.stringify({
+          url: item.url,
+          force: true
+        })
+      });
+
+      if (response.success) {
+        button.textContent = 'Analysis Started!';
+        
+        // Check analysis status periodically
+        const taskId = response.data.task_id;
+        if (taskId) {
+          checkAnalysisStatus(taskId, button);
+        } else {
+          setTimeout(() => {
+            button.disabled = false;
+            button.textContent = 'Analyze';
+          }, 2000);
+        }
+      } else {
+        throw new Error(response.error?.message || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      button.textContent = 'Analysis Failed';
+      setTimeout(() => {
+        button.disabled = false;
+        button.textContent = 'Analyze';
+      }, 2000);
+    }
+  });
+  
   // Set up relationship item clicks to load related items
   detailsContent.querySelectorAll('.relationship-target').forEach(link => {
     link.addEventListener('click', (e) => {
@@ -2257,6 +3253,52 @@ function showKnowledgeDetails(item) {
   sidebar.querySelector('.close-details-btn').addEventListener('click', () => {
     sidebar.classList.remove('active');
   });
+}
+
+async function checkAnalysisStatus(taskId, button) {
+  try {
+    const response = await fetchAPI(`/api/v1/analysis/status/${taskId}`);
+    
+    if (response.success) {
+      const status = response.data.status;
+      
+      if (status === 'completed') {
+        button.textContent = 'Analysis Complete!';
+        
+        // Reload knowledge data to show updated information
+        setTimeout(() => {
+          loadKnowledgeData();
+          button.disabled = false;
+          button.textContent = 'Analyze';
+        }, 2000);
+      } else if (status === 'error') {
+        button.textContent = 'Analysis Failed';
+        setTimeout(() => {
+          button.disabled = false;
+          button.textContent = 'Analyze';
+        }, 2000);
+      } else if (status === 'processing' || status === 'pending') {
+        // Still processing, check again after a delay
+        button.textContent = `Analyzing (${status})...`;
+        setTimeout(() => checkAnalysisStatus(taskId, button), 2000);
+      } else {
+        button.textContent = 'Unknown Status';
+        setTimeout(() => {
+          button.disabled = false;
+          button.textContent = 'Analyze';
+        }, 2000);
+      }
+    } else {
+      throw new Error(response.error?.message || 'Failed to check status');
+    }
+  } catch (error) {
+    console.error('Error checking analysis status:', error);
+    button.textContent = 'Status Check Failed';
+    setTimeout(() => {
+      button.disabled = false;
+      button.textContent = 'Analyze';
+    }, 2000);
+  }
 }
 
 async function loadRelatedItem(itemId) {
@@ -2443,6 +3485,81 @@ async function initAssistantPanel() {
       sendMessage();
     }
   });
+  
+  // Load chat history from storage
+  loadChatHistory();
+  
+  // Set up context options
+  loadContextOptions();
+}
+
+async function loadChatHistory() {
+  try {
+    const data = await chrome.storage.local.get('chatHistory');
+    const chatHistory = data.chatHistory || [];
+    
+    const messagesContainer = document.getElementById('chat-messages');
+    
+    // Clear existing messages
+    messagesContainer.innerHTML = '';
+    
+    // Add messages from history
+    chatHistory.forEach(message => {
+      const messageElement = document.createElement('div');
+      messageElement.className = `message ${message.type}`;
+      
+      messageElement.innerHTML = `
+        <div class="message-content">
+          <p>${message.text.replace(/\n/g, '<br>')}</p>
+        </div>
+      `;
+      
+      messagesContainer.appendChild(messageElement);
+    });
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  } catch (error) {
+    console.error('Error loading chat history:', error);
+  }
+}
+
+async function loadContextOptions() {
+  try {
+    // Get recent pages to use as context options
+    const response = await fetchAPI('/api/v1/pages/?limit=10');
+    
+    if (response.success && response.data && response.data.pages) {
+      const contextOptions = document.querySelector('.context-options');
+      contextOptions.innerHTML = '';
+      
+      // Add "Use Knowledge Graph" option
+      const knowledgeOption = document.createElement('div');
+      knowledgeOption.className = 'context-option';
+      knowledgeOption.innerHTML = `
+        <input type="checkbox" id="context-knowledge" checked>
+        <label for="context-knowledge">Use Knowledge Graph</label>
+      `;
+      contextOptions.appendChild(knowledgeOption);
+      
+      // Add recent pages as options
+      response.data.pages.forEach(page => {
+        const option = document.createElement('div');
+        option.className = 'context-option';
+        
+        const id = `context-${page.id}`;
+        
+        option.innerHTML = `
+          <input type="checkbox" id="${id}">
+          <label for="${id}" title="${page.url}">${page.title || 'Untitled'}</label>
+        `;
+        
+        contextOptions.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error('Error loading context options:', error);
+  }
 }
 
 // Initialize settings panel
@@ -2465,17 +3582,75 @@ async function initSettingsPanel() {
   if (clearDataBtn) {
     clearDataBtn.addEventListener('click', handleClearData);
   }
+  
+  // Set up API test button
+  const testApiBtn = document.getElementById('test-api-btn');
+  if (testApiBtn) {
+    testApiBtn.addEventListener('click', testApiConnection);
+  }
 }
 
+async function testApiConnection() {
+  const testApiBtn = document.getElementById('test-api-btn');
+  const apiStatusEl = document.getElementById('api-status');
+  
+  if (!testApiBtn || !apiStatusEl) return;
+  
+  testApiBtn.disabled = true;
+  testApiBtn.textContent = 'Testing...';
+  apiStatusEl.textContent = 'Checking connection...';
+  apiStatusEl.className = 'status-checking';
+  
+  try {
+    // Get API URL from input
+    const apiUrl = document.getElementById('api-url').value.trim();
+    if (!apiUrl) {
+      throw new Error('Please enter an API URL');
+    }
+    
+    // Test connection
+    const response = await fetch(`${apiUrl}/api/v1/health`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      apiStatusEl.textContent = 'Connected successfully!';
+      apiStatusEl.className = 'status-success';
+    } else {
+      const errorText = await response.text();
+      throw new Error(`API returned status ${response.status}: ${errorText}`);
+    }
+  } catch (error) {
+    console.error('API connection test failed:', error);
+    apiStatusEl.textContent = `Connection failed: ${error.message}`;
+    apiStatusEl.className = 'status-error';
+  } finally {
+    testApiBtn.disabled = false;
+    testApiBtn.textContent = 'Test Connection';
+    
+    // Clear status after delay
+    setTimeout(() => {
+      if (apiStatusEl.className !== 'status-error') {
+        apiStatusEl.textContent = '';
+        apiStatusEl.className = '';
+      }
+    }, 5000);
+  }
+}
 
 async function loadCurrentSettings() {
   try {
     console.log('Loading current settings');
     
     // Get settings from storage
-    const data = await chrome.storage.local.get(['apiConfig', 'captureSettings']);
+    const data = await chrome.storage.local.get(['apiConfig', 'captureSettings', 'analysisSettings']);
     const apiConfig = data.apiConfig || {};
     const captureSettings = data.captureSettings || {};
+    const analysisSettings = data.analysisSettings || {};
     
     // Populate API config form
     const apiUrlInput = document.getElementById('api-url');
@@ -2508,7 +3683,13 @@ async function loadCurrentSettings() {
         : captureSettings.includedDomains;
     }
     
-    console.log('Settings loaded:', { apiConfig, captureSettings });
+    // Populate analysis settings form
+    const autoAnalyzeCheckbox = document.getElementById('auto-analyze');
+    if (autoAnalyzeCheckbox) {
+      autoAnalyzeCheckbox.checked = analysisSettings.autoAnalyze !== false; // Default to true
+    }
+    
+    console.log('Settings loaded:', { apiConfig, captureSettings, analysisSettings });
   } catch (error) {
     console.error('Error loading settings:', error);
   }
@@ -2586,10 +3767,42 @@ function setupSettingsForms() {
 
         showSaveConfirmation(captureSettingsForm);
         
-        alert('Capture settings saved successfully');
+        console.log('Capture settings saved successfully');
       } catch (error) {
         console.error('Error saving capture settings:', error);
         alert('Error saving capture settings: ' + error.message);
+      }
+    });
+  }
+  
+  // Analysis settings form
+  const analysisSettingsForm = document.getElementById('analysis-settings-form');
+  if (analysisSettingsForm) {
+    analysisSettingsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const autoAnalyze = document.getElementById('auto-analyze').checked;
+      
+      const analysisSettings = {
+        autoAnalyze
+      };
+      
+      try {
+        // Save to storage
+        await chrome.storage.local.set({ analysisSettings });
+        
+        // Send message to background script
+        chrome.runtime.sendMessage({
+          action: 'updateSettings',
+          settings: { analysisSettings }
+        });
+
+        showSaveConfirmation(analysisSettingsForm);
+        
+        console.log('Analysis settings saved successfully');
+      } catch (error) {
+        console.error('Error saving analysis settings:', error);
+        alert('Error saving analysis settings: ' + error.message);
       }
     });
   }
@@ -2602,7 +3815,7 @@ async function handleClearData() {
   
   try {
     // Clear specific storage items but keep settings
-    await chrome.storage.local.remove(['captureHistory', 'stats']);
+    await chrome.storage.local.remove(['captureHistory', 'stats', 'chatHistory', 'pendingRequests']);
     
     // Notify background script
     chrome.runtime.sendMessage({ action: 'clearLocalData' });
@@ -2616,7 +3829,6 @@ async function handleClearData() {
     alert('Error clearing data: ' + error.message);
   }
 }
-
 
 // Show save confirmation message
 function showSaveConfirmation(form) {
@@ -2670,6 +3882,163 @@ function setupStatusMonitoring() {
   // Listen for changes
   window.addEventListener('online', updateNetworkStatus);
   window.addEventListener('offline', updateNetworkStatus);
+  
+  // Check for active tasks
+  checkActiveTasks();
+  
+  // Set up periodic task checking
+  setInterval(checkActiveTasks, 10000); // Check every 10 seconds
+}
+
+async function checkActiveTasks() {
+  try {
+    // Request active tasks from background script
+    chrome.runtime.sendMessage({ action: 'getActiveTasks' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error getting active tasks:', chrome.runtime.lastError);
+        return;
+      }
+      
+      if (response && response.success) {
+        updateTasksIndicator(response.tasks || []);
+      }
+    });
+  } catch (error) {
+    console.error('Error checking active tasks:', error);
+  }
+}
+
+function updateTasksIndicator(tasks) {
+  const tasksIndicator = document.querySelector('.tasks-indicator');
+  if (!tasksIndicator) return;
+  
+  if (tasks.length === 0) {
+    tasksIndicator.style.display = 'none';
+    return;
+  }
+  
+  // Count tasks by status
+  const statusCounts = {
+    pending: 0,
+    processing: 0,
+    analyzing: 0,
+    complete: 0,
+    error: 0
+  };
+  
+  for (const task of tasks) {
+    const status = task.status || 'pending';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+  }
+  
+  // Update indicator
+  tasksIndicator.style.display = 'flex';
+  tasksIndicator.innerHTML = `
+    <span class="tasks-count">${tasks.length}</span>
+    <span class="tasks-label">Active Tasks</span>
+  `;
+  
+  // Add click handler to show tasks panel
+  tasksIndicator.onclick = () => {
+    showTasksPanel(tasks);
+  };
+}
+
+function showTasksPanel(tasks) {
+  // Create or get tasks panel
+  let tasksPanel = document.getElementById('tasks-panel');
+  
+  if (!tasksPanel) {
+    tasksPanel = document.createElement('div');
+    tasksPanel.id = 'tasks-panel';
+    tasksPanel.className = 'tasks-panel';
+    document.body.appendChild(tasksPanel);
+  }
+    // Update panel content
+    tasksPanel.innerHTML = `
+    <div class="tasks-panel-header">
+      <h3>Active Tasks (${tasks.length})</h3>
+      <button class="close-panel-btn">&times;</button>
+    </div>
+    <div class="tasks-list">
+      ${tasks.length === 0 
+        ? '<div class="empty-state">No active tasks</div>' 
+        : tasks.map(task => `
+          <div class="task-item" data-id="${task.id}" data-status="${task.status || 'pending'}">
+            <div class="task-info">
+              <div class="task-title">${task.url || task.id}</div>
+              <div class="task-meta">
+                <span class="task-status">${task.status || 'pending'}</span>
+                <span class="task-progress">${task.progress || 0}%</span>
+              </div>
+            </div>
+            <div class="task-actions">
+              ${task.status === 'error' 
+                ? '<button class="btn-action retry-task">Retry</button>' 
+                : ''}
+              <button class="btn-action cancel-task">Cancel</button>
+            </div>
+          </div>
+        `).join('')}
+    </div>
+  `;
+  
+  // Show panel
+  tasksPanel.classList.add('active');
+  
+  // Set up close button
+  tasksPanel.querySelector('.close-panel-btn').addEventListener('click', () => {
+    tasksPanel.classList.remove('active');
+  });
+  
+  // Set up retry buttons
+  tasksPanel.querySelectorAll('.retry-task').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const taskItem = e.target.closest('.task-item');
+      const taskId = taskItem.getAttribute('data-id');
+      
+      // Send retry message to background script
+      chrome.runtime.sendMessage({ 
+        action: 'retryTask', 
+        taskId 
+      }, (response) => {
+        if (response && response.success) {
+          // Update UI
+          taskItem.setAttribute('data-status', 'pending');
+          taskItem.querySelector('.task-status').textContent = 'pending';
+          button.remove(); // Remove retry button
+        } else {
+          alert('Failed to retry task: ' + (response?.error || 'Unknown error'));
+        }
+      });
+    });
+  });
+  
+  // Set up cancel buttons
+  tasksPanel.querySelectorAll('.cancel-task').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const taskItem = e.target.closest('.task-item');
+      const taskId = taskItem.getAttribute('data-id');
+      
+      // Send cancel message to background script
+      chrome.runtime.sendMessage({ 
+        action: 'cancelTask', 
+        taskId 
+      }, (response) => {
+        if (response && response.success) {
+          // Remove task from list
+          taskItem.remove();
+          
+          // If no tasks left, close panel
+          if (tasksPanel.querySelectorAll('.task-item').length === 0) {
+            tasksPanel.classList.remove('active');
+          }
+        } else {
+          alert('Failed to cancel task: ' + (response?.error || 'Unknown error'));
+        }
+      });
+    });
+  });
 }
 
 // Utility: Truncate text with ellipsis
