@@ -1,10 +1,18 @@
 import { captureCurrentTab, setupCaptureButton } from '../shared/utils/capture.js';
+import { LogManager } from '../background/log-manager.js';
+
+// Initialize logger
+const logger = new LogManager({
+  isBackgroundScript: false,
+  storageKey: 'marvin_popup_logs',
+  maxEntries: 1000
+});
 
 /**
  * Initialize the popup
  */
 async function initialize() {
-  console.log('Popup initialized');
+  logger.log('Popup initialized');
   
   // UI elements
   const statusIndicator = document.getElementById('status-indicator');
@@ -71,7 +79,7 @@ async function initialize() {
   if (authForm) {
     authForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      console.log('Login form submitted');
+      logger.log('info', 'Login form submitted');
       
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
@@ -83,15 +91,16 @@ async function initialize() {
           password
         });
         
-        console.log('Login response:', response);
+        logger.log('debug', 'Login response:', response);
         
         if (response.success) {
           checkAuthStatus();
         } else {
           alert('Login failed: ' + (response.error || 'Unknown error'));
+          logger.log('error', 'Login failed:', response.error || 'Unknown error');
         }
       } catch (error) {
-        console.error('Login error:', error);
+        logger.log('error', 'Login error:', error);
         alert('Login error: ' + error.message);
       }
     });
@@ -100,13 +109,13 @@ async function initialize() {
   // Logout button
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
-      console.log('Logout clicked');
+      logger.log('info', 'Logout clicked');
       
       try {
         await sendMessageToBackground({ action: 'logout' });
         checkAuthStatus();
       } catch (error) {
-        console.error('Logout error:', error);
+        logger.log('error', 'Logout error:', error);
       }
     });
   }
@@ -114,7 +123,7 @@ async function initialize() {
   // Related content button
   if (relatedBtn) {
     relatedBtn.addEventListener('click', () => {
-      console.log('Related button clicked');
+      logger.log('info', 'Related button clicked');
       alert('Finding related content will be available in the next version.');
     });
   }
@@ -122,7 +131,7 @@ async function initialize() {
   // Query button
   if (queryBtn) {
     queryBtn.addEventListener('click', () => {
-      console.log('Query button clicked');
+      logger.log('info', 'Query button clicked');
       alert('Ask Marvin functionality will be available in the next version.');
     });
   }
@@ -136,7 +145,7 @@ function updateOnlineStatus() {
   if (!statusIndicator) return;
   
   const isOnline = navigator.onLine;
-  console.log('Online status:', isOnline);
+  logger.log('Online status:', isOnline);
   
   if (isOnline) {
     statusIndicator.textContent = 'Online';
@@ -151,7 +160,7 @@ function updateOnlineStatus() {
  * Check authentication status
  */
 async function checkAuthStatus() {
-  console.log('Checking auth status...');
+  logger.log('Checking auth status...');
   
   const loginForm = document.getElementById('login-form');
   const userInfo = document.getElementById('user-info');
@@ -160,7 +169,7 @@ async function checkAuthStatus() {
   
   try {
     const response = await sendMessageToBackground({ action: 'checkAuthStatus' });
-    console.log('Auth status response:', response);
+    logger.log('Auth status response:', response);
     
     if (response.authenticated) {
       loginForm.style.display = 'none';
@@ -182,7 +191,7 @@ async function checkAuthStatus() {
  * Enable main functionality
  */
 function enableFunctionality() {
-  console.log('Enabling functionality');
+  logger.log('Enabling functionality');
   const captureBtn = document.getElementById('capture-btn');
   const analyzeBtn = document.getElementById('analyze-btn');
   const relatedBtn = document.getElementById('related-btn');
@@ -200,7 +209,7 @@ function enableFunctionality() {
  * Disable main functionality
  */
 function disableFunctionality() {
-  console.log('Disabling functionality');
+  logger.log('Disabling functionality');
   const captureBtn = document.getElementById('capture-btn');
   const analyzeBtn = document.getElementById('analyze-btn');
   const relatedBtn = document.getElementById('related-btn');
@@ -218,7 +227,7 @@ function disableFunctionality() {
  * Load recent activity
  */
 async function loadRecentActivity() {
-  console.log('Loading recent activity');
+  logger.log('Loading recent activity');
   const activityList = document.getElementById('activity-list');
   if (!activityList) return;
   
@@ -281,7 +290,7 @@ async function analyzeCurrentTab() {
       }
     });
     
-    console.log('Analysis result:', result);
+    logger.log('Analysis result:', result);
     
     if (result.success) {
       updateStatus('Analysis started', 'success');
@@ -535,7 +544,7 @@ function viewTaskResult(taskId) {
  */
 function reportNetworkStatus() {
   const isOnline = navigator.onLine;
-  console.log('Reporting network status:', isOnline);
+  logger.log('Reporting network status:', isOnline);
   
   try {
     sendMessageToBackground({ 
@@ -584,7 +593,7 @@ async function checkContentScript() {
     chrome.tabs.sendMessage(tab.id, { action: 'contentScriptPing' }, (response) => {
       // If there's an error, the content script might not be loaded
       if (chrome.runtime.lastError) {
-        console.log('Content script not loaded, injecting...');
+        logger.log('Content script not loaded, injecting...');
         
         // Inject the content script
         chrome.scripting.executeScript({
@@ -594,7 +603,7 @@ async function checkContentScript() {
           console.error('Error injecting content script:', error);
         });
       } else {
-        console.log('Content script is loaded');
+        logger.log('Content script is loaded');
       }
     });
   } catch (error) {
@@ -627,4 +636,41 @@ function formatTime(timestamp) {
 document.addEventListener('DOMContentLoaded', () => {
   initialize();
   checkContentScript();
+});
+
+
+// Add a function to export logs from the popup
+async function exportLogs() {
+  try {
+    const logs = await logger.exportLogs('text');
+    console.log('Exported logs:', logs);
+    
+    // Create a download link
+    const blob = new Blob([logs], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'marvin-popup-logs.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error exporting logs:', error);
+  }
+}
+
+// Initialize popup when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  initialize();
+  checkContentScript();
+  
+  // Add a debug button for exporting logs if needed
+  const debugSection = document.getElementById('debug-section');
+  if (debugSection) {
+    const exportLogsBtn = document.createElement('button');
+    exportLogsBtn.textContent = 'Export Logs';
+    exportLogsBtn.addEventListener('click', exportLogs);
+    debugSection.appendChild(exportLogsBtn);
+  }
 });

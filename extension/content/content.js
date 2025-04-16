@@ -1,5 +1,19 @@
 // Import Readability for content extraction
 import { Readability } from '@mozilla/readability';
+import { LogManager } from '../background/log-manager.js';
+
+// Initialize logger
+const logger = new LogManager({
+  isBackgroundScript: false,
+  storageKey: 'marvin_content_logs',
+  maxEntries: 1000,
+  deduplicationTimeout: 5000 // 5 seconds deduplication for content script
+});
+
+
+// Mark the document as having Marvin initialized
+document.body.dataset.marvinInitialized = 'true';
+document.body.dataset.context = 'content';
 
 // Helper function to safely send messages to the extension
 function safeSendMessage(message) {
@@ -7,14 +21,14 @@ function safeSendMessage(message) {
     chrome.runtime.sendMessage(message);
     return true;
   } catch (error) {
-    console.log('Failed to send message to extension, context may be invalidated');
+    logger.log('error', 'Failed to send message to extension, context may be invalidated', error);
     return false;
   }
 }
 
 // Initialize the content script
 function initialize() {
-  console.log('Marvin content script initialized');
+  logger.log('info', 'Marvin content script initialized');
   
   // Notify background script that content script is active
   safeSendMessage({ 
@@ -38,8 +52,10 @@ function setupEventListeners() {
   // Handle page visibility for auto-capture logic
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      logger.log('debug', 'Page became visible', window.location.href);
       safeSendMessage({ action: 'pageVisible', url: window.location.href });
     } else {
+      logger.log('debug', 'Page hidden', window.location.href);
       safeSendMessage({ action: 'pageHidden', url: window.location.href });
     }
   });
@@ -48,16 +64,20 @@ function setupEventListeners() {
   window.addEventListener('focus', () => {
     // Try to reconnect with extension
     if (safeSendMessage({ action: 'contentScriptPing' })) {
-      console.log('Reconnected with extension');
+      logger.log('debug', 'Reconnected with extension');
     }
   });
 }
 
+
 // Report network status to service worker
 function reportNetworkStatus() {
+  const isOnline = navigator.onLine;
+  logger.log('info', 'Network status changed', isOnline ? 'online' : 'offline');
+  
   safeSendMessage({ 
     action: 'networkStatusChange', 
-    isOnline: navigator.onLine 
+    isOnline: isOnline 
   });
 }
 
@@ -78,9 +98,14 @@ async function getPageContent() {
       throw new Error('Could not extract content');
     }
     
+    logger.log('debug', 'Content extracted successfully', { 
+      contentLength: article.content.length,
+      title: article.title
+    });
+    
     return article.content;
   } catch (e) {
-    console.error('Error in getPageContent:', e);
+    logger.log('error', 'Error in getPageContent:', e);
     
     // Fallback: Just get the HTML of the body
     return document.body.innerHTML;
@@ -318,7 +343,7 @@ function showCaptureOverlay(status) {
  * @returns {boolean} Whether response will be sent asynchronously
  */
 function handleMessages(message, sender, sendResponse) {
-  console.log('Content script received message:', message);
+  logger.log('debug', 'Content script received message:', message);
   
   switch (message.action) {
     case 'extractContent':
@@ -340,6 +365,7 @@ function handleMessages(message, sender, sendResponse) {
         
         sendResponse({ content, metadata });
       } catch (error) {
+        logger.log('error', 'Error extracting content:', error);
         sendResponse({ error: error.message });
       }
       return true;
@@ -352,11 +378,11 @@ function handleMessages(message, sender, sendResponse) {
       // Extract and return page content
       getPageContent()
         .then(content => {
-          console.log('Extracted content length:', content.length);
+          logger.log('debug', 'Extracted content length:', content.length);
           sendResponse({ success: true, content });
         })
         .catch(error => {
-          console.error('Error extracting content:', error);
+          logger.log('error', 'Error extracting content:', error);
           sendResponse({ success: false, error: String(error) });
         });
       
@@ -366,12 +392,26 @@ function handleMessages(message, sender, sendResponse) {
     case 'getPageMetadata':
       // Extract and return page metadata
       const metadata = getPageMetadata();
+      logger.log('debug', 'Extracted metadata', metadata);
       sendResponse({ success: true, metadata });
       return false; // Synchronous response
+      
+    case 'exportLogs':
+      // Export logs from content script
+      logger.exportLogs(message.format || 'json')
+        .then(logs => {
+          sendResponse({ success: true, logs });
+        })
+        .catch(error => {
+          logger.log('error', 'Error exporting logs:', error);
+          sendResponse({ success: false, error: String(error) });
+        });
+      return true;
   }
   
   return false; // Not handled
 }
+
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener(handleMessages);

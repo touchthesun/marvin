@@ -5,81 +5,46 @@ import StateManager from './state-manager.js';
 import { captureUrl } from '../shared/utils/capture.js';
 import { AnalysisQueue } from './analysis-queue.js';
 import { ProgressTracker } from './progress-tracker.js';
+import { LogManager } from './log-manager.js';
 
-// Add log deduplication to prevent double logging
-const logCache = new Map();
-const CACHE_TIMEOUT = 1000; // 1 second
 
-// Create wrapped logging functions
-const originalConsoleLog = console.log;
-const originalConsoleError = console.error;
-const originalConsoleWarn = console.warn;
+// Initialize log manager
+const logger = new LogManager({ 
+  isBackgroundScript: true,
+  logLevel: 'debug',
+  deduplicationTimeout: 1000, // Match existing CACHE_TIMEOUT
+  maxDuplicateCache: 100     // Match existing cleanup threshold
+});
 
-// Replace console.log
-console.log = function(...args) {
-  const message = args.map(arg => 
-    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-  ).join(' ');
-  
-  const now = Date.now();
-  const cachedTime = logCache.get(message);
-  
-  // If this exact message was logged less than 1s ago, ignore it
-  if (cachedTime && (now - cachedTime) < CACHE_TIMEOUT) {
-    return;
+// Add message listener for logs from other contexts
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'marvin_log_entry') {
+    logger.logs.push(message.entry);
+    return false;
   }
   
-  // Otherwise log it and cache the timestamp
-  logCache.set(message, now);
-  originalConsoleLog.apply(console, args);
-  
-  // Cleanup old messages periodically
-  if (logCache.size > 100) {
-    for (const [key, timestamp] of logCache.entries()) {
-      if (now - timestamp > CACHE_TIMEOUT) {
-        logCache.delete(key);
-      }
-    }
+  if (message.action === 'marvin_export_logs') {
+    logger.exportLogs(message.format)
+      .then(logs => sendResponse({ success: true, logs }))
+      .catch(error => sendResponse({ 
+        success: false, 
+        error: error.message 
+      }));
+    return true;
   }
-};
+  
+  if (message.action === 'marvin_clear_logs') {
+    logger.clearLogs();
+    sendResponse({ success: true });
+    return false;
+  }
+  
+  // Handle other messages
+  return false;
+});
 
-// Replace console.error
-console.error = function(...args) {
-  const message = args.map(arg => 
-    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-  ).join(' ');
-  
-  const now = Date.now();
-  const cachedTime = logCache.get('ERROR:' + message);
-  
-  // If this exact error was logged less than 1s ago, ignore it
-  if (cachedTime && (now - cachedTime) < CACHE_TIMEOUT) {
-    return;
-  }
-  
-  // Otherwise log it and cache the timestamp
-  logCache.set('ERROR:' + message, now);
-  originalConsoleError.apply(console, args);
-};
-
-// Replace console.warn
-console.warn = function(...args) {
-  const message = args.map(arg => 
-    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-  ).join(' ');
-  
-  const now = Date.now();
-  const cachedTime = logCache.get('WARN:' + message);
-  
-  // If this exact warning was logged less than 1s ago, ignore it
-  if (cachedTime && (now - cachedTime) < CACHE_TIMEOUT) {
-    return;
-  }
-  
-  // Otherwise log it and cache the timestamp
-  logCache.set('WARN:' + message, now);
-  originalConsoleWarn.apply(console, args);
-};
+// Make logger globally available for debugging
+window.marvinLogger = logger;
 
 // Configuration (would be loaded from storage in real implementation)
 const API_BASE_URL = 'http://localhost:8000';
@@ -101,7 +66,7 @@ let lastBadgeUpdateTime = 0;
 
 // Initialize on extension load
 async function initialize() {
-  console.log('Initializing Marvin extension...');
+  logger.log('Initializing Marvin extension...');
   try {
     await authManager.initialize();
     await stateManager.initialize();
@@ -114,7 +79,7 @@ async function initialize() {
       apiClient.setBaseUrl(config.apiConfig.baseUrl);
     }
     
-    console.log('Marvin extension initialized successfully', {
+    logger.log('Marvin extension initialized successfully', {
       apiBaseUrl: apiClient.baseURL,
       autoAnalyze: config.autoAnalyze !== false,
       autoCapture: config.autoCapture
@@ -126,7 +91,7 @@ async function initialize() {
     // Start badge update timer
     setInterval(updateBadge, 5000);
   } catch (error) {
-    console.error('Initialization error:', error);
+    logger.error('Initialization error:', error);
   }
 }
 
@@ -186,7 +151,7 @@ async function updateBadge() {
     chrome.action.setBadgeText({ text: badgeText });
     chrome.action.setBadgeBackgroundColor({ color: badgeColor });
   } catch (e) {
-    console.error('Error updating badge:', e);
+    logger.error('Error updating badge:', e);
   }
 }
 
@@ -218,7 +183,7 @@ async function extractTabContent(tabId) {
     
     return results[0].result;
   } catch (error) {
-    console.error(`Error extracting content from tab ${tabId}:`, error);
+    logger.error(`Error extracting content from tab ${tabId}:`, error);
     // Return minimal data if extraction fails
     return {
       content: "",
@@ -246,7 +211,7 @@ async function updateCaptureHistory(captureInfo) {
     // Save updated history
     await chrome.storage.local.set({ captureHistory });
   } catch (error) {
-    console.error('Error updating capture history:', error);
+    logger.error('Error updating capture history:', error);
   }
 }
 
@@ -258,7 +223,7 @@ async function updateCaptureHistory(captureInfo) {
  * @returns {Promise<string>} Task ID
  */
 async function analyzeUrl(url, options = {}) {
-  console.log(`Analyzing URL: ${url}`);
+  logger.log(`Analyzing URL: ${url}`);
   
   try {
     // Queue for analysis
@@ -276,7 +241,7 @@ async function analyzeUrl(url, options = {}) {
     
     return taskId;
   } catch (e) {
-    console.error('Error analyzing URL:', e);
+    logger.error('Error analyzing URL:', e);
     throw e;
   }
 }
@@ -307,7 +272,7 @@ async function captureCurrentTab() {
       const result = await chrome.tabs.sendMessage(tab.id, { action: 'getPageContent' });
       content = result.content;
     } catch (e) {
-      console.warn('Could not get page content, capturing metadata only', e);
+      logger.warn('Could not get page content, capturing metadata only', e);
     }
     
     // Capture the URL
@@ -318,7 +283,7 @@ async function captureCurrentTab() {
       title: tab.title
     });
   } catch (e) {
-    console.error('Error capturing current tab:', e);
+    logger.error('Error capturing current tab:', e);
     throw e;
   }
 }
@@ -375,7 +340,7 @@ async function retryTask(taskId) {
  * @returns {Promise<object>} Batch info
  */
 async function analyzeBatch(urls, options = {}) {
-  console.log(`Analyzing batch of ${urls.length} URLs`);
+  logger.log(`Analyzing batch of ${urls.length} URLs`);
   
   try {
     // Queue batch for analysis
@@ -394,7 +359,7 @@ async function analyzeBatch(urls, options = {}) {
     
     return batch;
   } catch (e) {
-    console.error('Error analyzing batch:', e);
+    logger.error('Error analyzing batch:', e);
     throw e;
   }
 }
@@ -410,7 +375,7 @@ async function getBatchStatus(batchId) {
 
 // Message handler for communication with popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Background received message:', message);
+  logger.log('Background received message:', message);
   
   // Return true to indicate we'll send a response asynchronously
   const isAsync = true;
@@ -434,7 +399,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           
           sendResponse({ success: true, ...response });
         } catch (error) {
-          console.error('Error handling capture:', error);
+          logger.error('Error handling capture:', error);
           sendResponse({
             success: false,
             error: error.message || 'Unknown error'
@@ -449,7 +414,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const response = await captureCurrentTab();
           sendResponse({ success: true, ...response });
         } catch (error) {
-          console.error('Error handling capture:', error);
+          logger.error('Error handling capture:', error);
           sendResponse({
             success: false,
             error: error.message || 'Unknown error'
@@ -610,11 +575,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'pageVisible':
     case 'pageHidden':
       // Handle page visibility change
-      console.log(`Page ${message.action === 'pageVisible' ? 'visible' : 'hidden'}:`, message.url);
+      logger.log(`Page ${message.action === 'pageVisible' ? 'visible' : 'hidden'}:`, message.url);
       return false;
       
     default:
-      console.log('Unhandled message type:', message.action);
+      logger.log('Unhandled message type:', message.action);
       sendResponse({ success: false, error: 'Unhandled message type' });
       return false;
   }
@@ -633,7 +598,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
           windowId: String(tab.windowId),
           title: tab.title
         }).catch(error => {
-          console.error('Error auto-capturing tab:', error);
+          logger.error('Error auto-capturing tab:', error);
         });
       }
     });
