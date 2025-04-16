@@ -18,7 +18,7 @@ const logger = new LogManager({
  * @param {string} type - Item type (tab, bookmark, history)
  * @returns {HTMLElement} List item element
  */
-export function createListItem(item, type) {
+function createListItem(item, type) {
   logger.debug(`Creating list item for ${type}: ${item.url}`);
   
   const listItem = document.createElement('div');
@@ -83,7 +83,7 @@ export function createListItem(item, type) {
  * @param {number} maxLength - Maximum length
  * @returns {string} Truncated text
  */
-export function truncateText(text, maxLength) {
+function truncateText(text, maxLength) {
   if (!text) return '';
   
   if (text.length <= maxLength) {
@@ -99,7 +99,7 @@ export function truncateText(text, maxLength) {
  * @param {boolean} includeTime - Whether to include time
  * @returns {string} Formatted date string
  */
-export function formatDate(date, includeTime = false) {
+function formatDate(date, includeTime = false) {
   if (!date) return 'Unknown';
   
   try {
@@ -136,7 +136,7 @@ export function formatDate(date, includeTime = false) {
  * Set up selection controls (Select All/Deselect All)
  * @param {string} type - Type of items (tabs, bookmarks, history)
  */
-export function setupSelectionControls(type) {
+function setupSelectionControls(type) {
   logger.debug(`Setting up selection controls for ${type}`);
   
   const selectAllBtn = document.getElementById(`select-all-${type}`);
@@ -177,7 +177,7 @@ export function setupSelectionControls(type) {
  * @param {string} message - Loading message
  * @returns {HTMLElement} Loading indicator element
  */
-export function createLoadingIndicator(message = 'Loading...') {
+function createLoadingIndicator(message = 'Loading...') {
   const loadingIndicator = document.createElement('div');
   loadingIndicator.className = 'loading-indicator';
   loadingIndicator.textContent = message;
@@ -189,7 +189,7 @@ export function createLoadingIndicator(message = 'Loading...') {
  * @param {string} message - Empty state message
  * @returns {HTMLElement} Empty state element
  */
-export function createEmptyState(message = 'No items found') {
+function createEmptyState(message = 'No items found') {
   const emptyState = document.createElement('div');
   emptyState.className = 'empty-state';
   emptyState.textContent = message;
@@ -202,7 +202,7 @@ export function createEmptyState(message = 'No items found') {
  * @param {Function} retryCallback - Optional callback for retry button
  * @returns {HTMLElement} Error state element
  */
-export function createErrorState(message, retryCallback = null) {
+function createErrorState(message, retryCallback = null) {
   const errorState = document.createElement('div');
   errorState.className = 'error-state';
   
@@ -226,7 +226,7 @@ export function createErrorState(message, retryCallback = null) {
  * @param {string} url - URL to extract domain from
  * @returns {string} Domain name
  */
-export function getDomainFromUrl(url) {
+function getDomainFromUrl(url) {
   try {
     const urlObj = new URL(url);
     return urlObj.hostname;
@@ -241,7 +241,7 @@ export function getDomainFromUrl(url) {
  * @param {Array} items - Array of items with URLs
  * @returns {Object} Object with domains as keys and arrays of items as values
  */
-export function groupItemsByDomain(items) {
+function groupItemsByDomain(items) {
   const groups = {};
   
   items.forEach(item => {
@@ -261,7 +261,7 @@ export function groupItemsByDomain(items) {
  * @param {number} count - Number of items in domain
  * @returns {HTMLElement} Domain group header element
  */
-export function createDomainGroupHeader(domain, count) {
+function createDomainGroupHeader(domain, count) {
   const header = document.createElement('div');
   header.className = 'domain-header';
   

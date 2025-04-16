@@ -1,6 +1,6 @@
 // components/assistant-panel.js
 import { fetchAPI } from '../services/api-service.js';
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 import { showNotification } from '../services/notification-service.js';
 
 
@@ -16,7 +16,7 @@ let assistantInitialized = false;
 /**
  * Initialize assistant panel
  */
-export async function initAssistantPanel() {
+async function initAssistantPanel() {
   if (assistantInitialized) {
     logger.log('debug', 'Assistant panel already initialized, skipping');
     return;
@@ -41,26 +41,31 @@ export async function initAssistantPanel() {
     contextButton.addEventListener('click', () => {
       contextDropdown.classList.toggle('active');
     });
-  
-  // Close context dropdown when clicking outside
-  document.addEventListener('click', (event) => {
-    if (contextButton && contextDropdown &&
-        !contextButton.contains(event.target) && 
-        !contextDropdown.contains(event.target)) {
-      contextDropdown.classList.remove('active');
-    }
-  });
+    
+    // Close context dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+      if (contextButton && contextDropdown &&
+          !contextButton.contains(event.target) && 
+          !contextDropdown.contains(event.target)) {
+        contextDropdown.classList.remove('active');
+      }
+    });
+  }
   
   // Handle send button click
-  sendButton?.addEventListener('click', sendMessage);
+  if (sendButton) {
+    sendButton.addEventListener('click', sendMessage);
+  }
   
   // Handle enter key
-  chatInput?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
-  });
+  if (chatInput) {
+    chatInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    });
+  }
   
   try {
     // Load chat history from storage
@@ -107,8 +112,6 @@ async function loadChatHistory() {
     throw error; // Rethrow to handle in the calling function
   }
 }
-
-
 
 /**
  * Add message to chat
@@ -375,7 +378,11 @@ async function checkTaskStatus(taskId, originalQuery) {
     logger.log('error', 'Error checking task status:', error);
     addMessageToChat('assistant', `Error: ${error.message || 'Failed to get response from assistant'}`);
   }
-}}
+}
 
 // Export helper functions if needed by other modules
-export { addMessageToChat, loadChatHistory };
+export { 
+  addMessageToChat, 
+  initAssistantPanel,
+  loadChatHistory
+ };

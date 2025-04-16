@@ -1,16 +1,4 @@
 // utils/formatting.js
-import { BrowserContextLabels } from './constants.js';
-
-/**
- * Truncate text with ellipsis
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} Truncated string
- */
-export function truncateText(text, maxLength) {
-    if (!text) return '';
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-  }
 
 /**
  * Format a date for display

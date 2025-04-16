@@ -1,5 +1,5 @@
 // components/navigation.js
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 import { showNotification } from '../services/notification-service.js';
 
 /**
@@ -22,7 +22,7 @@ let tabsInitialized = false;
  * Sets up event listeners for navigation items and handles panel switching
  * @returns {void}
  */
-export function initNavigation() {
+function initNavigation() {
   logger.debug('initNavigation called');
   
   if (navigationInitialized) {
@@ -233,7 +233,7 @@ function debugCaptureButton() {
  * Set up navigation between dashboard views
  * @returns {void}
  */
-export function setupNavigation() {
+function setupNavigation() {
   logger.debug('Setting up navigation');
   
   try {
@@ -319,7 +319,7 @@ function changeView(view) {
  * Initialize tabs within panels
  * @returns {void}
  */
-export function initTabs() {
+function initTabs() {
   logger.debug('initTabs called');
   
   if (tabsInitialized) {
@@ -451,7 +451,7 @@ function handleTabChange(targetTab, tabButtons, tabPanes, clickedButton) {
  * Restore last active panel from storage
  * @returns {Promise<void>}
  */
-export async function restoreLastActivePanel() {
+async function restoreLastActivePanel() {
   logger.debug('Restoring last active panel');
   
   try {
@@ -492,7 +492,7 @@ export async function restoreLastActivePanel() {
  * @param {string} panelId - ID of the panel
  * @returns {Promise<void>}
  */
-export async function restoreLastActiveTab(panelId) {
+async function restoreLastActiveTab(panelId) {
   if (!panelId) {
     logger.warn('No panel ID provided for restoring last active tab');
     return;
@@ -539,7 +539,7 @@ export async function restoreLastActiveTab(panelId) {
  * @param {string} panelName - Name of the panel to navigate to
  * @returns {Promise<boolean>} True if navigation was successful
  */
-export async function navigateToPanel(panelName) {
+async function navigateToPanel(panelName) {
   logger.info(`Programmatically navigating to panel: ${panelName}`);
   
   try {
@@ -566,7 +566,7 @@ export async function navigateToPanel(panelName) {
  * @param {string} tabName - Name of the tab to navigate to
  * @returns {Promise<boolean>} True if navigation was successful
  */
-export async function navigateToTab(panelName, tabName) {
+async function navigateToTab(panelName, tabName) {
   logger.info(`Programmatically navigating to tab: ${tabName} in panel: ${panelName}`);
   
   try {
@@ -605,7 +605,7 @@ export async function navigateToTab(panelName, tabName) {
  * @param {Function} callback - Function to call when navigation occurs
  * @returns {Function} Function to remove the listener
  */
-export function onPanelChange(callback) {
+function onPanelChange(callback) {
   logger.debug('Registering panel change callback');
   
   if (typeof callback !== 'function') {
@@ -640,7 +640,7 @@ export function onPanelChange(callback) {
  * @param {Function} callback - Function to call when tab changes
  * @returns {Function} Function to remove the listener
  */
-export function onTabChange(callback) {
+function onTabChange(callback) {
   logger.debug('Registering tab change callback');
   
   if (typeof callback !== 'function') {
@@ -674,7 +674,7 @@ export function onTabChange(callback) {
  * Get the currently active panel
  * @returns {string|null} ID of the active panel or null if none found
  */
-export function getActivePanel() {
+function getActivePanel() {
   try {
     const activePanel = document.querySelector('.content-panel.active');
     if (activePanel) {
@@ -696,7 +696,7 @@ export function getActivePanel() {
  * @param {string} [panelId] - ID of the panel (uses active panel if not provided)
  * @returns {string|null} ID of the active tab or null if none found
  */
-export function getActiveTab(panelId) {
+function getActiveTab(panelId) {
   try {
     // If no panel ID provided, use the active panel
     if (!panelId) {

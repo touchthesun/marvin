@@ -1,5 +1,5 @@
 // components/capture/tabs-capture.js
-import { showNotification } from '../../services/notification-service.js';
+import { showNotification } from '../services/notification-service.js';
 import { LogManager } from '../../../shared/utils/log-manager.js';
 import { isValidCaptureUrl } from '../../../shared/utils/capture.js';
 
@@ -33,7 +33,7 @@ const debouncedFilterTabs = debounce(applyFilters, 300);
  * Initialize tabs capture functionality
  * @returns {Promise<void>}
  */
-export async function initTabsCapture() {
+async function initTabsCapture() {
   logger.debug('initTabsCapture called');
   
   try {
@@ -58,7 +58,7 @@ export async function initTabsCapture() {
  * Load open tabs into the UI
  * @returns {Promise<void>}
  */
-export async function loadOpenTabs() {
+async function loadOpenTabs() {
   logger.debug('loadOpenTabs called');
   const tabsList = document.getElementById('tabs-list');
   
@@ -460,11 +460,11 @@ function setupSearchAndFilter() {
     windowFilter.addEventListener('change', applyFilters);
   }
   
-  /**
-   * Get selected tabs from the UI
-   * @returns {Array} Array of selected tab objects
-   */
-  export function getSelectedTabs() {
+/**
+ * Get selected tabs from the UI
+ * @returns {Array} Array of selected tab objects
+ */
+function getSelectedTabs() {
     logger.debug('Getting selected tabs');
     
     const selectedItems = [];
@@ -500,48 +500,51 @@ function setupSearchAndFilter() {
    * @param {number} tabId - Tab ID to extract content from
    * @returns {Promise<object>} Extracted content and metadata
    */
-  export async function extractTabContent(tabId) {
-    logger.debug(`Extracting content from tab ${tabId}`);
-    
-    try {
-      // We'll use the executeScript method to extract content from the tab
-      const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        function: () => {
-          return {
-            content: document.documentElement.outerHTML,
-            title: document.title,
-            metadata: {
-              description: document.querySelector('meta[name="description"]')?.content || '',
-              keywords: document.querySelector('meta[name="keywords"]')?.content || '',
-              author: document.querySelector('meta[name="author"]')?.content || '',
-              ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
-              ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
-              ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
-            }
-          };
-        }
-      });
-      
-      if (!results || !results[0] || chrome.runtime.lastError) {
-        throw new Error(chrome.runtime.lastError?.message || 'Failed to extract content');
+  async function extractTabContent(tabId) {
+  logger.debug(`Extracting content from tab ${tabId}`);
+  
+  try {
+    // We'll use the executeScript method to extract content from the tab
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      function: () => {
+        return {
+          content: document.documentElement.outerHTML,
+          title: document.title,
+          metadata: {
+            description: document.querySelector('meta[name="description"]')?.content || '',
+            keywords: document.querySelector('meta[name="keywords"]')?.content || '',
+            author: document.querySelector('meta[name="author"]')?.content || '',
+            ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
+            ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
+            ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
+          }
+        };
       }
-      
-      logger.debug(`Content extracted successfully from tab ${tabId}`);
-      return results[0].result;
-    } catch (error) {
-      logger.error(`Error extracting content from tab ${tabId}:`, error);
-      // Return minimal data if extraction fails
-      return {
-        content: "",
-        title: "",
-        metadata: {}
-      };
+    });
+    
+    if (!results || !results[0] || chrome.runtime.lastError) {
+      throw new Error(chrome.runtime.lastError?.message || 'Failed to extract content');
+    }
+    
+    logger.debug(`Content extracted successfully from tab ${tabId}`);
+    return results[0].result;
+  } catch (error) {
+    logger.error(`Error extracting content from tab ${tabId}:`, error);
+    // Return minimal data if extraction fails
+    return {
+      content: "",
+      title: "",
+      metadata: {}
+    };
     }
   }
   
   // Export all necessary functions
   export {
+    extractTabContent,
+    getSelectedTabs,
+    initTabsCapture,
     loadOpenTabs,
     shouldShowTab,
     createTabListItem,

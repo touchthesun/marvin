@@ -8,7 +8,7 @@ module.exports = {
     popup: './popup/popup.js',
     options: './options/options.js',
     content: './content/content.js',
-    dashboard: './dashboard/dashboard.js'
+    dashboard: './dashboard/js/dashboard.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -17,6 +17,27 @@ module.exports = {
   },
   module: {
     rules: [
+      {
+        test: /\.js$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: [
+              ['@babel/preset-env', { 
+                targets: {
+                  chrome: "80",
+                  firefox: "72"
+                }
+              }]
+            ],
+            plugins: [
+              '@babel/plugin-proposal-optional-chaining',
+              '@babel/plugin-proposal-nullish-coalescing-operator'
+            ]
+          }
+        }
+      },
       {
         test: /\.(ts|tsx)$/,
         use: 'ts-loader',
@@ -30,6 +51,12 @@ module.exports = {
   },
   resolve: {
     extensions: ['.js', '.jsx', '.json'],
+    alias: {
+      '@shared': path.resolve(__dirname, 'shared'),
+      '@dashboard': path.resolve(__dirname, 'dashboard'),
+      '@background': path.resolve(__dirname, 'background'),
+      '@content': path.resolve(__dirname, 'content')
+    }
   },
   plugins: [
     new CopyPlugin({
@@ -38,7 +65,7 @@ module.exports = {
         { from: 'icons', to: 'icons' },
         { from: 'popup/popup.css', to: 'popup/popup.css' },
         { from: 'options/options.css', to: 'options/options.css' },
-        { from: 'dashboard/dashboard.css', to: 'dashboard/dashboard.css' }, // Add this line
+        { from: 'dashboard/dashboard.css', to: 'dashboard/dashboard.css' },
       ],
     }),
     new HtmlWebpackPlugin({
@@ -55,7 +82,7 @@ module.exports = {
       template: './dashboard/dashboard.html',
       filename: 'dashboard/dashboard.html',
       chunks: ['dashboard'],
-    }), // Add this plugin
+    }),
   ],
   devtool: 'cheap-module-source-map',
   mode: 'development',

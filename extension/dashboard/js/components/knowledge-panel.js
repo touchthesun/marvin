@@ -1,10 +1,10 @@
 // components/knowledge-panel.js
 import { fetchAPI } from '../services/api-service.js';
-import { truncateText, formatContext, formatDate } from '../utils/formatting.js';
+import { truncateText } from '../../js/components/capture-ui.js';
+import { formatContext } from '../utils/formatting.js';
 import { showNotification } from '../services/notification-service.js';
-import { BrowserContextLabels } from '../utils/constants.js';
 import { initSplitView } from '../utils/ui-utils.js';
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 /**
  * Logger for knowledge panel operations
@@ -44,7 +44,7 @@ const debouncedLoadGraphData = debounce(loadGraphData, 500);
  * Initialize knowledge panel
  * @returns {Promise<void>}
  */
-export async function initKnowledgePanel() {
+async function initKnowledgePanel() {
   if (knowledgeInitialized) {
     logger.debug('Knowledge panel already initialized, skipping');
     return;
@@ -135,7 +135,7 @@ function setupKnowledgePanelEventListeners() {
  * Initialize knowledge graph visualization
  * @returns {Promise<void>}
  */
-export async function initKnowledgeGraph() {
+async function initKnowledgeGraph() {
   if (graphInitialized) {
     logger.debug('Knowledge graph already initialized, skipping');
     return;
@@ -866,7 +866,7 @@ async function analyzePage(item, button) {
  * @param {string} itemId - ID of related item to load
  * @returns {Promise<void>}
  */
-export async function loadRelatedItem(itemId) {
+async function loadRelatedItem(itemId) {
   if (!itemId) {
     logger.warn('Attempted to load related item with no ID');
     return;
@@ -968,7 +968,7 @@ async function checkAnalysisStatus(taskId, button) {
  * Refresh knowledge data and graph
  * @returns {Promise<void>}
  */
-export async function refreshKnowledgePanel() {
+async function refreshKnowledgePanel() {
   logger.info('Refreshing knowledge panel');
   
   try {
@@ -993,7 +993,7 @@ export async function refreshKnowledgePanel() {
  * Get the count of knowledge items
  * @returns {Promise<number>} Count of knowledge items
  */
-export async function getKnowledgeItemCount() {
+async function getKnowledgeItemCount() {
   try {
     const response = await fetchAPI('/api/v1/pages/count');
     
@@ -1013,7 +1013,7 @@ export async function getKnowledgeItemCount() {
  * Export knowledge data
  * @returns {Promise<Object>} Exported knowledge data
  */
-export async function exportKnowledgeData() {
+async function exportKnowledgeData() {
   logger.info('Exporting knowledge data');
   
   try {

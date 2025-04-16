@@ -1,5 +1,5 @@
 import { captureCurrentTab, setupCaptureButton } from '../shared/utils/capture.js';
-import { LogManager } from '../background/log-manager.js';
+import { LogManager } from '../shared/utils/log-manager.js';
 
 // Initialize logger
 const logger = new LogManager({

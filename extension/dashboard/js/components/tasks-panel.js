@@ -1,8 +1,7 @@
 // components/tasks-panel.js
-import { sendMessageToBackground } from '../services/api-service.js';
 import { showNotification, updateNotificationProgress } from '../services/notification-service.js';
-import { truncateText } from '../utils/ui-utils.js';
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { truncateText } from '../components/capture-ui.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 /**
  * Logger for tasks panel operations
@@ -26,7 +25,7 @@ let completedTasks = [];
  * Initialize tasks panel and set up event listeners
  * @returns {Promise<void>}
  */
-export async function initTasksPanel() {
+async function initTasksPanel() {
   if (tasksInitialized) {
     logger.debug('Tasks panel already initialized, skipping');
     return;
@@ -54,7 +53,7 @@ export async function initTasksPanel() {
 /**
  * Set up event listeners for task management buttons
  */
-export function setupTaskEventListeners() {
+function setupTaskEventListeners() {
   logger.debug('Setting up task event listeners');
   
   try {
@@ -93,7 +92,7 @@ export function setupTaskEventListeners() {
  * Refresh all tasks (active and completed)
  * @returns {Promise<void>}
  */
-export async function refreshAllTasks() {
+async function refreshAllTasks() {
   logger.info('Refreshing all tasks');
   
   // Get task list containers
@@ -428,7 +427,7 @@ function formatTimeAgo(date) {
  * @param {string} taskId - ID of task to cancel
  * @returns {Promise<void>}
  */
-export async function cancelTask(taskId) {
+async function cancelTask(taskId) {
   if (!taskId) {
     logger.warn('Attempted to cancel task with no ID');
     return;
@@ -471,7 +470,7 @@ export async function cancelTask(taskId) {
  * @param {string} taskId - ID of task to retry
  * @returns {Promise<void>}
  */
-export async function retryTask(taskId) {
+async function retryTask(taskId) {
   if (!taskId) {
     logger.warn('Attempted to retry task with no ID');
     return;
@@ -516,7 +515,7 @@ export async function retryTask(taskId) {
  * Remove a task from the completed list
  * @param {string} taskId - ID of task to remove
  */
-export function removeTask(taskId) {
+function removeTask(taskId) {
   if (!taskId) {
     logger.warn('Attempted to remove task with no ID');
     return;
@@ -550,7 +549,7 @@ export function removeTask(taskId) {
  * Cancel all active tasks
  * @returns {Promise<void>}
  */
-export async function cancelAllTasks() {
+async function cancelAllTasks() {
   if (activeTasks.length === 0) {
     logger.info('No active tasks to cancel');
     showNotification('No active tasks to cancel', 'info');
@@ -621,7 +620,7 @@ export async function cancelAllTasks() {
 /**
  * Clear all completed tasks from the UI
  */
-export function clearCompletedTasks() {
+function clearCompletedTasks() {
   if (completedTasks.length === 0) {
     logger.info('No completed tasks to clear');
     showNotification('No completed tasks to clear', 'info');
@@ -657,7 +656,7 @@ export function clearCompletedTasks() {
  * View task result in detail
  * @param {string} taskId - ID of task to view
  */
-export function viewTaskResult(taskId) {
+function viewTaskResult(taskId) {
   if (!taskId) {
     logger.warn('Attempted to view task with no ID');
     return;
@@ -725,7 +724,7 @@ export function viewTaskResult(taskId) {
  * @param {string} taskId - ID of task to check
  * @returns {boolean} Whether the task exists
  */
-export function taskExists(taskId) {
+function taskExists(taskId) {
   if (!taskId) return false;
   
   return [...activeTasks, ...completedTasks].some(task => task.id === taskId);
@@ -736,7 +735,7 @@ export function taskExists(taskId) {
  * @param {string} taskId - ID of task to get
  * @returns {Object|null} Task object or null if not found
  */
-export function getTaskById(taskId) {
+function getTaskById(taskId) {
   if (!taskId) return null;
   
   return [...activeTasks, ...completedTasks].find(task => task.id === taskId) || null;
@@ -746,7 +745,7 @@ export function getTaskById(taskId) {
  * Get all active tasks
  * @returns {Array} Array of active task objects
  */
-export function getActiveTasks() {
+function getActiveTasks() {
   return [...activeTasks];
 }
 
@@ -754,12 +753,13 @@ export function getActiveTasks() {
  * Get all completed tasks
  * @returns {Array} Array of completed task objects
  */
-export function getCompletedTasks() {
+function getCompletedTasks() {
   return [...completedTasks];
 }
 
 // Export additional functions needed by other modules
 export { 
+  initTasksPanel,
   refreshAllTasks, 
   cancelTask, 
   retryTask,

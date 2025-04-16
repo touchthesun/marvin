@@ -1,8 +1,8 @@
 // components/capture/history-capture.js
-import { showNotification } from '../../services/notification-service.js';
+import { showNotification } from '../services/notification-service.js';
 import { LogManager } from '../../../shared/utils/log-manager.js';
 import { isValidCaptureUrl } from '../../../shared/utils/capture.js';
-import { truncateText } from '../../utils/ui-utils.js';
+import { truncateText } from '../components/capture-ui.js';
 
 /**
  * Logger for history capture operations
@@ -34,7 +34,7 @@ const debouncedFilterHistory = debounce(filterHistory, 300);
  * Initialize history capture functionality
  * @returns {Promise<void>}
  */
-export async function initHistoryCapture() {
+async function initHistoryCapture() {
   logger.debug('initHistoryCapture called');
   
   if (historyInitialized) {
@@ -56,7 +56,7 @@ export async function initHistoryCapture() {
  * Load browser history into the UI
  * @returns {Promise<void>}
  */
-export async function loadHistory() {
+async function loadHistory() {
   logger.debug('loadHistory called');
   
   const historyList = document.getElementById('history-list');
@@ -311,7 +311,7 @@ function setupSelectionControls() {
  * Get selected history items from the UI
  * @returns {Array} Array of selected history objects
  */
-export function getSelectedHistoryItems() {
+function getSelectedHistoryItems() {
   logger.debug('Getting selected history items');
   
   const selectedItems = [];
@@ -343,6 +343,7 @@ export function getSelectedHistoryItems() {
 // Export all necessary functions
 export {
   loadHistory,
+  initHistoryCapture,
   getStartTimeFromFilter,
   displayHistoryItems,
   filterHistory,

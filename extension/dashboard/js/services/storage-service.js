@@ -1,5 +1,5 @@
 // services/storage-service.js
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 import { showNotification } from './notification-service.js';
 
 /**
@@ -62,7 +62,7 @@ const CACHE_TTL = {
  * Initialize storage service
  * @returns {Promise<void>}
  */
-export async function initStorageService() {
+async function initStorageService() {
   logger.info('Initializing storage service');
   
   try {
@@ -111,7 +111,7 @@ function setupStorageListeners() {
  * Get settings from storage with defaults applied
  * @returns {Promise<Object>} Settings object
  */
-export async function getSettings() {
+async function getSettings() {
   // Check cache first
   if (cache.settings && (Date.now() - cache.lastRefresh.settings < CACHE_TTL.settings)) {
     logger.debug('Returning cached settings');
@@ -156,7 +156,7 @@ export async function getSettings() {
  * @param {Object} settings - Settings object to update
  * @returns {Promise<void>}
  */
-export async function updateSettings(settings) {
+async function updateSettings(settings) {
   if (!settings) {
     logger.warn('Attempted to update settings with null/undefined value');
     return;
@@ -211,7 +211,7 @@ export async function updateSettings(settings) {
  * Reset settings to defaults
  * @returns {Promise<void>}
  */
-export async function resetSettings() {
+async function resetSettings() {
   logger.info('Resetting settings to defaults');
   
   try {
@@ -247,7 +247,7 @@ export async function resetSettings() {
  * @param {number} limit - Maximum number of entries to return
  * @returns {Promise<Array>} Capture history entries
  */
-export async function getCaptureHistory(limit = 0) {
+async function getCaptureHistory(limit = 0) {
   // Check cache first
   if (cache.captureHistory && (Date.now() - cache.lastRefresh.captureHistory < CACHE_TTL.captureHistory)) {
     logger.debug('Returning cached capture history');
@@ -285,7 +285,7 @@ export async function getCaptureHistory(limit = 0) {
  * @param {number} maxEntries - Maximum number of entries to keep
  * @returns {Promise<void>}
  */
-export async function updateCaptureHistory(newEntries, maxEntries = 100) {
+async function updateCaptureHistory(newEntries, maxEntries = 100) {
   if (!newEntries || newEntries.length === 0) {
     logger.debug('No new capture history entries to add');
     return;
@@ -344,7 +344,7 @@ export async function updateCaptureHistory(newEntries, maxEntries = 100) {
  * Get stats from storage
  * @returns {Promise<Object>} Stats object
  */
-export async function getStats() {
+async function getStats() {
   // Check cache first
   if (cache.stats && (Date.now() - cache.lastRefresh.stats < CACHE_TTL.stats)) {
     logger.debug('Returning cached stats');
@@ -384,7 +384,7 @@ export async function getStats() {
  * @param {Object} stats - Stats object to update
  * @returns {Promise<void>}
  */
-export async function updateStats(stats) {
+async function updateStats(stats) {
   if (!stats) {
     logger.warn('Attempted to update stats with null/undefined value');
     return;
@@ -412,7 +412,7 @@ export async function updateStats(stats) {
  * @param {number} amount - Amount to increment by
  * @returns {Promise<Object>} Updated stats
  */
-export async function incrementStatsCounter(counter, amount = 1) {
+async function incrementStatsCounter(counter, amount = 1) {
   if (!counter || amount <= 0) {
     logger.warn(`Invalid counter increment: ${counter}, ${amount}`);
     return null;
@@ -446,7 +446,7 @@ export async function incrementStatsCounter(counter, amount = 1) {
  * @param {boolean} keepSettings - Whether to keep settings
  * @returns {Promise<void>}
  */
-export async function clearLocalData(keepSettings = true) {
+async function clearLocalData(keepSettings = true) {
   logger.info(`Clearing local data${keepSettings ? ' (keeping settings)' : ''}`);
   
   try {
@@ -527,7 +527,7 @@ export async function clearLocalData(keepSettings = true) {
  * @param {Array<string>} dataTypes - Types of data to export
  * @returns {Promise<Object>} Export data
  */
-export async function exportData(dataTypes = ['settings', 'captureHistory', 'stats']) {
+async function exportData(dataTypes = ['settings', 'captureHistory', 'stats']) {
   logger.info(`Exporting data: ${dataTypes.join(', ')}`);
   
   try {
@@ -575,7 +575,7 @@ export async function exportData(dataTypes = ['settings', 'captureHistory', 'sta
  * @param {boolean} overwrite - Whether to overwrite existing data
  * @returns {Promise<Object>} Import result
  */
-export async function importData(importData, overwrite = false) {
+async function importData(importData, overwrite = false) {
   if (!importData || !importData.data) {
     logger.warn('Invalid import data format');
     throw new Error('Invalid import data format');
@@ -660,7 +660,7 @@ export async function importData(importData, overwrite = false) {
  * @param {string} tab - Active tab ID
  * @returns {Promise<void>}
  */
-export async function saveActiveState(panel, tab) {
+async function saveActiveState(panel, tab) {
   if (!panel) {
     logger.warn('Attempted to save active state with no panel ID');
     return;
@@ -690,7 +690,7 @@ export async function saveActiveState(panel, tab) {
  * Get last active panel and tab
  * @returns {Promise<Object>} Active state object
  */
-export async function getActiveState() {
+async function getActiveState() {
   logger.debug('Getting active state');
   
   try {

@@ -1,5 +1,5 @@
 // dashboard.js - Main entry point for the Marvin dashboard
-import { LogManager } from '../shared/utils/log-manager.js';
+import { LogManager } from '../../shared/utils/log-manager.js';
 import { showNotification } from './services/notification-service.js';
 
 // Import services

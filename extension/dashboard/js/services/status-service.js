@@ -1,5 +1,5 @@
 // services/status-service.js
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 import { showNotification } from './notification-service.js';
 
 /**
@@ -23,7 +23,7 @@ const API_CHECK_INTERVAL = 60000; // 1 minute
  * Set up status monitoring for network and API
  * @returns {void}
  */
-export function setupStatusMonitoring() {
+function setupStatusMonitoring() {
   logger.debug('Setting up status monitoring');
   
   try {
@@ -145,7 +145,7 @@ function setupApiStatusCheck() {
  * Check API server status
  * @returns {Promise<void>}
  */
-export async function checkApiStatus() {
+async function checkApiStatus() {
   // Skip check if offline
   if (!navigator.onLine) {
     apiStatus = 'offline';
@@ -254,7 +254,7 @@ function updateApiStatusIndicator() {
  * Get current network status
  * @returns {boolean} Whether the network is online
  */
-export function getNetworkStatus() {
+function getNetworkStatus() {
   return isOnline;
 }
 
@@ -262,7 +262,7 @@ export function getNetworkStatus() {
  * Get current API status
  * @returns {string} API status ('online', 'offline', 'error', 'unknown', 'checking')
  */
-export function getApiStatus() {
+function getApiStatus() {
   return apiStatus;
 }
 
@@ -270,7 +270,7 @@ export function getApiStatus() {
  * Force update of all status indicators
  * @returns {void}
  */
-export function refreshStatusIndicators() {
+function refreshStatusIndicators() {
   updateNetworkStatus();
   updateApiStatusIndicator();
 }

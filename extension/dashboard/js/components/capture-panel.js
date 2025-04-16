@@ -1,28 +1,29 @@
 // components/capture-panel.js
 import { showNotification, updateNotificationProgress } from '../services/notification-service.js';
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 import { 
   captureUrl, 
   captureBatch, 
   setupCaptureButton 
-} from '../../shared/utils/capture.js';
+} from '../../../shared/utils/capture.js';
 
 // Import the new modular components
+
 import { 
-  initTabsCapture, 
-  getSelectedTabs, 
-  extractTabContent 
-} from './capture/tabs-capture.js';
+  getSelectedTabs,
+  initTabsCapture,
+  extractTabContent
+ } from './tabs-capture.js';
 
 import { 
   initBookmarksCapture, 
   getSelectedBookmarks 
-} from './capture/bookmarks-capture.js';
+} from './bookmarks-capture.js';
 
 import { 
   initHistoryCapture, 
   getSelectedHistoryItems 
-} from './capture/history-capture.js';
+} from './history-capture.js';
 
 /**
  * Logger for capture panel operations
@@ -42,7 +43,7 @@ let captureInitialized = false;
  * Initialize the capture panel
  * @returns {Promise<void>}
  */
-export async function initCapturePanel() {
+async function initCapturePanel() {
   logger.debug('initCapturePanel called');
   
   if (captureInitialized) {
@@ -161,7 +162,7 @@ function loadInitialData() {
  * Capture selected items from the active tab
  * @returns {Promise<void>}
  */
-export async function captureSelectedItems() {
+async function captureSelectedItems() {
   logger.info('captureSelectedItems function called');
   
   try {
@@ -413,4 +414,7 @@ async function updateCaptureHistory(capturedItems) {
 }
 
 // Export functions that need to be accessed from other modules
-export { captureSelectedItems };
+export { 
+  captureSelectedItems, 
+  initCapturePanel
+ };

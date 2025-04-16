@@ -1,7 +1,7 @@
 // components/settings-panel.js
 import { showNotification } from '../services/notification-service.js';
 import { showSaveConfirmation } from '../utils/ui-utils.js';
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 /**
  * Logger for settings panel operations
@@ -21,7 +21,7 @@ let settingsInitialized = false;
  * Initialize settings panel and set up event listeners
  * @returns {Promise<void>}
  */
-export async function initSettingsPanel() {
+async function initSettingsPanel() {
   if (settingsInitialized) {
     logger.debug('Settings panel already initialized, skipping');
     return;
@@ -763,7 +763,7 @@ async function handleImportData() {
 /**
  * Set up status monitoring for network and API
  */
-export function setupStatusMonitoring() {
+function setupStatusMonitoring() {
   logger.debug('Setting up status monitoring');
   
   try {
@@ -811,7 +811,7 @@ export function setupStatusMonitoring() {
  * Reset settings to defaults
  * @returns {Promise<void>}
  */
-export async function resetSettingsToDefaults() {
+async function resetSettingsToDefaults() {
   logger.info('Resetting settings to defaults');
   
   // Confirm with user

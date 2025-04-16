@@ -1,5 +1,5 @@
 // services/task-service.js
-import { LogManager } from '../../shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 import { showNotification, updateNotificationProgress } from './notification-service.js';
 import { fetchAPI } from './api-service.js';
 
@@ -25,7 +25,7 @@ const POLLING_INTERVAL = 5000; // 5 seconds
  * Initialize task service
  * @returns {Promise<void>}
  */
-export async function initTaskService() {
+async function initTaskService() {
   logger.info('Initializing task service');
   
   try {
@@ -75,7 +75,7 @@ function startTaskPolling() {
  * Stop polling for task updates
  * @returns {void}
  */
-export function stopTaskPolling() {
+function stopTaskPolling() {
   if (!isPolling) {
     return;
   }
@@ -94,7 +94,7 @@ export function stopTaskPolling() {
  * Refresh tasks from background or API
  * @returns {Promise<void>}
  */
-export async function refreshTasks() {
+async function refreshTasks() {
   logger.debug('Refreshing tasks');
   
   try {
@@ -239,7 +239,7 @@ function findStatusChanges(oldActiveTasks, newActiveTasks, newCompletedTasks) {
  * @param {Object} taskData - Task data
  * @returns {Promise<Object>} Created task
  */
-export async function createTask(taskData) {
+async function createTask(taskData) {
   logger.info('Creating new task', taskData);
   
   try {
@@ -308,7 +308,7 @@ export async function createTask(taskData) {
  * @param {string} taskId - ID of task to cancel
  * @returns {Promise<boolean>} Whether cancellation was successful
  */
-export async function cancelTask(taskId) {
+async function cancelTask(taskId) {
   if (!taskId) {
     logger.warn('Attempted to cancel task with no ID');
     return false;
@@ -359,7 +359,7 @@ export async function cancelTask(taskId) {
  * @param {string} taskId - ID of task to retry
  * @returns {Promise<boolean>} Whether retry was successful
  */
-export async function retryTask(taskId) {
+async function retryTask(taskId) {
   if (!taskId) {
     logger.warn('Attempted to retry task with no ID');
     return false;
@@ -410,7 +410,7 @@ export async function retryTask(taskId) {
  * @param {string} taskId - ID of task to get
  * @returns {Object|null} Task object or null if not found
  */
-export function getTaskById(taskId) {
+function getTaskById(taskId) {
   if (!taskId) {
     return null;
   }
@@ -422,7 +422,7 @@ export function getTaskById(taskId) {
  * Get all active tasks
  * @returns {Array} Array of active task objects
  */
-export function getActiveTasks() {
+function getActiveTasks() {
   return [...activeTasks];
 }
 
@@ -430,7 +430,7 @@ export function getActiveTasks() {
  * Get all completed tasks
  * @returns {Array} Array of completed task objects
  */
-export function getCompletedTasks() {
+function getCompletedTasks() {
   return [...completedTasks];
 }
 
@@ -439,7 +439,7 @@ export function getCompletedTasks() {
  * @param {Function} listener - Listener function
  * @returns {Function} Function to remove the listener
  */
-export function addTaskListener(listener) {
+function addTaskListener(listener) {
   if (typeof listener !== 'function') {
     logger.warn('Attempted to add non-function task listener');
     return () => {};
@@ -484,7 +484,7 @@ function notifyTaskListeners(updateData) {
  * @param {Function} progressCallback - Progress callback
  * @returns {Promise<Object>} Task result
  */
-export async function createCaptureTask(captureData, progressCallback) {
+async function createCaptureTask(captureData, progressCallback) {
   logger.info('Creating capture task', captureData);
   
   try {
@@ -523,7 +523,7 @@ export async function createCaptureTask(captureData, progressCallback) {
  * @param {Function} progressCallback - Callback for progress updates
  * @returns {Promise<Object>} Task result
  */
-export async function monitorTaskProgress(taskId, progressCallback) {
+async function monitorTaskProgress(taskId, progressCallback) {
   if (!taskId) {
     throw new Error('Invalid task ID');
   }

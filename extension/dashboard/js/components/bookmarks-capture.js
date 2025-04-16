@@ -1,8 +1,8 @@
-// components/capture/bookmarks-capture.js
-import { showNotification } from '../../services/notification-service.js';
+// components/bookmarks-capture.js
+import { showNotification } from '../services/notification-service.js';
 import { LogManager } from '../../../shared/utils/log-manager.js';
 import { isValidCaptureUrl } from '../../../shared/utils/capture.js';
-import { truncateText } from '../../utils/ui-utils.js';
+import { truncateText } from '../../js/components/capture-ui.js';
 
 /**
  * Logger for bookmarks capture operations
@@ -34,7 +34,7 @@ const debouncedFilterBookmarks = debounce(filterBookmarks, 300);
  * Initialize bookmarks capture functionality
  * @returns {Promise<void>}
  */
-export async function initBookmarksCapture() {
+async function initBookmarksCapture() {
   logger.debug('initBookmarksCapture called');
   
   if (bookmarksInitialized) {
@@ -56,7 +56,7 @@ export async function initBookmarksCapture() {
  * Load bookmarks into the UI
  * @returns {Promise<void>}
  */
-export async function loadBookmarks() {
+async function loadBookmarks() {
   logger.debug('loadBookmarks called');
   
   const bookmarksList = document.getElementById('bookmarks-list');
@@ -334,7 +334,7 @@ function setupSelectionControls() {
  * Get selected bookmarks from the UI
  * @returns {Array} Array of selected bookmark objects
  */
-export function getSelectedBookmarks() {
+function getSelectedBookmarks() {
     logger.debug('Getting selected bookmarks');
     
     const selectedItems = [];
@@ -365,6 +365,7 @@ export function getSelectedBookmarks() {
     
 // Export all necessary functions
 export {
+    initBookmarksCapture,
     loadBookmarks,
     flattenBookmarks,
     populateBookmarkFolders,

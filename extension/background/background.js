@@ -5,7 +5,7 @@ import StateManager from './state-manager.js';
 import { captureUrl } from '../shared/utils/capture.js';
 import { AnalysisQueue } from './analysis-queue.js';
 import { ProgressTracker } from './progress-tracker.js';
-import { LogManager } from './log-manager.js';
+import { LogManager } from '../shared/utils/log-manager.js';
 
 
 // Initialize log manager

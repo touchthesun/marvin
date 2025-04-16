@@ -37,7 +37,8 @@ const DEFAULT_TIMEOUT = 30000;
  * @param {number} [options.timeout=30000] - Request timeout in milliseconds
  * @returns {Promise<object>} Capture result
  */
-export async function captureUrl(url, options = {}) {
+
+async function captureUrl(url, options = {}) {
   // Validate URL
   if (!url) {
     logger.error('Capture failed: No URL provided');
@@ -159,7 +160,7 @@ async function updateCaptureHistory(captureData) {
  * @param {object} [options={}] - Additional capture options
  * @returns {Promise<object>} Capture result
  */
-export async function captureCurrentTab(options = {}) {
+async function captureCurrentTab(options = {}) {
   try {
     logger.info('Capturing current tab');
     
@@ -211,7 +212,7 @@ export async function captureCurrentTab(options = {}) {
  * @param {object} [options={}] - Additional capture options
  * @returns {Promise<object>} Batch capture result
  */
-export async function captureBatch(urls, options = {}) {
+async function captureBatch(urls, options = {}) {
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     logger.error('Batch capture failed: No URLs provided');
     return {
@@ -263,7 +264,7 @@ export async function captureBatch(urls, options = {}) {
  * @param {object} [options={}] - Additional capture options
  * @returns {Promise<object>} Batch capture result
  */
-export async function captureAllTabs(options = {}) {
+async function captureAllTabs(options = {}) {
   try {
     logger.info('Capturing all open tabs');
     
@@ -334,7 +335,7 @@ export async function captureAllTabs(options = {}) {
  * @param {Function} captureFunction - The capture function to call
  * @param {Function} [onComplete=null] - Optional callback after capture completes
  */
-export function setupCaptureButton(button, captureFunction, onComplete = null) {
+function setupCaptureButton(button, captureFunction, onComplete = null) {
   if (!button) {
     logger.warn('setupCaptureButton called with null button');
     return;
@@ -407,7 +408,7 @@ export function setupCaptureButton(button, captureFunction, onComplete = null) {
  * @param {Function} [progressCallback=null] - Optional callback for progress updates
  * @param {Function} [onComplete=null] - Optional callback after capture completes
  */
-export function setupBatchCaptureButton(button, batchCaptureFunction, progressCallback = null, onComplete = null) {
+function setupBatchCaptureButton(button, batchCaptureFunction, progressCallback = null, onComplete = null) {
   if (!button) {
     logger.warn('setupBatchCaptureButton called with null button');
     return;
@@ -611,7 +612,7 @@ async function monitorBatchProgress(batchId, progressCallback, completionCallbac
  * @param {number} [limit=0] - Maximum number of items to return (0 for all)
  * @returns {Promise<Array>} Capture history items
  */
-export async function getCaptureHistory(limit = 0) {
+async function getCaptureHistory(limit = 0) {
   try {
     logger.debug(`Getting capture history (limit: ${limit})`);
     
@@ -635,7 +636,7 @@ export async function getCaptureHistory(limit = 0) {
  * Clear capture history
  * @returns {Promise<boolean>} Success status
  */
-export async function clearCaptureHistory() {
+async function clearCaptureHistory() {
   try {
     logger.info('Clearing capture history');
     
@@ -654,7 +655,7 @@ export async function clearCaptureHistory() {
  * @param {string} url - URL to check
  * @returns {boolean} True if URL is valid for capture
  */
-export function isValidCaptureUrl(url) {
+function isValidCaptureUrl(url) {
   if (!url) return false;
   
   try {
@@ -683,7 +684,7 @@ export function isValidCaptureUrl(url) {
  * @param {string} url - URL to extract domain from
  * @returns {string} Domain name or empty string if invalid
  */
-export function getDomainFromUrl(url) {
+function getDomainFromUrl(url) {
   if (!url) return '';
   
   try {
@@ -700,7 +701,7 @@ export function getDomainFromUrl(url) {
  * @param {string} url - URL to check
  * @returns {Promise<boolean>} True if URL is excluded
  */
-export async function isUrlExcluded(url) {
+async function isUrlExcluded(url) {
   if (!url) return false;
   
   try {
@@ -733,7 +734,7 @@ export async function isUrlExcluded(url) {
  * @param {string} url - URL to check
  * @returns {Promise<boolean>} True if URL is included or if inclusion list is empty
  */
-export async function isUrlIncluded(url) {
+async function isUrlIncluded(url) {
   if (!url) return false;
   
   try {
@@ -768,7 +769,7 @@ export async function isUrlIncluded(url) {
  * Check if automatic capture is enabled
  * @returns {Promise<boolean>} True if automatic capture is enabled
  */
-export async function isAutoCaptureEnabled() {
+async function isAutoCaptureEnabled() {
   try {
     const data = await chrome.storage.local.get('captureSettings');
     const settings = data.captureSettings || {};
@@ -785,7 +786,7 @@ export async function isAutoCaptureEnabled() {
  * Get the minimum time on page required for automatic capture
  * @returns {Promise<number>} Minimum time in seconds
  */
-export async function getMinTimeOnPage() {
+async function getMinTimeOnPage() {
   try {
     const data = await chrome.storage.local.get('captureSettings');
     const settings = data.captureSettings || {};

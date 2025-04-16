@@ -1,7 +1,7 @@
 // components/overview-panel.js
-import { fetchAPI, sendMessageToBackground } from '../services/api-service.js';
-import { LogManager } from '../../shared/utils/log-manager.js';
-import { truncateText } from '../utils/ui-utils.js';
+import { fetchAPI } from '../services/api-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { truncateText } from '../components/capture-ui.js';
 import { showNotification } from '../services/notification-service.js';
 import * as d3 from 'd3';
 
@@ -23,7 +23,7 @@ let overviewInitialized = false;
  * Initialize the overview panel
  * @returns {Promise<void>}
  */
-export async function initOverviewPanel() {
+async function initOverviewPanel() {
   if (overviewInitialized) {
     logger.debug('Overview panel already initialized, skipping');
     return;
@@ -102,7 +102,7 @@ function setupRefreshButton() {
  * Refresh all overview panel data
  * @returns {Promise<void>}
  */
-export async function refreshOverviewPanel() {
+async function refreshOverviewPanel() {
   logger.info('Refreshing overview panel');
   
   try {
@@ -878,15 +878,37 @@ async function loadDashboardData() {
   logger.info('Loading all dashboard data');
   
   try {
-    // Show loading states
-    document.getElementById('recent-captures-list')?.innerHTML = '<div class="loading-indicator">Loading data...</div>';
-    document.getElementById('tasks-summary')?.innerHTML = '<div class="loading-indicator">Loading tasks...</div>';
-    document.querySelector('.graph-placeholder')?.innerHTML = '<div class="loading-indicator">Loading graph...</div>';
+    // Show loading states - Using traditional null checks
+    const recentCapturesList = document.getElementById('recent-captures-list');
+    if (recentCapturesList) {
+      recentCapturesList.innerHTML = '<div class="loading-indicator">Loading data...</div>';
+    }
+    
+    const tasksSummary = document.getElementById('tasks-summary');
+    if (tasksSummary) {
+      tasksSummary.innerHTML = '<div class="loading-indicator">Loading tasks...</div>';
+    }
+    
+    const graphPlaceholder = document.querySelector('.graph-placeholder');
+    if (graphPlaceholder) {
+      graphPlaceholder.innerHTML = '<div class="loading-indicator">Loading graph...</div>';
+    }
     
     // Update stats elements with loading indicators
-    document.getElementById('captured-count')?.textContent = '...';
-    document.getElementById('relationship-count')?.textContent = '...';
-    document.getElementById('query-count')?.textContent = '...';
+    const capturedCount = document.getElementById('captured-count');
+    if (capturedCount) {
+      capturedCount.textContent = '...';
+    }
+    
+    const relationshipCount = document.getElementById('relationship-count');
+    if (relationshipCount) {
+      relationshipCount.textContent = '...';
+    }
+    
+    const queryCount = document.getElementById('query-count');
+    if (queryCount) {
+      queryCount.textContent = '...';
+    }
     
     showNotification('Loading dashboard data...', 'info');
     
@@ -904,15 +926,21 @@ async function loadDashboardData() {
     logger.error('Error loading dashboard data:', error);
     showNotification(`Error loading dashboard data: ${error.message}`, 'error');
     
-    // Show error states in each section
-    document.getElementById('recent-captures-list')?.innerHTML = 
-      `<div class="error-state">Error loading captures: ${error.message}</div>`;
+    // Show error states in each section - Using traditional null checks
+    const recentCapturesList = document.getElementById('recent-captures-list');
+    if (recentCapturesList) {
+      recentCapturesList.innerHTML = `<div class="error-state">Error loading captures: ${error.message}</div>`;
+    }
     
-    document.getElementById('tasks-summary')?.innerHTML = 
-      `<div class="error-state">Error loading tasks: ${error.message}</div>`;
+    const tasksSummary = document.getElementById('tasks-summary');
+    if (tasksSummary) {
+      tasksSummary.innerHTML = `<div class="error-state">Error loading tasks: ${error.message}</div>`;
+    }
     
-    document.querySelector('.graph-placeholder')?.innerHTML = 
-      `<div class="error-state">Error loading graph: ${error.message}</div>`;
+    const graphPlaceholder = document.querySelector('.graph-placeholder');
+    if (graphPlaceholder) {
+      graphPlaceholder.innerHTML = `<div class="error-state">Error loading graph: ${error.message}</div>`;
+    }
   }
 }
 
@@ -920,7 +948,7 @@ async function loadDashboardData() {
  * Get overview statistics
  * @returns {Promise<Object>} Overview statistics
  */
-export async function getOverviewStats() {
+async function getOverviewStats() {
   logger.debug('Getting overview statistics');
   
   try {
@@ -967,7 +995,7 @@ export async function getOverviewStats() {
  * @param {number} limit - Maximum number of captures to return
  * @returns {Promise<Array>} Recent captures
  */
-export async function getRecentCaptures(limit = 5) {
+async function getRecentCaptures(limit = 5) {
   logger.debug(`Getting recent captures (limit: ${limit})`);
   
   try {
@@ -993,7 +1021,7 @@ export async function getRecentCaptures(limit = 5) {
  * Get active tasks count
  * @returns {Promise<number>} Number of active tasks
  */
-export async function getActiveTasksCount() {
+async function getActiveTasksCount() {
   logger.debug('Getting active tasks count');
   
   try {
@@ -1026,15 +1054,26 @@ export async function getActiveTasksCount() {
  * @param {Object} data - Data to update with
  * @returns {Promise<void>}
  */
-export async function updateOverviewPanel(data) {
+async function updateOverviewPanel(data) {
   logger.debug('Updating overview panel with new data');
-  
+   
   try {
     // Update stats if provided
     if (data.stats) {
-      document.getElementById('captured-count')?.textContent = data.stats.captures || 0;
-      document.getElementById('relationship-count')?.textContent = data.stats.relationships || 0;
-      document.getElementById('query-count')?.textContent = data.stats.queries || 0;
+      const capturedCount = document.getElementById('captured-count');
+      if (capturedCount) {
+        capturedCount.textContent = data.stats.captures || 0;
+      }
+      
+      const relationshipCount = document.getElementById('relationship-count');
+      if (relationshipCount) {
+        relationshipCount.textContent = data.stats.relationships || 0;
+      }
+      
+      const queryCount = document.getElementById('query-count');
+      if (queryCount) {
+        queryCount.textContent = data.stats.queries || 0;
+      }
     }
     
     // Update captures if provided
