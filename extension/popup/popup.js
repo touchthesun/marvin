@@ -8,43 +8,97 @@ const logger = new LogManager({
   maxEntries: 1000
 });
 
+logger.log('info', 'Popup script loaded');
+function logUIElements() {
+  const elements = {
+    captureBtn: document.getElementById('capture-btn'),
+    analyzeBtn: document.getElementById('analyze-btn'),
+    dashboardBtn: document.getElementById('open-dashboard-btn'),
+    relatedBtn: document.getElementById('related-btn'),
+    queryBtn: document.getElementById('query-btn'),
+    optionsBtn: document.getElementById('options-btn'),
+    logoutBtn: document.getElementById('logout-btn'),
+    statusIndicator: document.getElementById('status-indicator'),
+    activityList: document.getElementById('activity-list')
+  };
+  
+  logger.log('debug', 'UI Elements Found', {
+    captureBtn: !!elements.captureBtn,
+    analyzeBtn: !!elements.analyzeBtn,
+    dashboardBtn: !!elements.dashboardBtn,
+    relatedBtn: !!elements.relatedBtn,
+    queryBtn: !!elements.queryBtn,
+    optionsBtn: !!elements.optionsBtn,
+    logoutBtn: !!elements.logoutBtn,
+    statusIndicator: !!elements.statusIndicator,
+    activityList: !!elements.activityList
+  });
+  
+  return elements;
+}
 /**
  * Initialize the popup
  */
 async function initialize() {
-  logger.log('Popup initialized');
+  logger.log('info', 'Popup initialize function started');
   
-  // UI elements
-  const statusIndicator = document.getElementById('status-indicator');
-  const loginForm = document.getElementById('login-form');
-  const userInfo = document.getElementById('user-info');
-  const authForm = document.getElementById('auth-form');
-  const relatedBtn = document.getElementById('related-btn');
-  const queryBtn = document.getElementById('query-btn');
-  const dashboardBtn = document.getElementById('open-dashboard-btn');
-  const activityList = document.getElementById('activity-list');
-  const optionsBtn = document.getElementById('options-btn');
-  const logoutBtn = document.getElementById('logout-btn');
-  const captureBtn = document.getElementById('capture-btn');
-  const analyzeBtn = document.getElementById('analyze-btn');
+  try {
+    // Log UI element existence
+    const elements = logUIElements();
+    
+    // Add explicit logging before each event listener setup
+    if (elements.captureBtn) {
+      logger.log('debug', 'Setting up capture button');
+      try {
+        setupCaptureButton(elements.captureBtn, captureCurrentTab, () => {
+          logger.log('info', 'Capture button success callback triggered');
+          loadRecentActivity();
+        });
+        logger.log('debug', 'Capture button setup completed');
+      } catch (error) {
+        logger.log('error', 'Error setting up capture button', error);
+      }
+    }
+    
+    if (elements.analyzeBtn) {
+      logger.log('debug', 'Setting up analyze button');
+      try {
+        elements.analyzeBtn.addEventListener('click', () => {
+          logger.log('info', 'Analyze button clicked');
+          analyzeCurrentTab();
+        });
+        logger.log('debug', 'Analyze button setup completed');
+      } catch (error) {
+        logger.log('error', 'Error setting up analyze button', error);
+      }
+    }
   
-  // Set up UI event listeners
-  setupCaptureButton(captureBtn, captureCurrentTab, () => {
-    // Callback to run after successful capture
-    loadRecentActivity();
-  });
+    if (elements.dashboardBtn) {
+      logger.log('debug', 'Setting up dashboard button');
+      try {
+        elements.dashboardBtn.addEventListener('click', () => {
+          logger.log('info', 'Dashboard button clicked');
+          openDashboard();
+        });
+        logger.log('debug', 'Dashboard button setup completed');
+      } catch (error) {
+        logger.log('error', 'Error setting up dashboard button', error);
+      }
+    }
+
+    if (elements.optionsBtn) {
+      logger.log('debug', 'Setting up options button');
+      try {
+        elements.optionsBtn.addEventListener('click', () => {
+          logger.log('info', 'Dashboard button clicked');
+          openSettings();
+        });
+        logger.log('debug', 'Dashboard button setup completed');
+      } catch (error) {
+        logger.log('error', 'Error setting up dashboard button', error);
+      }
+    }
   
-  if (analyzeBtn) {
-    analyzeBtn.addEventListener('click', analyzeCurrentTab);
-  }
-  
-  if (dashboardBtn) {
-    dashboardBtn.addEventListener('click', openDashboard);
-  }
-  
-  if (optionsBtn) {
-    optionsBtn.addEventListener('click', openSettings);
-  }
   
   // Check online status
   updateOnlineStatus();
@@ -134,8 +188,11 @@ async function initialize() {
       logger.log('info', 'Query button clicked');
       alert('Ask Marvin functionality will be available in the next version.');
     });
+  }} catch (error) {
+    logger.log('error', 'Error in initialize function', error);
   }
 }
+
 
 /**
  * Check online status

@@ -6,6 +6,7 @@ import { captureUrl } from '../shared/utils/capture.js';
 import { AnalysisQueue } from './analysis-queue.js';
 import { ProgressTracker } from './progress-tracker.js';
 import { LogManager } from '../shared/utils/log-manager.js';
+import { captureCurrentTab } from '../shared/utils/capture.js';
 
 
 // Initialize log manager
@@ -246,47 +247,7 @@ async function analyzeUrl(url, options = {}) {
   }
 }
 
-/**
- * Capture the current active tab
- * @returns {Promise<string>} Task ID
- */
-async function captureCurrentTab() {
-  try {
-    // Get active tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    if (!tab) {
-      throw new Error('No active tab found');
-    }
-    
-    // Check if URL is valid
-    if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-      throw new Error('Cannot capture browser UI pages');
-    }
-    
-    // Optionally get page content
-    let content = null;
-    
-    try {
-      // Try to execute content script to get page content
-      const result = await chrome.tabs.sendMessage(tab.id, { action: 'getPageContent' });
-      content = result.content;
-    } catch (e) {
-      logger.warn('Could not get page content, capturing metadata only', e);
-    }
-    
-    // Capture the URL
-    return await captureUrl(tab.url, {
-      tabId: String(tab.id),
-      windowId: String(tab.windowId),
-      content,
-      title: tab.title
-    });
-  } catch (e) {
-    logger.error('Error capturing current tab:', e);
-    throw e;
-  }
-}
+
 
 /**
  * Get active analysis tasks

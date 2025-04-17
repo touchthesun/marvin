@@ -1,8 +1,4 @@
 streamlit
-langchain
-langchain_core
-langchain_community
-langchain_openai
 beautifulsoup4
 python-dotenv
 chromadb
@@ -17,8 +13,6 @@ rake-nltk
 pytest-cov
 readability-lxml
 tiktoken 
-langchain-cohere 
-langchainhub 
 langchain 
 langgraph  
 tavily-python
@@ -35,7 +29,7 @@ jinja2
 cryptography
 mkdocs-mermaid2-plugin
 pycountry
-python-us
 docker
 playwright
+lxml_html_clean
 # python -m spacy download en_core_web_sm
