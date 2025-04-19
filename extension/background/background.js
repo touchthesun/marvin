@@ -368,6 +368,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       })();
       return isAsync;
+
+    case 'ping':
+      sendResponse({ 
+        success: true, 
+        timestamp: message.timestamp, 
+        message: 'Background script is active' 
+      });
+      return false;
       
     case 'captureCurrentTab':
       (async () => {

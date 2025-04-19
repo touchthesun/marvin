@@ -2,6 +2,52 @@
 import { LogManager } from '../../../shared/utils/log-manager.js';
 import { showNotification } from '../services/notification-service.js';
 
+// Debug flag - set to true to enable verbose debugging
+const DEBUG_NAVIGATION = true;
+
+// Direct console logging to bypass LogManager for debugging
+function debugLog(message, ...args) {
+  if (DEBUG_NAVIGATION) {
+    // Use the native console directly to avoid any LogManager issues
+    const originalConsoleLog = console.log;
+    originalConsoleLog.call(console, `[NAV DEBUG] ${message}`, ...args);
+  }
+}
+
+function handleExtensionContextError() {
+  debugLog('Extension context may be invalidated, attempting recovery');
+  
+  // Create a visible error message for the user
+  const errorDiv = document.createElement('div');
+  errorDiv.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background-color: #f44336; color: white; padding: 15px; text-align: center; z-index: 9999;';
+  errorDiv.innerHTML = `
+    Extension context has been invalidated. 
+    <button id="reload-extension" style="margin-left: 10px; padding: 5px 10px; background: white; color: #f44336; border: none; border-radius: 4px; cursor: pointer;">
+      Reload Extension
+    </button>
+  `;
+  
+  document.body.appendChild(errorDiv);
+  
+  // Add reload button functionality
+  document.getElementById('reload-extension').addEventListener('click', () => {
+    // Attempt to reload the extension page
+    window.location.reload();
+  });
+  
+  // Try to recover by checking if we can still access chrome APIs
+  try {
+    chrome.runtime.getURL('');
+    debugLog('Chrome API still accessible');
+  } catch (e) {
+    debugLog('Chrome API not accessible, extension context is definitely invalid');
+    // At this point, only a page reload or extension reload will help
+  }
+}
+
+// Immediately log that the navigation module is loaded
+debugLog('Navigation module loaded');
+
 /**
  * Logger for navigation operations
  * @type {LogManager}
@@ -23,28 +69,45 @@ let tabsInitialized = false;
  * @returns {void}
  */
 function initNavigation() {
-  logger.debug('initNavigation called');
+  debugLog('initNavigation called');
+  
+  try {
+    // This will throw if context is invalid
+    chrome.runtime.getURL('');
+  } catch (e) {
+    debugLog('Extension context invalid at initNavigation start');
+    handleExtensionContextError();
+    return; // Don't proceed with initialization
+  }
   
   if (navigationInitialized) {
-    logger.info('Navigation already initialized, skipping');
+    debugLog('Navigation already initialized, skipping');
     return;
   }
   
   try {
-    logger.info('Initializing navigation');
+    debugLog('Initializing navigation');
     navigationInitialized = true;
     
     const navItems = document.querySelectorAll('.nav-item');
     const contentPanels = document.querySelectorAll('.content-panel');
     
-    logger.debug(`Found nav items: ${navItems.length}, content panels: ${contentPanels.length}`);
+    debugLog(`Found nav items: ${navItems.length}, content panels: ${contentPanels.length}`);
+    
+    // Debug: Log all nav items found
+    if (navItems.length > 0) {
+      navItems.forEach((item, index) => {
+        const panelName = item.getAttribute('data-panel');
+        debugLog(`Nav item ${index}: panel=${panelName}, text=${item.textContent.trim()}`);
+      });
+    }
     
     if (navItems.length === 0) {
-      logger.warn('No navigation items found');
+      debugLog('WARNING: No navigation items found');
     }
     
     if (contentPanels.length === 0) {
-      logger.warn('No content panels found');
+      debugLog('WARNING: No content panels found');
     }
     
     // Set up click handlers for each navigation item
@@ -52,47 +115,96 @@ function initNavigation() {
       try {
         const panelName = item.getAttribute('data-panel');
         if (!panelName) {
-          logger.warn('Navigation item missing data-panel attribute', item);
+          debugLog('WARNING: Navigation item missing data-panel attribute', item);
           return;
         }
         
-        logger.debug(`Setting up click handler for nav item: ${panelName}`);
+        debugLog(`Setting up click handler for nav item: ${panelName}`);
         
-        item.addEventListener('click', async (event) => {
+        // Debug: Test if the item is clickable
+        debugLog(`Nav item ${panelName} properties: `, {
+          tagName: item.tagName,
+          classList: Array.from(item.classList),
+          style: item.style.cssText,
+          disabled: item.disabled,
+          hidden: item.hidden,
+          display: window.getComputedStyle(item).display,
+          pointerEvents: window.getComputedStyle(item).pointerEvents
+        });
+        
+        // Remove any existing click handlers to avoid duplicates
+        const newItem = item.cloneNode(true);
+        item.parentNode.replaceChild(newItem, item);
+        
+        // Add a direct click handler with debug logging
+        newItem.addEventListener('click', async (event) => {
+          debugLog(`CLICK DETECTED on nav item: ${panelName}`);
+          
           try {
             // Prevent default if it's a link
             if (event.currentTarget.tagName === 'A') {
               event.preventDefault();
             }
             
-            logger.info(`Nav item clicked: ${panelName}`);
-            await handleNavigation(panelName, navItems, contentPanels, item);
+            debugLog(`Processing click for nav item: ${panelName}`);
+            await handleNavigation(panelName, navItems, contentPanels, newItem);
           } catch (navError) {
+            debugLog(`ERROR handling navigation to ${panelName}:`, navError);
             logger.error(`Error handling navigation to ${panelName}:`, navError);
             showNotification(`Error navigating to ${panelName}: ${navError.message}`, 'error');
           }
         });
+        
+        // Add a direct style to ensure it's clickable
+        newItem.style.cursor = 'pointer';
+        
+        // Debug: Add a direct test click handler
+        newItem.setAttribute('data-debug-initialized', 'true');
       } catch (itemError) {
+        debugLog(`ERROR setting up navigation item:`, itemError);
         logger.error('Error setting up navigation item:', itemError);
+      }
+    });
+    
+    // Add a global click handler to debug event propagation
+    document.addEventListener('click', (event) => {
+      const navItem = event.target.closest('.nav-item');
+      if (navItem) {
+        const panelName = navItem.getAttribute('data-panel');
+        const isInitialized = navItem.getAttribute('data-debug-initialized');
+        debugLog(`Global click detected near nav item: ${panelName}, initialized: ${isInitialized}`);
       }
     });
     
     // Set default panel if none is active
     setTimeout(() => {
+      debugLog('Checking for active panel');
       const hasActivePanel = Array.from(contentPanels).some(panel => panel.classList.contains('active'));
+      debugLog(`Has active panel: ${hasActivePanel}`);
+      
       if (!hasActivePanel && navItems.length > 0) {
-        logger.debug('No active panel found, activating default panel');
-        navItems[0].click();
+        debugLog('No active panel found, activating default panel');
+        
+        // Try to click the first nav item directly
+        try {
+          const firstItem = document.querySelector('.nav-item');
+          debugLog('Clicking first nav item:', firstItem?.getAttribute('data-panel'));
+          firstItem?.click();
+        } catch (clickError) {
+          debugLog('ERROR clicking first nav item:', clickError);
+        }
       }
     }, 100);
     
-    logger.info('Navigation initialized successfully');
+    debugLog('Navigation initialization completed');
   } catch (error) {
     navigationInitialized = false;
+    debugLog('ERROR initializing navigation:', error);
     logger.error('Error initializing navigation:', error);
     showNotification('Error initializing navigation: ' + error.message, 'error');
   }
 }
+
 
 /**
  * Handle navigation to a specific panel
@@ -103,24 +215,35 @@ function initNavigation() {
  * @returns {Promise<void>}
  */
 async function handleNavigation(targetPanel, navItems, contentPanels, clickedItem) {
-  logger.debug(`Handling navigation to panel: ${targetPanel}`);
+  debugLog(`handleNavigation called for panel: ${targetPanel}`);
   
   try {
     // Update navigation highlighting
+    debugLog('Updating navigation highlighting');
     navItems.forEach(navItem => navItem.classList.remove('active'));
     clickedItem.classList.add('active');
     
     // Show corresponding panel
+    debugLog('Showing corresponding panel');
     let panelFound = false;
     contentPanels.forEach(panel => {
+      const panelId = panel.id;
+      debugLog(`Checking panel: ${panelId} against target: ${targetPanel}-panel`);
+      
       if (panel.id === `${targetPanel}-panel`) {
-        logger.debug(`Activating panel: ${panel.id}`);
+        debugLog(`Activating panel: ${panel.id}`);
         panel.classList.add('active');
         panelFound = true;
         
-        // Debug capture button when capture panel is activated
-        if (targetPanel === 'capture') {
-          setTimeout(debugCaptureButton, 500);
+        // Dispatch custom event
+        try {
+          const event = new CustomEvent('panelChanged', {
+            detail: { panelId: targetPanel, panelElement: panel }
+          });
+          document.dispatchEvent(event);
+          debugLog(`Dispatched panelChanged event for ${targetPanel}`);
+        } catch (eventError) {
+          debugLog(`ERROR dispatching panel event:`, eventError);
         }
       } else {
         panel.classList.remove('active');
@@ -128,24 +251,30 @@ async function handleNavigation(targetPanel, navItems, contentPanels, clickedIte
     });
     
     if (!panelFound) {
-      logger.warn(`Panel not found for target: ${targetPanel}`);
+      debugLog(`WARNING: Panel not found for target: ${targetPanel}`);
     }
     
     // Initialize panel if needed
+    debugLog(`Initializing target panel: ${targetPanel}`);
     await initializeTargetPanel(targetPanel);
     
     // Save last active panel to storage
     try {
+      debugLog(`Saving last active panel: ${targetPanel}`);
       chrome.storage.local.set({ lastActivePanel: targetPanel });
-      logger.debug(`Saved last active panel: ${targetPanel}`);
     } catch (storageError) {
+      debugLog(`ERROR saving last active panel:`, storageError);
       logger.warn('Error saving last active panel:', storageError);
     }
+    
+    debugLog(`Navigation to ${targetPanel} completed successfully`);
   } catch (error) {
+    debugLog(`ERROR in handleNavigation for ${targetPanel}:`, error);
     logger.error(`Error in handleNavigation for ${targetPanel}:`, error);
     throw error;
   }
 }
+
 
 /**
  * Initialize the target panel based on panel name
@@ -728,6 +857,49 @@ function getActiveTab(panelId) {
     return null;
   }
 }
+
+// Debug initialization
+(function() {
+  debugLog('Running immediate navigation debug check');
+  
+  // Check if DOM is ready
+  if (document.readyState === 'loading') {
+    debugLog('DOM still loading, adding DOMContentLoaded listener');
+    document.addEventListener('DOMContentLoaded', () => {
+      debugLog('DOM now loaded, checking navigation elements');
+      const navItems = document.querySelectorAll('.nav-item');
+      debugLog(`Found ${navItems.length} navigation items on DOMContentLoaded`);
+    });
+  } else {
+    debugLog('DOM already loaded, checking navigation elements immediately');
+    const navItems = document.querySelectorAll('.nav-item');
+    debugLog(`Found ${navItems.length} navigation items on immediate check`);
+  }
+})();
+
+// Periodically check if extension context is still valid
+let contextCheckInterval;
+function startContextCheck() {
+  debugLog('Starting extension context validity check');
+  
+  if (contextCheckInterval) {
+    clearInterval(contextCheckInterval);
+  }
+  
+  contextCheckInterval = setInterval(() => {
+    try {
+      chrome.runtime.getURL('');
+      // Context is still valid
+    } catch (e) {
+      debugLog('Extension context has become invalid');
+      handleExtensionContextError();
+      clearInterval(contextCheckInterval);
+    }
+  }, 5000); // Check every 5 seconds
+}
+
+// Start the context check
+startContextCheck();
 
 // Export functions needed by other modules
 export {

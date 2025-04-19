@@ -17,14 +17,15 @@ import {
 
 import { initOverviewPanel } from './components/overview-panel.js';
 import { initCapturePanel } from './components/capture-panel.js';
-import { 
-  initKnowledgePanel, 
-  initKnowledgeGraph 
-} from './components/knowledge-panel.js';
+import { initKnowledgePanel, initKnowledgeGraph } from './components/knowledge-panel.js';
 import { initAssistantPanel } from './components/assistant-panel.js';
 import { initSettingsPanel } from './components/settings-panel.js';
 import { initTasksPanel } from './components/tasks-panel.js';
 import { setupForceInitButtons, setupTabSwitching } from './utils/ui-utils.js';
+
+// Safety mechanism to prevent infinite loops or excessive resource usage
+let initializationAttempts = 0;
+const MAX_INITIALIZATION_ATTEMPTS = 3;
 
 /**
  * Logger for dashboard operations
@@ -46,6 +47,14 @@ let servicesInitialized = false;
  * @returns {Promise<void>}
  */
 async function initDashboard() {
+  // Prevent excessive initialization attempts
+  initializationAttempts++;
+  if (initializationAttempts > MAX_INITIALIZATION_ATTEMPTS) {
+    console.error('Too many initialization attempts, stopping to prevent browser crash');
+    showInitializationError(new Error('Too many initialization attempts. Please reload the extension.'));
+    return;
+  }
+
   if (dashboardInitialized) {
     logger.debug('Dashboard already initialized, skipping');
     return;
@@ -231,11 +240,17 @@ function handlePanelActivation(panelId) {
 
 // Main entry point - Run when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  logger.info('DOM loaded, starting dashboard initialization');
+  console.log('DOM loaded, starting dashboard initialization');
   
   try {
-    // Start initialization
-    initDashboard();
+    // Check if another dashboard instance might be running in another tab
+    const instanceId = 'dashboard_instance_' + Date.now();
+    sessionStorage.setItem('current_dashboard_instance', instanceId);
+    
+    // Start initialization with a slight delay to ensure DOM is fully ready
+    setTimeout(() => {
+      initDashboard();
+    }, 100);
     
     // Add panel activation listener for lazy loading
     document.addEventListener('panelChanged', (event) => {
@@ -254,10 +269,11 @@ document.addEventListener('DOMContentLoaded', () => {
       initPanel: handlePanelActivation
     };
   } catch (error) {
-    logger.error('Critical error in dashboard initialization:', error);
+    console.error('Critical error in dashboard initialization:', error);
     showNotification('Dashboard initialization failed', 'error');
   }
 });
+
 
 // Handle beforeunload event
 window.addEventListener('beforeunload', () => {

@@ -1,6 +1,7 @@
 import { captureCurrentTab, setupCaptureButton } from '../shared/utils/capture.js';
 import { LogManager } from '../shared/utils/log-manager.js';
 
+
 // Initialize logger
 const logger = new LogManager({
   isBackgroundScript: false,
@@ -9,6 +10,13 @@ const logger = new LogManager({
 });
 
 logger.log('info', 'Popup script loaded');
+
+
+// Track if dashboard is already being opened
+let debugMode = false;
+let isDashboardOpening = false;
+
+
 function logUIElements() {
   const elements = {
     captureBtn: document.getElementById('capture-btn'),
@@ -36,6 +44,128 @@ function logUIElements() {
   
   return elements;
 }
+
+
+async function checkDebugMode() {
+  try {
+    const data = await chrome.storage.local.get('marvin_debug_mode');
+    debugMode = !!data.marvin_debug_mode;
+    updateDebugUI();
+  } catch (error) {
+    console.error('Error checking debug mode:', error);
+    logger.log('error', 'Error checking debug mode:', error);
+  }
+}
+
+function updateDebugUI() {
+  const debugSection = document.getElementById('debug-section');
+  if (debugSection) {
+    debugSection.style.display = debugMode ? 'block' : 'none';
+  }
+  
+  const toggleDebugBtn = document.getElementById('toggle-debug-mode');
+  if (toggleDebugBtn) {
+    toggleDebugBtn.textContent = debugMode ? 'Disable Debug Mode' : 'Enable Debug Mode';
+  }
+  
+  logger.log('debug', `Debug UI updated - debug mode is ${debugMode ? 'enabled' : 'disabled'}`);
+}
+
+// Add this function to toggle debug mode
+async function toggleDebugMode() {
+  try {
+    debugMode = !debugMode;
+    await chrome.storage.local.set({ 'marvin_debug_mode': debugMode });
+    
+    updateDebugUI();
+    logger.log('info', `Debug mode ${debugMode ? 'enabled' : 'disabled'}`);
+  } catch (error) {
+    console.error('Error toggling debug mode:', error);
+    logger.log('error', 'Error toggling debug mode:', error);
+  }
+}
+
+// Modify the openDashboard function to support diagnostic mode
+function openDashboard() {
+  // Prevent multiple dashboard tabs from opening
+  if (isDashboardOpening) {
+    logger.log('info', 'Dashboard already opening, ignoring duplicate request');
+    return;
+  }
+  
+  isDashboardOpening = true;
+  
+  // Reset the flag after a short delay
+  setTimeout(() => {
+    isDashboardOpening = false;
+  }, 2000);
+
+  const dashboardUrl = 'dashboard/dashboard.html';
+  logger.log('info', `Opening dashboard: ${dashboardUrl}`);
+  chrome.tabs.create({ url: chrome.runtime.getURL(dashboardUrl) });
+}
+
+/**
+ * Open diagnostic dashboard with fallback options
+ */
+function openDiagnosticDashboard() {
+  // Prevent multiple dashboard tabs from opening
+  if (isDashboardOpening) {
+    logger.log('info', 'Dashboard already opening, ignoring duplicate request');
+    return;
+  }
+  
+  isDashboardOpening = true;
+  
+  // Reset the flag after a short delay
+  setTimeout(() => {
+    isDashboardOpening = false;
+  }, 2000);
+
+  // First try to open the dashboard-minimal.html
+  try {
+    // Path relative to extension root
+    const dashboardUrl = 'popup/diagnostics.html';
+    const fullUrl = chrome.runtime.getURL(dashboardUrl);
+    
+    logger.log('info', `Opening diagnostic dashboard: ${fullUrl}`);
+    
+    chrome.tabs.create({ url: fullUrl }, (tab) => {
+      if (chrome.runtime.lastError) {
+        logger.log('error', `Failed to open dashboard: ${chrome.runtime.lastError.message}`);
+      } else {
+        logger.log('info', `Successfully opened diagnostic dashboard in tab ${tab.id}`);
+      }
+    });
+  } catch (error) {
+    logger.log('error', `Error opening diagnostic dashboard: ${error.message}`);
+  }}
+
+// Add a function to export logs from the popup
+async function exportLogs() {
+  try {
+    logger.log('info', 'Exporting logs');
+    const logs = await logger.exportLogs('text');
+    
+    // Create a download link
+    const blob = new Blob([logs], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'marvin-popup-logs.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    logger.log('info', 'Logs exported successfully');
+  } catch (error) {
+    console.error('Error exporting logs:', error);
+    logger.log('error', 'Error exporting logs:', error);
+  }
+}
+
+
 /**
  * Initialize the popup
  */
@@ -45,8 +175,59 @@ async function initialize() {
   try {
     // Log UI element existence
     const elements = logUIElements();
+
+    // Check debug mode
+    await checkDebugMode();
     
-    // Add explicit logging before each event listener setup
+    // Set up debug toggle
+    const debugToggle = document.getElementById('debug-toggle');
+    logger.log('debug', 'Debug toggle element:', debugToggle);
+    
+    if (debugToggle) {
+      // Remove any existing listeners by cloning and replacing
+      const newToggle = debugToggle.cloneNode(true);
+      if (debugToggle.parentNode) {
+        debugToggle.parentNode.replaceChild(newToggle, debugToggle);
+      }
+
+      // Add click listener to the new element
+      newToggle.addEventListener('click', () => {
+        logger.log('info', 'Debug toggle clicked');
+        const debugSection = document.getElementById('debug-section');
+        if (debugSection) {
+          const isVisible = debugSection.style.display === 'block';
+          debugSection.style.display = isVisible ? 'none' : 'block';
+          logger.log('debug', `Debug section visibility set to ${!isVisible}`);
+        } else {
+          logger.log('warn', 'Debug section element not found');
+        }
+      });
+      
+      logger.log('debug', 'Debug toggle event listener added');
+    } else {
+      logger.log('warn', 'Debug toggle element not found');
+    }
+    
+    // Set up debug buttons
+    const toggleDebugBtn = document.getElementById('toggle-debug-mode');
+    if (toggleDebugBtn) {
+      toggleDebugBtn.addEventListener('click', toggleDebugMode);
+      logger.log('debug', 'Toggle debug mode button initialized');
+    }
+    
+    const openDiagnosticBtn = document.getElementById('open-diagnostic-dashboard');
+    if (openDiagnosticBtn) {
+      openDiagnosticBtn.addEventListener('click', openDiagnosticDashboard);
+      logger.log('debug', 'Open diagnostic dashboard button initialized');
+    }
+    
+    const exportLogsBtn = document.getElementById('export-logs');
+    if (exportLogsBtn) {
+      exportLogsBtn.addEventListener('click', exportLogs);
+      logger.log('debug', 'Export logs button initialized');
+    }
+    
+    // Set up capture button
     if (elements.captureBtn) {
       logger.log('debug', 'Setting up capture button');
       try {
@@ -57,6 +238,33 @@ async function initialize() {
         logger.log('debug', 'Capture button setup completed');
       } catch (error) {
         logger.log('error', 'Error setting up capture button', error);
+      }
+    }
+
+    // Add explicit logging before each event listener setup
+    if (elements.dashboardBtn) {
+      logger.log('debug', 'Setting up dashboard button');
+      try {
+        // Check if the button exists and has a parent node
+        if (elements.dashboardBtn && elements.dashboardBtn.parentNode) {
+          // Remove any existing click listeners
+          const newBtn = elements.dashboardBtn.cloneNode(true);
+          elements.dashboardBtn.parentNode.replaceChild(newBtn, elements.dashboardBtn);
+          elements.dashboardBtn = newBtn;
+        }
+        
+        // Make sure elements.dashboardBtn is still valid
+        if (elements.dashboardBtn) {
+          elements.dashboardBtn.addEventListener('click', () => {
+            logger.log('info', 'Dashboard button clicked');
+            openDashboard();
+          });
+          logger.log('debug', 'Dashboard button setup completed');
+        } else {
+          logger.log('warn', 'Dashboard button not found or became invalid');
+        }
+      } catch (error) {
+        logger.log('error', 'Error setting up dashboard button', error);
       }
     }
     
@@ -72,19 +280,7 @@ async function initialize() {
         logger.log('error', 'Error setting up analyze button', error);
       }
     }
-  
-    if (elements.dashboardBtn) {
-      logger.log('debug', 'Setting up dashboard button');
-      try {
-        elements.dashboardBtn.addEventListener('click', () => {
-          logger.log('info', 'Dashboard button clicked');
-          openDashboard();
-        });
-        logger.log('debug', 'Dashboard button setup completed');
-      } catch (error) {
-        logger.log('error', 'Error setting up dashboard button', error);
-      }
-    }
+    
 
     if (elements.optionsBtn) {
       logger.log('debug', 'Setting up options button');
@@ -361,12 +557,29 @@ async function analyzeCurrentTab() {
   }
 }
 
-/**
- * Open the dashboard page
- */
-function openDashboard() {
-  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
-}
+
+// Track if dashboard is already being opened
+// let isDashboardOpening = false;
+
+// /**
+//  * Open the dashboard page
+//  */
+// function openDashboard() {
+//   // Prevent multiple dashboard tabs from opening
+//   if (isDashboardOpening) {
+//     console.log('Dashboard already opening, ignoring duplicate request');
+//     return;
+//   }
+  
+//   isDashboardOpening = true;
+  
+//   // Reset the flag after a short delay
+//   setTimeout(() => {
+//     isDashboardOpening = false;
+//   }, 2000);
+  
+//   chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard-minimal.html') });
+// }
 
 /**
  * Open the settings page
@@ -689,45 +902,9 @@ function formatTime(timestamp) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// Initialize popup when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-  initialize();
-  checkContentScript();
-});
-
-
-// Add a function to export logs from the popup
-async function exportLogs() {
-  try {
-    const logs = await logger.exportLogs('text');
-    console.log('Exported logs:', logs);
-    
-    // Create a download link
-    const blob = new Blob([logs], {type: 'text/plain'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'marvin-popup-logs.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Error exporting logs:', error);
-  }
-}
 
 // Initialize popup when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   initialize();
   checkContentScript();
-  
-  // Add a debug button for exporting logs if needed
-  const debugSection = document.getElementById('debug-section');
-  if (debugSection) {
-    const exportLogsBtn = document.createElement('button');
-    exportLogsBtn.textContent = 'Export Logs';
-    exportLogsBtn.addEventListener('click', exportLogs);
-    debugSection.appendChild(exportLogsBtn);
-  }
 });

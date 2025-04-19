@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin Extension Diagnostics</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1, h2, h3 {
+      color: #333;
+    }
+    .panel {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f8f8f8;
+      border-left: 4px solid #4285f4;
+    }
+    .error {
+      border-left-color: #ea4335;
+      background-color: #fdedea;
+    }
+    .success {
+      border-left-color: #34a853;
+      background-color: #e6f4ea;
+    }
+    .warning {
+      border-left-color: #fbbc05;
+      background-color: #fef7e0;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow: auto;
+      max-height: 300px;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #3367d6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 600px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .diagnostic-status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .import-success {
+      background-color: #e6f4ea;
+      color: #34a853;
+    }
+    .import-error {
+      background-color: #fdedea;
+      color: #ea4335;
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 20px;
+      background-color: #f5f5f5;
+      border-radius: 10px;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background-color: #4285f4;
+      border-radius: 10px;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Marvin Extension Diagnostics</h1>
+    <p>This is a diagnostic panel for troubleshooting issues with the Marvin extension.</p>
+    
+    <div id="diagnostic-tools-status" class="diagnostic-status">
+      Initializing diagnostic tools...
+    </div>
+
+    <div class="panel">
+      <h2>Extension Information</h2>
+      <div id="extension-info">Loading...</div>
+      <button id="check-extension">Check Extension Info</button>
+    </div>
+
+    <div class="panel">
+      <h2>Memory Usage</h2>
+      <div id="memory-info">Click "Check Memory" to see current usage</div>
+      <div id="memory-chart" class="progress-bar-container" style="display: none;">
+        <div id="memory-bar" class="progress-bar" style="width: 0%"></div>
+      </div>
+      <button id="check-memory">Check Memory</button>
+      <button id="start-memory-monitoring">Start Monitoring</button>
+      <button id="stop-memory-monitoring" style="display: none;">Stop Monitoring</button>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Environment</h2>
+        <div id="environment-info">Loading...</div>
+        <button id="check-environment">Check Environment</button>
+      </div>
+
+      <div class="panel">
+        <h2>Storage Status</h2>
+        <div id="storage-info">Click to check storage</div>
+        <button id="check-storage">Check Storage</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Component Tests</h2>
+      <div id="component-status">Click buttons below to test individual components</div>
+      <div class="grid">
+        <button id="load-overview">Load Overview Panel</button>
+        <button id="load-capture">Load Capture Panel</button>
+        <button id="load-knowledge">Load Knowledge Panel</button>
+        <button id="load-settings">Load Settings Panel</button>
+      </div>
+      <button id="check-all-modules">Check All Modules</button>
+    </div>
+
+    <div class="panel">
+      <h2>Files and Resources</h2>
+      <pre id="file-list">Click "List Files" to see available files</pre>
+      <button id="list-files">List Files</button>
+      <button id="check-resources">Check Resources</button>
+    </div>
+
+    <div class="panel">
+      <h2>Background Connection</h2>
+      <div id="background-status">Click to test connection to background script</div>
+      <button id="ping-background">Ping Background</button>
+    </div>
+
+    <div id="status-container" class="status">
+      <h3>Status</h3>
+      <div id="status-message">Ready for diagnostics</div>
+    </div>
+
+    <div class="panel">
+      <h2>Results</h2>
+      <pre id="result-output"></pre>
+      <button id="clear-results">Clear Results</button>
+    </div>
+  </div>
+
+  <!-- Load the external script file -->
+  <script src="diagnostics.js" type="module"></script>
+</body>
+</html>

@@ -11,6 +11,8 @@ export class LogManager {
     this.deduplicationTimeout = options.deduplicationTimeout || 0; // 0 = disabled
     this.maxDuplicateCache = options.maxDuplicateCache || 100;
     this.messageCache = new Map();
+    this._isLogging = false;
+    this._setup();
     
     // Level mapping (lower number = more severe)
     this.levelMap = {
@@ -46,6 +48,10 @@ export class LogManager {
 // Override console methods
 Object.keys(originalMethods).forEach(method => {
   console[method] = (...args) => {
+    if (this._isLogging) {
+      originalMethods[method].apply(console, args);
+      return;
+    }
     // Check for deduplication if enabled
     if (this.deduplicationTimeout > 0) {
       const message = args.map(arg => 
@@ -126,20 +132,28 @@ Object.keys(originalMethods).forEach(method => {
       message,
       details: this._getStackDetails()
     };
-
-    const formattedMessage = `[${level.toUpperCase()}] [${context}] ${message}`;
-    switch (level) {
-      case 'error':
-        console.error(formattedMessage, ...args.filter(arg => typeof arg === 'object'));
-        break;
-      case 'warn':
-        console.warn(formattedMessage, ...args.filter(arg => typeof arg === 'object'));
-        break;
-      case 'info':
-        console.info(formattedMessage, ...args.filter(arg => typeof arg === 'object'));
-        break;
-      default:
-        console.log(formattedMessage, ...args.filter(arg => typeof arg === 'object'));
+  
+    // Use a flag to prevent recursion
+    if (!this._isLogging) {
+      this._isLogging = true;
+      const formattedMessage = `[${level.toUpperCase()}] [${context}] ${message}`;
+      const objectArgs = args.filter(arg => typeof arg === 'object');
+      
+      // Use the original console methods directly
+      switch (level) {
+        case 'error':
+          console.error(formattedMessage, ...objectArgs);
+          break;
+        case 'warn':
+          console.warn(formattedMessage, ...objectArgs);
+          break;
+        case 'info':
+          console.info(formattedMessage, ...objectArgs);
+          break;
+        default:
+          console.log(formattedMessage, ...objectArgs);
+      }
+      this._isLogging = false;
     }
     
     this.logs.push(entry);

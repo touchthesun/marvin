@@ -5,6 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Marvin</title>
   <link rel="stylesheet" href="popup.css">
+  <style>
+    /* Debug section styles */
+    .debug-section {
+      margin-top: 15px;
+      padding: 10px;
+      border-top: 1px solid #ddd;
+      display: none; /* Hidden by default */
+    }
+    .debug-section h3 {
+      margin-top: 0;
+      font-size: 14px;
+      color: #666;
+    }
+    .debug-section button {
+      margin-right: 5px;
+      margin-bottom: 5px;
+    }
+    .debug-toggle {
+      font-size: 11px;
+      color: #999;
+      text-align: center;
+      margin-top: 5px;
+      cursor: pointer;
+    }
+    .debug-toggle:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -69,6 +97,17 @@
       <div class="footer-actions">
         <button id="open-dashboard-btn" class="btn-text">Open Dashboard</button>
         <button id="options-btn" class="btn-text">Options</button>
+      </div>
+      
+      <!-- Add debug toggle link -->
+      <div class="debug-toggle" id="debug-toggle">Debug Options</div>
+      
+      <!-- Debug section - hidden by default -->
+      <div id="debug-section" class="debug-section">
+        <h3>Debug Tools</h3>
+        <button id="toggle-debug-mode" class="btn-secondary">Enable Debug Mode</button>
+        <button id="open-diagnostic-dashboard" class="btn-secondary">Diagnostic Dashboard</button>
+        <button id="export-logs" class="btn-secondary">Export Logs</button>
       </div>
     </footer>
   </div>
