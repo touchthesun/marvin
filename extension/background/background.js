@@ -1,3 +1,14 @@
+self.addEventListener('unhandledrejection', event => {
+  console.error(`Unhandled rejection: ${event.reason}`);
+  event.preventDefault(); // This prevents the error from propagating
+});
+
+self.addEventListener('error', event => {
+  console.error(`Uncaught error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`);
+  event.preventDefault(); // This prevents the error from propagating
+});
+
+
 // Import dependencies
 import AuthManager from './auth-manager.js';
 import MarvinAPIClient from './api-client.js';
@@ -8,19 +19,120 @@ import { ProgressTracker } from './progress-tracker.js';
 import { LogManager } from '../shared/utils/log-manager.js';
 import { captureCurrentTab } from '../shared/utils/capture.js';
 
+const originalSendMessage = chrome.runtime.sendMessage;
+chrome.runtime.sendMessage = function(message, responseCallback) {
+  logger.debug(`Sending message: ${JSON.stringify(message)}`);
+  try {
+    return originalSendMessage.apply(chrome.runtime, arguments);
+  } catch (error) {
+    logger.error(`Error in sendMessage: ${error.message}`);
+    throw error;
+  }
+};
+
+// Track all promise rejections
+self.addEventListener('unhandledrejection', event => {
+  logger.error(`Unhandled rejection: ${event.reason}`);
+  event.preventDefault(); // This prevents the error from propagating
+});
+
+/**
+ * Safely send a message to a specific tab
+ * @param {number} tabId - Tab ID to send message to
+ * @param {object} message - Message to send
+ * @returns {Promise<any>} - Response from the tab
+ */
+function sendMessageToTab(tabId, message) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, (response) => {
+        if (chrome.runtime.lastError) {
+          // Just log the error and resolve with error info
+          logger.debug(`Error sending message to tab ${tabId}: ${chrome.runtime.lastError.message}`);
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response);
+        }
+      });
+    } catch (error) {
+      logger.debug(`Exception sending message to tab ${tabId}: ${error.message}`);
+      resolve({ success: false, error: error.message });
+    }
+  });
+}
+
+/**
+ * Safely send a runtime message
+ * @param {object} message - Message to send
+ * @returns {Promise<any>} - Response or error info
+ */
+function sendRuntimeMessage(message) {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          logger.debug(`Runtime message error: ${chrome.runtime.lastError.message}`);
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response);
+        }
+      });
+    } catch (error) {
+      logger.debug(`Exception in runtime message: ${error.message}`);
+      resolve({ success: false, error: error.message });
+    }
+  });
+}
+
+/**
+ * Safely broadcast a message to all tabs
+ * @param {object} message - Message to broadcast
+ */
+function broadcastMessage(message) {
+  chrome.tabs.query({}, (tabs) => {
+    for (const tab of tabs) {
+      try {
+        chrome.tabs.sendMessage(tab.id, message, () => {
+          // Ignore chrome.runtime.lastError by accessing it
+          if (chrome.runtime.lastError) {
+            logger.debug(`Broadcast to tab ${tab.id} failed: ${chrome.runtime.lastError.message}`);
+          }
+        });
+      } catch (error) {
+        logger.debug(`Exception broadcasting to tab ${tab.id}: ${error.message}`);
+      }
+    }
+  });
+}
+
+
 
 // Initialize log manager
 const logger = new LogManager({ 
   isBackgroundScript: true,
   logLevel: 'debug',
-  deduplicationTimeout: 1000, // Match existing CACHE_TIMEOUT
-  maxDuplicateCache: 100     // Match existing cleanup threshold
+  deduplicationTimeout: 1000,
+  maxDuplicateCache: 100
 });
 
 // Add message listener for logs from other contexts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'marvin_log_entry') {
-    logger.logs.push(message.entry);
+    try {
+      // Ensure the message isn't too large
+      if (message.entry && message.entry.message) {
+        const maxLength = 1000;
+        if (message.entry.message.length > maxLength) {
+          message.entry.message = message.entry.message.substring(0, maxLength) + 
+                                 `... [truncated, ${message.entry.message.length - maxLength} more characters]`;
+        }
+      }
+      
+      // Simply push the entry into the logs array
+      logger.logs.push(message.entry);
+    } catch (e) {
+      // Silent fail
+    }
     return false;
   }
   
@@ -44,8 +156,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-// Make logger globally available for debugging
-window.marvinLogger = logger;
+// Make logger globally available for debugging (using self instead of window)
+self.marvinLogger = logger;
 
 // Configuration (would be loaded from storage in real implementation)
 const API_BASE_URL = 'http://localhost:8000';
@@ -67,8 +179,25 @@ let lastBadgeUpdateTime = 0;
 
 // Initialize on extension load
 async function initialize() {
-  logger.log('Initializing Marvin extension...');
   try {
+    // Double-check error handlers are installed
+    if (!self._errorHandlersInstalled) {
+      self.addEventListener('unhandledrejection', event => {
+        console.error(`Unhandled rejection: ${event.reason}`);
+        event.preventDefault();
+      });
+      
+      self.addEventListener('error', event => {
+        console.error(`Uncaught error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`);
+        event.preventDefault();
+      });
+      
+      self._errorHandlersInstalled = true;
+    }
+    
+    // Continue with your existing initialization code
+    logger.log('Initializing Marvin extension...');
+    
     await authManager.initialize();
     await stateManager.initialize();
     
@@ -234,11 +363,24 @@ async function analyzeUrl(url, options = {}) {
     updateBadge();
     
     // Notify popup/content script
-    chrome.runtime.sendMessage({
-      action: 'analysis_started',
-      url,
-      taskId
-    });
+    try {
+      chrome.runtime.sendMessage(
+        {
+          action: 'analysis_started',
+          url,
+          taskId
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            // Just log and continue - no receiver was available
+            logger.debug(`Analysis started notification not delivered: ${chrome.runtime.lastError.message}`);
+          }
+        }
+      );
+    } catch (error) {
+      // Just log and continue
+      logger.debug(`Error sending analysis notification: ${error.message}`);
+    }
     
     return taskId;
   } catch (e) {
@@ -311,12 +453,25 @@ async function analyzeBatch(urls, options = {}) {
     updateBadge();
     
     // Notify popup/content script
-    chrome.runtime.sendMessage({
-      action: 'batch_started',
-      urls,
-      batchId: batch.batchId,
-      taskIds: batch.taskIds
-    });
+    try {
+      chrome.runtime.sendMessage(
+        {
+          action: 'batch_started',
+          urls,
+          batchId: batch.batchId,
+          taskIds: batch.taskIds
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            // Just log and continue - no receiver was available
+            logger.debug(`Batch started notification not delivered: ${chrome.runtime.lastError.message}`);
+          }
+        }
+      );
+    } catch (error) {
+      // Just log and continue
+      logger.debug(`Error sending batch notification: ${error.message}`);
+    }
     
     return batch;
   } catch (e) {
@@ -560,6 +715,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && changeInfo.url) {
     // Check if we have auto-capture enabled
     chrome.storage.sync.get(['autoCapture'], (result) => {
+      if (chrome.runtime.lastError) {
+        logger.error(`Error getting autoCapture setting: ${chrome.runtime.lastError.message}`);
+        return;
+      }
+    
       if (result.autoCapture) {
         // Auto-capture the URL
         captureUrl(tab.url, {
@@ -574,8 +734,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Make functions available to popup
-window.marvin = {
+// Make functions available to service worker global scope (using self instead of window)
+self.marvin = {
   captureUrl,
   captureCurrentTab,
   analyzeUrl,
@@ -590,3 +750,15 @@ window.marvin = {
 // Initialize the extension
 initialize();
 
+// Export functions for module compatibility
+export {
+  captureUrl,
+  captureCurrentTab,
+  analyzeUrl,
+  getActiveTasks,
+  getTaskStatus,
+  cancelTask,
+  retryTask,
+  analyzeBatch,
+  getBatchStatus
+};

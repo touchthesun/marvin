@@ -132,14 +132,15 @@ function openDiagnosticDashboard() {
     
     chrome.tabs.create({ url: fullUrl }, (tab) => {
       if (chrome.runtime.lastError) {
-        logger.log('error', `Failed to open dashboard: ${chrome.runtime.lastError.message}`);
+        logger.log('error', `Failed to open diagnostic dashboard: ${chrome.runtime.lastError.message}`);
       } else {
         logger.log('info', `Successfully opened diagnostic dashboard in tab ${tab.id}`);
       }
     });
   } catch (error) {
     logger.log('error', `Error opening diagnostic dashboard: ${error.message}`);
-  }}
+  }
+}
 
 // Add a function to export logs from the popup
 async function exportLogs() {
@@ -334,25 +335,21 @@ async function initialize() {
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
       
-      try {
-        const response = await sendMessageToBackground({
-          action: 'login',
-          username,
-          password
-        });
-        
-        logger.log('debug', 'Login response:', response);
-        
-        if (response.success) {
-          checkAuthStatus();
-        } else {
-          alert('Login failed: ' + (response.error || 'Unknown error'));
-          logger.log('error', 'Login failed:', response.error || 'Unknown error');
-        }
-      } catch (error) {
-        logger.log('error', 'Login error:', error);
-        alert('Login error: ' + error.message);
+      const response = await sendMessageToBackground({
+        action: 'login',
+        username,
+        password
+      });
+      
+      logger.log('debug', 'Login response:', response);
+      
+      if (!response.success) {
+        alert('Login failed: ' + (response.error || 'Unknown error'));
+        logger.log('error', 'Login failed:', response.error || 'Unknown error');
+        return;
       }
+      
+      checkAuthStatus();
     });
   }
   
@@ -361,12 +358,13 @@ async function initialize() {
     logoutBtn.addEventListener('click', async () => {
       logger.log('info', 'Logout clicked');
       
-      try {
-        await sendMessageToBackground({ action: 'logout' });
-        checkAuthStatus();
-      } catch (error) {
-        logger.log('error', 'Logout error:', error);
+      const response = await sendMessageToBackground({ action: 'logout' });
+      if (!response.success) {
+        logger.error('Logout error:', response.error);
+        return;
       }
+      
+      checkAuthStatus();
     });
   }
   
@@ -420,23 +418,24 @@ async function checkAuthStatus() {
   
   if (!loginForm || !userInfo) return;
   
-  try {
-    const response = await sendMessageToBackground({ action: 'checkAuthStatus' });
-    logger.log('Auth status response:', response);
-    
-    if (response.authenticated) {
-      loginForm.style.display = 'none';
-      userInfo.style.display = 'block';
-      enableFunctionality();
-    } else {
-      loginForm.style.display = 'block';
-      userInfo.style.display = 'none';
-      disableFunctionality();
-    }
-  } catch (error) {
-    console.error('Error checking auth status:', error);
+  const response = await sendMessageToBackground({ action: 'checkAuthStatus' });
+  logger.log('Auth status response:', response);
+  
+  if (!response.success) {
+    logger.error('Error checking auth status:', response.error);
     // For testing, always enable functionality
     enableFunctionality();
+    return;
+  }
+  
+  if (response.authenticated) {
+    loginForm.style.display = 'none';
+    userInfo.style.display = 'block';
+    enableFunctionality();
+  } else {
+    loginForm.style.display = 'block';
+    userInfo.style.display = 'none';
+    disableFunctionality();
   }
 }
 
@@ -521,40 +520,37 @@ async function loadRecentActivity() {
  * Analyze the current tab
  */
 async function analyzeCurrentTab() {
-  try {
-    // Show loading state
-    updateStatus('Analyzing current tab...', 'info');
-    
-    // Get current tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    if (!tab) {
-      throw new Error('No active tab found');
-    }
-    
-    // Send message to background script
-    const result = await sendMessageToBackground({
-      action: 'analyzeUrl',
-      url: tab.url,
-      options: {
-        tabId: String(tab.id),
-        windowId: String(tab.windowId),
-        title: tab.title
-      }
-    });
-    
-    logger.log('Analysis result:', result);
-    
-    if (result.success) {
-      updateStatus('Analysis started', 'success');
-      refreshActiveTasks();
-    } else {
-      updateStatus(`Error: ${result.error}`, 'error');
-    }
-  } catch (e) {
-    console.error('Error analyzing tab:', e);
-    updateStatus(`Error: ${e.message}`, 'error');
+  // Show loading state
+  updateStatus('Analyzing current tab...', 'info');
+  
+  // Get current tab
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  
+  if (!tab) {
+    updateStatus('Error: No active tab found', 'error');
+    return;
   }
+  
+  // Send message to background script
+  const result = await sendMessageToBackground({
+    action: 'analyzeUrl',
+    url: tab.url,
+    options: {
+      tabId: String(tab.id),
+      windowId: String(tab.windowId),
+      title: tab.title
+    }
+  });
+  
+  logger.log('Analysis result:', result);
+  
+  if (!result.success) {
+    updateStatus(`Error: ${result.error || 'Unknown error'}`, 'error');
+    return;
+  }
+  
+  updateStatus('Analysis started', 'success');
+  refreshActiveTasks();
 }
 
 
@@ -616,26 +612,22 @@ function updateStatus(message, type = 'info') {
  * Refresh the list of active tasks
  */
 async function refreshActiveTasks() {
-  try {
-    // Get active tasks from background script
-    const result = await sendMessageToBackground({
-      action: 'getActiveTasks'
-    });
-    
-    if (!result.success) {
-      console.error('Error getting active tasks:', result.error);
-      return;
-    }
-    
-    const tasks = result.tasks;
-    
-    // Display tasks
-    const tasksContainer = document.getElementById('activeTasks');
-    if (tasksContainer) {
-      displayActiveTasks(tasks);
-    }
-  } catch (e) {
-    console.error('Error refreshing tasks:', e);
+  // Get active tasks from background script
+  const result = await sendMessageToBackground({
+    action: 'getActiveTasks'
+  });
+  
+  if (!result.success) {
+    logger.error('Error getting active tasks:', result.error);
+    return;
+  }
+  
+  const tasks = result.tasks;
+  
+  // Display tasks
+  const tasksContainer = document.getElementById('activeTasks');
+  if (tasksContainer) {
+    displayActiveTasks(tasks);
   }
 }
 
@@ -770,12 +762,13 @@ async function cancelTask(taskId) {
     taskId
   });
   
-  if (result.success) {
-    updateStatus('Task cancelled', 'success');
-    refreshActiveTasks();
-  } else {
-    updateStatus(`Error: ${result.error}`, 'error');
+  if (!result.success) {
+    updateStatus(`Error: ${result.error || 'Unknown error'}`, 'error');
+    return;
   }
+  
+  updateStatus('Task cancelled', 'success');
+  refreshActiveTasks();
 }
 
 /**
@@ -790,12 +783,13 @@ async function retryTask(taskId) {
     taskId
   });
   
-  if (result.success) {
-    updateStatus('Task restarted', 'success');
-    refreshActiveTasks();
-  } else {
-    updateStatus(`Error: ${result.error}`, 'error');
+  if (!result.success) {
+    updateStatus(`Error: ${result.error || 'Unknown error'}`, 'error');
+    return;
   }
+  
+  updateStatus('Task restarted', 'success');
+  refreshActiveTasks();
 }
 
 /**
@@ -816,30 +810,54 @@ function reportNetworkStatus() {
   const isOnline = navigator.onLine;
   logger.log('Reporting network status:', isOnline);
   
-  try {
-    sendMessageToBackground({ 
-      action: 'networkStatusChange', 
-      isOnline: isOnline 
-    });
-  } catch (error) {
-    console.error('Error reporting network status:', error);
-  }
+  sendMessageToBackground({ 
+    action: 'networkStatusChange', 
+    isOnline: isOnline 
+  }).then(response => {
+    if (!response.success) {
+      logger.error('Error reporting network status:', response.error);
+    }
+  });
 }
 
 /**
- * Send a message to the background script
+ * Safely send a message to the background script with timeout
  * @param {object} message - Message to send
- * @returns {Promise<object>} Response from background script
+ * @param {number} timeout - Timeout in milliseconds (default: 5000)
+ * @returns {Promise<any>} - Response from background script
  */
-function sendMessageToBackground(message) {
+function sendMessageToBackground(message, timeout = 5000) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-      } else {
-        resolve(response);
-      }
-    });
+    // Create a timeout to handle cases where background doesn't respond
+    const timeoutId = setTimeout(() => {
+      resolve({ success: false, error: 'Request timed out' });
+    }, timeout);
+
+    try {
+      chrome.runtime.sendMessage(message, response => {
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
+        
+        if (chrome.runtime.lastError) {
+          // Don't reject - just resolve with error details
+          resolve({ 
+            success: false, 
+            error: chrome.runtime.lastError.message 
+          });
+        } else {
+          resolve(response || { success: true });
+        }
+      });
+    } catch (error) {
+      // Clear the timeout
+      clearTimeout(timeoutId);
+      
+      // Handle any exceptions
+      resolve({ 
+        success: false, 
+        error: error.message || 'Unknown error in sendMessageToBackground' 
+      });
+    }
   });
 }
 

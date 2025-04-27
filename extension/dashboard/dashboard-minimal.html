@@ -51,6 +51,13 @@
       border-left-color: #ea4335;
       background-color: #fdedea;
     }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow: auto;
+      max-height: 300px;
+    }
   </style>
 </head>
 <body>
@@ -86,61 +93,61 @@
   </div>
 
   <script type="module">
-    // First try to import from the standard path
-    let DiagnosticTools;
-    let importError = null;
+    // Import the standalone DiagnosticTools class
+    import { DiagnosticTools } from '../shared/utils/DiagnosticTools.js';
     
-    async function loadDiagnostics() {
-      try {
-        // Try to load using the expected path
-        const module = await import ('../popup/diagnostics.js')
-        DiagnosticTools = module.DiagnosticTools;
-        console.log('Successfully loaded diagnostics.js from ./js/utils/');
-        initializeDiagnostics();
-      } catch (error1) {
-        console.warn('Could not load diagnostics.js from ./js/utils/, trying alternative path...', error1);
-        importError = error1;
-        
-        try {
-          // Try another possible path
-          const module = await import ('../popup/diagnostics.js')
-          DiagnosticTools = module.DiagnosticTools;
-          console.log('Successfully loaded diagnostics.js from ../dashboard/js/utils/');
-          initializeDiagnostics();
-        } catch (error2) {
-          console.warn('Could not load diagnostics.js from ../dashboard/js/utils/, trying another path...', error2);
-          
-          // try {
-          //   // Try a third possible path
-          //   const module = await import ('../popup/diagnostics.js')
-          //   DiagnosticTools = module.DiagnosticTools;
-          //   console.log('Successfully loaded diagnostics.js from ../shared/utils/');
-          //   initializeDiagnostics();
-          // } catch (error3) {
-          //   console.error('Failed to load DiagnosticTools from any known path', error3);
-          //   document.getElementById('status-message').textContent = 'Error: Could not load diagnostic tools';
-          //   document.getElementById('status-container').classList.add('error');
-          //   document.getElementById('result-output').textContent = `Error loading diagnostic tools:\n${error1}\n${error2}\n${error3}`;
-            
-          //   // Create a fallback minimal diagnostic tool
-          //   createFallbackDiagnostics();
-          // }
-        }
+    // Helper functions
+    function updateStatus(message, isError = false) {
+      const statusMessage = document.getElementById('status-message');
+      const container = document.getElementById('status-container');
+      
+      statusMessage.textContent = message;
+      
+      if (isError) {
+        container.classList.add('error');
+      } else {
+        container.classList.remove('error');
       }
     }
     
-    function createFallbackDiagnostics() {
-      // Create a minimal version of DiagnosticTools if we couldn't load it
-      class FallbackDiagnosticTools {
+    function logResult(message) {
+      const resultOutput = document.getElementById('result-output');
+      const timestamp = new Date().toISOString();
+      resultOutput.textContent += `[${timestamp}] ${message}\n`;
+      
+      // Auto-scroll to bottom
+      resultOutput.scrollTop = resultOutput.scrollHeight;
+    }
+    
+    // Initialize DiagnosticTools
+    let diagnostics;
+    
+    async function initialize() {
+      try {
+        // Create DiagnosticTools instance
+        diagnostics = new DiagnosticTools();
+        updateStatus('DiagnosticTools initialized successfully');
+        logResult('DiagnosticTools initialized successfully');
+        setupEventListeners();
+      } catch (error) {
+        console.error('Error initializing DiagnosticTools:', error);
+        updateStatus(`Error initializing DiagnosticTools: ${error.message}`, true);
+        logResult(`ERROR: Failed to initialize DiagnosticTools: ${error.message}`);
+        initializeFallback();
+      }
+    }
+    
+    // Initialize with fallback if DiagnosticTools fails
+    function initializeFallback() {
+      // Define basic diagnostic tools class
+      class BasicDiagnosticTools {
         constructor() {
-          this.logs = [];
-          console.log('Using fallback diagnostic tools');
+          console.log('Using basic diagnostic tools');
         }
         
         takeMemorySnapshot() {
           if (performance && performance.memory) {
             return {
-              timestamp: Date.now(),
               usedJSHeapSize: performance.memory.usedJSHeapSize,
               totalJSHeapSize: performance.memory.totalJSHeapSize,
               jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
@@ -169,47 +176,36 @@
         }
       }
       
-      DiagnosticTools = FallbackDiagnosticTools;
-      initializeDiagnostics();
+      // Create fallback instance
+      diagnostics = new BasicDiagnosticTools();
+      updateStatus('Using basic diagnostic tools (fallback mode)', true);
+      logResult('WARNING: Using basic diagnostic tools (fallback mode)');
+      setupEventListeners();
     }
     
-    function initializeDiagnostics() {
-      const statusMessage = document.getElementById('status-message');
-      const resultOutput = document.getElementById('result-output');
-      
-      // Initialize diagnostic tools
-      const diagnostics = new DiagnosticTools();
-      
-      function updateStatus(message, isError = false) {
-        statusMessage.textContent = message;
-        const container = document.getElementById('status-container');
-        if (isError) {
-          container.classList.add('error');
-        } else {
-          container.classList.remove('error');
-        }
-      }
-      
-      function logResult(message) {
-        const timestamp = new Date().toISOString();
-        resultOutput.textContent += `[${timestamp}] ${message}\n`;
-      }
-      
+    // Set up all event listeners
+    function setupEventListeners() {
       // Memory check
-      document.getElementById('check-memory').addEventListener('click', () => {
+      document.getElementById('check-memory').addEventListener('click', async () => {
         updateStatus('Checking memory usage...');
         
-        const snapshot = diagnostics.takeMemorySnapshot();
-        
-        if (snapshot) {
-          const usedHeapMB = Math.round(snapshot.usedJSHeapSize / (1024 * 1024));
-          const totalHeapMB = Math.round(snapshot.totalJSHeapSize / (1024 * 1024));
-          const heapLimitMB = Math.round(snapshot.jsHeapSizeLimit / (1024 * 1024));
+        try {
+          const snapshot = diagnostics.takeMemorySnapshot();
           
-          logResult(`Memory Usage: ${usedHeapMB}MB / ${totalHeapMB}MB (Limit: ${heapLimitMB}MB)`);
-          updateStatus(`Current memory usage: ${usedHeapMB}MB`);
-        } else {
-          updateStatus('Performance.memory API not available in this browser', true);
+          if (snapshot) {
+            const usedHeapMB = Math.round(snapshot.usedJSHeapSize / (1024 * 1024));
+            const totalHeapMB = Math.round(snapshot.totalJSHeapSize / (1024 * 1024));
+            const heapLimitMB = Math.round(snapshot.jsHeapSizeLimit / (1024 * 1024));
+            
+            logResult(`Memory Usage: ${usedHeapMB}MB / ${totalHeapMB}MB (Limit: ${heapLimitMB}MB)`);
+            updateStatus(`Current memory usage: ${usedHeapMB}MB`);
+          } else {
+            updateStatus('Performance.memory API not available in this browser', true);
+            logResult('ERROR: Performance.memory API not available');
+          }
+        } catch (error) {
+          updateStatus(`Error checking memory: ${error.message}`, true);
+          logResult(`ERROR: Memory check failed - ${error.message}`);
         }
       });
       
@@ -218,38 +214,17 @@
         updateStatus('Testing logger...');
         
         try {
-          // Try different paths for the logger
-          const paths = [
-            '../shared/utils/log-manager.js',
-            './shared/utils/log-manager.js',
-            '../../shared/utils/log-manager.js'
-          ];
+          const result = await diagnostics.testModuleLoading('../shared/utils/log-manager.js');
           
-          let success = false;
-          
-          for (const path of paths) {
-            try {
-              const result = await diagnostics.testModuleLoading(path);
-              
-              if (result.success) {
-                logResult(`Logger test completed successfully in ${result.loadTime.toFixed(2)}ms`);
-                updateStatus('Logger test passed');
-                logResult(`Logger path: ${path}`);
-                success = true;
-                break;
-              }
-            } catch (e) {
-              // Continue to next path
-            }
-          }
-          
-          if (!success) {
-            throw new Error('Could not load logger from any known path');
+          if (result.success) {
+            logResult(`Logger test completed successfully in ${result.loadTime.toFixed(2)}ms`);
+            updateStatus('Logger test passed');
+          } else {
+            throw new Error(result.error);
           }
         } catch (error) {
-          console.error('Logger test error:', error);
-          logResult(`Logger test failed: ${error.message}`);
           updateStatus(`Logger test failed: ${error.message}`, true);
+          logResult(`ERROR: Logger test failed - ${error.message}`);
         }
       });
       
@@ -271,9 +246,8 @@
             throw new Error('Storage data mismatch');
           }
         } catch (error) {
-          console.error('Storage test error:', error);
-          logResult(`Storage test failed: ${error.message}`);
           updateStatus(`Storage test failed: ${error.message}`, true);
+          logResult(`ERROR: Storage test failed - ${error.message}`);
         }
       });
       
@@ -282,105 +256,97 @@
         updateStatus('Testing navigation module...');
         
         try {
-          // Try different possible paths
-          const paths = [
-            './js/components/navigation.js',
-            '../dashboard/js/components/navigation.js'
-          ];
+          const result = await diagnostics.testModuleLoading('./js/components/navigation.js');
           
-          let success = false;
-          
-          for (const path of paths) {
-            try {
-              const result = await diagnostics.testModuleLoading(path);
-              
-              if (result.success) {
-                logResult(`Navigation module loaded successfully in ${result.loadTime.toFixed(2)}ms. Available functions: ${result.exports.join(', ')}`);
-                updateStatus('Navigation module loaded successfully');
-                logResult(`Navigation path: ${path}`);
-                success = true;
-                break;
-              }
-            } catch (e) {
-              // Continue to next path
-            }
-          }
-          
-          if (!success) {
-            throw new Error('Could not load navigation module from any known path');
+          if (result.success) {
+            logResult(`Navigation module loaded successfully in ${result.loadTime.toFixed(2)}ms`);
+            updateStatus('Navigation test passed');
+          } else {
+            throw new Error(result.error);
           }
         } catch (error) {
-          console.error('Navigation test error:', error);
-          logResult(`Navigation test failed: ${error.message}`);
           updateStatus(`Navigation test failed: ${error.message}`, true);
+          logResult(`ERROR: Navigation test failed - ${error.message}`);
         }
       });
-      
-      // Check component structure
-      async function componentCheck(name, paths) {
-        updateStatus(`Loading ${name} panel...`);
-        
-        try {
-          let success = false;
-          
-          for (const path of paths) {
-            try {
-              const result = await diagnostics.testModuleLoading(path);
-              
-              if (result.success) {
-                logResult(`${name} panel module loaded successfully in ${result.loadTime.toFixed(2)}ms`);
-                updateStatus(`${name} panel loaded successfully`);
-                logResult(`${name} path: ${path}`);
-                success = true;
-                break;
-              }
-            } catch (e) {
-              // Continue to next path
-            }
-          }
-          
-          if (!success) {
-            throw new Error(`Could not load ${name} panel module from any known path`);
-          }
-        } catch (error) {
-          console.error(`${name} panel load error:`, error);
-          logResult(`${name} panel load failed: ${error.message}`);
-          updateStatus(`${name} panel load failed: ${error.message}`, true);
-        }
-      }
       
       // Component test functions
-      document.getElementById('load-overview').addEventListener('click', () => {
-        componentCheck('Overview', [
-          './js/components/overview-panel.js',
-          '../dashboard/js/components/overview-panel.js'
-        ]);
+      document.getElementById('load-overview').addEventListener('click', async () => {
+        updateStatus('Testing Overview panel...');
+        
+        try {
+          const result = await diagnostics.testModuleLoading('./js/components/overview-panel.js');
+          
+          if (result.success) {
+            logResult(`Overview panel loaded successfully in ${result.loadTime.toFixed(2)}ms`);
+            updateStatus('Overview panel loaded successfully');
+          } else {
+            throw new Error(result.error);
+          }
+        } catch (error) {
+          updateStatus(`Overview panel load failed: ${error.message}`, true);
+          logResult(`ERROR: Overview panel load failed - ${error.message}`);
+        }
       });
       
-      document.getElementById('load-capture').addEventListener('click', () => {
-        componentCheck('Capture', [
-          './js/components/capture-panel.js',
-          '../dashboard/js/components/capture-panel.js'
-        ]);
+      document.getElementById('load-capture').addEventListener('click', async () => {
+        updateStatus('Testing Capture panel...');
+        
+        try {
+          const result = await diagnostics.testModuleLoading('./js/components/capture-panel.js');
+          
+          if (result.success) {
+            logResult(`Capture panel loaded successfully in ${result.loadTime.toFixed(2)}ms`);
+            updateStatus('Capture panel loaded successfully');
+          } else {
+            throw new Error(result.error);
+          }
+        } catch (error) {
+          updateStatus(`Capture panel load failed: ${error.message}`, true);
+          logResult(`ERROR: Capture panel load failed - ${error.message}`);
+        }
       });
       
-      document.getElementById('load-knowledge').addEventListener('click', () => {
-        componentCheck('Knowledge', [
-          './js/components/knowledge-panel.js',
-          '../dashboard/js/components/knowledge-panel.js'
-        ]);
+      document.getElementById('load-knowledge').addEventListener('click', async () => {
+        updateStatus('Testing Knowledge panel...');
+        
+        try {
+          const result = await diagnostics.testModuleLoading('./js/components/knowledge-panel.js');
+          
+          if (result.success) {
+            logResult(`Knowledge panel loaded successfully in ${result.loadTime.toFixed(2)}ms`);
+            updateStatus('Knowledge panel loaded successfully');
+          } else {
+            throw new Error(result.error);
+          }
+        } catch (error) {
+          updateStatus(`Knowledge panel load failed: ${error.message}`, true);
+          logResult(`ERROR: Knowledge panel load failed - ${error.message}`);
+        }
       });
       
-      document.getElementById('load-settings').addEventListener('click', () => {
-        componentCheck('Settings', [
-          './js/components/settings-panel.js',
-          '../dashboard/js/components/settings-panel.js'
-        ]);
+      document.getElementById('load-settings').addEventListener('click', async () => {
+        updateStatus('Testing Settings panel...');
+        
+        try {
+          const result = await diagnostics.testModuleLoading('./js/components/settings-panel.js');
+          
+          if (result.success) {
+            logResult(`Settings panel loaded successfully in ${result.loadTime.toFixed(2)}ms`);
+            updateStatus('Settings panel loaded successfully');
+          } else {
+            throw new Error(result.error);
+          }
+        } catch (error) {
+          updateStatus(`Settings panel load failed: ${error.message}`, true);
+          logResult(`ERROR: Settings panel load failed - ${error.message}`);
+        }
       });
-      
-      // Initial status
-      updateStatus('Diagnostic dashboard loaded successfully');
-      logResult('Diagnostic dashboard initialized');
+    }
+    
+    // Initialize when the page loads
+    window.addEventListener('load', () => {
+      logResult('Diagnostic dashboard loaded');
       
       // Log browser information
       const browserInfo = `
@@ -398,10 +364,10 @@ Online: ${navigator.onLine}
       } catch (error) {
         logResult('Could not retrieve extension information');
       }
-    }
-    
-    // Start loading diagnostics
-    loadDiagnostics();
+      
+      // Initialize diagnostics
+      initialize();
+    });
   </script>  
 </body>
 </html>

@@ -155,14 +155,6 @@
         <button id="load-knowledge">Load Knowledge Panel</button>
         <button id="load-settings">Load Settings Panel</button>
       </div>
-      <button id="check-all-modules">Check All Modules</button>
-    </div>
-
-    <div class="panel">
-      <h2>Files and Resources</h2>
-      <pre id="file-list">Click "List Files" to see available files</pre>
-      <button id="list-files">List Files</button>
-      <button id="check-resources">Check Resources</button>
     </div>
 
     <div class="panel">
@@ -183,7 +175,10 @@
     </div>
   </div>
 
-  <!-- Load the external script file -->
-  <script src="diagnostics.js" type="module"></script>
+  <!-- First load DiagnosticTools as a module -->
+  <script src="../shared/utils/DiagnosticTools.js" type="module"></script>
+  
+  <!-- Then load diagnostics.js as a script (not a module) to avoid import issues -->
+  <script src="diagnostics.js"></script>
 </body>
 </html>

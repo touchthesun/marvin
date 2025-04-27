@@ -15,6 +15,10 @@ module.exports = {
     filename: '[name]/[name].js',
     clean: true,
   },
+  // Add this configuration for service worker support
+  experiments: {
+    outputModule: true, // Enable ES module output
+  },
   module: {
     rules: [
       {
@@ -65,10 +69,11 @@ module.exports = {
         { from: 'icons', to: 'icons' },
         { from: 'popup/popup.css', to: 'popup/popup.css' },
         { from: 'popup/diagnostics.html', to: 'popup/diagnostics.html' },
+        { from: 'popup/diagnostics.js', to: 'popup/diagnostics.js' },
+        { from: 'shared/utils/DiagnosticTools.js', to: 'shared/utils/DiagnosticTools.js' },
         { from: 'options/options.css', to: 'options/options.css' },
         { from: 'dashboard/dashboard.css', to: 'dashboard/dashboard.css' },
         { from: 'dashboard/dashboard-minimal.html', to: 'dashboard/dashboard-minimal.html' },
-        { from: 'popup/diagnostics.js', to: 'popup/diagnostics.js' },
         { from: 'shared/utils', to: 'shared/utils' },
       ],
     }),
@@ -87,13 +92,13 @@ module.exports = {
       filename: 'dashboard/dashboard.html',
       chunks: ['dashboard'],
     }),
-    new HtmlWebpackPlugin({
-      template: './popup/diagnostics.html',
-      filename: 'popup/diagnostics.html',
-      chunks: [],
-      inject: false, 
-    }),
   ],
+  // Special configuration for the background script
+  optimization: {
+    moduleIds: 'deterministic',
+  },
+  // Different output configuration for service workers
+  target: ['web', 'es2020'],
   devtool: 'cheap-module-source-map',
   mode: 'development',
 };
