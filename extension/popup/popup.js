@@ -1,7 +1,6 @@
 import { captureCurrentTab, setupCaptureButton } from '../shared/utils/capture.js';
 import { LogManager } from '../shared/utils/log-manager.js';
 
-
 // Initialize logger
 const logger = new LogManager({
   isBackgroundScript: false,
@@ -11,11 +10,9 @@ const logger = new LogManager({
 
 logger.log('info', 'Popup script loaded');
 
-
 // Track if dashboard is already being opened
 let debugMode = false;
 let isDashboardOpening = false;
-
 
 function logUIElements() {
   const elements = {
@@ -44,7 +41,6 @@ function logUIElements() {
   
   return elements;
 }
-
 
 async function checkDebugMode() {
   try {
@@ -166,7 +162,6 @@ async function exportLogs() {
   }
 }
 
-
 /**
  * Initialize the popup
  */
@@ -180,213 +175,201 @@ async function initialize() {
     // Check debug mode
     await checkDebugMode();
     
-    // Set up debug toggle
-    const debugToggle = document.getElementById('debug-toggle');
-    logger.log('debug', 'Debug toggle element:', debugToggle);
+    // Set up all event listeners using the improved pattern
+    setupEventListeners(elements);
     
-    if (debugToggle) {
-      // Remove any existing listeners by cloning and replacing
-      const newToggle = debugToggle.cloneNode(true);
-      if (debugToggle.parentNode) {
-        debugToggle.parentNode.replaceChild(newToggle, debugToggle);
-      }
-
-      // Add click listener to the new element
-      newToggle.addEventListener('click', () => {
-        logger.log('info', 'Debug toggle clicked');
-        const debugSection = document.getElementById('debug-section');
-        if (debugSection) {
-          const isVisible = debugSection.style.display === 'block';
-          debugSection.style.display = isVisible ? 'none' : 'block';
-          logger.log('debug', `Debug section visibility set to ${!isVisible}`);
-        } else {
-          logger.log('warn', 'Debug section element not found');
-        }
-      });
-      
-      logger.log('debug', 'Debug toggle event listener added');
-    } else {
-      logger.log('warn', 'Debug toggle element not found');
-    }
-    
-    // Set up debug buttons
-    const toggleDebugBtn = document.getElementById('toggle-debug-mode');
-    if (toggleDebugBtn) {
-      toggleDebugBtn.addEventListener('click', toggleDebugMode);
-      logger.log('debug', 'Toggle debug mode button initialized');
-    }
-    
-    const openDiagnosticBtn = document.getElementById('open-diagnostic-dashboard');
-    if (openDiagnosticBtn) {
-      openDiagnosticBtn.addEventListener('click', openDiagnosticDashboard);
-      logger.log('debug', 'Open diagnostic dashboard button initialized');
-    }
-    
-    const exportLogsBtn = document.getElementById('export-logs');
-    if (exportLogsBtn) {
-      exportLogsBtn.addEventListener('click', exportLogs);
-      logger.log('debug', 'Export logs button initialized');
-    }
-    
-    // Set up capture button
-    if (elements.captureBtn) {
-      logger.log('debug', 'Setting up capture button');
-      try {
-        setupCaptureButton(elements.captureBtn, captureCurrentTab, () => {
-          logger.log('info', 'Capture button success callback triggered');
-          loadRecentActivity();
-        });
-        logger.log('debug', 'Capture button setup completed');
-      } catch (error) {
-        logger.log('error', 'Error setting up capture button', error);
-      }
-    }
-
-    // Add explicit logging before each event listener setup
-    if (elements.dashboardBtn) {
-      logger.log('debug', 'Setting up dashboard button');
-      try {
-        // Check if the button exists and has a parent node
-        if (elements.dashboardBtn && elements.dashboardBtn.parentNode) {
-          // Remove any existing click listeners
-          const newBtn = elements.dashboardBtn.cloneNode(true);
-          elements.dashboardBtn.parentNode.replaceChild(newBtn, elements.dashboardBtn);
-          elements.dashboardBtn = newBtn;
-        }
-        
-        // Make sure elements.dashboardBtn is still valid
-        if (elements.dashboardBtn) {
-          elements.dashboardBtn.addEventListener('click', () => {
-            logger.log('info', 'Dashboard button clicked');
-            openDashboard();
-          });
-          logger.log('debug', 'Dashboard button setup completed');
-        } else {
-          logger.log('warn', 'Dashboard button not found or became invalid');
-        }
-      } catch (error) {
-        logger.log('error', 'Error setting up dashboard button', error);
-      }
-    }
-    
-    if (elements.analyzeBtn) {
-      logger.log('debug', 'Setting up analyze button');
-      try {
-        elements.analyzeBtn.addEventListener('click', () => {
-          logger.log('info', 'Analyze button clicked');
-          analyzeCurrentTab();
-        });
-        logger.log('debug', 'Analyze button setup completed');
-      } catch (error) {
-        logger.log('error', 'Error setting up analyze button', error);
-      }
-    }
-    
-
-    if (elements.optionsBtn) {
-      logger.log('debug', 'Setting up options button');
-      try {
-        elements.optionsBtn.addEventListener('click', () => {
-          logger.log('info', 'Dashboard button clicked');
-          openSettings();
-        });
-        logger.log('debug', 'Dashboard button setup completed');
-      } catch (error) {
-        logger.log('error', 'Error setting up dashboard button', error);
-      }
-    }
-  
-  
-  // Check online status
-  updateOnlineStatus();
-  
-  // Check authentication status
-  await checkAuthStatus();
-  
-  // Load and display active tasks
-  await refreshActiveTasks();
-  
-  // Load recent activity
-  await loadRecentActivity();
-  
-  // Set up refresh timer
-  setInterval(refreshActiveTasks, 2000);
-  
-  // Report network status to service worker
-  reportNetworkStatus();
-  
-  // Event listeners for network status
-  window.addEventListener('online', () => {
+    // Check online status
     updateOnlineStatus();
+    
+    // Check authentication status
+    await checkAuthStatus();
+    
+    // Load and display active tasks
+    await refreshActiveTasks();
+    
+    // Load recent activity
+    await loadRecentActivity();
+    
+    // Set up refresh timer
+    setInterval(refreshActiveTasks, 2000);
+    
+    // Report network status to service worker
     reportNetworkStatus();
-  });
-  
-  window.addEventListener('offline', () => {
-    updateOnlineStatus();
-    reportNetworkStatus();
-  });
-  
-  // Login form submission
-  if (authForm) {
-    authForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      logger.log('info', 'Login form submitted');
-      
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-      
-      const response = await sendMessageToBackground({
-        action: 'login',
-        username,
-        password
-      });
-      
-      logger.log('debug', 'Login response:', response);
-      
-      if (!response.success) {
-        alert('Login failed: ' + (response.error || 'Unknown error'));
-        logger.log('error', 'Login failed:', response.error || 'Unknown error');
-        return;
-      }
-      
-      checkAuthStatus();
+    
+    // Event listeners for network status
+    window.addEventListener('online', () => {
+      updateOnlineStatus();
+      reportNetworkStatus();
     });
-  }
-  
-  // Logout button
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      logger.log('info', 'Logout clicked');
-      
-      const response = await sendMessageToBackground({ action: 'logout' });
-      if (!response.success) {
-        logger.error('Logout error:', response.error);
-        return;
-      }
-      
-      checkAuthStatus();
+    
+    window.addEventListener('offline', () => {
+      updateOnlineStatus();
+      reportNetworkStatus();
     });
-  }
-  
-  // Related content button
-  if (relatedBtn) {
-    relatedBtn.addEventListener('click', () => {
-      logger.log('info', 'Related button clicked');
-      alert('Finding related content will be available in the next version.');
-    });
-  }
-  
-  // Query button
-  if (queryBtn) {
-    queryBtn.addEventListener('click', () => {
-      logger.log('info', 'Query button clicked');
-      alert('Ask Marvin functionality will be available in the next version.');
-    });
-  }} catch (error) {
+  } catch (error) {
     logger.log('error', 'Error in initialize function', error);
   }
 }
 
+/**
+ * Set up an event listener safely by cloning the element to remove existing listeners
+ * @param {string} elementId - ID of the element
+ * @param {string} eventType - Type of event (e.g., 'click')
+ * @param {function} handler - Event handler function
+ */
+function setupSafeEventListener(elementId, eventType, handler) {
+  const element = document.getElementById(elementId);
+  
+  if (!element) {
+    logger.log('warn', `Element with ID "${elementId}" not found`);
+    return;
+  }
+  
+  logger.log('debug', `Setting up ${eventType} listener for ${elementId}`);
+  
+  try {
+    // Clone the element to remove any existing listeners
+    const newElement = element.cloneNode(true);
+    if (element.parentNode) {
+      element.parentNode.replaceChild(newElement, element);
+    }
+    
+    // Add the event listener to the new element
+    newElement.addEventListener(eventType, handler);
+    logger.log('debug', `Successfully set up ${eventType} listener for ${elementId}`);
+  } catch (error) {
+    logger.log('error', `Error setting up ${eventType} listener for ${elementId}`, error);
+  }
+}
+
+/**
+ * Set up all event listeners using the safe pattern to prevent duplicate handlers
+ * @param {object} elements - UI elements object
+ */
+function setupEventListeners(elements) {
+  logger.log('info', 'Setting up event listeners');
+  
+  // Debug toggle
+  setupSafeEventListener('debug-toggle', 'click', () => {
+    logger.log('info', 'Debug toggle clicked');
+    const debugSection = document.getElementById('debug-section');
+    if (debugSection) {
+      const isVisible = debugSection.style.display === 'block';
+      debugSection.style.display = isVisible ? 'none' : 'block';
+      logger.log('debug', `Debug section visibility set to ${!isVisible}`);
+    } else {
+      logger.log('warn', 'Debug section element not found');
+    }
+  });
+  
+  // Debug mode toggle button
+  setupSafeEventListener('toggle-debug-mode', 'click', toggleDebugMode);
+  
+  // Diagnostic dashboard button
+  setupSafeEventListener('open-diagnostic-dashboard', 'click', openDiagnosticDashboard);
+  
+  // Export logs button
+  setupSafeEventListener('export-logs', 'click', exportLogs);
+  
+  // Dashboard button
+  setupSafeEventListener('open-dashboard-btn', 'click', () => {
+    logger.log('info', 'Dashboard button clicked');
+    openDashboard();
+  });
+  
+  // Analyze button
+  setupSafeEventListener('analyze-btn', 'click', () => {
+    logger.log('info', 'Analyze button clicked');
+    analyzeCurrentTab();
+  });
+  
+  // Options button
+  setupSafeEventListener('options-btn', 'click', () => {
+    logger.log('info', 'Options button clicked');
+    openSettings();
+  });
+  
+  // Related content button
+  setupSafeEventListener('related-btn', 'click', () => {
+    logger.log('info', 'Related button clicked');
+    alert('Finding related content will be available in the next version.');
+  });
+  
+  // Query button
+  setupSafeEventListener('query-btn', 'click', () => {
+    logger.log('info', 'Query button clicked');
+    alert('Ask Marvin functionality will be available in the next version.');
+  });
+  
+  // Capture button (using the existing utility function)
+  if (elements.captureBtn) {
+    logger.log('debug', 'Setting up capture button');
+    try {
+      setupCaptureButton(elements.captureBtn, captureCurrentTab, () => {
+        logger.log('info', 'Capture button success callback triggered');
+        loadRecentActivity();
+      });
+      logger.log('debug', 'Capture button setup completed');
+    } catch (error) {
+      logger.log('error', 'Error setting up capture button', error);
+    }
+  }
+  
+  // Authentication form submission
+  const authForm = document.getElementById('login-form');
+  if (authForm) {
+    logger.log('debug', 'Setting up auth form submission handler');
+    try {
+      // Clone the form to remove any existing listeners
+      const newForm = authForm.cloneNode(true);
+      if (authForm.parentNode) {
+        authForm.parentNode.replaceChild(newForm, authForm);
+      }
+      
+      // Add the submit event listener to the new form
+      newForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        logger.log('info', 'Login form submitted');
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        const response = await sendMessageToBackground({
+          action: 'login',
+          username,
+          password
+        });
+        
+        logger.log('debug', 'Login response:', response);
+        
+        if (!response.success) {
+          alert('Login failed: ' + (response.error || 'Unknown error'));
+          logger.log('error', 'Login failed:', response.error || 'Unknown error');
+          return;
+        }
+        
+        checkAuthStatus();
+      });
+      
+      logger.log('debug', 'Auth form submission handler set up successfully');
+    } catch (error) {
+      logger.log('error', 'Error setting up auth form submission handler', error);
+    }
+  }
+  
+  // Logout button
+  setupSafeEventListener('logout-btn', 'click', async () => {
+    logger.log('info', 'Logout clicked');
+    
+    const response = await sendMessageToBackground({ action: 'logout' });
+    if (!response.success) {
+      logger.error('Logout error:', response.error);
+      return;
+    }
+    
+    checkAuthStatus();
+  });
+}
 
 /**
  * Check online status
@@ -552,30 +535,6 @@ async function analyzeCurrentTab() {
   updateStatus('Analysis started', 'success');
   refreshActiveTasks();
 }
-
-
-// Track if dashboard is already being opened
-// let isDashboardOpening = false;
-
-// /**
-//  * Open the dashboard page
-//  */
-// function openDashboard() {
-//   // Prevent multiple dashboard tabs from opening
-//   if (isDashboardOpening) {
-//     console.log('Dashboard already opening, ignoring duplicate request');
-//     return;
-//   }
-  
-//   isDashboardOpening = true;
-  
-//   // Reset the flag after a short delay
-//   setTimeout(() => {
-//     isDashboardOpening = false;
-//   }, 2000);
-  
-//   chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard-minimal.html') });
-// }
 
 /**
  * Open the settings page
@@ -919,7 +878,6 @@ function formatTime(timestamp) {
   const date = new Date(timestamp);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
-
 
 // Initialize popup when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

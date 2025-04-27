@@ -87,14 +87,13 @@ function initNavigation() {
   
   try {
     debugLog('Initializing navigation');
-    navigationInitialized = true;
     
     const navItems = document.querySelectorAll('.nav-item');
     const contentPanels = document.querySelectorAll('.content-panel');
     
     debugLog(`Found nav items: ${navItems.length}, content panels: ${contentPanels.length}`);
     
-    // Debug: Log all nav items found
+    // Debug: Log all nav items and panels found
     if (navItems.length > 0) {
       navItems.forEach((item, index) => {
         const panelName = item.getAttribute('data-panel');
@@ -102,12 +101,20 @@ function initNavigation() {
       });
     }
     
+    if (contentPanels.length > 0) {
+      contentPanels.forEach((panel, index) => {
+        debugLog(`Content panel ${index}: id=${panel.id}, active=${panel.classList.contains('active')}`);
+      });
+    }
+    
     if (navItems.length === 0) {
       debugLog('WARNING: No navigation items found');
+      return; // Exit early if no nav items found
     }
     
     if (contentPanels.length === 0) {
       debugLog('WARNING: No content panels found');
+      return; // Exit early if no content panels found
     }
     
     // Set up click handlers for each navigation item
@@ -120,17 +127,6 @@ function initNavigation() {
         }
         
         debugLog(`Setting up click handler for nav item: ${panelName}`);
-        
-        // Debug: Test if the item is clickable
-        debugLog(`Nav item ${panelName} properties: `, {
-          tagName: item.tagName,
-          classList: Array.from(item.classList),
-          style: item.style.cssText,
-          disabled: item.disabled,
-          hidden: item.hidden,
-          display: window.getComputedStyle(item).display,
-          pointerEvents: window.getComputedStyle(item).pointerEvents
-        });
         
         // Remove any existing click handlers to avoid duplicates
         const newItem = item.cloneNode(true);
@@ -166,16 +162,6 @@ function initNavigation() {
       }
     });
     
-    // Add a global click handler to debug event propagation
-    document.addEventListener('click', (event) => {
-      const navItem = event.target.closest('.nav-item');
-      if (navItem) {
-        const panelName = navItem.getAttribute('data-panel');
-        const isInitialized = navItem.getAttribute('data-debug-initialized');
-        debugLog(`Global click detected near nav item: ${panelName}, initialized: ${isInitialized}`);
-      }
-    });
-    
     // Set default panel if none is active
     setTimeout(() => {
       debugLog('Checking for active panel');
@@ -196,6 +182,7 @@ function initNavigation() {
       }
     }, 100);
     
+    navigationInitialized = true;
     debugLog('Navigation initialization completed');
   } catch (error) {
     navigationInitialized = false;
@@ -204,7 +191,6 @@ function initNavigation() {
     showNotification('Error initializing navigation: ' + error.message, 'error');
   }
 }
-
 
 /**
  * Handle navigation to a specific panel
@@ -226,12 +212,17 @@ async function handleNavigation(targetPanel, navItems, contentPanels, clickedIte
     // Show corresponding panel
     debugLog('Showing corresponding panel');
     let panelFound = false;
+    
+    // The expected panel ID format is "{targetPanel}-panel"
+    const expectedPanelId = `${targetPanel}-panel`;
+    debugLog(`Looking for panel with ID: ${expectedPanelId}`);
+    
     contentPanels.forEach(panel => {
       const panelId = panel.id;
-      debugLog(`Checking panel: ${panelId} against target: ${targetPanel}-panel`);
+      debugLog(`Checking panel: ${panelId} against target: ${expectedPanelId}`);
       
-      if (panel.id === `${targetPanel}-panel`) {
-        debugLog(`Activating panel: ${panel.id}`);
+      if (panelId === expectedPanelId) {
+        debugLog(`Activating panel: ${panelId}`);
         panel.classList.add('active');
         panelFound = true;
         
@@ -252,11 +243,14 @@ async function handleNavigation(targetPanel, navItems, contentPanels, clickedIte
     
     if (!panelFound) {
       debugLog(`WARNING: Panel not found for target: ${targetPanel}`);
+      showNotification(`Panel not found: ${targetPanel}`, 'error');
     }
     
     // Initialize panel if needed
-    debugLog(`Initializing target panel: ${targetPanel}`);
-    await initializeTargetPanel(targetPanel);
+    if (panelFound) {
+      debugLog(`Initializing target panel: ${targetPanel}`);
+      await initializeTargetPanel(targetPanel);
+    }
     
     // Save last active panel to storage
     try {
@@ -274,7 +268,6 @@ async function handleNavigation(targetPanel, navItems, contentPanels, clickedIte
     throw error;
   }
 }
-
 
 /**
  * Initialize the target panel based on panel name
@@ -324,6 +317,13 @@ async function initializeTargetPanel(targetPanel) {
         await initTasksPanel();
         break;
         
+      // Handle the case where 'analysis' is used instead of 'tasks'
+      case 'analysis':
+        logger.info('Initializing analysis panel (redirecting to tasks) from navigation');
+        const { initTasksPanel: initAnalysisPanel } = await import('./tasks-panel.js');
+        await initAnalysisPanel();
+        break;
+        
       default:
         logger.warn(`Unknown panel type: ${targetPanel}`);
     }
@@ -333,114 +333,6 @@ async function initializeTargetPanel(targetPanel) {
     logger.error(`Error initializing panel ${targetPanel}:`, error);
     showNotification(`Error initializing ${targetPanel} panel: ${error.message}`, 'error');
     throw error;
-  }
-}
-
-/**
- * Debug function for capture button
- * @returns {void}
- */
-function debugCaptureButton() {
-  logger.debug('Debugging capture button');
-  
-  try {
-    const captureBtn = document.getElementById('capture-btn');
-    if (captureBtn) {
-      logger.debug('Capture button found, checking state');
-      logger.debug(`Button disabled: ${captureBtn.disabled}`);
-      logger.debug(`Button text: ${captureBtn.textContent}`);
-      logger.debug(`Button classes: ${captureBtn.className}`);
-    } else {
-      logger.warn('Capture button not found');
-    }
-  } catch (error) {
-    logger.error('Error debugging capture button:', error);
-  }
-}
-
-/**
- * Set up navigation between dashboard views
- * @returns {void}
- */
-function setupNavigation() {
-  logger.debug('Setting up navigation');
-  
-  try {
-    const navLinks = document.querySelectorAll('.nav-link');
-    
-    if (navLinks.length === 0) {
-      logger.warn('No navigation links found');
-      return;
-    }
-    
-    logger.debug(`Found ${navLinks.length} navigation links`);
-    
-    navLinks.forEach(link => {
-      try {
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
-          const view = e.target.dataset.view;
-          
-          if (view) {
-            logger.info('Changing view to', view);
-            changeView(view);
-          } else {
-            logger.warn('Navigation link clicked without data-view attribute');
-          }
-        });
-      } catch (linkError) {
-        logger.error('Error setting up navigation link:', linkError);
-      }
-    });
-    
-    logger.info('Navigation setup completed');
-  } catch (error) {
-    logger.error('Error setting up navigation:', error);
-    showNotification('Error setting up navigation: ' + error.message, 'error');
-  }
-}
-
-/**
- * Change the current view
- * @param {string} view - View name to change to
- * @returns {void}
- */
-function changeView(view) {
-  logger.debug(`Changing view to: ${view}`);
-  
-  try {
-    // Hide all views
-    document.querySelectorAll('.dashboard-view').forEach(el => {
-      el.classList.remove('active');
-    });
-    
-    // Show requested view
-    const targetView = document.getElementById(`${view}-view`);
-    if (targetView) {
-      targetView.classList.add('active');
-      logger.debug(`View changed to ${view}`);
-      
-      // Update navigation highlighting
-      document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.remove('active');
-        if (link.dataset.view === view) {
-          link.classList.add('active');
-        }
-      });
-      
-      // Save last active view to storage
-      try {
-        chrome.storage.local.set({ lastActiveView: view });
-      } catch (storageError) {
-        logger.warn('Error saving last active view:', storageError);
-      }
-    } else {
-      logger.error(`View not found: ${view}`);
-      showNotification(`View not found: ${view}`, 'error');
-    }
-  } catch (error) {
-    logger.error(`Error changing view to ${view}:`, error);
-    showNotification(`Error changing view: ${error.message}`, 'error');
   }
 }
 
@@ -458,19 +350,34 @@ function initTabs() {
   
   try {
     logger.info('Initializing tabs');
-    tabsInitialized = true;
     
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabPanes = document.querySelectorAll('.tab-pane');
     
     logger.debug(`Found tab buttons: ${tabButtons.length}, tab panes: ${tabPanes.length}`);
     
+    // Debug: Log all tab buttons and panes
+    if (tabButtons.length > 0) {
+      tabButtons.forEach((btn, index) => {
+        const tabName = btn.getAttribute('data-tab');
+        logger.debug(`Tab button ${index}: tab=${tabName}, text=${btn.textContent.trim()}`);
+      });
+    }
+    
+    if (tabPanes.length > 0) {
+      tabPanes.forEach((pane, index) => {
+        logger.debug(`Tab pane ${index}: id=${pane.id}, active=${pane.classList.contains('active')}`);
+      });
+    }
+    
     if (tabButtons.length === 0) {
       logger.warn('No tab buttons found');
+      return;
     }
     
     if (tabPanes.length === 0) {
       logger.warn('No tab panes found');
+      return;
     }
     
     tabButtons.forEach(button => {
@@ -483,10 +390,14 @@ function initTabs() {
         
         logger.debug(`Setting up click handler for tab: ${targetTab}`);
         
-        button.addEventListener('click', () => {
+        // Remove any existing click handlers to avoid duplicates
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        
+        newButton.addEventListener('click', () => {
           try {
             logger.debug(`Tab button clicked: ${targetTab}`);
-            handleTabChange(targetTab, tabButtons, tabPanes, button);
+            handleTabChange(targetTab, tabButtons, tabPanes, newButton);
           } catch (tabError) {
             logger.error(`Error handling tab change to ${targetTab}:`, tabError);
             showNotification(`Error changing tab: ${tabError.message}`, 'error');
@@ -506,6 +417,7 @@ function initTabs() {
       }
     }, 100);
     
+    tabsInitialized = true;
     logger.info('Tabs initialized successfully');
   } catch (error) {
     tabsInitialized = false;
@@ -532,8 +444,16 @@ function handleTabChange(targetTab, tabButtons, tabPanes, clickedButton) {
     
     // Show corresponding tab content
     let tabFound = false;
+    
+    // The expected tab pane ID format is "{targetTab}-content"
+    const expectedTabId = `${targetTab}-content`;
+    logger.debug(`Looking for tab pane with ID: ${expectedTabId}`);
+    
     tabPanes.forEach(pane => {
-      if (pane.id === `${targetTab}-content`) {
+      const paneId = pane.id;
+      logger.debug(`Checking tab pane: ${paneId} against target: ${expectedTabId}`);
+      
+      if (paneId === expectedTabId) {
         pane.classList.add('active');
         tabFound = true;
         
@@ -554,6 +474,21 @@ function handleTabChange(targetTab, tabButtons, tabPanes, clickedButton) {
     
     if (!tabFound) {
       logger.warn(`Tab pane not found for target: ${targetTab}`);
+      
+      // Try to find a tab pane with an ID that contains the target tab name
+      // This is a fallback for cases where the naming convention might be different
+      let fallbackFound = false;
+      tabPanes.forEach(pane => {
+        if (pane.id.includes(targetTab) && !fallbackFound) {
+          pane.classList.add('active');
+          fallbackFound = true;
+          logger.debug(`Used fallback: activated tab pane with ID ${pane.id} for target ${targetTab}`);
+        }
+      });
+      
+      if (!fallbackFound) {
+        logger.error(`No matching tab pane found for ${targetTab}, even with fallback`);
+      }
     }
     
     // Save last active tab to storage
@@ -594,37 +529,57 @@ async function restoreLastActivePanel() {
       if (navItem) {
         navItem.click();
         logger.debug(`Clicked nav item for ${lastActivePanel}`);
+        return true;
       } else {
         logger.warn(`Nav item for last active panel ${lastActivePanel} not found`);
         // Fall back to first panel
-        document.querySelector('.nav-item')?.click();
+        const firstNavItem = document.querySelector('.nav-item');
+        if (firstNavItem) {
+          firstNavItem.click();
+          logger.debug('Clicked first nav item as fallback');
+          return true;
+        }
       }
     } else {
       logger.debug('No last active panel found, using default');
       // Default to first panel
-      document.querySelector('.nav-item')?.click();
+      const firstNavItem = document.querySelector('.nav-item');
+      if (firstNavItem) {
+        firstNavItem.click();
+        logger.debug('Clicked first nav item as default');
+        return true;
+      }
     }
+    
+    return false;
   } catch (error) {
     logger.error('Error restoring last active panel:', error);
     
     // Fall back to first panel
     try {
-      document.querySelector('.nav-item')?.click();
+      const firstNavItem = document.querySelector('.nav-item');
+      if (firstNavItem) {
+        firstNavItem.click();
+        logger.debug('Clicked first nav item after error');
+        return true;
+      }
     } catch (fallbackError) {
       logger.error('Error activating fallback panel:', fallbackError);
     }
+    
+    return false;
   }
 }
 
 /**
  * Restore last active tab for a specific panel
  * @param {string} panelId - ID of the panel
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} - Whether restoration was successful
  */
 async function restoreLastActiveTab(panelId) {
   if (!panelId) {
     logger.warn('No panel ID provided for restoring last active tab');
-    return;
+    return false;
   }
   
   logger.debug(`Restoring last active tab for panel: ${panelId}`);
@@ -641,25 +596,45 @@ async function restoreLastActiveTab(panelId) {
       if (tabButton) {
         tabButton.click();
         logger.debug(`Clicked tab button for ${lastActiveTab}`);
+        return true;
       } else {
         logger.warn(`Tab button for last active tab ${lastActiveTab} not found in panel ${panelId}`);
         // Fall back to first tab in this panel
-        document.querySelector(`#${panelId} .tab-btn`)?.click();
+        const firstTabButton = document.querySelector(`#${panelId} .tab-btn`);
+        if (firstTabButton) {
+          firstTabButton.click();
+          logger.debug(`Clicked first tab button in panel ${panelId} as fallback`);
+          return true;
+        }
       }
     } else {
       logger.debug(`No last active tab found for panel ${panelId}, using default`);
       // Default to first tab in this panel
-      document.querySelector(`#${panelId} .tab-btn`)?.click();
+      const firstTabButton = document.querySelector(`#${panelId} .tab-btn`);
+      if (firstTabButton) {
+        firstTabButton.click();
+        logger.debug(`Clicked first tab button in panel ${panelId} as default`);
+        return true;
+      }
     }
+    
+    return false;
   } catch (error) {
     logger.error(`Error restoring last active tab for panel ${panelId}:`, error);
     
     // Fall back to first tab in this panel
     try {
-      document.querySelector(`#${panelId} .tab-btn`)?.click();
+      const firstTabButton = document.querySelector(`#${panelId} .tab-btn`);
+      if (firstTabButton) {
+        firstTabButton.click();
+        logger.debug(`Clicked first tab button in panel ${panelId} after error`);
+        return true;
+      }
     } catch (fallbackError) {
       logger.error(`Error activating fallback tab for panel ${panelId}:`, fallbackError);
     }
+    
+    return false;
   }
 }
 
@@ -858,24 +833,155 @@ function getActiveTab(panelId) {
   }
 }
 
-// Debug initialization
-(function() {
-  debugLog('Running immediate navigation debug check');
-  
-  // Check if DOM is ready
-  if (document.readyState === 'loading') {
-    debugLog('DOM still loading, adding DOMContentLoaded listener');
-    document.addEventListener('DOMContentLoaded', () => {
-      debugLog('DOM now loaded, checking navigation elements');
-      const navItems = document.querySelectorAll('.nav-item');
-      debugLog(`Found ${navItems.length} navigation items on DOMContentLoaded`);
-    });
-  } else {
-    debugLog('DOM already loaded, checking navigation elements immediately');
-    const navItems = document.querySelectorAll('.nav-item');
-    debugLog(`Found ${navItems.length} navigation items on immediate check`);
+/**
+ * Safely set up event listeners for navigation elements
+ * @param {string} selector - CSS selector for the element
+ * @param {string} eventType - Event type (e.g., 'click')
+ * @param {Function} handler - Event handler function
+ * @returns {boolean} - Whether the setup was successful
+ */
+function setupSafeEventListener(selector, eventType, handler) {
+  try {
+    const element = document.querySelector(selector);
+    if (!element) {
+      logger.warn(`Element not found for selector: ${selector}`);
+      return false;
+    }
+    
+    // Clone and replace to remove any existing listeners
+    const newElement = element.cloneNode(true);
+    element.parentNode.replaceChild(newElement, element);
+    
+    // Add the new event listener
+    newElement.addEventListener(eventType, handler);
+    logger.debug(`Event listener (${eventType}) set up for ${selector}`);
+    return true;
+  } catch (error) {
+    logger.error(`Error setting up event listener for ${selector}:`, error);
+    return false;
   }
-})();
+}
+
+/**
+ * Verify that all navigation items have corresponding panels
+ * @returns {Array} - Array of issues found
+ */
+function verifyNavigationStructure() {
+  logger.debug('Verifying navigation structure');
+  const issues = [];
+  
+  try {
+    // Check that all nav items have corresponding panels
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      const panelName = item.getAttribute('data-panel');
+      if (!panelName) {
+        issues.push(`Navigation item missing data-panel attribute: ${item.textContent.trim()}`);
+        return;
+      }
+      
+      const panel = document.getElementById(`${panelName}-panel`);
+      if (!panel) {
+        issues.push(`Panel not found for navigation item: ${panelName}`);
+      }
+    });
+    
+    // Check that all tab buttons have corresponding panes
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(button => {
+      const tabName = button.getAttribute('data-tab');
+      if (!tabName) {
+        issues.push(`Tab button missing data-tab attribute: ${button.textContent.trim()}`);
+        return;
+      }
+      
+      const tabPane = document.getElementById(`${tabName}-content`);
+      if (!tabPane) {
+        issues.push(`Tab pane not found for tab button: ${tabName}`);
+      }
+    });
+    
+    if (issues.length > 0) {
+      logger.warn('Navigation structure issues found:', issues);
+    } else {
+      logger.debug('Navigation structure verified successfully');
+    }
+    
+    return issues;
+  } catch (error) {
+    logger.error('Error verifying navigation structure:', error);
+    issues.push(`Error verifying structure: ${error.message}`);
+    return issues;
+  }
+}
+
+/**
+ * Fix common navigation structure issues
+ * @returns {boolean} - Whether fixes were applied
+ */
+function fixNavigationStructure() {
+  logger.info('Attempting to fix navigation structure issues');
+  let fixesApplied = false;
+  
+  try {
+    // Fix tab pane IDs that don't follow the expected format
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(button => {
+      const tabName = button.getAttribute('data-tab');
+      if (!tabName) return;
+      
+      // Look for tab panes that might have the wrong ID format
+      const expectedId = `${tabName}-content`;
+      const tabPane = document.getElementById(expectedId);
+      
+      if (!tabPane) {
+        // Try to find a tab pane with an ID that contains the tab name
+        const possiblePanes = document.querySelectorAll('.tab-pane');
+        possiblePanes.forEach(pane => {
+          if (pane.id.includes(tabName) && pane.id !== expectedId) {
+            logger.debug(`Fixing tab pane ID: ${pane.id} -> ${expectedId}`);
+            pane.id = expectedId;
+            fixesApplied = true;
+          }
+        });
+      }
+    });
+    
+    // Fix panel IDs that don't follow the expected format
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      const panelName = item.getAttribute('data-panel');
+      if (!panelName) return;
+      
+      // Look for panels that might have the wrong ID format
+      const expectedId = `${panelName}-panel`;
+      const panel = document.getElementById(expectedId);
+      
+      if (!panel) {
+        // Try to find a panel with an ID that contains the panel name
+        const possiblePanels = document.querySelectorAll('.content-panel');
+        possiblePanels.forEach(p => {
+          if (p.id.includes(panelName) && p.id !== expectedId) {
+            logger.debug(`Fixing panel ID: ${p.id} -> ${expectedId}`);
+            p.id = expectedId;
+            fixesApplied = true;
+          }
+        });
+      }
+    });
+    
+    if (fixesApplied) {
+      logger.info('Navigation structure fixes applied');
+    } else {
+      logger.debug('No navigation structure fixes needed');
+    }
+    
+    return fixesApplied;
+  } catch (error) {
+    logger.error('Error fixing navigation structure:', error);
+    return false;
+  }
+}
 
 // Periodically check if extension context is still valid
 let contextCheckInterval;
@@ -904,7 +1010,6 @@ startContextCheck();
 // Export functions needed by other modules
 export {
   initNavigation,
-  setupNavigation,
   initTabs,
   restoreLastActivePanel,
   restoreLastActiveTab,
@@ -913,5 +1018,8 @@ export {
   onPanelChange,
   onTabChange,
   getActivePanel,
-  getActiveTab
+  getActiveTab,
+  setupSafeEventListener,
+  verifyNavigationStructure,
+  fixNavigationStructure
 };
