@@ -10,14 +10,14 @@ self.addEventListener('error', event => {
 
 
 // Import dependencies
-import AuthManager from './auth-manager.js';
-import MarvinAPIClient from './api-client.js';
-import StateManager from './state-manager.js';
-import { captureUrl } from '../shared/utils/capture.js';
-import { AnalysisQueue } from './analysis-queue.js';
-import { ProgressTracker } from './progress-tracker.js';
-import { LogManager } from '../shared/utils/log-manager.js';
-import { captureCurrentTab } from '../shared/utils/capture.js';
+import AuthManager from '/background/auth-manager.js';
+import MarvinAPIClient from '/background/api-client.js';
+import StateManager from '/background/state-manager.js';
+import { captureUrl } from '/shared/utils/capture.js';
+import { AnalysisQueue } from '/background/analysis-queue.js';
+import { ProgressTracker } from '/background/progress-tracker.js';
+import { LogManager } from '/shared/utils/log-manager.js';
+import { captureCurrentTab } from '/shared/utils/capture.js';
 
 const originalSendMessage = chrome.runtime.sendMessage;
 chrome.runtime.sendMessage = function(message, responseCallback) {

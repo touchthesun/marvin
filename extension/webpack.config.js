@@ -9,6 +9,7 @@ module.exports = {
     options: './options/options.js',
     content: './content/content.js',
     dashboard: './dashboard/js/dashboard.js'
+    // Remove the components from entry points to avoid conflicts
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -59,7 +60,11 @@ module.exports = {
       '@shared': path.resolve(__dirname, 'shared'),
       '@dashboard': path.resolve(__dirname, 'dashboard'),
       '@background': path.resolve(__dirname, 'background'),
-      '@content': path.resolve(__dirname, 'content')
+      '@content': path.resolve(__dirname, 'content'),
+      // Add specific aliases for component paths
+      '@components': path.resolve(__dirname, 'dashboard/js/components'),
+      '@services': path.resolve(__dirname, 'dashboard/js/services'),
+      '@utils': path.resolve(__dirname, 'dashboard/js/utils')
     }
   },
   plugins: [
@@ -74,7 +79,18 @@ module.exports = {
         { from: 'options/options.css', to: 'options/options.css' },
         { from: 'dashboard/dashboard.css', to: 'dashboard/dashboard.css' },
         { from: 'dashboard/dashboard-minimal.html', to: 'dashboard/dashboard-minimal.html' },
+        
+        // Copy the entire shared utils directory
         { from: 'shared/utils', to: 'shared/utils' },
+        
+        // Copy dashboard component files explicitly
+        { from: 'dashboard/js/components', to: 'dashboard/js/components' },
+        
+        // Copy dashboard services
+        { from: 'dashboard/js/services', to: 'dashboard/js/services' },
+        
+        // Copy dashboard utilities
+        { from: 'dashboard/js/utils', to: 'dashboard/js/utils' },
       ],
     }),
     new HtmlWebpackPlugin({
@@ -96,6 +112,7 @@ module.exports = {
   // Special configuration for the background script
   optimization: {
     moduleIds: 'deterministic',
+    // Remove the splitChunks configuration that was causing conflicts
   },
   // Different output configuration for service workers
   target: ['web', 'es2020'],

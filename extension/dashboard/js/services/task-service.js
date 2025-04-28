@@ -1,7 +1,7 @@
 // services/task-service.js
-import { LogManager } from '../../../shared/utils/log-manager.js';
-import { showNotification, updateNotificationProgress } from './notification-service.js';
-import { fetchAPI } from './api-service.js';
+import { LogManager } from '/shared/utils/log-manager.js';
+import { showNotification, updateNotificationProgress } from '/dashboard/js/services/notification-service.js';
+import { fetchAPI } from '/dashboard/js/services/api-service.js';
 
 /**
  * Logger for task service operations

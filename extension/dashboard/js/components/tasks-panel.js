@@ -1,7 +1,7 @@
 // components/tasks-panel.js
-import { showNotification, updateNotificationProgress } from '../services/notification-service.js';
-import { truncateText } from '../components/capture-ui.js';
-import { LogManager } from '../../../shared/utils/log-manager.js';
+import { showNotification, updateNotificationProgress } from '/dashboard/js/services/notification-service.js';
+import { truncateText } from '/dashboard/js/components/capture-ui.js';
+import { LogManager } from '/shared/utils/log-manager.js';
 
 /**
  * Logger for tasks panel operations

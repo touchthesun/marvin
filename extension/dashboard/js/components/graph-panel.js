@@ -1,9 +1,9 @@
 // components/graph-panel.js
 import * as d3 from 'd3';
-import { LogManager } from '../../shared/utils/log-manager.js';
-import { fetchAPI } from '../services/api-service.js';
-import { showNotification } from '../services/notification-service.js';
-import { getSettings, incrementStatsCounter } from '../services/storage-service.js';
+import { LogManager } from '/shared/utils/log-manager.js';
+import { fetchAPI } from '/dashboard/js/services/api-service.js';
+import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { getSettings, incrementStatsCounter } from '/dashboard/js/services/storage-service.js';
 
 /**
  * Logger for graph panel operations
@@ -27,7 +27,7 @@ let graphData = {
  * Initialize graph panel
  * @returns {Promise<void>}
  */
-export async function initGraphPanel() {
+async function initGraphPanel() {
   if (graphInitialized) {
     logger.debug('Graph panel already initialized, skipping');
     return;
@@ -75,7 +75,7 @@ function setupResizeHandler() {
  * Loads and displays graph data from the API or falls back to generating from pages
  * @returns {Promise<void>}
  */
-export async function loadGraphData() {
+async function loadGraphData() {
   logger.info('Loading graph data');
   
   const graphContainer = document.querySelector('.graph-container');
@@ -792,7 +792,7 @@ async function loadRelatedItem(itemId) {
 /**
  * Clean up resources when the graph panel is unloaded
  */
-export function cleanupGraphPanel() {
+function cleanupGraphPanel() {
   // Stop any running simulations
   const simulation = d3.select('.graph-container svg').datum();
   if (simulation) {

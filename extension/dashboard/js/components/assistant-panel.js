@@ -1,7 +1,7 @@
 // components/assistant-panel.js
-import { fetchAPI } from '../services/api-service.js';
-import { LogManager } from '../../../shared/utils/log-manager.js';
-import { showNotification } from '../services/notification-service.js';
+import { fetchAPI } from '/dashboard/js/services/api-service.js';
+import { LogManager } from '/shared/utils/log-manager.js';
+import { showNotification } from '/dashboard/js/services/notification-service.js';
 
 
 const logger = new LogManager({

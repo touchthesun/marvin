@@ -1,11 +1,11 @@
 // components/capture-panel.js
-import { showNotification, updateNotificationProgress } from '../services/notification-service.js';
-import { LogManager } from '../../../shared/utils/log-manager.js';
+import { showNotification, updateNotificationProgress } from '/dashboard/js/services/notification-service.js';
+import { LogManager } from '/shared/utils/log-manager.js';
 import { 
   captureUrl, 
   captureBatch, 
   setupCaptureButton 
-} from '../../../shared/utils/capture.js';
+} from '/shared/utils/capture.js';
 
 // Import the new modular components
 
@@ -13,17 +13,17 @@ import {
   getSelectedTabs,
   initTabsCapture,
   extractTabContent
- } from './tabs-capture.js';
+ } from '/dashboard/js/components/tabs-capture.js';
 
 import { 
   initBookmarksCapture, 
   getSelectedBookmarks 
-} from './bookmarks-capture.js';
+} from '/dashboard/js/components/bookmarks-capture.js';
 
 import { 
   initHistoryCapture, 
   getSelectedHistoryItems 
-} from './history-capture.js';
+} from '/dashboard/js/components/history-capture.js';
 
 /**
  * Logger for capture panel operations

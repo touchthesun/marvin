@@ -1,6 +1,6 @@
 // components/capture/capture-utils.js
-import { LogManager } from '../../../shared/utils/log-manager.js';
-import { ProgressTracker } from '../../../shared/utils/progress-tracker.js';
+import { LogManager } from '/shared/utils/log-manager.js';
+import { ProgressTracker } from '/shared/utils/progress-tracker.js';
 
 /**
  * Logger for capture utilities

@@ -256,7 +256,7 @@
         updateStatus('Testing navigation module...');
         
         try {
-          const result = await diagnostics.testModuleLoading('./js/components/navigation.js');
+          const result = await diagnostics.testModuleLoading('/dashboard/js/components/navigation.js');
           
           if (result.success) {
             logResult(`Navigation module loaded successfully in ${result.loadTime.toFixed(2)}ms`);
@@ -275,7 +275,7 @@
         updateStatus('Testing Overview panel...');
         
         try {
-          const result = await diagnostics.testModuleLoading('./js/components/overview-panel.js');
+          const result = await diagnostics.testModuleLoading('dashboard/js/components/overview-panel.js');
           
           if (result.success) {
             logResult(`Overview panel loaded successfully in ${result.loadTime.toFixed(2)}ms`);

@@ -1,11 +1,12 @@
 // utils/ui-utils.js
-import { LogManager } from '../../../shared/utils/log-manager.js';
+import { LogManager } from '/shared/utils/log-manager.js';
 import { initOverviewPanel } from '../components/overview-panel.js';
 import { initCapturePanel } from '../components/capture-panel.js';
 import { initKnowledgePanel, initKnowledgeGraph } from '../components/knowledge-panel.js';
 import { initAssistantPanel } from '../components/assistant-panel.js';
 import { initSettingsPanel } from '../components/settings-panel.js';
 import { initTasksPanel } from '../components/tasks-panel.js';
+import { loadGraphData } from '../components/graph-panel.js';
 
 const logger = new LogManager({
   isBackgroundScript: false,

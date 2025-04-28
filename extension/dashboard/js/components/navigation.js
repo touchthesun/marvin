@@ -1,6 +1,8 @@
-// components/navigation.js
-import { LogManager } from '../../../shared/utils/log-manager.js';
-import { showNotification } from '../services/notification-service.js';
+// dashboard/js/components/navigation.js
+
+import { LogManager } from '/shared/utils/log-manager.js';
+import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { componentStubs } from '/dashboard/js/utils/component-loader.js';
 
 // Debug flag - set to true to enable verbose debugging
 const DEBUG_NAVIGATION = true;
@@ -11,6 +13,127 @@ function debugLog(message, ...args) {
     // Use the native console directly to avoid any LogManager issues
     const originalConsoleLog = console.log;
     originalConsoleLog.call(console, `[NAV DEBUG] ${message}`, ...args);
+  }
+}
+
+// Immediately log that the navigation module is loaded
+debugLog('Navigation module loaded');
+
+/**
+ * Logger for navigation operations
+ * @type {LogManager}
+ */
+const logger = new LogManager({
+  isBackgroundScript: false,
+  context: 'navigation',
+  storageKey: 'marvin_navigation_logs',
+  maxEntries: 1000
+});
+
+// Initialization flags
+let navigationInitialized = false;
+let tabsInitialized = false;
+
+
+/**
+ * Initialize the target panel based on panel name
+ * @param {string} targetPanel - Panel name to initialize
+ * @returns {Promise<void>}
+ */
+async function initializeTargetPanel(targetPanel) {
+  logger.debug(`Initializing panel: ${targetPanel}`);
+  
+  try {
+    const componentName = `${targetPanel}-panel`;
+    
+    // First check the global component registry
+    if (window.MarvinComponents && window.MarvinComponents[componentName]) {
+      const component = window.MarvinComponents[componentName];
+      logger.debug(`Using registered component for ${componentName}`);
+      await callInitFunction(targetPanel, component);
+      return;
+    }
+    
+    // If not in registry, use stub implementation
+    if (componentStubs[componentName]) {
+      logger.warn(`Component ${componentName} not found in registry, using stub`);
+      await callInitFunction(targetPanel, componentStubs[componentName]);
+      return;
+    }
+    
+    // No stub available
+    logger.error(`No implementation or stub available for ${componentName}`);
+    showNotification(`Panel ${targetPanel} could not be loaded`, 'error');
+  } catch (error) {
+    logger.error(`Error initializing panel ${targetPanel}:`, error);
+    showNotification(`Error initializing panel ${targetPanel}: ${error.message}`, 'error');
+  }
+}
+
+/**
+ * Call the appropriate initialization function from a module
+ * @param {string} panelName - Name of the panel
+ * @param {Object} module - The component implementation
+ * @returns {Promise<void>}
+ */
+async function callInitFunction(panelName, module) {
+  try {
+    // Determine which init function to call based on panel name
+    switch (panelName) {
+      case 'overview':
+        if (typeof module.initOverviewPanel === 'function') {
+          await module.initOverviewPanel();
+        }
+        break;
+        
+      case 'capture':
+        if (typeof module.initCapturePanel === 'function') {
+          await module.initCapturePanel();
+        }
+        break;
+        
+      case 'knowledge':
+        if (typeof module.initKnowledgePanel === 'function') {
+          await module.initKnowledgePanel();
+        }
+        if (typeof module.initKnowledgeGraph === 'function') {
+          await module.initKnowledgeGraph();
+        }
+        break;
+        
+      case 'assistant':
+        if (typeof module.initAssistantPanel === 'function') {
+          await module.initAssistantPanel();
+        }
+        break;
+        
+      case 'settings':
+        if (typeof module.initSettingsPanel === 'function') {
+          await module.initSettingsPanel();
+        }
+        break;
+        
+      case 'tasks':
+      case 'analysis':
+        if (typeof module.initTasksPanel === 'function') {
+          await module.initTasksPanel();
+        }
+        break;
+        
+      default:
+        // Try to find a generic init function
+        const initFunctionName = `init${panelName.charAt(0).toUpperCase() + panelName.slice(1)}Panel`;
+        if (typeof module[initFunctionName] === 'function') {
+          await module[initFunctionName]();
+        } else {
+          logger.warn(`No initialization function found for panel: ${panelName}`);
+        }
+    }
+    
+    logger.debug(`Panel ${panelName} initialized successfully`);
+  } catch (error) {
+    logger.error(`Error calling init function for ${panelName}:`, error);
+    throw error;
   }
 }
 
@@ -44,24 +167,6 @@ function handleExtensionContextError() {
     // At this point, only a page reload or extension reload will help
   }
 }
-
-// Immediately log that the navigation module is loaded
-debugLog('Navigation module loaded');
-
-/**
- * Logger for navigation operations
- * @type {LogManager}
- */
-const logger = new LogManager({
-  isBackgroundScript: false,
-  context: 'navigation',
-  storageKey: 'marvin_navigation_logs',
-  maxEntries: 1000
-});
-
-// Initialization flags
-let navigationInitialized = false;
-let tabsInitialized = false;
 
 /**
  * Initialize navigation system for the dashboard
@@ -148,6 +253,10 @@ function initNavigation() {
             debugLog(`ERROR handling navigation to ${panelName}:`, navError);
             logger.error(`Error handling navigation to ${panelName}:`, navError);
             showNotification(`Error navigating to ${panelName}: ${navError.message}`, 'error');
+            
+            // Try fallback navigation (just show the panel without initialization)
+            debugLog(`Attempting fallback navigation to ${panelName}`);
+            fallbackNavigation(panelName, navItems, contentPanels);
           }
         });
         
@@ -189,6 +298,57 @@ function initNavigation() {
     debugLog('ERROR initializing navigation:', error);
     logger.error('Error initializing navigation:', error);
     showNotification('Error initializing navigation: ' + error.message, 'error');
+  }
+}
+
+/**
+ * Fallback navigation - simply show the panel without initialization
+ * @param {string} targetPanel - Name of the panel to show
+ * @param {NodeList} navItems - All navigation items
+ * @param {NodeList} contentPanels - All content panels
+ */
+function fallbackNavigation(targetPanel, navItems, contentPanels) {
+  debugLog(`FALLBACK: Simple navigation to ${targetPanel}`);
+  
+  try {
+    // Update navigation highlighting
+    navItems.forEach(navItem => navItem.classList.remove('active'));
+    const clickedItem = document.querySelector(`.nav-item[data-panel="${targetPanel}"]`);
+    if (clickedItem) {
+      clickedItem.classList.add('active');
+    }
+    
+    // Show the target panel and hide others
+    contentPanels.forEach(panel => {
+      if (panel.id === `${targetPanel}-panel`) {
+        panel.classList.add('active');
+        debugLog(`FALLBACK: Showing panel ${panel.id}`);
+        
+        // Add a message to the panel indicating fallback mode
+        const messageEl = document.createElement('div');
+        messageEl.className = 'fallback-navigation-message';
+        messageEl.style.cssText = 'margin: 20px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; color: #856404;';
+        messageEl.innerHTML = `
+          <h3>Panel Loaded in Fallback Mode</h3>
+          <p>The ${targetPanel} panel has been loaded without full initialization due to module loading errors.</p>
+          <p>Some functionality may be limited. Check the browser console for more details.</p>
+        `;
+        
+        // Add the message as the first child after the header
+        const header = panel.querySelector('.panel-header');
+        if (header && header.nextSibling) {
+          panel.insertBefore(messageEl, header.nextSibling);
+        } else {
+          panel.appendChild(messageEl);
+        }
+      } else {
+        panel.classList.remove('active');
+      }
+    });
+    
+    debugLog(`FALLBACK: Navigation to ${targetPanel} completed`);
+  } catch (error) {
+    debugLog(`ERROR in fallback navigation to ${targetPanel}:`, error);
   }
 }
 
@@ -265,73 +425,6 @@ async function handleNavigation(targetPanel, navItems, contentPanels, clickedIte
   } catch (error) {
     debugLog(`ERROR in handleNavigation for ${targetPanel}:`, error);
     logger.error(`Error in handleNavigation for ${targetPanel}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Initialize the target panel based on panel name
- * @param {string} targetPanel - Panel name to initialize
- * @returns {Promise<void>}
- */
-async function initializeTargetPanel(targetPanel) {
-  logger.debug(`Initializing panel: ${targetPanel}`);
-  
-  try {
-    switch (targetPanel) {
-      case 'overview':
-        logger.info('Initializing overview panel from navigation');
-        // Dynamically import to avoid circular dependencies
-        const { initOverviewPanel } = await import('./overview-panel.js');
-        await initOverviewPanel();
-        break;
-        
-      case 'capture':
-        logger.info('Initializing capture panel from navigation');
-        const { initCapturePanel } = await import('./capture-panel.js');
-        await initCapturePanel();
-        break;
-        
-      case 'knowledge':
-        logger.info('Initializing knowledge panel from navigation');
-        const knowledgeModule = await import('./knowledge-panel.js');
-        await knowledgeModule.initKnowledgePanel();
-        await knowledgeModule.initKnowledgeGraph();
-        break;
-        
-      case 'assistant':
-        logger.info('Initializing assistant panel from navigation');
-        const { initAssistantPanel } = await import('./assistant-panel.js');
-        await initAssistantPanel();
-        break;
-        
-      case 'settings':
-        logger.info('Initializing settings panel from navigation');
-        const { initSettingsPanel } = await import('./settings-panel.js');
-        await initSettingsPanel();
-        break;
-        
-      case 'tasks':
-        logger.info('Initializing tasks panel from navigation');
-        const { initTasksPanel } = await import('./tasks-panel.js');
-        await initTasksPanel();
-        break;
-        
-      // Handle the case where 'analysis' is used instead of 'tasks'
-      case 'analysis':
-        logger.info('Initializing analysis panel (redirecting to tasks) from navigation');
-        const { initTasksPanel: initAnalysisPanel } = await import('./tasks-panel.js');
-        await initAnalysisPanel();
-        break;
-        
-      default:
-        logger.warn(`Unknown panel type: ${targetPanel}`);
-    }
-    
-    logger.debug(`Panel ${targetPanel} initialized successfully`);
-  } catch (error) {
-    logger.error(`Error initializing panel ${targetPanel}:`, error);
-    showNotification(`Error initializing ${targetPanel} panel: ${error.message}`, 'error');
     throw error;
   }
 }
@@ -704,308 +797,17 @@ async function navigateToTab(panelName, tabName) {
   }
 }
 
-/**
- * Register a callback for panel navigation events
- * @param {Function} callback - Function to call when navigation occurs
- * @returns {Function} Function to remove the listener
- */
-function onPanelChange(callback) {
-  logger.debug('Registering panel change callback');
-  
-  if (typeof callback !== 'function') {
-    logger.error('Invalid callback provided to onPanelChange');
-    return () => {}; // Return no-op removal function
-  }
-  
-  try {
-    // Create event listener function
-    const handlePanelChange = (event) => {
-      if (event.detail && event.detail.panelId) {
-        callback(event.detail.panelId, event.detail);
-      }
-    };
-    
-    // Add listener for custom event
-    document.addEventListener('panelChanged', handlePanelChange);
-    
-    // Return function to remove listener
-    return () => {
-      document.removeEventListener('panelChanged', handlePanelChange);
-      logger.debug('Panel change callback removed');
-    };
-  } catch (error) {
-    logger.error('Error setting up panel change callback:', error);
-    return () => {}; // Return no-op removal function
-  }
+// Register this component in the global registry
+if (window.registerComponent) {
+  window.registerComponent('navigation', {
+    initNavigation,
+    initTabs,
+    restoreLastActivePanel,
+    restoreLastActiveTab,
+    navigateToPanel,
+    navigateToTab
+  });
 }
-
-/**
- * Register a callback for tab change events
- * @param {Function} callback - Function to call when tab changes
- * @returns {Function} Function to remove the listener
- */
-function onTabChange(callback) {
-  logger.debug('Registering tab change callback');
-  
-  if (typeof callback !== 'function') {
-    logger.error('Invalid callback provided to onTabChange');
-    return () => {}; // Return no-op removal function
-  }
-  
-  try {
-    // Create event listener function
-    const handleTabChange = (event) => {
-      if (event.detail && event.detail.tabId) {
-        callback(event.detail.tabId, event.detail);
-      }
-    };
-    
-    // Add listener for custom event
-    document.addEventListener('tabActivated', handleTabChange);
-    
-    // Return function to remove listener
-    return () => {
-      document.removeEventListener('tabActivated', handleTabChange);
-      logger.debug('Tab change callback removed');
-    };
-  } catch (error) {
-    logger.error('Error setting up tab change callback:', error);
-    return () => {}; // Return no-op removal function
-  }
-}
-
-/**
- * Get the currently active panel
- * @returns {string|null} ID of the active panel or null if none found
- */
-function getActivePanel() {
-  try {
-    const activePanel = document.querySelector('.content-panel.active');
-    if (activePanel) {
-      const panelId = activePanel.id.replace('-panel', '');
-      logger.debug(`Active panel: ${panelId}`);
-      return panelId;
-    }
-    
-    logger.debug('No active panel found');
-    return null;
-  } catch (error) {
-    logger.error('Error getting active panel:', error);
-    return null;
-  }
-}
-
-/**
- * Get the currently active tab within a panel
- * @param {string} [panelId] - ID of the panel (uses active panel if not provided)
- * @returns {string|null} ID of the active tab or null if none found
- */
-function getActiveTab(panelId) {
-  try {
-    // If no panel ID provided, use the active panel
-    if (!panelId) {
-      const activePanel = document.querySelector('.content-panel.active');
-      if (!activePanel) {
-        logger.debug('No active panel found');
-        return null;
-      }
-      panelId = activePanel.id;
-    } else {
-      // Ensure panel ID has the -panel suffix
-      if (!panelId.endsWith('-panel')) {
-        panelId = `${panelId}-panel`;
-      }
-    }
-    
-    // Find active tab in the specified panel
-    const activeTab = document.querySelector(`#${panelId} .tab-pane.active`);
-    if (activeTab) {
-      const tabId = activeTab.id.replace('-content', '');
-      logger.debug(`Active tab in panel ${panelId}: ${tabId}`);
-      return tabId;
-    }
-    
-    logger.debug(`No active tab found in panel ${panelId}`);
-    return null;
-  } catch (error) {
-    logger.error(`Error getting active tab for panel ${panelId}:`, error);
-    return null;
-  }
-}
-
-/**
- * Safely set up event listeners for navigation elements
- * @param {string} selector - CSS selector for the element
- * @param {string} eventType - Event type (e.g., 'click')
- * @param {Function} handler - Event handler function
- * @returns {boolean} - Whether the setup was successful
- */
-function setupSafeEventListener(selector, eventType, handler) {
-  try {
-    const element = document.querySelector(selector);
-    if (!element) {
-      logger.warn(`Element not found for selector: ${selector}`);
-      return false;
-    }
-    
-    // Clone and replace to remove any existing listeners
-    const newElement = element.cloneNode(true);
-    element.parentNode.replaceChild(newElement, element);
-    
-    // Add the new event listener
-    newElement.addEventListener(eventType, handler);
-    logger.debug(`Event listener (${eventType}) set up for ${selector}`);
-    return true;
-  } catch (error) {
-    logger.error(`Error setting up event listener for ${selector}:`, error);
-    return false;
-  }
-}
-
-/**
- * Verify that all navigation items have corresponding panels
- * @returns {Array} - Array of issues found
- */
-function verifyNavigationStructure() {
-  logger.debug('Verifying navigation structure');
-  const issues = [];
-  
-  try {
-    // Check that all nav items have corresponding panels
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
-      const panelName = item.getAttribute('data-panel');
-      if (!panelName) {
-        issues.push(`Navigation item missing data-panel attribute: ${item.textContent.trim()}`);
-        return;
-      }
-      
-      const panel = document.getElementById(`${panelName}-panel`);
-      if (!panel) {
-        issues.push(`Panel not found for navigation item: ${panelName}`);
-      }
-    });
-    
-    // Check that all tab buttons have corresponding panes
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    tabButtons.forEach(button => {
-      const tabName = button.getAttribute('data-tab');
-      if (!tabName) {
-        issues.push(`Tab button missing data-tab attribute: ${button.textContent.trim()}`);
-        return;
-      }
-      
-      const tabPane = document.getElementById(`${tabName}-content`);
-      if (!tabPane) {
-        issues.push(`Tab pane not found for tab button: ${tabName}`);
-      }
-    });
-    
-    if (issues.length > 0) {
-      logger.warn('Navigation structure issues found:', issues);
-    } else {
-      logger.debug('Navigation structure verified successfully');
-    }
-    
-    return issues;
-  } catch (error) {
-    logger.error('Error verifying navigation structure:', error);
-    issues.push(`Error verifying structure: ${error.message}`);
-    return issues;
-  }
-}
-
-/**
- * Fix common navigation structure issues
- * @returns {boolean} - Whether fixes were applied
- */
-function fixNavigationStructure() {
-  logger.info('Attempting to fix navigation structure issues');
-  let fixesApplied = false;
-  
-  try {
-    // Fix tab pane IDs that don't follow the expected format
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    tabButtons.forEach(button => {
-      const tabName = button.getAttribute('data-tab');
-      if (!tabName) return;
-      
-      // Look for tab panes that might have the wrong ID format
-      const expectedId = `${tabName}-content`;
-      const tabPane = document.getElementById(expectedId);
-      
-      if (!tabPane) {
-        // Try to find a tab pane with an ID that contains the tab name
-        const possiblePanes = document.querySelectorAll('.tab-pane');
-        possiblePanes.forEach(pane => {
-          if (pane.id.includes(tabName) && pane.id !== expectedId) {
-            logger.debug(`Fixing tab pane ID: ${pane.id} -> ${expectedId}`);
-            pane.id = expectedId;
-            fixesApplied = true;
-          }
-        });
-      }
-    });
-    
-    // Fix panel IDs that don't follow the expected format
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
-      const panelName = item.getAttribute('data-panel');
-      if (!panelName) return;
-      
-      // Look for panels that might have the wrong ID format
-      const expectedId = `${panelName}-panel`;
-      const panel = document.getElementById(expectedId);
-      
-      if (!panel) {
-        // Try to find a panel with an ID that contains the panel name
-        const possiblePanels = document.querySelectorAll('.content-panel');
-        possiblePanels.forEach(p => {
-          if (p.id.includes(panelName) && p.id !== expectedId) {
-            logger.debug(`Fixing panel ID: ${p.id} -> ${expectedId}`);
-            p.id = expectedId;
-            fixesApplied = true;
-          }
-        });
-      }
-    });
-    
-    if (fixesApplied) {
-      logger.info('Navigation structure fixes applied');
-    } else {
-      logger.debug('No navigation structure fixes needed');
-    }
-    
-    return fixesApplied;
-  } catch (error) {
-    logger.error('Error fixing navigation structure:', error);
-    return false;
-  }
-}
-
-// Periodically check if extension context is still valid
-let contextCheckInterval;
-function startContextCheck() {
-  debugLog('Starting extension context validity check');
-  
-  if (contextCheckInterval) {
-    clearInterval(contextCheckInterval);
-  }
-  
-  contextCheckInterval = setInterval(() => {
-    try {
-      chrome.runtime.getURL('');
-      // Context is still valid
-    } catch (e) {
-      debugLog('Extension context has become invalid');
-      handleExtensionContextError();
-      clearInterval(contextCheckInterval);
-    }
-  }, 5000); // Check every 5 seconds
-}
-
-// Start the context check
-startContextCheck();
 
 // Export functions needed by other modules
 export {
@@ -1014,12 +816,5 @@ export {
   restoreLastActivePanel,
   restoreLastActiveTab,
   navigateToPanel,
-  navigateToTab,
-  onPanelChange,
-  onTabChange,
-  getActivePanel,
-  getActiveTab,
-  setupSafeEventListener,
-  verifyNavigationStructure,
-  fixNavigationStructure
+  navigateToTab
 };

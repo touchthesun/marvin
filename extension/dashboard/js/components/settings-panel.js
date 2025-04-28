@@ -1,7 +1,7 @@
 // components/settings-panel.js
-import { showNotification } from '../services/notification-service.js';
-import { showSaveConfirmation } from '../utils/ui-utils.js';
-import { LogManager } from '../../../shared/utils/log-manager.js';
+import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { showSaveConfirmation } from '/dashboard/js/utils/ui-utils.js';
+import { LogManager } from '/shared/utils/log-manager.js';
 
 /**
  * Logger for settings panel operations

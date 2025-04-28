@@ -1,33 +1,30 @@
 // dashboard.js - Main entry point for the Marvin dashboard
-import { LogManager } from '../../shared/utils/log-manager.js';
-import { showNotification } from './services/notification-service.js';
+import { LogManager } from '/shared/utils/log-manager.js';
+import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { safeImport, getModuleStatus, clearModuleCache } from '/dashboard/js/utils/module-loader.js';
 
 // Import services
-import { initStorageService, getActiveState } from './services/storage-service.js';
-import { setupStatusMonitoring } from './services/status-service.js';
-import { initTaskService } from './services/task-service.js';
-
-// Import UI components
-import { 
-  initNavigation, 
-  initTabs, 
-  restoreLastActivePanel, 
-  restoreLastActiveTab,
-  navigateToPanel
-} from './components/navigation.js';
-
-import { initOverviewPanel } from './components/overview-panel.js';
-import { initCapturePanel } from './components/capture-panel.js';
-import { initKnowledgePanel, initKnowledgeGraph } from './components/knowledge-panel.js';
-import { initAssistantPanel } from './components/assistant-panel.js';
-import { initSettingsPanel } from './components/settings-panel.js';
-import { initTasksPanel } from './components/tasks-panel.js';
-import { setupForceInitButtons, setupTabSwitching } from './utils/ui-utils.js';
-import { initNavigationDebug } from './utils/navigation-debug.js';
+import { initStorageService, getActiveState } from '/dashboard/js/services/storage-service.js';
+import { setupStatusMonitoring } from '/dashboard/js/services/status-service.js';
+import { initTaskService } from '/dashboard/js/services/task-service.js';
 
 // Safety mechanism to prevent infinite loops or excessive resource usage
 let initializationAttempts = 0;
 const MAX_INITIALIZATION_ATTEMPTS = 3;
+
+// Debug flag
+const DEBUG_MODE = true;
+
+/**
+ * Debug logging function
+ */
+function debugLog(message, ...args) {
+  if (DEBUG_MODE) {
+    console.log(`[DASHBOARD] ${message}`, ...args);
+  }
+}
+
+debugLog('Dashboard script loaded');
 
 /**
  * Logger for dashboard operations
@@ -45,6 +42,9 @@ let dashboardInitialized = false;
 let servicesInitialized = false;
 let uiInitialized = false;
 let panelHandlersRegistered = false;
+
+// Components cache
+const componentsCache = new Map();
 
 /**
  * Dashboard initialization function 
@@ -68,14 +68,41 @@ async function initDashboard() {
   showNotification('Initializing dashboard...', 'info');
   
   try {
+    // First try to load the navigation component which is critical
+    debugLog('Loading navigation component...');
+    
+    const navigationModule = await safeImport('navigation', { 
+      type: 'component'
+    });
+
+    if (!navigationModule || !navigationModule.initNavigation) {
+      debugLog(`Navigation module exports: ${navigationModule ? Object.keys(navigationModule).join(', ') : 'null'}`);
+      throw new Error('Critical navigation component could not be loaded');
+    }
+    
+    debugLog('Navigation component loaded successfully');
+    
     // Initialize navigation debug tools
-    initNavigationDebug();
+    debugLog('Loading navigation debug tools...');
+    try {
+      const navDebugModule = await safeImport('navigation-debug', { type: 'util' });
+      
+      if (navDebugModule && navDebugModule.initNavigationDebug) {
+        navDebugModule.initNavigationDebug();
+        debugLog('Navigation debug tools loaded successfully');
+      } else {
+        debugLog('Navigation debug tools not found, continuing without them');
+      }
+    } catch (navDebugError) {
+      debugLog('Error loading navigation debug tools:', navDebugError);
+      // Continue without navigation debug tools
+    }
     
     // First initialize services
     await initServices();
     
-    // Then initialize UI
-    await initUI();
+    // Then initialize UI with the loaded navigation module
+    await initUI(navigationModule);
     
     // Register panel activation handlers
     if (!panelHandlersRegistered) {
@@ -128,9 +155,10 @@ async function initServices() {
 
 /**
  * Initialize UI components
+ * @param {Object} navigationModule - The loaded navigation module
  * @returns {Promise<void>}
  */
-async function initUI() {
+async function initUI(navigationModule) {
   if (uiInitialized) {
     logger.debug('UI already initialized, skipping');
     return;
@@ -141,24 +169,37 @@ async function initUI() {
   try {
     // Initialize navigation system first
     logger.debug('Initializing navigation system');
-    initNavigation();
+    navigationModule.initNavigation();
     
     // Initialize tabs system
     logger.debug('Initializing tabs system');
-    initTabs();
+    navigationModule.initTabs();
     
     // Set up utility functions
-    logger.debug('Setting up utility functions');
-    setupForceInitButtons();
-    setupTabSwitching();
+    logger.debug('Loading UI utilities...');
+    const uiUtilsModule = await safeImport('ui-utils', { type: 'util' });
+    
+    if (uiUtilsModule) {
+      if (uiUtilsModule.setupForceInitButtons) {
+        uiUtilsModule.setupForceInitButtons();
+      }
+      
+      if (uiUtilsModule.setupTabSwitching) {
+        uiUtilsModule.setupTabSwitching();
+      }
+      
+      debugLog('UI utilities loaded successfully');
+    } else {
+      debugLog('UI utilities not found, continuing without them');
+    }
     
     // Initialize the overview panel immediately since it's the default
     logger.debug('Pre-initializing overview panel');
-    await initOverviewPanel();
+    await loadAndInitializePanel('overview');
     
     // Restore last active panel and tab
     logger.debug('Restoring navigation state');
-    await restoreNavigation();
+    await restoreNavigation(navigationModule);
     
     uiInitialized = true;
     logger.info('UI components initialized successfully');
@@ -203,9 +244,10 @@ function registerPanelHandlers() {
 
 /**
  * Restore navigation state
+ * @param {Object} navigationModule - The loaded navigation module
  * @returns {Promise<void>}
  */
-async function restoreNavigation() {
+async function restoreNavigation(navigationModule) {
   try {
     // Get active state from storage
     const activeState = await getActiveState();
@@ -215,25 +257,25 @@ async function restoreNavigation() {
       logger.debug(`Attempting to restore panel: ${activeState.panel}`);
       
       // Use the navigateToPanel function directly
-      const success = await navigateToPanel(activeState.panel);
+      const success = await navigationModule.navigateToPanel(activeState.panel);
       
       if (success) {
         logger.debug(`Successfully restored panel: ${activeState.panel}`);
         
         // Restore active tab within panel if available
         if (activeState.tab) {
-          await restoreLastActiveTab(`${activeState.panel}-panel`);
+          await navigationModule.restoreLastActiveTab(`${activeState.panel}-panel`);
           logger.debug(`Restored tab: ${activeState.tab} in panel: ${activeState.panel}`);
         }
       } else {
         logger.warn(`Failed to restore panel: ${activeState.panel}, defaulting to overview`);
         // Default to overview panel
-        await navigateToPanel('overview');
+        await navigationModule.navigateToPanel('overview');
       }
     } else {
       // Default to first panel (overview)
       logger.debug('No saved navigation state, defaulting to overview panel');
-      await navigateToPanel('overview');
+      await navigationModule.navigateToPanel('overview');
     }
   } catch (error) {
     logger.error('Error restoring navigation state:', error);
@@ -241,23 +283,41 @@ async function restoreNavigation() {
     // Fall back to overview panel
     try {
       logger.debug('Falling back to overview panel after error');
-      await navigateToPanel('overview');
+      // Try to show the overview panel without using navigation module
+      showPanelFallback('overview');
     } catch (fallbackError) {
       logger.error('Error activating fallback panel:', fallbackError);
-      
-      // Last resort: try to click the first nav item directly
-      try {
-        const firstNavItem = document.querySelector('.nav-item');
-        if (firstNavItem) {
-          logger.debug('Attempting to click first nav item directly');
-          firstNavItem.click();
-        } else {
-          logger.error('No navigation items found');
-        }
-      } catch (clickError) {
-        logger.error('Error clicking first nav item:', clickError);
-      }
     }
+  }
+}
+
+/**
+ * Fallback function to show a panel without using the navigation module
+ * @param {string} panelId - ID of the panel to show
+ */
+function showPanelFallback(panelId) {
+  try {
+    // Update navigation items
+    document.querySelectorAll('.nav-item').forEach(item => {
+      if (item.getAttribute('data-panel') === panelId) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+    
+    // Update panels
+    document.querySelectorAll('.content-panel').forEach(panel => {
+      if (panel.id === `${panelId}-panel`) {
+        panel.classList.add('active');
+      } else {
+        panel.classList.remove('active');
+      }
+    });
+    
+    logger.debug(`Fallback navigation to panel: ${panelId} completed`);
+  } catch (error) {
+    logger.error(`Error in fallback navigation to ${panelId}:`, error);
   }
 }
 
@@ -268,11 +328,26 @@ async function restoreNavigation() {
 function showInitializationError(error) {
   const errorContainer = document.createElement('div');
   errorContainer.className = 'initialization-error';
+  errorContainer.style.position = 'fixed';
+  errorContainer.style.top = '50%';
+  errorContainer.style.left = '50%';
+  errorContainer.style.transform = 'translate(-50%, -50%)';
+  errorContainer.style.backgroundColor = 'white';
+  errorContainer.style.border = '2px solid #f44336';
+  errorContainer.style.borderRadius = '8px';
+  errorContainer.style.padding = '20px';
+  errorContainer.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.2)';
+  errorContainer.style.zIndex = '9999';
+  errorContainer.style.maxWidth = '80%';
+  
   errorContainer.innerHTML = `
-    <h2>Dashboard Initialization Error</h2>
+    <h2 style="color: #f44336; margin-top: 0;">Dashboard Initialization Error</h2>
     <p>${error.message}</p>
-    <button id="retry-init-btn" class="btn-primary">Retry</button>
-    <button id="debug-info-btn" class="btn-secondary">Show Debug Info</button>
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+      <button id="retry-init-btn" style="padding: 8px 16px; background-color: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer;">Retry</button>
+      <button id="debug-info-btn" style="padding: 8px 16px; background-color: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Show Debug Info</button>
+      <button id="diagnostics-btn" style="padding: 8px 16px; background-color: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Open Diagnostics</button>
+    </div>
   `;
   
   document.body.appendChild(errorContainer);
@@ -283,6 +358,10 @@ function showInitializationError(error) {
     dashboardInitialized = false;
     servicesInitialized = false;
     uiInitialized = false;
+    
+    // Clear module cache before retrying
+    clearModuleCache();
+    
     initDashboard();
   });
   
@@ -290,9 +369,21 @@ function showInitializationError(error) {
   document.getElementById('debug-info-btn')?.addEventListener('click', () => {
     const debugInfo = document.createElement('div');
     debugInfo.className = 'debug-info';
+    debugInfo.style.marginTop = '15px';
+    debugInfo.style.padding = '10px';
+    debugInfo.style.backgroundColor = '#f5f5f5';
+    debugInfo.style.borderRadius = '4px';
+    debugInfo.style.maxHeight = '200px';
+    debugInfo.style.overflow = 'auto';
+    debugInfo.style.fontFamily = 'monospace';
+    debugInfo.style.fontSize = '12px';
+    
+    // Get module status
+    const moduleStatus = getModuleStatus();
+    
     debugInfo.innerHTML = `
-      <h3>Debug Information</h3>
-      <pre>
+      <h3 style="margin-top: 0; font-size: 14px;">Debug Information</h3>
+      <pre style="margin: 0; white-space: pre-wrap;">
 Dashboard initialized: ${dashboardInitialized}
 Services initialized: ${servicesInitialized}
 UI initialized: ${uiInitialized}
@@ -301,6 +392,11 @@ Initialization attempts: ${initializationAttempts}
 
 Available panels: ${Array.from(document.querySelectorAll('.content-panel')).map(p => p.id).join(', ')}
 Available nav items: ${Array.from(document.querySelectorAll('.nav-item')).map(n => n.getAttribute('data-panel')).join(', ')}
+
+Loaded modules: ${moduleStatus.loaded.join(', ') || 'None'}
+Failed modules: ${moduleStatus.failed.join(', ') || 'None'}
+
+Error: ${error.stack || error.message}
       </pre>
     `;
     
@@ -312,7 +408,69 @@ Available nav items: ${Array.from(document.querySelectorAll('.nav-item')).map(n 
     
     errorContainer.appendChild(debugInfo);
   });
+  
+  // Add diagnostics button
+  document.getElementById('diagnostics-btn')?.addEventListener('click', () => {
+    try {
+      // Open diagnostics in a new tab
+      chrome.tabs.create({ url: chrome.runtime.getURL('popup/diagnostics.html') });
+    } catch (error) {
+      alert('Error opening diagnostics: ' + error.message);
+    }
+  });
 }
+
+/**
+ * Load and initialize a panel
+ * @param {string} panelId - ID of panel to initialize
+ * @returns {Promise<boolean>} - Whether initialization succeeded
+ */
+async function loadAndInitializePanel(panelId) {
+  logger.debug(`Loading and initializing panel: ${panelId}`);
+  
+  try {
+    if (componentsCache.has(panelId)) {
+      const cachedComponent = componentsCache.get(panelId);
+      logger.debug(`Using cached component for ${panelId}`);
+      return true;
+    }
+    
+    // Determine initialization function based on panel name
+    const capitalizedName = panelId.charAt(0).toUpperCase() + panelId.slice(1);
+    const initFunctionName = `init${capitalizedName}Panel`;
+    
+    // Try to load the panel module
+    const modulePath = `${panelId}-panel`;
+    
+    // Use the direct path
+    logger.debug(`Loading panel module: ${modulePath}`);
+    
+    const panelModule = await safeImport(modulePath, {
+      type: 'component'
+    });
+    
+    if (!panelModule || !panelModule[initFunctionName]) {
+      logger.warn(`Module or init function not found for panel: ${panelId}`);
+      return false;
+    }
+    
+    // Initialize the panel
+    logger.debug(`Calling ${initFunctionName}()`);
+    await panelModule[initFunctionName]();
+    
+    // Cache the component
+    componentsCache.set(panelId, panelModule);
+    
+    logger.debug(`Panel ${panelId} initialized successfully`);
+    return true;
+  } catch (error) {
+    logger.error(`Error initializing panel ${panelId}:`, error);
+    return false;
+  }
+}
+
+
+
 
 /**
  * Handle lazy initialization of panels
@@ -321,59 +479,11 @@ Available nav items: ${Array.from(document.querySelectorAll('.nav-item')).map(n 
 function handlePanelActivation(panelId) {
   logger.debug(`Panel activation handler called for: ${panelId}`);
   
-  // Initialize panel components based on ID
-  switch (panelId) {
-    case 'overview':
-      logger.debug('Initializing overview panel');
-      initOverviewPanel().catch(err => 
-        logger.error('Error initializing overview panel:', err));
-      break;
-      
-    case 'capture':
-      logger.debug('Initializing capture panel');
-      initCapturePanel().catch(err => 
-        logger.error('Error initializing capture panel:', err));
-      break;
-      
-    case 'knowledge':
-      logger.debug('Initializing knowledge panel and graph');
-      // Initialize both panel and graph
-      Promise.all([
-        initKnowledgePanel().catch(err => 
-          logger.error('Error initializing knowledge panel:', err)),
-        initKnowledgeGraph().catch(err => 
-          logger.error('Error initializing knowledge graph:', err))
-      ]);
-      break;
-      
-    case 'assistant':
-      logger.debug('Initializing assistant panel');
-      initAssistantPanel().catch(err => 
-        logger.error('Error initializing assistant panel:', err));
-      break;
-      
-    case 'settings':
-      logger.debug('Initializing settings panel');
-      initSettingsPanel().catch(err => 
-        logger.error('Error initializing settings panel:', err));
-      break;
-      
-    case 'analysis':
-      logger.debug('Initializing analysis panel');
-      // This might need to be updated if the panel has a different name
-      initTasksPanel().catch(err => 
-        logger.error('Error initializing analysis panel:', err));
-      break;
-      
-    case 'tasks':
-      logger.debug('Initializing tasks panel');
-      initTasksPanel().catch(err => 
-        logger.error('Error initializing tasks panel:', err));
-      break;
-      
-    default:
-      logger.warn(`Unknown panel activated: ${panelId}`);
-  }
+  // Load and initialize the panel
+  loadAndInitializePanel(panelId).catch(err => {
+    logger.error(`Error in panel activation for ${panelId}:`, err);
+    showNotification(`Error loading ${panelId} panel: ${err.message}`, 'error');
+  });
 }
 
 // Main entry point - Run when DOM is ready
@@ -397,17 +507,27 @@ document.addEventListener('DOMContentLoaded', () => {
         servicesInitialized = false;
         uiInitialized = false;
         panelHandlersRegistered = false;
+        
+        // Clear component cache
+        componentsCache.clear();
+        
+        // Clear module cache
+        clearModuleCache();
+        
         await initDashboard();
       },
       initPanel: handlePanelActivation,
-      navigateToPanel: navigateToPanel,
+      loadModule: safeImport,
+      getModuleStatus: getModuleStatus,
+      clearModuleCache: clearModuleCache,
       debug: {
         getState: () => ({
           dashboardInitialized,
           servicesInitialized,
           uiInitialized,
           panelHandlersRegistered,
-          initializationAttempts
+          initializationAttempts,
+          moduleStatus: getModuleStatus()
         }),
         getPanels: () => Array.from(document.querySelectorAll('.content-panel')).map(p => p.id),
         getNavItems: () => Array.from(document.querySelectorAll('.nav-item')).map(n => ({
@@ -428,3 +548,36 @@ window.addEventListener('beforeunload', () => {
   // Any cleanup or state saving can be done here
   logger.info('Dashboard unloading');
 });
+
+// Make a test function available globally for debugging
+if (typeof window !== 'undefined') {
+  window.__testModuleLoad = async function(moduleName, exactPath) {
+    console.log(`[TEST] Testing direct module load for: ${moduleName}`);
+    console.log(`[TEST] Using path: ${exactPath}`);
+    
+    try {
+      // Get the full URL
+      const url = chrome.runtime.getURL(exactPath);
+      console.log(`[TEST] Resolved URL: ${url}`);
+      
+      // Check if the file exists
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.log(`[TEST] File not found at ${url} (status: ${response.status})`);
+        return null;
+      }
+      
+      console.log(`[TEST] Found file at ${url}`);
+      
+      // Try to import the module
+      const module = await import(/* webpackIgnore: true */ url);
+      console.log(`[TEST] Successfully imported module`);
+      console.log(`[TEST] Module exports:`, Object.keys(module));
+      
+      return module;
+    } catch (error) {
+      console.error(`[TEST] Error loading module:`, error);
+      return null;
+    }
+  };
+}

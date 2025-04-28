@@ -6,10 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Marvin Research Assistant</title>
     
-    <!-- Emergency recovery script (moved to external file) -->
-    <script src="js/utils/recovery.js"></script>
+    <!-- Emergency recovery script -->
+    <script type="module" src="js/utils/recovery.js"></script>
     
+    <!-- Component registry - Load this first -->
+    <script type="module" src="js/utils/component-registry.js"></script>
+    
+    <!-- Component loader script - Load this second -->
+    <script type="module" src="js/utils/component-loader.js"></script>
+    
+    <!-- CSS styles -->
     <link rel="stylesheet" href="dashboard.css">
+    
+    <!-- Explicitly load critical components as modules -->
+    <script type="module" src="dashboard/js/components/navigation.js"></script>
+    <script type="module" src="dashboard/js/components/overview-panel.js"></script>
+    <script type="module" src="dashboard/js/components/capture-panel.js"></script>
+    <script type="module" src="dashboard/js/components/knowledge-panel.js"></script>
+    <script type="module" src="dashboard/js/components/settings-panel.js"></script>
+    <script type="module" src="dashboard/js/components/tasks-panel.js"></script>
+    <script type="module" src="dashboard/js/components/assistant-panel.js"></script>
   </head>
   
 <body>
@@ -38,7 +54,6 @@
           <span class="nav-icon">💬</span>
           <span class="nav-label">Assistant</span>
         </li>
-        <!-- Changed from "analysis" to "tasks" to match the panel ID -->
         <li class="nav-item" data-panel="tasks">
           <span class="nav-icon">🔍</span>
           <span class="nav-label">Analysis Tasks</span>
@@ -158,51 +173,14 @@
           
           <!-- Bookmarks Tab -->
           <div id="bookmarks-content" class="tab-pane">
-            <div class="list-controls">
-              <div class="search-container">
-                <input type="text" id="bookmarks-search" class="search-input" placeholder="Search bookmarks...">
-              </div>
-              <div class="filter-container">
-                <select id="bookmarks-folder-filter" class="filter-select">
-                  <option value="all">All Folders</option>
-                </select>
-              </div>
-              <div class="selection-controls">
-                <button id="select-all-bookmarks" class="btn-text">Select All</button>
-                <button id="deselect-all-bookmarks" class="btn-text">Deselect All</button>
-              </div>
-            </div>
-            
-            <div class="item-list" id="bookmarks-list">
-              <!-- Will be populated dynamically -->
-              <div class="loading-indicator">Loading bookmarks...</div>
-            </div>
+            <!-- Bookmarks content -->
+            <div class="loading-indicator">Loading bookmarks...</div>
           </div>
           
           <!-- History Tab -->
           <div id="history-content" class="tab-pane">
-            <div class="list-controls">
-              <div class="search-container">
-                <input type="text" id="history-search" class="search-input" placeholder="Search history...">
-              </div>
-              <div class="filter-container">
-                <select id="history-time-filter" class="filter-select">
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="week">Last 7 days</option>
-                  <option value="month">Last 30 days</option>
-                </select>
-              </div>
-              <div class="selection-controls">
-                <button id="select-all-history" class="btn-text">Select All</button>
-                <button id="deselect-all-history" class="btn-text">Deselect All</button>
-              </div>
-            </div>
-            
-            <div class="item-list" id="history-list">
-              <!-- Will be populated dynamically -->
-              <div class="loading-indicator">Loading history...</div>
-            </div>
+            <!-- History content -->
+            <div class="loading-indicator">Loading history...</div>
           </div>
         </div>
       </section>
@@ -212,113 +190,10 @@
         <header class="panel-header">
           <h2>Knowledge</h2>
           <div class="panel-actions">
-            <div class="search-container">
-              <button id="force-init-knowledge" class="btn-secondary">Reload Knowledge Data</button>
-              <input type="text" id="knowledge-search" class="search-input" placeholder="Search knowledge...">
-              <button id="search-btn" class="btn-icon">🔍</button>
-            </div>
+            <button id="force-init-knowledge" class="btn-secondary">Reload Knowledge Data</button>
           </div>
         </header>
-        
-        <div class="knowledge-view">
-          <div class="knowledge-filters">
-            <div class="filter-group">
-              <h3>Sources</h3>
-              <label class="checkbox-label">
-                <input type="checkbox" checked> Pages
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" checked> Bookmarks
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" checked> History
-              </label>
-            </div>
-            
-            <div class="filter-group">
-              <h3>Date Range</h3>
-              <input type="date" id="date-from">
-              <input type="date" id="date-to">
-            </div>
-          </div>
-          
-          <div class="knowledge-content">
-            <div class="knowledge-split-view">
-              <div class="knowledge-list-panel">
-                <div class="list-controls">
-                  <div class="search-container">
-                    <input type="text" id="pages-search" class="search-input" placeholder="Filter pages...">
-                  </div>
-                  <div class="sort-controls">
-                    <select id="sort-options">
-                      <option value="date-desc">Date (Newest)</option>
-                      <option value="date-asc">Date (Oldest)</option>
-                      <option value="domain">Domain</option>
-                      <option value="title">Title</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="knowledge-list">
-                  <!-- Pages will be populated here -->
-                </div>
-              </div>
-              
-              <div class="splitter" id="knowledge-splitter"></div>
-              
-              <div class="knowledge-graph-panel">
-                <div class="graph-container">
-                  <!-- Graph will be rendered here -->
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      
-      <!-- Analysis/Tasks Panel (Renamed to match navigation) -->
-      <section id="tasks-panel" class="content-panel">
-        <header class="panel-header">
-          <h2>Analysis Tasks</h2>
-          <div class="panel-actions">
-            <button id="force-init-tasks" class="btn-secondary">Reload Analysis Data</button>
-            <button id="cancelAllBtn" class="btn-danger">Cancel All</button>
-          </div>
-        </header>
-        
-        <div class="analysis-tabs">
-          <button class="tab-btn active" data-tab="active-tasks">Active Tasks</button>
-          <button class="tab-btn" data-tab="completed-tasks">Completed</button>
-        </div>
-        
-        <div class="analysis-tab-content">
-          <!-- Active Tasks Tab -->
-          <div id="active-tasks-content" class="tab-pane active">
-            <div class="section-header">
-              <h3>Active Analysis Tasks</h3>
-              <div class="search-container">
-                <input type="text" id="active-tasks-search" class="search-input" placeholder="Search tasks...">
-              </div>
-            </div>
-            
-            <div class="task-list" id="activeTasks">
-              <div class="loading-indicator">Loading tasks...</div>
-            </div>
-          </div>
-          
-          <!-- Completed Tasks Tab -->
-          <div id="completed-tasks-content" class="tab-pane">
-            <div class="section-header">
-              <h3>Completed Analysis Tasks</h3>
-              <div class="controls">
-                <button id="clearCompletedBtn" class="btn-danger small">Clear History</button>
-              </div>
-            </div>
-            
-            <div class="task-list" id="completedTasks">
-              <div class="loading-indicator">Loading tasks...</div>
-            </div>
-          </div>
-        </div>
+        <div class="loading-indicator">Loading knowledge panel...</div>
       </section>
       
       <!-- Assistant Panel -->
@@ -329,39 +204,18 @@
             <button id="force-init-assistant" class="btn-secondary">Reload Assistant</button>
           </div>
         </header>
-        
-        <div class="chat-container">
-          <div class="chat-messages" id="chat-messages">
-            <div class="message system">
-              <div class="message-content">
-                <p>Hello! I'm Marvin, your research assistant. How can I help you today?</p>
-              </div>
-            </div>
+        <div class="loading-indicator">Loading assistant panel...</div>
+      </section>
+      
+      <!-- Tasks Panel -->
+      <section id="tasks-panel" class="content-panel">
+        <header class="panel-header">
+          <h2>Analysis Tasks</h2>
+          <div class="panel-actions">
+            <button id="force-init-tasks" class="btn-secondary">Reload Analysis Data</button>
           </div>
-          
-          <div class="chat-input-container">
-            <div class="context-selector">
-              <button class="context-btn" id="context-selector-btn">+ Add Context</button>
-              <div class="context-dropdown" id="context-dropdown">
-                <div class="context-options">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="context-current-tab"> Current Tab
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="context-active-tabs"> Active Tabs
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="context-recent-captures"> Recent Captures
-                  </label>
-                </div>
-              </div>
-            </div>
-            
-            <textarea id="chat-input" placeholder="Ask me anything about your research..."></textarea>
-            
-            <button id="send-message" class="btn-send">Send</button>
-          </div>
-        </div>
+        </header>
+        <div class="loading-indicator">Loading tasks panel...</div>
       </section>
       
       <!-- Settings Panel -->
@@ -372,164 +226,38 @@
             <button id="force-init-settings" class="btn-secondary">Reload Settings</button>
           </div>
         </header>
-        
-        <div class="settings-container">
-          <div class="settings-group">
-            <h3>API Configuration</h3>
-            <form id="api-config-form" class="settings-form">
-              <div class="form-group">
-                <label for="api-url">API URL</label>
-                <input type="url" id="api-url" name="api-url" placeholder="http://localhost:8000">
-                <div id="api-status" class="status-message"></div>
-              </div>
-              <div class="form-actions">
-                <button type="button" id="test-api-btn" class="btn-secondary">Test Connection</button>
-                <button type="submit" class="btn-primary">Save</button>
-              </div>
-            </form>
-          </div>
-          
-          <div class="settings-group">
-            <h3>Capture Settings</h3>
-            <form id="capture-settings-form" class="settings-form">
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="auto-capture" name="auto-capture">
-                  Automatically capture pages
-                </label>
-              </div>
-              
-              <div class="form-group">
-                <label for="min-time">Minimum time on page (seconds)</label>
-                <input type="number" id="min-time" name="min-time" min="0" value="10">
-              </div>
-              
-              <div class="form-group">
-                <label for="excluded-domains">Excluded domains (one per line)</label>
-                <textarea id="excluded-domains" name="excluded-domains" rows="4" placeholder="facebook.com&#10;twitter.com"></textarea>
-              </div>
-              
-              <div class="form-group">
-                <label for="included-domains">Included domains (one per line)</label>
-                <textarea id="included-domains" name="included-domains" rows="4" placeholder="example.com&#10;research-site.org"></textarea>
-              </div>
-              
-              <div class="form-actions">
-                <button type="submit" class="btn-primary">Save</button>
-              </div>
-            </form>
-          </div>
-          
-          <div class="settings-group">
-            <h3>Analysis Settings</h3>
-            <form id="analysis-settings-form" class="settings-form">
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="auto-analyze" name="auto-analyze" checked>
-                  Automatically analyze captured pages
-                </label>
-              </div>
-              
-              <div class="form-actions">
-                <button type="submit" class="btn-primary">Save</button>
-              </div>
-            </form>
-          </div>
-          
-          <div class="settings-group">
-            <h3>Data Management</h3>
-            <div class="form-group">
-              <button id="clear-data-btn" class="btn-danger">Clear Local Data</button>
-              <p class="help-text">This will clear all locally stored data, including capture history and settings.</p>
-            </div>
-          </div>
-        </div>
+        <div class="loading-indicator">Loading settings panel...</div>
       </section>
     </main>
-    
-    <!-- Details sidebar for knowledge items -->
-    <aside id="details-sidebar" class="details-sidebar">
-      <div class="details-header">
-        <h3>Details</h3>
-        <button class="close-details-btn">&times;</button>
-      </div>
-      <div class="details-content">
-        <!-- Will be populated dynamically -->
-      </div>
-    </aside>
   </div>
   
-  <!-- Task Card Template -->
-  <template id="taskCardTemplate">
-    <div class="task-card">
-      <div class="task-header">
-        <div class="task-title">Task Title</div>
-        <div class="task-status">Status</div>
-      </div>
-      <div class="progress-container">
-        <div class="progress-bar"></div>
-        <div class="progress-text">0%</div>
-      </div>
-      <div class="task-info">
-        <div class="task-url">URL goes here</div>
-        <div class="task-time">Time info</div>
-      </div>
-      <div class="task-details">
-        <div class="task-stage">Current Stage</div>
-        <div class="task-actions">
-          <!-- Actions will be added dynamically -->
-        </div>
-      </div>
-    </div>
-  </template>
-  
-  <!-- Task Details Modal -->
-  <div id="taskDetails" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Task Details</h2>
-        <button class="close-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="loading">Loading task details...</div>
-      </div>
-      <div class="modal-footer">
-        <button class="button secondary close-btn">Close</button>
-      </div>
+  <!-- Debug Panel -->
+  <div id="debug-panel" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #f0f0f0; border-top: 1px solid #ccc; padding: 10px; z-index: 9999;">
+    <h3>Debug Information</h3>
+    <div id="debug-output" style="max-height: 200px; overflow: auto; background: white; padding: 10px; border: 1px solid #ccc;"></div>
+    <div style="margin-top: 10px;">
+      <button id="toggle-debug-panel" class="btn-secondary">Hide Debug Panel</button>
+      <button id="clear-debug" class="btn-secondary">Clear Debug</button>
+      <button id="test-components" class="btn-secondary">Test Components</button>
+      <button id="open-diagnostics" class="btn-primary">Open Diagnostics</button>
     </div>
   </div>
   
-  <!-- Navigation Debug Panel (new) -->
-  <div id="nav-debug-panel" class="debug-panel" style="display: none;">
-    <div class="debug-header">
-      <h3>Navigation Debug</h3>
-      <button class="close-debug-btn">&times;</button>
-    </div>
-    <div class="debug-content">
-      <div class="debug-section">
-        <h4>Navigation Items</h4>
-        <ul id="nav-items-debug"></ul>
-      </div>
-      <div class="debug-section">
-        <h4>Content Panels</h4>
-        <ul id="panels-debug"></ul>
-      </div>
-      <div class="debug-section">
-        <h4>Active State</h4>
-        <pre id="active-state-debug"></pre>
-      </div>
-      <div class="debug-actions">
-        <button id="refresh-debug" class="btn-secondary">Refresh Debug Info</button>
-        <button id="fix-navigation" class="btn-primary">Fix Navigation</button>
-      </div>
-    </div>
-  </div>
+  <!-- Fixed debug toggle button -->
+  <button id="show-debug-panel" style="position: fixed; bottom: 10px; right: 10px; z-index: 9998; padding: 5px 10px;">
+    Debug
+  </button>
   
-  <!-- Load all external scripts -->
-  <script src="js/utils/recovery.js"></script>
-  <script src="js/utils/timeout.js"></script>
-  <script type="module" src="js/utils/navigation-debug.js"></script>
+  <!-- Debug console script -->
+  <script type="module" src="dashboard/js/utils/debug-console.js"></script>
+  
+  <!-- Debug script - Keep at end of body -->
+  <script type="module" src="js/utils/debug-panel.js"></script>
+  
+  <!-- Utility scripts -->
+  <script type="module" src="js/utils/timeout.js"></script>
+  
+  <!-- Main dashboard script - loaded last -->
   <script type="module" src="dashboard.js"></script>
 </body>
 </html>
-

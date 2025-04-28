@@ -49,8 +49,11 @@
       "resources": [
         "dashboard/dashboard.html",
         "dashboard/dashboard-minimal.html",
+        "dashboard/js/components/*.js",
+        "dashboard/js/services/*.js",
         "dashboard/js/utils/*.js",
-        "popup/diagnostics.html",
+        "dashboard/js/dashboard.js",
+        "popup/*",
         "shared/utils/*.js"
       ],
       "matches": ["<all_urls>"]

@@ -99,10 +99,10 @@ class DiagnosticTools {
    */
   async getLoadedModules() {
     const corePaths = [
-      'js/components/overview-panel.js',
-      'js/components/capture-panel.js',
-      'js/components/knowledge-panel.js',
-      'js/components/settings-panel.js',
+      'dashboard/js/components/overview-panel.js',
+      'dashboard/js/components/capture-panel.js',
+      'dashboard/js/components/knowledge-panel.js',
+      'dashboard/js/components/settings-panel.js',
       'shared/utils/log-manager.js'
     ];
 

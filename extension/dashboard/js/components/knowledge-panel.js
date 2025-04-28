@@ -1,10 +1,10 @@
 // components/knowledge-panel.js
-import { fetchAPI } from '../services/api-service.js';
-import { truncateText } from '../../js/components/capture-ui.js';
-import { formatContext } from '../utils/formatting.js';
-import { showNotification } from '../services/notification-service.js';
-import { initSplitView } from '../utils/ui-utils.js';
-import { LogManager } from '../../../shared/utils/log-manager.js';
+import { fetchAPI } from '/dashboard/js/services/api-service.js';
+import { truncateText } from '/dashboard/js/components/capture-ui.js';
+import { formatContext } from '/dashboard/js/utils/formatting.js';
+import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { initSplitView } from '/dashboard/js/utils/ui-utils.js';
+import { LogManager } from '/shared/utils/log-manager.js';
 
 /**
  * Logger for knowledge panel operations

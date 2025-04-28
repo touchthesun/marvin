@@ -235,22 +235,22 @@ function initializeDiagnostics() {
 
   // Load Overview Panel
   document.getElementById('load-overview').addEventListener('click', () => {
-    testComponentLoading('Overview Panel', './js/components/overview-panel.js');
+    testComponentLoading('Overview Panel', 'dashboard/js/components/overview-panel.js');
   });
 
   // Load Capture Panel
   document.getElementById('load-capture').addEventListener('click', () => {
-    testComponentLoading('Capture Panel', './js/components/capture-panel.js');
+    testComponentLoading('Capture Panel', 'dashboard/js/components/capture-panel.js');
   });
 
   // Load Knowledge Panel
   document.getElementById('load-knowledge').addEventListener('click', () => {
-    testComponentLoading('Knowledge Panel', './js/components/knowledge-panel.js');
+    testComponentLoading('Knowledge Panel', 'dashboard/js/components/knowledge-panel.js');
   });
 
   // Load Settings Panel
   document.getElementById('load-settings').addEventListener('click', () => {
-    testComponentLoading('Settings Panel', './js/components/settings-panel.js');
+    testComponentLoading('Settings Panel', 'dashboard/js/components/settings-panel.js');
   });
 
   // Check environment
@@ -260,7 +260,6 @@ function initializeDiagnostics() {
     try {
       envInfo.innerHTML = `
         <p><strong>Browser:</strong> ${navigator.userAgent}</p>
-        <p><strong>Platform:</strong> ${navigator.platform}</p>
         <p><strong>Language:</strong> ${navigator.language}</p>
         <p><strong>Online:</strong> ${navigator.onLine ? 'Yes' : 'No'}</p>
         <p><strong>Date/Time:</strong> ${new Date().toLocaleString()}</p>
@@ -418,4 +417,199 @@ document.addEventListener('DOMContentLoaded', () => {
       toolsStatus.className = 'diagnostic-status import-error';
     }
   }
+  enhanceDiagnostics();
 });
+
+/**
+ * Test component paths using the actual directory structure
+ */
+function testComponentPaths() {
+  const fileList = document.getElementById('file-list');
+  fileList.textContent = 'Testing component paths...\n';
+  
+  const componentsToTest = [
+    'overview-panel',
+    'capture-panel',
+    'knowledge-panel',
+    'settings-panel',
+    'tasks-panel',
+    'assistant-panel',
+    'navigation'
+  ];
+  
+  // Based on the actual directory structure from extension-tree.md
+  const basePaths = [
+    'dashboard/js/components/',
+    '/dashboard/js/components/',
+    'js/components/',
+    '/js/components/',
+    './js/components/',
+    '../dashboard/js/components/',
+    './components/',
+    '../components/',
+    'components/'
+  ];
+  
+  // Keep track of which components are found
+  const foundComponents = new Set();
+  
+  // Test each component with each path
+  componentsToTest.forEach(component => {
+    fileList.textContent += `\nTesting paths for ${component}.js:\n`;
+    
+    basePaths.forEach(basePath => {
+      const fullPath = `${basePath}${component}.js`;
+      try {
+        const url = chrome.runtime.getURL(fullPath);
+        
+        // Try to fetch the file to check if it exists
+        fetch(url)
+          .then(response => {
+            if (response.ok) {
+              fileList.textContent += `✅ ${fullPath} - Found\n`;
+              foundComponents.add(component);
+            } else {
+              fileList.textContent += `❌ ${fullPath} - Error: ${response.status}\n`;
+            }
+          })
+          .catch(error => {
+            fileList.textContent += `❌ ${fullPath} - Error: ${error.message}\n`;
+          });
+      } catch (error) {
+        fileList.textContent += `❌ ${fullPath} - Runtime error: ${error.message}\n`;
+      }
+    });
+  });
+  
+  // Add a summary after testing
+  setTimeout(() => {
+    fileList.textContent += `\n=== SUMMARY ===\n`;
+    fileList.textContent += `Found components: ${Array.from(foundComponents).join(', ') || 'None'}\n`;
+    fileList.textContent += `Missing components: ${componentsToTest.filter(c => !foundComponents.has(c)).join(', ') || 'None'}\n`;
+  }, 2000);
+}
+
+/**
+ * Test loading a component dynamically
+ * @param {string} component - Name of the component to test
+ */
+function testComponentLoading(component) {
+  updateStatus(`Testing dynamic loading of ${component}...`);
+  const resultOutput = document.getElementById('result-output');
+  resultOutput.textContent += `Testing dynamic loading of ${component}...\n`;
+  
+  // Determine full component name
+  const componentName = component.endsWith('.js') ? component : `${component}.js`;
+  
+  // Try each possible path
+  const basePaths = [
+    'dashboard/js/components/',
+    '/dashboard/js/components/',
+    'js/components/',
+    '/js/components/',
+    './js/components/',
+    '../dashboard/js/components/',
+    './components/',
+    '../components/',
+    'components/'
+  ];
+  
+  // Keep track of successful imports
+  let success = false;
+  
+  // Try each path in sequence
+  tryNextPath(0);
+  
+  function tryNextPath(index) {
+    if (index >= basePaths.length) {
+      // All paths tried without success
+      if (!success) {
+        resultOutput.textContent += `❌ Failed to import ${componentName} from any path\n`;
+        updateStatus(`Failed to import ${componentName}`, 'error');
+      }
+      return;
+    }
+    
+    const path = basePaths[index];
+    const fullPath = `${path}${componentName}`;
+    
+    try {
+      const url = chrome.runtime.getURL(fullPath);
+      resultOutput.textContent += `Trying ${fullPath}...\n`;
+      
+      // Check if file exists
+      fetch(url)
+        .then(response => {
+          if (response.ok) {
+            resultOutput.textContent += `✅ Found file at ${fullPath}\n`;
+            
+            // Try to import the module
+            import(url)
+              .then(module => {
+                resultOutput.textContent += `✅ Successfully imported module from ${fullPath}\n`;
+                resultOutput.textContent += `Module exports: ${Object.keys(module).join(', ')}\n`;
+                success = true;
+                updateStatus(`Successfully loaded ${componentName}`, 'success');
+              })
+              .catch(importError => {
+                resultOutput.textContent += `❌ Import error for ${fullPath}: ${importError.message}\n`;
+                // Try next path
+                tryNextPath(index + 1);
+              });
+          } else {
+            resultOutput.textContent += `❌ File not found at ${fullPath}: ${response.status}\n`;
+            // Try next path
+            tryNextPath(index + 1);
+          }
+        })
+        .catch(fetchError => {
+          resultOutput.textContent += `❌ Fetch error for ${fullPath}: ${fetchError.message}\n`;
+          // Try next path
+          tryNextPath(index + 1);
+        });
+    } catch (error) {
+      resultOutput.textContent += `❌ Runtime error for ${fullPath}: ${error.message}\n`;
+      // Try next path
+      tryNextPath(index + 1);
+    }
+  }
+}
+
+/**
+ * Add these to the document.addEventListener('DOMContentLoaded', () => {...}) 
+ * handler in the existing diagnostics.js
+ */
+function enhanceDiagnostics() {
+  // Create a container for component diagnostics buttons
+  const componentDiagPanel = document.createElement('div');
+  componentDiagPanel.className = 'panel';
+  componentDiagPanel.innerHTML = `
+    <h2>Component Path Diagnostics</h2>
+    <p>Tools for diagnosing and fixing component path issues</p>
+    <div>
+      <button id="test-component-paths" class="btn-secondary">Test Component Paths</button>
+      <button id="test-navigation-loading" class="btn-secondary">Test Navigation Loading</button>
+      <button id="test-overview-loading" class="btn-secondary">Test Overview Panel Loading</button>
+    </div>
+  `;
+
+  // Find where to insert the new panel
+  const containers = document.querySelectorAll('.container');
+  if (containers.length > 0) {
+    const lastPanel = containers[0].querySelector('.panel:last-child');
+    if (lastPanel) {
+      lastPanel.parentNode.insertBefore(componentDiagPanel, lastPanel.nextSibling);
+    } else {
+      containers[0].appendChild(componentDiagPanel);
+    }
+  }
+
+  // Attach event handlers
+  document.getElementById('test-component-paths')?.addEventListener('click', testComponentPaths);
+  document.getElementById('test-navigation-loading')?.addEventListener('click', () => {
+    testComponentLoading('navigation');
+  });
+  document.getElementById('test-overview-loading')?.addEventListener('click', () => {
+    testComponentLoading('overview-panel');
+  });
+}
