@@ -1,8 +1,8 @@
 // dashboard/js/components/navigation.js
 
-import { LogManager } from '/shared/utils/log-manager.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { componentStubs } from '/dashboard/js/utils/component-loader.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { showNotification } from '../services/notification-service.js';
+import { componentStubs } from '../utils/component-loader.js';
 
 // Debug flag - set to true to enable verbose debugging
 const DEBUG_NAVIGATION = true;
@@ -33,6 +33,26 @@ const logger = new LogManager({
 // Initialization flags
 let navigationInitialized = false;
 let tabsInitialized = false;
+
+// Define NavigationComponent object
+const NavigationComponent = {
+  // Initialize function - main entry point
+  initNavigation() {
+    return initNavigation();
+  },
+  
+  // Initialize tabs function
+  initTabs() {
+    return initTabs();
+  },
+  
+  // Other functions exposed as part of the public API
+  restoreLastActivePanel,
+  restoreLastActiveTab,
+  navigateToPanel,
+  navigateToTab
+};
+
 
 
 /**
@@ -797,17 +817,33 @@ async function navigateToTab(panelName, tabName) {
   }
 }
 
-// Register this component in the global registry
-if (window.registerComponent) {
-  window.registerComponent('navigation', {
-    initNavigation,
-    initTabs,
-    restoreLastActivePanel,
-    restoreLastActiveTab,
-    navigateToPanel,
-    navigateToTab
-  });
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    debugLog('Registering navigation component using global registerComponent');
+    self.registerComponent('navigation', NavigationComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    debugLog('Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['navigation'] = NavigationComponent;
+  }
+  
+  debugLog('Navigation component registered successfully');
+} catch (error) {
+  debugLog('Error registering navigation component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['navigation'] = NavigationComponent;
+    debugLog('Navigation component registered using window fallback');
+  } catch (windowError) {
+    debugLog('Failed to register navigation component:', windowError);
+  }
 }
+
+export default NavigationComponent;
 
 // Export functions needed by other modules
 export {

@@ -10,14 +10,14 @@ self.addEventListener('error', event => {
 
 
 // Import dependencies
-import AuthManager from '/background/auth-manager.js';
-import MarvinAPIClient from '/background/api-client.js';
-import StateManager from '/background/state-manager.js';
-import { captureUrl } from '/shared/utils/capture.js';
-import { AnalysisQueue } from '/background/analysis-queue.js';
-import { ProgressTracker } from '/background/progress-tracker.js';
-import { LogManager } from '/shared/utils/log-manager.js';
-import { captureCurrentTab } from '/shared/utils/capture.js';
+import AuthManager from './auth-manager.js';
+import MarvinAPIClient from './api-client.js';
+import StateManager from './state-manager.js';
+import { captureUrl } from '../shared/utils/capture.js';
+import { AnalysisQueue } from './analysis-queue.js';
+import { ProgressTracker } from './progress-tracker.js';
+import { LogManager } from '../shared/utils/log-manager.js';
+import { captureCurrentTab } from '../shared/utils/capture.js';
 
 const originalSendMessage = chrome.runtime.sendMessage;
 chrome.runtime.sendMessage = function(message, responseCallback) {
@@ -30,11 +30,11 @@ chrome.runtime.sendMessage = function(message, responseCallback) {
   }
 };
 
-// Track all promise rejections
-self.addEventListener('unhandledrejection', event => {
-  logger.error(`Unhandled rejection: ${event.reason}`);
-  event.preventDefault(); // This prevents the error from propagating
-});
+// // Track all promise rejections
+// self.addEventListener('unhandledrejection', event => {
+//   logger.error(`Unhandled rejection: ${event.reason}`);
+//   event.preventDefault(); // This prevents the error from propagating
+// });
 
 /**
  * Safely send a message to a specific tab
@@ -179,6 +179,7 @@ let lastBadgeUpdateTime = 0;
 
 // Initialize on extension load
 async function initialize() {
+  logger.log('Initializing Marvin extension...');
   try {
     // Double-check error handlers are installed
     if (!self._errorHandlersInstalled) {

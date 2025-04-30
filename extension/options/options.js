@@ -1,5 +1,5 @@
 // options/options.js
-import { LogManager } from '/shared/utils/log-manager.js';
+import { LogManager } from '../shared/utils/log-manager.js';
 
 /**
  * Logger for options page operations

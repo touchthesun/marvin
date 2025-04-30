@@ -1,7 +1,7 @@
 // dashboard/js/services/visualization-service.js
 // Service for handling visualizations and D3-related functionality
 
-import { LogManager } from '/shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 // Initialize logger
 const logger = new LogManager({

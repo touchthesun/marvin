@@ -1,29 +1,23 @@
 // components/capture-panel.js
-import { showNotification, updateNotificationProgress } from '/dashboard/js/services/notification-service.js';
-import { LogManager } from '/shared/utils/log-manager.js';
-import { 
-  captureUrl, 
-  captureBatch, 
-  setupCaptureButton 
-} from '/shared/utils/capture.js';
-
+import { showNotification, updateNotificationProgress } from '../services/notification-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 // Import the new modular components
 
 import { 
   getSelectedTabs,
   initTabsCapture,
   extractTabContent
- } from '/dashboard/js/components/tabs-capture.js';
+ } from '../components/tabs-capture.js';
 
 import { 
   initBookmarksCapture, 
   getSelectedBookmarks 
-} from '/dashboard/js/components/bookmarks-capture.js';
+} from '../components/bookmarks-capture.js';
 
 import { 
   initHistoryCapture, 
   getSelectedHistoryItems 
-} from '/dashboard/js/components/history-capture.js';
+} from '../components/history-capture.js';
 
 /**
  * Logger for capture panel operations
@@ -38,6 +32,19 @@ const logger = new LogManager({
 
 // Panel initialization flag
 let captureInitialized = false;
+
+
+const CapturePanelComponent = {
+  // Main initialization function
+  initCapturePanel() {
+    return initCapturePanel();
+  },
+  
+  // Public methods that should be exposed
+  captureSelectedItems,
+  processCaptureItems
+};
+
 
 /**
  * Initialize the capture panel
@@ -413,7 +420,34 @@ async function updateCaptureHistory(capturedItems) {
   }
 }
 
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    logger.log('debug', 'Registering capture panel component using global registerComponent');
+    self.registerComponent('capture-panel', CapturePanelComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    logger.log('debug', 'Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['capture-panel'] = CapturePanelComponent;
+  }
+  
+  logger.log('info', 'Capture panel component registered successfully');
+} catch (error) {
+  logger.log('error', 'Error registering capture panel component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['capture-panel'] = CapturePanelComponent;
+    logger.log('debug', 'Capture panel component registered using window fallback');
+  } catch (windowError) {
+    logger.log('error', 'Failed to register capture panel component:', windowError);
+  }
+}
+
 // Export functions that need to be accessed from other modules
+export default CapturePanelComponent;
 export { 
   captureSelectedItems, 
   initCapturePanel

@@ -1,7 +1,7 @@
 // components/settings-panel.js
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { showSaveConfirmation } from '/dashboard/js/utils/ui-utils.js';
-import { LogManager } from '/shared/utils/log-manager.js';
+import { showNotification } from '../services/notification-service.js';
+import { showSaveConfirmation } from '../utils/ui-utils.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 /**
  * Logger for settings panel operations
@@ -16,6 +16,19 @@ const logger = new LogManager({
 
 // Panel initialization flag
 let settingsInitialized = false;
+
+// Define the SettingsPanelComponent object
+const SettingsPanelComponent = {
+  // Main initialization function
+  initSettingsPanel() {
+    return initSettingsPanel();
+  },
+  
+  // Public methods that should be exposed
+  setupStatusMonitoring,
+  resetSettingsToDefaults
+};
+
 
 /**
  * Initialize settings panel and set up event listeners
@@ -861,7 +874,35 @@ async function resetSettingsToDefaults() {
   }
 }
 
+
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    logger.log('debug', 'Registering settings panel component using global registerComponent');
+    self.registerComponent('settings-panel', SettingsPanelComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    logger.log('debug', 'Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['settings-panel'] = SettingsPanelComponent;
+  }
+  
+  logger.log('info', 'settings panel component registered successfully');
+} catch (error) {
+  logger.log('error', 'Error registering settings panel component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['settings-panel'] = SettingsPanelComponent;
+    logger.log('debug', 'settings panel component registered using window fallback');
+  } catch (windowError) {
+    logger.log('error', 'Failed to register settings panel component:', windowError);
+  }
+}
+
 // Export functions needed by other modules
+export default SettingsPanelComponent;
 export { 
   initSettingsPanel,
   setupStatusMonitoring,

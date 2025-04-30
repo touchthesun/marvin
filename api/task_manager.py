@@ -326,3 +326,12 @@ class TaskManager:
                 "message": f"Task {task_id} did not complete within {max_wait} seconds"
             }
         }
+    
+    async def get_all_tasks(self) -> List[Dict[str, Any]]:
+        """
+        Get all tasks.
+        
+        Returns:
+            List of all task data dictionaries
+        """
+        return list(self.tasks.values())

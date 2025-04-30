@@ -18,129 +18,32 @@ function debugLog(message, ...args) {
 const moduleCache = new Map();
 const failedModules = new Set();
 
-
 /**
- * Safely import a module by path
- * @param {string} path - Path to the module file
- * @returns {Promise<object|null>} The module or null if failed
+ * Check if a module is available in the extension
+ * @param {string} path - Path to the module
+ * @returns {Promise<boolean>} - Whether the module is available
  */
-async function importFromPath(path) {
+async function isModuleAvailable(path) {
   try {
-    debugLog(`Trying path: ${path}`);
-    
-    // Get the full extension URL
-    let fullUrl;
-    try {
-      fullUrl = chrome.runtime.getURL(path);
-      debugLog(`Resolved URL: ${fullUrl}`);
-    } catch (e) {
-      debugLog(`Failed to resolve URL for ${path}: ${e.message}`);
-      return null;
-    }
-    
-    // First check if the file exists using fetch
-    let fileCheck;
-    try {
-      fileCheck = await fetch(fullUrl);
-      if (!fileCheck.ok) {
-        debugLog(`File not found at ${fullUrl}`);
-        return null;
-      }
-      debugLog(`Found file at ${fullUrl}`);
-    } catch (e) {
-      debugLog(`Fetch failed for ${fullUrl}: ${e.message}`);
-      return null;
-    }
-    
-    // Try to import directly
-    try {
-      // Direct import without blob URL creation
-      const module = await import(/* webpackIgnore: true */ fullUrl);
-      debugLog(`Successfully loaded module from: ${path}`);
-      return module;
-    } catch (importError) {
-      debugLog(`Import error for ${path}: ${importError.message}`);
-      
-      // If the import fails, it might be due to relative imports in the module
-      // Instead of modifying the module text, we need to ensure all modules
-      // are properly referenced with absolute paths in the original files
-      
-      debugLog(`Module could not be loaded. Make sure all imports use absolute paths.`);
-      
-      // Log a helpful message about how to fix the module
-      debugLog(`Tip: Replace relative imports like './utils.js' with absolute paths like '/dashboard/js/utils/utils.js'`);
-      
-      return null;
-    }
+    const extensionPath = chrome.runtime.getURL(path);
+    const response = await fetch(extensionPath, { method: 'HEAD' });
+    return response.ok;
   } catch (error) {
-    debugLog(`Failed to load from ${path}: ${error.message}`);
-    return null;
+    debugLog(`Error checking module availability: ${error.message}`);
+    return false;
   }
 }
 
 
-
 /**
- * Resolve a relative import path to an absolute path
- * @param {string} relativePath - Relative import path
- * @param {string} baseModulePath - Path of the importing module
- * @returns {string} Resolved absolute path
- */
-function resolveRelativeImport(relativePath, baseModulePath) {
-  debugLog(`Resolving relative import: ${relativePath} from base: ${baseModulePath}`);
-  
-  // Get the directory of the base module
-  const baseDir = baseModulePath.substring(0, baseModulePath.lastIndexOf('/') + 1);
-  debugLog(`Base directory: ${baseDir}`);
-  
-  // Handle different relative path patterns
-  if (relativePath.startsWith('./')) {
-    // Same directory
-    const resolved = baseDir + relativePath.substring(2);
-    debugLog(`Resolved ./ import to: ${resolved}`);
-    return resolved;
-  } else if (relativePath.startsWith('../')) {
-    // Parent directory - count the number of ../ segments
-    let tempPath = relativePath;
-    let tempBaseDir = baseDir;
-    
-    while (tempPath.startsWith('../')) {
-      // Remove one directory level from the base path
-      tempBaseDir = tempBaseDir.substring(0, tempBaseDir.lastIndexOf('/', tempBaseDir.length - 2) + 1);
-      // Remove the ../ from the relative path
-      tempPath = tempPath.substring(3);
-    }
-    
-    const resolved = tempBaseDir + tempPath;
-    debugLog(`Resolved ../ import to: ${resolved}`);
-    return resolved;
-  } else if (relativePath.startsWith('/')) {
-    // Absolute path from extension root
-    debugLog(`Using absolute path: ${relativePath}`);
-    return relativePath.substring(1); // Remove leading slash
-  } else {
-    // Assume it's a module in the same directory
-    const resolved = baseDir + relativePath;
-    debugLog(`Resolved bare import to: ${resolved}`);
-    return resolved;
-  }
-}
-
-
-
-/**
- * Safely import a module with multiple path attempts
+ * Safely import a module with standardized path resolution
  * @param {string} moduleName - Name of the module to import
  * @param {object} [options] - Import options
  * @param {string} [options.type='component'] - Type of module ('component', 'util', 'shared', etc.)
- * @param {string[]} [options.additionalPaths] - Additional paths to try if standard resolution fails
  * @returns {Promise<object>} - The loaded module
- */
+ */ 
 export async function safeImport(moduleName, options = {}) {
-  const { 
-    type = 'component', 
-    additionalPaths = [] 
-  } = options;
+  const { type = 'component' } = options;
   
   debugLog(`Attempting to load module: ${moduleName} (type: ${type})`);
   
@@ -150,199 +53,105 @@ export async function safeImport(moduleName, options = {}) {
     return moduleCache.get(moduleName);
   }
   
-  // Don't retry modules that have previously failed
-  if (failedModules.has(moduleName)) {
-    debugLog(`Module previously failed to load: ${moduleName}`);
-    return createStubModule(moduleName);
+  // Check global registry for components
+  const componentName = moduleName.replace(/\.js$/, '');
+  if (window.MarvinComponents && window.MarvinComponents[componentName]) {
+    // Check if it's a stub - if it has a _isStub property, we'll try to load the real component
+    const component = window.MarvinComponents[componentName];
+    if (component._isStub) {
+      debugLog(`Found stub in global registry for: ${moduleName}, will try to load real component`);
+    } else {
+      debugLog(`Found module in global registry: ${moduleName}`);
+      return window.MarvinComponents[componentName];
+    }
   }
   
   // Convert bare module name to path if needed
   const modulePath = moduleName.endsWith('.js') ? moduleName : `${moduleName}.js`;
   
-  // Highest priority: Check if module is already registered in global registry
-  if (window.MarvinComponents && window.MarvinComponents[moduleName.replace(/\.js$/, '')]) {
-    debugLog(`Found module in global registry: ${moduleName}`);
-    return window.MarvinComponents[moduleName.replace(/\.js$/, '')];
-  }
+  // Determine the correct paths to try based on module type
+  let pathsToTry = [];
   
-  // For components, always try the dashboard/js/components path first
   if (type === 'component') {
-    // Try the direct, correct path first
-    const directPath = `dashboard/js/components/${modulePath}`;
-    debugLog(`Trying direct component path: ${directPath}`);
-    
-    const module = await importFromPath(directPath);
-    if (module) {
-      moduleCache.set(moduleName, module);
-      debugLog(`Successfully loaded module from direct path: ${directPath}`);
-      return module;
-    }
-    
-    // If direct path failed, try with variations
-    const variations = [
+    pathsToTry = [
+      `dashboard/js/components/${modulePath}`,
       `/dashboard/js/components/${modulePath}`,
-      `./dashboard/js/components/${modulePath}`
+      `../dashboard/js/components/${modulePath}`
     ];
-    
-    for (const path of variations) {
-      const module = await importFromPath(path);
-      if (module) {
-        moduleCache.set(moduleName, module);
-        debugLog(`Successfully loaded module from variation path: ${path}`);
-        return module;
-      }
-    }
-  }
-
-  if (type === 'util') {
-    // Try the direct, correct path first
-    const directPath = `dashboard/js/utils/${modulePath}`;
-    debugLog(`Trying direct component path: ${directPath}`);
-
-    const module = await importFromPath(directPath);
-    if (module) {
-      moduleCache.set(moduleName, module);
-      debugLog(`Successfully loaded module from direct path: ${directPath}`);
-      return module;
-    }
-
-    // If direct path failed, try with variations
-    const variations = [
+  } else if (type === 'util') {
+    pathsToTry = [
+      `dashboard/js/utils/${modulePath}`,
       `/dashboard/js/utils/${modulePath}`,
-      `./dashboard/js/utils/${modulePath}`
+      `../dashboard/js/utils/${modulePath}`
     ];
-    
-    for (const path of variations) {
-      const module = await importFromPath(path);
-      if (module) {
-        moduleCache.set(moduleName, module);
-        debugLog(`Successfully loaded module from variation path: ${path}`);
-        return module;
+  } else if (type === 'shared') {
+    pathsToTry = [
+      `shared/utils/${modulePath}`,
+      `/shared/utils/${modulePath}`,
+      `../shared/utils/${modulePath}`
+    ];
+  }
+  
+  // Try each path until we find one that works
+  for (const path of pathsToTry) {
+    try {
+      // Check if the file exists
+      const extensionPath = chrome.runtime.getURL(path);
+      debugLog(`Trying path: ${extensionPath}`);
+      
+      const available = await isModuleAvailable(path);
+      if (!available) {
+        debugLog(`File not found at ${extensionPath}`);
+        continue;
       }
+      
+      debugLog(`File exists at ${extensionPath}, importing...`);
+      
+      try {
+        // Use dynamic import
+        const module = await import(/* webpackIgnore: true */ extensionPath);
+        
+        // Cache successful module
+        moduleCache.set(moduleName, module);
+        debugLog(`Successfully loaded module: ${moduleName}`);
+        
+        return module;
+      } catch (importError) {
+        debugLog(`Import error for ${path}: ${importError.message}`);
+        // Continue to next path
+      }
+    } catch (error) {
+      debugLog(`Error checking file at ${path}: ${error.message}`);
+      // Continue to the next path
     }
   }
   
-  // If we're still here, try additional paths
-  for (const path of additionalPaths) {
-    const module = await importFromPath(path);
-    if (module) {
-      moduleCache.set(moduleName, module);
-      debugLog(`Successfully loaded module from additional path: ${path}`);
-      return module;
-    }
-  }
-  
-  // If we're still here, try the module name directly
-  const module = await importFromPath(modulePath);
-  if (module) {
-    moduleCache.set(moduleName, module);
-    debugLog(`Successfully loaded module from direct module path: ${modulePath}`);
-    return module;
-  }
-  
-  // All paths failed, mark as failed module
-  failedModules.add(moduleName);
+  // If we get here, all paths failed
   debugLog(`All paths failed for module: ${moduleName}`);
+  failedModules.add(moduleName);
   
   // Return a stub module
-  debugLog(`Creating stub module for: ${moduleName}`);
   return createStubModule(moduleName);
 }
 
-
-
-
 /**
- * Get the base path of the extension
- * @returns {string} The base URL of the extension
+ * Clear a specific failed module to allow retry
+ * @param {string} moduleName - Name of module to clear from failed list
  */
-function getExtensionBasePath() {
-  try {
-    debugLog('Getting extension base path using chrome.runtime.getURL');
-    const basePath = chrome.runtime.getURL('');
-    debugLog(`Extension base path: ${basePath}`);
-    return basePath;
-  } catch (e) {
-    debugLog(`Failed to get extension base path: ${e.message}`);
-    // Fallback if runtime API fails
-    return '/';
-  }
+export function clearFailedModule(moduleName) {
+  failedModules.delete(moduleName);
+  moduleCache.delete(moduleName);
+  debugLog(`Cleared failed status for module: ${moduleName}`);
 }
 
 /**
- * Resolve a module path against the extension's base URL
- * @param {string} path - Relative or absolute path to resolve
- * @returns {string} Fully resolved URL
+ * Clear all module caches
  */
-function resolveModulePath(path) {
-  try {
-    // Log the input path for debugging
-    debugLog(`Resolving module path: ${path}`);
-    
-    // Skip resolution for absolute URLs
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      debugLog(`Path is already absolute: ${path}`);
-      return path;
-    }
-    
-    const basePath = getExtensionBasePath();
-    debugLog(`Extension base path: ${basePath}`);
-    
-    // Special case for panel modules
-    if (path.endsWith('-panel.js') && !path.includes('/')) {
-      const correctedPath = `dashboard/js/components/${path}`;
-      debugLog(`Special case for panel module: using ${correctedPath} instead of ${path}`);
-      return new URL(correctedPath, basePath).href;
-    }
-    
-    // Special case for component modules without path
-    if (path.endsWith('.js') && !path.includes('/')) {
-      // Check if this is likely a component
-      const componentNames = ['navigation', 'overview', 'knowledge', 'tasks', 'assistant', 'capture', 'settings'];
-      const baseName = path.replace('.js', '');
-      
-      if (componentNames.includes(baseName)) {
-        const correctedPath = `dashboard/js/components/${path}`;
-        debugLog(`Special case for component module: using ${correctedPath} instead of ${path}`);
-        return new URL(correctedPath, basePath).href;
-      }
-    }
-    
-    // Handle paths that already start with the base path
-    if (path.startsWith(basePath)) {
-      debugLog(`Path already includes base path: ${path}`);
-      return path;
-    }
-    
-    // Remove leading slash if base path ends with slash and path starts with slash
-    let normalizedPath = path;
-    if (basePath.endsWith('/') && path.startsWith('/')) {
-      normalizedPath = path.substring(1);
-      debugLog(`Normalized path: ${normalizedPath}`);
-    }
-    
-    // Construct full URL
-    let fullPath;
-    try {
-      fullPath = new URL(normalizedPath, basePath).href;
-      debugLog(`Resolved path: ${path} → ${fullPath}`);
-    } catch (urlError) {
-      debugLog(`Error constructing URL: ${urlError.message}`);
-      // Fallback to simple string concatenation
-      fullPath = basePath + (basePath.endsWith('/') ? '' : '/') + normalizedPath;
-      debugLog(`Fallback path resolution: ${fullPath}`);
-    }
-    
-    return fullPath;
-  } catch (e) {
-    debugLog(`Error resolving module path: ${e.message}`);
-    // Return original path as fallback
-    return path;
-  }
+export function clearModuleCache() {
+  moduleCache.clear();
+  failedModules.clear();
+  debugLog('Module cache cleared');
 }
-
-
-
 
 /**
  * Create a stub module with basic functionality
@@ -365,12 +174,12 @@ function createStubModule(moduleName) {
   // Create a stub module with the expected initialization function
   const stubModule = {
     [initFunctionName]: async function() {
-      console.warn(`Using stub implementation for ${moduleName}`);
+      debugLog(`Using stub implementation for ${moduleName}`);
       
       // Try to get the panel element
       const panelElement = document.getElementById(`${panelName}-panel`);
       if (!panelElement) {
-        console.warn(`Panel element not found: ${panelName}-panel`);
+        debugLog(`Panel element not found: ${panelName}-panel`);
         return;
       }
       
@@ -406,10 +215,10 @@ function createStubModule(moduleName) {
       const retryButton = warningElement.querySelector('.stub-retry-btn');
       if (retryButton) {
         retryButton.addEventListener('click', async () => {
-          console.log(`Retrying module load for ${moduleName}...`);
+          debugLog(`Retrying module load for ${moduleName}...`);
           
-          // Remove from failed modules set to allow retry
-          failedModules.delete(moduleName);
+          // Clear failed status to allow retry
+          clearFailedModule(moduleName);
           
           // Remove warning
           warningElement.remove();
@@ -419,14 +228,16 @@ function createStubModule(moduleName) {
             const module = await safeImport(moduleName);
             if (module[initFunctionName]) {
               await module[initFunctionName]();
-              console.log(`Successfully reloaded and initialized ${moduleName}`);
+              debugLog(`Successfully reloaded and initialized ${moduleName}`);
             }
           } catch (error) {
-            console.error(`Failed to reload ${moduleName}:`, error);
+            debugLog(`Failed to reload ${moduleName}:`, error);
           }
         });
       }
-    }
+    },
+    // Mark this as a stub so we can identify it later
+    _isStub: true
   };
   
   return stubModule;
@@ -444,12 +255,34 @@ export function getModuleStatus() {
 }
 
 /**
- * Clear the module cache and failed modules list
+ * Preload a component to ensure it's available before needed
+ * @param {string} componentName - Name of the component to preload
+ * @returns {Promise<boolean>} - Whether preloading was successful
  */
-export function clearModuleCache() {
-  moduleCache.clear();
-  failedModules.clear();
-  debugLog('Module cache cleared');
+export async function preloadComponent(componentName) {
+  try {
+    debugLog(`Preloading component: ${componentName}`);
+    await safeImport(componentName, { type: 'component' });
+    return true;
+  } catch (error) {
+    debugLog(`Error preloading component ${componentName}: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Preload multiple components
+ * @param {string[]} componentNames - Array of component names to preload
+ * @returns {Promise<object>} - Results of preloading each component
+ */
+export async function preloadComponents(componentNames) {
+  const results = {};
+  
+  for (const name of componentNames) {
+    results[name] = await preloadComponent(name);
+  }
+  
+  return results;
 }
 
 // If global component registry doesn't exist, create it
@@ -462,6 +295,9 @@ if (typeof window !== 'undefined' && !window.registerComponent) {
   window.registerComponent = function(name, implementation) {
     debugLog(`Registering component: ${name}`);
     window.MarvinComponents[name] = implementation;
+    
+    // Also add to module cache
+    moduleCache.set(name, implementation);
   };
 }
 
@@ -472,45 +308,3 @@ export function testModuleLoader() {
     timestamp: new Date().toISOString()
   };
 }
-
-/**
- * Resolve an import path relative to a base module
- * This is useful for modules that need to import their own dependencies
- * @param {string} importPath - Path to resolve
- * @param {string} baseModulePath - Path of the base module
- * @returns {string} Resolved path
- */
-function resolveImportPath(importPath, baseModulePath) {
-  try {
-    debugLog(`Resolving import path: ${importPath} relative to ${baseModulePath}`);
-    
-    // If the import path is absolute, return it directly
-    if (importPath.startsWith('http://') || importPath.startsWith('https://')) {
-      return importPath;
-    }
-    
-    // If it's a relative path, resolve it against the base module path
-    if (importPath.startsWith('./') || importPath.startsWith('../')) {
-      // Get the directory of the base module
-      const baseDir = baseModulePath.substring(0, baseModulePath.lastIndexOf('/') + 1);
-      
-      // Resolve the path
-      const resolvedPath = new URL(importPath, new URL(baseDir, getExtensionBasePath())).href;
-      debugLog(`Resolved relative import: ${resolvedPath}`);
-      return resolvedPath;
-    }
-    
-    // For non-relative imports, try to resolve against the extension root
-    return resolveModulePath(importPath);
-  } catch (e) {
-    debugLog(`Error resolving import path: ${e.message}`);
-    return importPath;
-  }
-}
-
-// Export additional utility functions
-export {
-  getExtensionBasePath,
-  resolveModulePath,
-  resolveImportPath
-};

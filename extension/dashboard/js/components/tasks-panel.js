@@ -1,7 +1,7 @@
 // components/tasks-panel.js
-import { showNotification, updateNotificationProgress } from '/dashboard/js/services/notification-service.js';
-import { truncateText } from '/dashboard/js/components/capture-ui.js';
-import { LogManager } from '/shared/utils/log-manager.js';
+import { showNotification, updateNotificationProgress } from '../services/notification-service.js';
+import { truncateText } from '../components/capture-ui.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 /**
  * Logger for tasks panel operations
@@ -20,6 +20,22 @@ let tasksInitialized = false;
 // Task state
 let activeTasks = [];
 let completedTasks = [];
+
+// Define the TasksPanelComponent object
+const TasksPanelComponent = {
+  // Main initialization function
+  initTasksPanel() {
+    return initTasksPanel();
+  },
+  
+  // Public methods that should be exposed
+  refreshAllTasks, 
+  cancelTask, 
+  retryTask,
+  cancelAllTasks,
+  clearCompletedTasks,
+  viewTaskResult
+};
 
 /**
  * Initialize tasks panel and set up event listeners
@@ -757,7 +773,34 @@ function getCompletedTasks() {
   return [...completedTasks];
 }
 
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    logger.log('debug', 'Registering tasks panel component using global registerComponent');
+    self.registerComponent('tasks-panel', TasksPanelComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    logger.log('debug', 'Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['tasks-panel'] = TasksPanelComponent;
+  }
+  
+  logger.log('info', 'tasks panel component registered successfully');
+} catch (error) {
+  logger.log('error', 'Error registering tasks panel component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['tasks-panel'] = TasksPanelComponent;
+    logger.log('debug', 'tasks panel component registered using window fallback');
+  } catch (windowError) {
+    logger.log('error', 'Failed to register tasks panel component:', windowError);
+  }
+}
+
 // Export additional functions needed by other modules
+export default TasksPanelComponent;
 export { 
   initTasksPanel,
   refreshAllTasks, 

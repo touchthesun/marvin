@@ -1,12 +1,12 @@
 // dashboard.js - Main entry point for the Marvin dashboard
-import { LogManager } from '/shared/utils/log-manager.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { safeImport, getModuleStatus, clearModuleCache } from '/dashboard/js/utils/module-loader.js';
+import { LogManager } from '../../shared/utils/log-manager.js';
+import { showNotification } from './services/notification-service.js';
+import { safeImport, getModuleStatus, clearModuleCache, preloadComponents } from './utils/module-loader.js';
 
 // Import services
-import { initStorageService, getActiveState } from '/dashboard/js/services/storage-service.js';
-import { setupStatusMonitoring } from '/dashboard/js/services/status-service.js';
-import { initTaskService } from '/dashboard/js/services/task-service.js';
+import { initStorageService, getActiveState } from './services/storage-service.js';
+import { setupStatusMonitoring } from './services/status-service.js';
+import { initTaskService } from './services/task-service.js';
 
 // Safety mechanism to prevent infinite loops or excessive resource usage
 let initializationAttempts = 0;
@@ -14,6 +14,62 @@ const MAX_INITIALIZATION_ATTEMPTS = 3;
 
 // Debug flag
 const DEBUG_MODE = true;
+
+
+// Preload all components
+async function preloadDashboardComponents() {
+  console.log('[DASHBOARD] Preloading components...');
+  
+  const componentsToPreload = [
+    'navigation',
+    'overview-panel',
+    'capture-panel',
+    'knowledge-panel',
+    'settings-panel',
+    'tasks-panel',
+    'assistant-panel'
+  ];
+  
+  const results = {};
+  
+  for (const component of componentsToPreload) {
+    try {
+      console.log(`[DASHBOARD] Preloading component: ${component}`);
+      const module = await safeImport(component, { type: 'component' });
+      
+      // Check if the module is a stub
+      if (module && module._isStub) {
+        console.log(`[DASHBOARD] Loaded stub for: ${component}`);
+        results[component] = false;
+      } else {
+        console.log(`[DASHBOARD] Successfully loaded: ${component}`);
+        results[component] = true;
+      }
+    } catch (error) {
+      console.error(`[DASHBOARD] Error preloading ${component}:`, error);
+      results[component] = false;
+    }
+  }
+  
+  console.log('[DASHBOARD] Component preloading results:', results);
+  
+  // Register stubs for any components that failed to load
+  registerAllStubs();
+  
+  return Object.values(results).filter(success => success).length;
+}
+
+// Call this before initializing the dashboard
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[DASHBOARD] Dashboard script loaded');
+  
+  // Preload components
+  const loadedCount = await preloadDashboardComponents();
+  console.log(`[DASHBOARD] Successfully preloaded ${loadedCount} components`);
+  
+  // Initialize dashboard
+  initDashboard();
+});
 
 /**
  * Debug logging function
@@ -71,32 +127,15 @@ async function initDashboard() {
     // First try to load the navigation component which is critical
     debugLog('Loading navigation component...');
     
-    const navigationModule = await safeImport('navigation', { 
-      type: 'component'
-    });
+    // Check if navigation component is already registered
+    const navigationModule = self.MarvinComponents['navigation'];
 
     if (!navigationModule || !navigationModule.initNavigation) {
-      debugLog(`Navigation module exports: ${navigationModule ? Object.keys(navigationModule).join(', ') : 'null'}`);
+      debugLog(`Navigation module not found in registry`);
       throw new Error('Critical navigation component could not be loaded');
     }
     
     debugLog('Navigation component loaded successfully');
-    
-    // Initialize navigation debug tools
-    debugLog('Loading navigation debug tools...');
-    try {
-      const navDebugModule = await safeImport('navigation-debug', { type: 'util' });
-      
-      if (navDebugModule && navDebugModule.initNavigationDebug) {
-        navDebugModule.initNavigationDebug();
-        debugLog('Navigation debug tools loaded successfully');
-      } else {
-        debugLog('Navigation debug tools not found, continuing without them');
-      }
-    } catch (navDebugError) {
-      debugLog('Error loading navigation debug tools:', navDebugError);
-      // Continue without navigation debug tools
-    }
     
     // First initialize services
     await initServices();

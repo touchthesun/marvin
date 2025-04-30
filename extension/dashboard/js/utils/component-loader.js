@@ -7,8 +7,11 @@ function debugLog(message, ...args) {
     console.log(`[COMPONENT LOADER] ${message}`, ...args);
   }
 }
-
+ 
 debugLog('Component loader script initialized');
+
+// Track whether stubs have been registered
+let stubsRegistered = false;
 
 // Simple stub implementations for components in case of load failure
 export const componentStubs = {
@@ -88,7 +91,10 @@ export const componentStubs = {
       }
       
       return false;
-    }
+    },
+    
+    // Mark as stub
+    _isStub: true
   },
   
   'overview-panel': {
@@ -120,7 +126,10 @@ export const componentStubs = {
       } else {
         panel.appendChild(message);
       }
-    }
+    },
+    
+    // Mark as stub
+    _isStub: true
   },
   
   'capture-panel': {
@@ -152,7 +161,10 @@ export const componentStubs = {
       } else {
         panel.appendChild(message);
       }
-    }
+    },
+    
+    // Mark as stub
+    _isStub: true
   },
   
   'knowledge-panel': {
@@ -184,7 +196,10 @@ export const componentStubs = {
       } else {
         panel.appendChild(message);
       }
-    }
+    },
+    
+    // Mark as stub
+    _isStub: true
   },
   
   'settings-panel': {
@@ -216,7 +231,10 @@ export const componentStubs = {
       } else {
         panel.appendChild(message);
       }
-    }
+    },
+    
+    // Mark as stub
+    _isStub: true
   },
   
   'tasks-panel': {
@@ -248,7 +266,10 @@ export const componentStubs = {
       } else {
         panel.appendChild(message);
       }
-    }
+    },
+    
+    // Mark as stub
+    _isStub: true
   },
   
   'assistant-panel': {
@@ -280,50 +301,106 @@ export const componentStubs = {
       } else {
         panel.appendChild(message);
       }
-    }
+    },
+    
+    // Mark as stub
+    _isStub: true
   }
 };
 
-// Register all stub components
-for (const name in componentStubs) {
+/**
+ * Register a stub component if the real one isn't available
+ * @param {string} name - Component name
+ * @returns {boolean} - Whether a stub was registered
+ */
+function registerStubIfNeeded(name) {
   if (!window.MarvinComponents[name]) {
     window.registerComponent(name, componentStubs[name]);
     debugLog(`Registered stub component: ${name}`);
+    return true;
   }
+  return false;
 }
+
+/**
+ * Register all stub components
+ */
+function registerAllStubs() {
+  if (stubsRegistered) return;
+  
+  for (const name in componentStubs) {
+    registerStubIfNeeded(name);
+  }
+  
+  stubsRegistered = true;
+  debugLog('All stub components registered');
+}
+
+// Delay stub registration to give real components a chance to load
+setTimeout(() => {
+  debugLog('Checking for missing components');
+  const requiredComponents = [
+    'navigation', 'overview-panel', 'capture-panel', 
+    'knowledge-panel', 'settings-panel', 'tasks-panel', 
+    'assistant-panel'
+  ];
+  
+  let missingComponents = false;
+  
+  for (const name of requiredComponents) {
+    if (!window.MarvinComponents[name]) {
+      debugLog(`Component ${name} not found, will register stub`);
+      missingComponents = true;
+    }
+  }
+  
+  if (missingComponents) {
+    debugLog('Some components are missing, registering stubs');
+    registerAllStubs();
+  } else {
+    debugLog('All components found, no stubs needed');
+  }
+}, 1000); // Wait 1 second to give real components a chance to load
 
 // Initialize navigation system using stub
 document.addEventListener('DOMContentLoaded', () => {
   debugLog('DOM loaded, initializing navigation from component loader');
   
-  const navComponent = window.MarvinComponents['navigation'];
-  if (navComponent && navComponent.initNavigation) {
-    debugLog('Initializing navigation system');
-    navComponent.initNavigation();
+  // Wait a bit to ensure components have had time to load
+  setTimeout(() => {
+    // Make sure navigation is available, even if it's a stub
+    registerStubIfNeeded('navigation');
     
-    if (navComponent.initTabs) {
-      debugLog('Initializing tabs system');
-      navComponent.initTabs();
+    const navComponent = window.MarvinComponents['navigation'];
+    if (navComponent && navComponent.initNavigation) {
+      debugLog('Initializing navigation system');
+      navComponent.initNavigation();
+      
+      if (navComponent.initTabs) {
+        debugLog('Initializing tabs system');
+        navComponent.initTabs();
+      }
+      
+      // Activate the first panel
+      const firstNavItem = document.querySelector('.nav-item');
+      if (firstNavItem) {
+        debugLog('Activating first panel');
+        firstNavItem.click();
+      }
+    } else {
+      debugLog('ERROR: Navigation component not found!');
     }
-    
-    // Activate the first panel
-    const firstNavItem = document.querySelector('.nav-item');
-    if (firstNavItem) {
-      debugLog('Activating first panel');
-      firstNavItem.click();
-    }
-  } else {
-    debugLog('ERROR: Navigation component not found!');
-  }
+  }, 500);
 });
 
 // Export functions
 window.ComponentLoader = {
   registerAllStubs: function() {
-    for (const name in componentStubs) {
-      window.registerComponent(name, componentStubs[name]);
-      debugLog(`Registered stub component: ${name}`);
-    }
+    registerAllStubs();
+  },
+  
+  registerStubIfNeeded: function(name) {
+    return registerStubIfNeeded(name);
   },
   
   initializeNavigation: function() {
@@ -339,193 +416,3 @@ window.ComponentLoader = {
 };
 
 debugLog('Component loader script loaded successfully');
-
-
-
-// Component stubs for fallback pulled from navigation.js
-// const componentStubs = {
-//   'overview-panel': {
-//     initOverviewPanel: async function() {
-//       debugLog('STUB: initOverviewPanel called');
-//       // Basic implementation for overview panel
-//       const panel = document.getElementById('overview-panel');
-//       if (!panel) return;
-      
-//       // Add stub message
-//       const message = document.createElement('div');
-//       message.style.padding = '20px';
-//       message.style.margin = '20px';
-//       message.style.backgroundColor = '#f9e9c9';
-//       message.style.border = '1px solid #f8d188';
-//       message.style.borderRadius = '4px';
-      
-//       message.innerHTML = `
-//         <h3>Overview Panel (Stub)</h3>
-//         <p>This is a stub implementation of the overview panel.</p>
-//         <p>The actual component module could not be loaded.</p>
-//       `;
-      
-//       // Find a place to insert the message
-//       const header = panel.querySelector('.panel-header');
-//       if (header && header.nextSibling) {
-//         panel.insertBefore(message, header.nextSibling);
-//       } else {
-//         panel.appendChild(message);
-//       }
-//     }
-//   },
-//   'capture-panel': {
-//     initCapturePanel: async function() {
-//       debugLog('STUB: initCapturePanel called');
-//       // Basic implementation for capture panel
-//       const panel = document.getElementById('capture-panel');
-//       if (!panel) return;
-      
-//       // Add stub message
-//       const message = document.createElement('div');
-//       message.style.padding = '20px';
-//       message.style.margin = '20px';
-//       message.style.backgroundColor = '#f9e9c9';
-//       message.style.border = '1px solid #f8d188';
-//       message.style.borderRadius = '4px';
-      
-//       message.innerHTML = `
-//         <h3>Capture Panel (Stub)</h3>
-//         <p>This is a stub implementation of the capture panel.</p>
-//         <p>The actual component module could not be loaded.</p>
-//       `;
-      
-//       // Find a place to insert the message
-//       const header = panel.querySelector('.panel-header');
-//       if (header && header.nextSibling) {
-//         panel.insertBefore(message, header.nextSibling);
-//       } else {
-//         panel.appendChild(message);
-//       }
-//     }
-//   },
-//   'knowledge-panel': {
-//     initKnowledgePanel: async function() {
-//       debugLog('STUB: initKnowledgePanel called');
-//       // Basic implementation for knowledge panel
-//       const panel = document.getElementById('knowledge-panel');
-//       if (!panel) return;
-      
-//       // Add stub message
-//       const message = document.createElement('div');
-//       message.style.padding = '20px';
-//       message.style.margin = '20px';
-//       message.style.backgroundColor = '#f9e9c9';
-//       message.style.border = '1px solid #f8d188';
-//       message.style.borderRadius = '4px';
-      
-//       message.innerHTML = `
-//         <h3>Knowledge Panel (Stub)</h3>
-//         <p>This is a stub implementation of the knowledge panel.</p>
-//         <p>The actual component module could not be loaded.</p>
-//       `;
-      
-//       // Find a place to insert the message
-//       const header = panel.querySelector('.panel-header');
-//       if (header && header.nextSibling) {
-//         panel.insertBefore(message, header.nextSibling);
-//       } else {
-//         panel.appendChild(message);
-//       }
-//     },
-//     initKnowledgeGraph: async function() {
-//       debugLog('STUB: initKnowledgeGraph called');
-//       // Nothing to do in stub implementation
-//     }
-//   },
-//   'assistant-panel': {
-//     initAssistantPanel: async function() {
-//       debugLog('STUB: initAssistantPanel called');
-//       // Basic implementation for assistant panel
-//       const panel = document.getElementById('assistant-panel');
-//       if (!panel) return;
-      
-//       // Add stub message
-//       const message = document.createElement('div');
-//       message.style.padding = '20px';
-//       message.style.margin = '20px';
-//       message.style.backgroundColor = '#f9e9c9';
-//       message.style.border = '1px solid #f8d188';
-//       message.style.borderRadius = '4px';
-      
-//       message.innerHTML = `
-//         <h3>Assistant Panel (Stub)</h3>
-//         <p>This is a stub implementation of the assistant panel.</p>
-//         <p>The actual component module could not be loaded.</p>
-//       `;
-      
-//       // Find a place to insert the message
-//       const header = panel.querySelector('.panel-header');
-//       if (header && header.nextSibling) {
-//         panel.insertBefore(message, header.nextSibling);
-//       } else {
-//         panel.appendChild(message);
-//       }
-//     }
-//   },
-//   'settings-panel': {
-//     initSettingsPanel: async function() {
-//       debugLog('STUB: initSettingsPanel called');
-//       // Basic implementation for settings panel
-//       const panel = document.getElementById('settings-panel');
-//       if (!panel) return;
-      
-//       // Add stub message
-//       const message = document.createElement('div');
-//       message.style.padding = '20px';
-//       message.style.margin = '20px';
-//       message.style.backgroundColor = '#f9e9c9';
-//       message.style.border = '1px solid #f8d188';
-//       message.style.borderRadius = '4px';
-      
-//       message.innerHTML = `
-//         <h3>Settings Panel (Stub)</h3>
-//         <p>This is a stub implementation of the settings panel.</p>
-//         <p>The actual component module could not be loaded.</p>
-//       `;
-      
-//       // Find a place to insert the message
-//       const header = panel.querySelector('.panel-header');
-//       if (header && header.nextSibling) {
-//         panel.insertBefore(message, header.nextSibling);
-//       } else {
-//         panel.appendChild(message);
-//       }
-//     }
-//   },
-//   'tasks-panel': {
-//     initTasksPanel: async function() {
-//       debugLog('STUB: initTasksPanel called');
-//       // Basic implementation for tasks panel
-//       const panel = document.getElementById('tasks-panel');
-//       if (!panel) return;
-      
-//       // Add stub message
-//       const message = document.createElement('div');
-//       message.style.padding = '20px';
-//       message.style.margin = '20px';
-//       message.style.backgroundColor = '#f9e9c9';
-//       message.style.border = '1px solid #f8d188';
-//       message.style.borderRadius = '4px';
-      
-//       message.innerHTML = `
-//         <h3>Tasks Panel (Stub)</h3>
-//         <p>This is a stub implementation of the tasks panel.</p>
-//         <p>The actual component module could not be loaded.</p>
-//       `;
-      
-//       // Find a place to insert the message
-//       const header = panel.querySelector('.panel-header');
-//       if (header && header.nextSibling) {
-//         panel.insertBefore(message, header.nextSibling);
-//       } else {
-//         panel.appendChild(message);
-//       }
-//     }
-//   }
-// };

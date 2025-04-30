@@ -1,8 +1,8 @@
 // components/bookmarks-capture.js
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { LogManager } from '/shared/utils/log-manager.js';
-import { isValidCaptureUrl } from '/shared/utils/capture.js';
-import { truncateText } from '/dashboard/js/components/capture-ui.js';
+import { showNotification } from '../services/notification-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { isValidCaptureUrl } from '../../../shared/utils/capture.js';
+import { truncateText } from '../components/capture-ui.js';
 
 /**
  * Logger for bookmarks capture operations

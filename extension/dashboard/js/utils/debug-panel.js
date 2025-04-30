@@ -1,4 +1,4 @@
-// debug-console.js - Debug console functionality for the dashboard
+// debug-panel.js - Debug console functionality for the dashboard
 
 // Add debug panel controls
 document.addEventListener('DOMContentLoaded', function() {

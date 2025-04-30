@@ -1,9 +1,9 @@
 // components/graph-panel.js
 import * as d3 from 'd3';
-import { LogManager } from '/shared/utils/log-manager.js';
-import { fetchAPI } from '/dashboard/js/services/api-service.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { getSettings, incrementStatsCounter } from '/dashboard/js/services/storage-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { fetchAPI } from '../services/api-service.js';
+import { showNotification } from '../services/notification-service.js';
+import { getSettings, incrementStatsCounter } from '../services/storage-service.js';
 
 /**
  * Logger for graph panel operations
@@ -21,6 +21,19 @@ let graphInitialized = false;
 let graphData = {
   nodes: [],
   edges: []
+};
+
+const GraphPanelComponent = {
+  // Main initialization function
+  initGraphPanel() {
+    return initGraphPanel();
+  },
+  
+  // Public methods that should be exposed
+  initGraphPanel,
+  loadGraphData,
+  renderGraph,
+  cleanupGraphPanel
 };
 
 /**
@@ -805,6 +818,33 @@ function cleanupGraphPanel() {
   logger.debug('Graph panel resources cleaned up');
 }
 
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    logger.log('debug', 'Registering graph panel component using global registerComponent');
+    self.registerComponent('graph-panel', GraphPanelComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    logger.log('debug', 'Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['graph-panel'] = GraphPanelComponent;
+  }
+  
+  logger.log('info', 'graph panel component registered successfully');
+} catch (error) {
+  logger.log('error', 'Error registering graph panel component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['graph-panel'] = GraphPanelComponent;
+    logger.log('debug', 'graph panel component registered using window fallback');
+  } catch (windowError) {
+    logger.log('error', 'Failed to register graph panel component:', windowError);
+  }
+}
+
+export default GraphPanelComponent;
 // Export public methods
 export {
   initGraphPanel,

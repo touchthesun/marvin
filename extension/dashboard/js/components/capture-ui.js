@@ -1,5 +1,5 @@
 // components/capture/capture-ui.js
-import { LogManager } from '/shared/utils/log-manager.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 /**
  * Logger for capture UI operations

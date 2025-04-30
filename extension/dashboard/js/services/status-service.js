@@ -1,6 +1,6 @@
 // services/status-service.js
-import { LogManager } from '/shared/utils/log-manager.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { LogManager } from '../../../shared/utils/log-manager';
+import { showNotification } from './notification-service.js';
 
 /**
  * Logger for status monitoring operations

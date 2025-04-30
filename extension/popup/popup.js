@@ -1,5 +1,5 @@
-import { captureCurrentTab, setupCaptureButton } from '/shared/utils/capture.js';
-import { LogManager } from '/shared/utils/log-manager.js';
+import { captureCurrentTab, setupCaptureButton } from '../shared/utils/capture.js';
+import { LogManager } from '../shared/utils/log-manager.js';
 
 // Initialize logger
 const logger = new LogManager({
@@ -118,7 +118,7 @@ function openDiagnosticDashboard() {
     isDashboardOpening = false;
   }, 2000);
 
-  // First try to open the dashboard-minimal.html
+  // First try to open the diagnostics dashboard.html
   try {
     // Path relative to extension root
     const dashboardUrl = 'popup/diagnostics.html';
@@ -137,30 +137,31 @@ function openDiagnosticDashboard() {
     logger.log('error', `Error opening diagnostic dashboard: ${error.message}`);
   }
 }
-
+ 
 // Add a function to export logs from the popup
 async function exportLogs() {
   try {
     logger.log('info', 'Exporting logs');
     const logs = await logger.exportLogs('text');
     
-    // Create a download link
-    const blob = new Blob([logs], {type: 'text/plain'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'marvin-popup-logs.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    logger.log('info', 'Logs exported successfully');
+    // Use chrome.downloads API instead of blob URLs
+    chrome.downloads.download({
+      url: 'data:text/plain;charset=utf-8,' + encodeURIComponent(logs),
+      filename: 'marvin-popup-logs.txt',
+      saveAs: true
+    }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        logger.log('error', 'Error downloading logs:', chrome.runtime.lastError);
+      } else {
+        logger.log('info', 'Logs exported successfully with download ID:', downloadId);
+      }
+    });
   } catch (error) {
     console.error('Error exporting logs:', error);
     logger.log('error', 'Error exporting logs:', error);
   }
 }
+
 
 /**
  * Initialize the popup

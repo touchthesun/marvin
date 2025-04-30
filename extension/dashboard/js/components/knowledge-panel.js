@@ -1,10 +1,10 @@
 // components/knowledge-panel.js
-import { fetchAPI } from '/dashboard/js/services/api-service.js';
-import { truncateText } from '/dashboard/js/components/capture-ui.js';
-import { formatContext } from '/dashboard/js/utils/formatting.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { initSplitView } from '/dashboard/js/utils/ui-utils.js';
-import { LogManager } from '/shared/utils/log-manager.js';
+import { fetchAPI } from '../services/api-service.js';
+import { truncateText } from '../components/capture-ui.js';
+import { formatContext } from '../utils/formatting.js';
+import { showNotification } from '../services/notification-service.js';
+import { initSplitView } from '../utils/ui-utils.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
 
 /**
  * Logger for knowledge panel operations
@@ -20,6 +20,22 @@ const logger = new LogManager({
 // Panel initialization flags
 let knowledgeInitialized = false;
 let graphInitialized = false;
+
+// Define the KnowledgePanelComponent object
+const KnowledgePanelComponent = {
+  // Main initialization function
+  initKnowledgePanel() {
+    return initKnowledgePanel();
+  },
+  
+  // Public methods that should be exposed
+  initKnowledgeGraph,
+  refreshKnowledgePanel,
+  loadRelatedItem,
+  getKnowledgeItemCount,
+  exportKnowledgeData
+};
+
 
 /**
  * Debounce function to limit function call frequency
@@ -1035,7 +1051,34 @@ async function exportKnowledgeData() {
   }
 }
 
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    logger.log('debug', 'Registering knowledge panel component using global registerComponent');
+    self.registerComponent('knowledge-panel', KnowledgePanelComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    logger.log('debug', 'Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['knowledge-panel'] = KnowledgePanelComponent;
+  }
+  
+  logger.log('info', 'knowledge panel component registered successfully');
+} catch (error) {
+  logger.log('error', 'Error registering knowledge panel component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['knowledge-panel'] = KnowledgePanelComponent;
+    logger.log('debug', 'knowledge panel component registered using window fallback');
+  } catch (windowError) {
+    logger.log('error', 'Failed to register knowledge panel component:', windowError);
+  }
+}
+
 // Export functions needed by other modules
+export default KnowledgePanelComponent;
 export { 
   initKnowledgePanel,
   initKnowledgeGraph,

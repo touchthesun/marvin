@@ -7,25 +7,25 @@
     <title>Marvin Research Assistant</title>
     
     <!-- Emergency recovery script -->
-    <script type="module" src="js/utils/recovery.js"></script>
+    <script type="module" src="./js/utils/recovery.js"></script>
     
     <!-- Component registry - Load this first -->
-    <script type="module" src="js/utils/component-registry.js"></script>
+    <script type="module" src="./js/utils/component-registry.js"></script>
     
     <!-- Component loader script - Load this second -->
-    <script type="module" src="js/utils/component-loader.js"></script>
+    <script type="module" src="./js/utils/component-loader.js"></script>
     
     <!-- CSS styles -->
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="./dashboard.css">
     
     <!-- Explicitly load critical components as modules -->
-    <script type="module" src="dashboard/js/components/navigation.js"></script>
-    <script type="module" src="dashboard/js/components/overview-panel.js"></script>
-    <script type="module" src="dashboard/js/components/capture-panel.js"></script>
-    <script type="module" src="dashboard/js/components/knowledge-panel.js"></script>
-    <script type="module" src="dashboard/js/components/settings-panel.js"></script>
-    <script type="module" src="dashboard/js/components/tasks-panel.js"></script>
-    <script type="module" src="dashboard/js/components/assistant-panel.js"></script>
+    <script type="module" src="./js/components/navigation.js"></script>
+    <script type="module" src="./js/components/overview-panel.js"></script>
+    <script type="module" src="./js/components/capture-panel.js"></script>
+    <script type="module" src="./js/components/knowledge-panel.js"></script>
+    <script type="module" src="./js/components/settings-panel.js"></script>
+    <script type="module" src="./js/components/tasks-panel.js"></script>
+    <script type="module" src="./js/components/assistant-panel.js"></script>
   </head>
   
 <body>
@@ -248,16 +248,13 @@
     Debug
   </button>
   
-  <!-- Debug console script -->
-  <script type="module" src="dashboard/js/utils/debug-console.js"></script>
-  
   <!-- Debug script - Keep at end of body -->
-  <script type="module" src="js/utils/debug-panel.js"></script>
+  <script type="module" src="./js/utils/debug-panel.js"></script>
   
   <!-- Utility scripts -->
-  <script type="module" src="js/utils/timeout.js"></script>
+  <script type="module" src="./js/utils/timeout.js"></script>
   
   <!-- Main dashboard script - loaded last -->
-  <script type="module" src="dashboard.js"></script>
+  <script type="module" src="./js/dashboard.js"></script>
 </body>
 </html>

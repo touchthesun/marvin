@@ -12,6 +12,7 @@ from api.routes.llm import router as llm_router
 from api.routes.agent import router as agent_router
 from api.routes.stats import router as stats_router
 from api.routes.embeddings import router as embeddings_router
+from api.routes.tasks import router as tasks_router
 from core.utils.logger import get_logger
 
 
@@ -93,8 +94,9 @@ def create_application() -> FastAPI:
     app.include_router(agent_router, prefix=prefix)
     app.include_router(stats_router, prefix=prefix)
     app.include_router(embeddings_router, prefix=prefix)
+    app.include_router(tasks_router, prefix=prefix)
 
-    @app.get("/health")
+    @app.get(f"{settings.API_V1_STR}/health")
     async def health_check():
         """Health check endpoint with service status."""
         # Get database connection pool status
@@ -119,7 +121,7 @@ def create_application() -> FastAPI:
             "connection_pool": pool_status
         }
     
-    @app.get("/debug/connection-pool")
+    @app.get(f"{settings.API_V1_STR}/debug/connection-pool")
     async def connection_pool_debug(app_state: AppState = Depends(get_app_state)) -> Dict[str, Any]:
         """Debug endpoint for connection pool monitoring."""
         if not app_state.db_connection:

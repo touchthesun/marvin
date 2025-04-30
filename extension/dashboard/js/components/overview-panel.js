@@ -1,6 +1,6 @@
-import { LogManager } from '/shared/utils/log-manager.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { visualizationService } from '/dashboard/js/services/visualization-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { showNotification } from '../services/notification-service.js';
+import { visualizationService } from '../services/visualization-service.js';
 
 // Initialize logger
 const logger = new LogManager({
@@ -28,6 +28,14 @@ let statsData = {
   queryCount: 0
 };
 let recentCaptures = [];
+
+const OverviewPanelComponent = {
+  // Main initialization function
+  initOverviewPanel() {
+    return initOverviewPanel();
+  }
+};
+
 
 /**
  * Initialize the overview panel
@@ -384,5 +392,32 @@ if (window.registerComponent) {
   });
 }
 
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    logger.log('debug', 'Registering overview panel component using global registerComponent');
+    self.registerComponent('overview-panel', OverviewPanelComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    logger.log('debug', 'Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['overview-panel'] = OverviewPanelComponent;
+  }
+  
+  logger.log('info', 'Overview panel component registered successfully');
+} catch (error) {
+  logger.log('error', 'Error registering overview panel component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['overview-panel'] = OverviewPanelComponent;
+    logger.log('debug', 'Overview panel component registered using window fallback');
+  } catch (windowError) {
+    logger.log('error', 'Failed to register overview panel component:', windowError);
+  }
+}
+
 // Export the initialization function
+export default OverviewPanelComponent;
 export { initOverviewPanel };

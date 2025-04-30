@@ -1,7 +1,7 @@
 // components/assistant-panel.js
-import { fetchAPI } from '/dashboard/js/services/api-service.js';
-import { LogManager } from '/shared/utils/log-manager.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { fetchAPI } from '../services/api-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { showNotification } from '../services/notification-service.js';
 
 
 const logger = new LogManager({
@@ -12,6 +12,18 @@ const logger = new LogManager({
 
 // Panel initialization flag
 let assistantInitialized = false;
+
+
+const AssistantPanelComponent = {
+  // Main initialization function
+  initAssistantPanel() {
+    return initAssistantPanel();
+  },
+  
+  // Public methods that should be exposed
+  addMessageToChat,
+  loadChatHistory
+};
 
 /**
  * Initialize assistant panel
@@ -380,9 +392,37 @@ async function checkTaskStatus(taskId, originalQuery) {
   }
 }
 
-// Export helper functions if needed by other modules
+
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    logger.log('debug', 'Registering assistant panel component using global registerComponent');
+    self.registerComponent('assistant-panel', AssistantPanelComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    logger.log('debug', 'Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['assistant-panel'] = AssistantPanelComponent;
+  }
+  
+  logger.log('info', 'Assistant panel component registered successfully');
+} catch (error) {
+  logger.log('error', 'Error registering assistant panel component:', error);
+  // Try window as fallback if self fails
+  try {
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['assistant-panel'] = AssistantPanelComponent;
+    logger.log('debug', 'Assistant panel component registered using window fallback');
+  } catch (windowError) {
+    logger.log('error', 'Failed to register assistant panel component:', windowError);
+  }
+}
+
+// Export the component object as default, and also export individual functions
+export default AssistantPanelComponent;
 export { 
   addMessageToChat, 
   initAssistantPanel,
   loadChatHistory
- };
+}

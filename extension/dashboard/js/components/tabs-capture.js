@@ -1,7 +1,7 @@
 // components/capture/tabs-capture.js
-import { showNotification } from '/dashboard/js/services/notification-service.js';
-import { LogManager } from '/shared/utils/log-manager.js';
-import { isValidCaptureUrl } from '/shared/utils/capture.js';
+import { showNotification } from '../services/notification-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { isValidCaptureUrl } from '../../../shared/utils/capture.js';
 
 /**
  * Logger for tabs capture operations

@@ -1,6 +1,6 @@
 // services/storage-service.js
-import { LogManager } from '/shared/utils/log-manager.js';
-import { showNotification } from '/dashboard/js/services/notification-service.js';
+import { LogManager } from '../../../shared/utils/log-manager.js';
+import { showNotification } from './notification-service.js';
 
 /**
  * Logger for storage service operations
