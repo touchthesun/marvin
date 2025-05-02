@@ -14,16 +14,52 @@ function debugLog(message, ...args) {
 
 debugLog('Component registry initializing');
 
+// Initialize global component registry (if it doesn't exist yet)
 self.MarvinComponents = self.MarvinComponents || {};
 
-// Add registration function
+// Track components and stubs separately
+const registeredComponents = new Set();
+const registeredStubs = new Set();
+
+// Disable immediate stub registration
+let enableStubRegistration = false;
+// Set a longer timeout for stub registration (2 seconds)
+const STUB_REGISTRATION_DELAY = 2000;
+
+// Add registration function with logging of component type
 self.registerComponent = function(name, implementation) {
-  console.log(`[COMPONENT REGISTRY] Registering component: ${name}`);
+  // Check if we're trying to register a stub when stub registration is disabled
+  if (!enableStubRegistration && implementation && implementation._isStub) {
+    debugLog(`Stub registration currently disabled for: ${name}`);
+    return false;
+  }
+  
+  // If we already have a non-stub version, don't overwrite
+  if (self.MarvinComponents[name] && !self.MarvinComponents[name]._isStub) {
+    debugLog(`Not overwriting real component with stub: ${name}`);
+    return false;
+  }
+
+  // If this is a stub and we already registered it, skip
+  if (implementation._isStub && registeredStubs.has(name)) {
+    debugLog(`Stub component already registered, skipping: ${name}`);
+    return false;
+  }
+
+  debugLog(`Registering component: ${name} (${implementation._isStub ? 'stub' : 'real'})`);
   self.MarvinComponents[name] = implementation;
+  
+  // Track registrations
+  registeredComponents.add(name);
+  if (implementation._isStub) {
+    registeredStubs.add(name);
+  }
+  
+  return true;
 };
 
 // Define component stubs here
-export const componentStubs = {
+const componentStubs = {
   'navigation': {
     initNavigation: function() {
       debugLog('STUB: navigation.initNavigation called');
@@ -122,11 +158,19 @@ export const componentStubs = {
       message.style.border = '1px solid #f8d188';
       message.style.borderRadius = '4px';
       
-      message.innerHTML = `
-        <h3>Overview Panel (Stub)</h3>
-        <p>This is a stub implementation of the overview panel.</p>
-        <p>The actual component module could not be loaded.</p>
-      `;
+      // Create and append heading element
+      const heading = document.createElement('h3');
+      heading.textContent = 'Overview Panel (Stub)';
+      message.appendChild(heading);
+      
+      // Create and append paragraph elements
+      const paragraph1 = document.createElement('p');
+      paragraph1.textContent = 'This is a stub implementation of the overview panel.';
+      message.appendChild(paragraph1);
+      
+      const paragraph2 = document.createElement('p');
+      paragraph2.textContent = 'The actual component module could not be loaded.';
+      message.appendChild(paragraph2);
       
       // Find the content area to insert the message
       const contentArea = panel.querySelector('.panel-header');
@@ -189,10 +233,8 @@ export const componentStubs = {
  * @returns {boolean} - Whether a stub was registered
  */
 function registerStubIfNeeded(name) {
-  if (!window.MarvinComponents[name] && componentStubs[name]) {
-    window.registerComponent(name, componentStubs[name]);
-    debugLog(`Registered stub component: ${name}`);
-    return true;
+  if (!self.MarvinComponents[name] && componentStubs[name]) {
+    return self.registerComponent(name, componentStubs[name]);
   }
   return false;
 }
@@ -201,32 +243,95 @@ function registerStubIfNeeded(name) {
  * Register all stub components
  */
 function registerAllStubs() {
+  debugLog('Attempting to register all stubs...');
+  if (!enableStubRegistration) {
+    debugLog('Stub registration currently disabled');
+    return;
+  }
+  
   for (const name in componentStubs) {
     registerStubIfNeeded(name);
   }
   debugLog('All stub components registered');
 }
 
-// If global component registry doesn't exist, create it
-if (typeof window !== 'undefined' && !window.MarvinComponents) {
-  window.MarvinComponents = {};
+/**
+ * Check if real components exist, otherwise register stubs
+ */
+function setupComponents() {
+  debugLog('Setting up components');
+  const requiredComponents = Object.keys(componentStubs);
+  
+  // Log current state of components
+  requiredComponents.forEach(name => {
+    if (self.MarvinComponents[name]) {
+      if (self.MarvinComponents[name]._isStub) {
+        debugLog(`Component ${name} is currently a stub`);
+      } else {
+        debugLog(`Component ${name} is a real implementation`);
+      }
+    } else {
+      debugLog(`Component ${name} is not registered`);
+    }
+  });
+  
+  // Check for missing components
+  const missingComponents = requiredComponents.filter(name => !self.MarvinComponents[name]);
+  if (missingComponents.length > 0) {
+    debugLog(`Missing components: ${missingComponents.join(', ')}`);
+    
+    // Register only missing stubs if stub registration is enabled
+    if (enableStubRegistration) {
+      missingComponents.forEach(name => {
+        registerStubIfNeeded(name);
+      });
+    } else {
+      debugLog('Stub registration disabled, not registering missing stubs');
+    }
+  } else {
+    debugLog('All components already registered');
+  }
 }
 
 // If global registration function doesn't exist, create it
 if (typeof window !== 'undefined' && !window.registerComponent) {
-  window.registerComponent = function(name, implementation) {
-    debugLog(`Registering component: ${name}`);
-    window.MarvinComponents[name] = implementation;
-  };
+  window.registerComponent = self.registerComponent;
 }
 
-// Pre-register all stub implementations
-registerAllStubs();
+// Delayed stub registration to give real components a chance to register
+let stubRegistrationTimer = setTimeout(() => {
+  debugLog(`Enabling stub registration after ${STUB_REGISTRATION_DELAY}ms delay`);
+  enableStubRegistration = true;
 
-// Export functions
+  debugLog('Checking for missing components');
+  let missingAny = false;
+  
+  for (const name in componentStubs) {
+    if (!self.MarvinComponents[name]) {
+      debugLog(`Real component missing: ${name}`);
+      missingAny = true;
+    }
+  }
+  
+  if (missingAny) {
+    debugLog('Some components missing, registering needed stubs');
+    // Only register stubs that are needed
+    for (const name in componentStubs) {
+      if (!self.MarvinComponents[name]) {
+        registerStubIfNeeded(name);
+      }
+    }
+  } else {
+    debugLog('All components present, no stubs needed');
+  }
+}, STUB_REGISTRATION_DELAY);
+
+// Public API
 export {
+  setupComponents,
   registerStubIfNeeded,
-  registerAllStubs
+  registerAllStubs,
+  componentStubs
 };
 
 // Initialize the registry

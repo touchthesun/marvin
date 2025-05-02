@@ -1,7 +1,7 @@
 // dashboard.js - Main entry point for the Marvin dashboard
 import { LogManager } from '../../shared/utils/log-manager.js';
 import { showNotification } from './services/notification-service.js';
-import { safeImport, getModuleStatus, clearModuleCache, preloadComponents } from './utils/module-loader.js';
+import { registerAllStubs } from './utils/component-registry.js';
 
 // Import services
 import { initStorageService, getActiveState } from './services/storage-service.js';
@@ -15,77 +15,7 @@ const MAX_INITIALIZATION_ATTEMPTS = 3;
 // Debug flag
 const DEBUG_MODE = true;
 
-
-// Preload all components
-async function preloadDashboardComponents() {
-  console.log('[DASHBOARD] Preloading components...');
-  
-  const componentsToPreload = [
-    'navigation',
-    'overview-panel',
-    'capture-panel',
-    'knowledge-panel',
-    'settings-panel',
-    'tasks-panel',
-    'assistant-panel'
-  ];
-  
-  const results = {};
-  
-  for (const component of componentsToPreload) {
-    try {
-      console.log(`[DASHBOARD] Preloading component: ${component}`);
-      const module = await safeImport(component, { type: 'component' });
-      
-      // Check if the module is a stub
-      if (module && module._isStub) {
-        console.log(`[DASHBOARD] Loaded stub for: ${component}`);
-        results[component] = false;
-      } else {
-        console.log(`[DASHBOARD] Successfully loaded: ${component}`);
-        results[component] = true;
-      }
-    } catch (error) {
-      console.error(`[DASHBOARD] Error preloading ${component}:`, error);
-      results[component] = false;
-    }
-  }
-  
-  console.log('[DASHBOARD] Component preloading results:', results);
-  
-  // Register stubs for any components that failed to load
-  registerAllStubs();
-  
-  return Object.values(results).filter(success => success).length;
-}
-
-// Call this before initializing the dashboard
-document.addEventListener('DOMContentLoaded', async () => {
-  console.log('[DASHBOARD] Dashboard script loaded');
-  
-  // Preload components
-  const loadedCount = await preloadDashboardComponents();
-  console.log(`[DASHBOARD] Successfully preloaded ${loadedCount} components`);
-  
-  // Initialize dashboard
-  initDashboard();
-});
-
-/**
- * Debug logging function
- */
-function debugLog(message, ...args) {
-  if (DEBUG_MODE) {
-    console.log(`[DASHBOARD] ${message}`, ...args);
-  }
-}
-
-debugLog('Dashboard script loaded');
-
-/**
- * Logger for dashboard operations
- * @type {LogManager}
- */
+// Logger for dashboard operations
 const logger = new LogManager({
   isBackgroundScript: false,
   context: 'dashboard',
@@ -101,6 +31,69 @@ let panelHandlersRegistered = false;
 
 // Components cache
 const componentsCache = new Map();
+
+/**
+ * Debug logging function
+ * @param {string} message - Debug message
+ * @param {...any} args - Additional arguments
+ */
+function debugLog(message, ...args) {
+  if (DEBUG_MODE) {
+    console.log(`[DASHBOARD] ${message}`, ...args);
+  }
+}
+
+/**
+ * Validate all dashboard components
+ * @returns {number} Number of available real components
+ */
+function validateComponents() {
+  debugLog('Validating components...');
+  
+  const componentsToValidate = [
+    'navigation',
+    'overview-panel',
+    'capture-panel',
+    'knowledge-panel',
+    'settings-panel',
+    'tasks-panel',
+    'assistant-panel'
+  ];
+  
+  const results = {};
+  
+  // Don't call registerAllStubs here - we want to check what components
+  // naturally exist before any stubs are registered
+  
+  for (const component of componentsToValidate) {
+    try {
+      debugLog(`Validating component: ${component}`);
+      const module = window.MarvinComponents[component];
+      
+      // Check if the module is available
+      if (!module) {
+        debugLog(`Component not found: ${component}`);
+        results[component] = false;
+      }
+      // Check if the module is a stub
+      else if (module._isStub) {
+        debugLog(`Using stub for: ${component}`);
+        results[component] = false;
+      } else {
+        debugLog(`Real component available: ${component}`);
+        results[component] = true;
+      }
+    } catch (error) {
+      console.error(`[DASHBOARD] Error validating ${component}:`, error);
+      results[component] = false;
+    }
+  }
+  
+  debugLog('Component validation results:', results);
+  
+  // Return the count of valid components (non-stubs)
+  return Object.values(results).filter(isValid => isValid).length;
+}
 
 /**
  * Dashboard initialization function 
@@ -124,11 +117,14 @@ async function initDashboard() {
   showNotification('Initializing dashboard...', 'info');
   
   try {
-    // First try to load the navigation component which is critical
+    // Ensure all stubs are registered before initialization
+    registerAllStubs();
+    
+    // Try to load the navigation component which is critical
     debugLog('Loading navigation component...');
     
-    // Check if navigation component is already registered
-    const navigationModule = self.MarvinComponents['navigation'];
+    // Get navigation component from registry
+    const navigationModule = window.MarvinComponents.navigation;
 
     if (!navigationModule || !navigationModule.initNavigation) {
       debugLog(`Navigation module not found in registry`);
@@ -216,7 +212,7 @@ async function initUI(navigationModule) {
     
     // Set up utility functions
     logger.debug('Loading UI utilities...');
-    const uiUtilsModule = await safeImport('ui-utils', { type: 'util' });
+    const uiUtilsModule = window.MarvinComponents['ui-utils'];
     
     if (uiUtilsModule) {
       if (uiUtilsModule.setupForceInitButtons) {
@@ -249,6 +245,19 @@ async function initUI(navigationModule) {
 }
 
 /**
+ * Handle panel change event
+ * @param {CustomEvent} event - The panel change event
+ */
+function handlePanelChangeEvent(event) {
+  if (event.detail && event.detail.panelId) {
+    logger.debug(`Panel changed event received for: ${event.detail.panelId}`);
+    handlePanelActivation(event.detail.panelId);
+  } else {
+    logger.warn('Panel changed event received without panelId');
+  }
+}
+
+/**
  * Register handlers for panel activation events
  */
 function registerPanelHandlers() {
@@ -256,14 +265,8 @@ function registerPanelHandlers() {
   
   try {
     // Add panel activation listener for lazy loading
-    document.addEventListener('panelChanged', (event) => {
-      if (event.detail && event.detail.panelId) {
-        logger.debug(`Panel changed event received for: ${event.detail.panelId}`);
-        handlePanelActivation(event.detail.panelId);
-      } else {
-        logger.warn('Panel changed event received without panelId');
-      }
-    });
+    document.removeEventListener('panelChanged', handlePanelChangeEvent);
+    document.addEventListener('panelChanged', handlePanelChangeEvent);
     
     // Log all available panels for debugging
     const panels = document.querySelectorAll('.content-panel');
@@ -361,10 +364,11 @@ function showPanelFallback(panelId) {
 }
 
 /**
- * Display initialization error
+ * Create error container element
  * @param {Error} error - Error object
+ * @returns {HTMLElement} Error container element
  */
-function showInitializationError(error) {
+function createErrorContainer(error) {
   const errorContainer = document.createElement('div');
   errorContainer.className = 'initialization-error';
   errorContainer.style.position = 'fixed';
@@ -379,84 +383,264 @@ function showInitializationError(error) {
   errorContainer.style.zIndex = '9999';
   errorContainer.style.maxWidth = '80%';
   
-  errorContainer.innerHTML = `
-    <h2 style="color: #f44336; margin-top: 0;">Dashboard Initialization Error</h2>
-    <p>${error.message}</p>
-    <div style="display: flex; gap: 10px; margin-top: 20px;">
-      <button id="retry-init-btn" style="padding: 8px 16px; background-color: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer;">Retry</button>
-      <button id="debug-info-btn" style="padding: 8px 16px; background-color: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Show Debug Info</button>
-      <button id="diagnostics-btn" style="padding: 8px 16px; background-color: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Open Diagnostics</button>
-    </div>
-  `;
+  // Create title element
+  const title = document.createElement('h2');
+  title.style.color = '#f44336';
+  title.style.marginTop = '0';
+  title.textContent = 'Dashboard Initialization Error';
+  errorContainer.appendChild(title);
   
+  // Create message element
+  const message = document.createElement('p');
+  message.textContent = error.message;
+  errorContainer.appendChild(message);
+  
+  // Create button container
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.display = 'flex';
+  buttonContainer.style.gap = '10px';
+  buttonContainer.style.marginTop = '20px';
+  
+  // Create retry button
+  const retryButton = document.createElement('button');
+  retryButton.id = 'retry-init-btn';
+  retryButton.style.padding = '8px 16px';
+  retryButton.style.backgroundColor = '#4285f4';
+  retryButton.style.color = 'white';
+  retryButton.style.border = 'none';
+  retryButton.style.borderRadius = '4px';
+  retryButton.style.cursor = 'pointer';
+  retryButton.textContent = 'Retry';
+  buttonContainer.appendChild(retryButton);
+  
+  // Create debug info button
+  const debugButton = document.createElement('button');
+  debugButton.id = 'debug-info-btn';
+  debugButton.style.padding = '8px 16px';
+  debugButton.style.backgroundColor = '#f5f5f5';
+  debugButton.style.color = '#333';
+  debugButton.style.border = 'none';
+  debugButton.style.borderRadius = '4px';
+  debugButton.style.cursor = 'pointer';
+  debugButton.textContent = 'Show Debug Info';
+  buttonContainer.appendChild(debugButton);
+  
+  // Create diagnostics button
+  const diagnosticsButton = document.createElement('button');
+  diagnosticsButton.id = 'diagnostics-btn';
+  diagnosticsButton.style.padding = '8px 16px';
+  diagnosticsButton.style.backgroundColor = '#f5f5f5';
+  diagnosticsButton.style.color = '#333';
+  diagnosticsButton.style.border = 'none';
+  diagnosticsButton.style.borderRadius = '4px';
+  diagnosticsButton.style.cursor = 'pointer';
+  diagnosticsButton.textContent = 'Open Diagnostics';
+  buttonContainer.appendChild(diagnosticsButton);
+  
+  errorContainer.appendChild(buttonContainer);
+  
+  return errorContainer;
+}
+
+/**
+ * Create debug info element
+ * @param {Error} error - Error object
+ * @returns {HTMLElement} Debug info element
+ */
+function createDebugInfoElement(error) {
+  const debugInfo = document.createElement('div');
+  debugInfo.className = 'debug-info';
+  debugInfo.style.marginTop = '15px';
+  debugInfo.style.padding = '10px';
+  debugInfo.style.backgroundColor = '#f5f5f5';
+  debugInfo.style.borderRadius = '4px';
+  debugInfo.style.maxHeight = '200px';
+  debugInfo.style.overflow = 'auto';
+  debugInfo.style.fontFamily = 'monospace';
+  debugInfo.style.fontSize = '12px';
+  
+  // Create heading
+  const heading = document.createElement('h3');
+  heading.style.marginTop = '0';
+  heading.style.fontSize = '14px';
+  heading.textContent = 'Debug Information';
+  debugInfo.appendChild(heading);
+  
+  // Create pre element for debug text
+  const pre = document.createElement('pre');
+  pre.style.margin = '0';
+  pre.style.whiteSpace = 'pre-wrap';
+  
+  // Build debug text
+  let debugText = '';
+  debugText += `Dashboard initialized: ${dashboardInitialized}\n`;
+  debugText += `Services initialized: ${servicesInitialized}\n`;
+  debugText += `UI initialized: ${uiInitialized}\n`;
+  debugText += `Panel handlers registered: ${panelHandlersRegistered}\n`;
+  debugText += `Initialization attempts: ${initializationAttempts}\n\n`;
+  
+  // Get available panels and nav items
+  const availablePanels = Array.from(document.querySelectorAll('.content-panel'))
+    .map(p => p.id).join(', ');
+  
+  const availableNavItems = Array.from(document.querySelectorAll('.nav-item'))
+    .map(n => n.getAttribute('data-panel')).join(', ');
+  
+  debugText += `Available panels: ${availablePanels}\n`;
+  debugText += `Available nav items: ${availableNavItems}\n\n`;
+  
+  // Get components information
+  const components = window.MarvinComponents ? Object.keys(window.MarvinComponents).join(', ') : 'None';
+  debugText += `Registered components: ${components}\n\n`;
+  
+  // Add error information
+  debugText += `Error: ${error.stack || error.message}`;
+  
+  pre.textContent = debugText;
+  debugInfo.appendChild(pre);
+  
+  return debugInfo;
+}
+
+/**
+ * Handle retry button click
+ * @param {HTMLElement} errorContainer - The error container element
+ */
+function handleRetryButtonClick(errorContainer) {
+  errorContainer.remove();
+  dashboardInitialized = false;
+  servicesInitialized = false;
+  uiInitialized = false;
+  
+  initDashboard();
+}
+
+/**
+ * Handle debug info button click
+ * @param {HTMLElement} errorContainer - The error container element
+ * @param {Error} error - The error object
+ */
+function handleDebugInfoButtonClick(errorContainer, error) {
+  // Remove any existing debug info
+  const existingDebugInfo = errorContainer.querySelector('.debug-info');
+  if (existingDebugInfo) {
+    existingDebugInfo.remove();
+  }
+  
+  // Create and append new debug info
+  const debugInfo = createDebugInfoElement(error);
+  errorContainer.appendChild(debugInfo);
+}
+
+
+/**
+ * Handle diagnostics button click
+ */
+function handleDiagnosticsButtonClick() {
+  try {
+    // Open diagnostics in a new tab
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup/diagnostics.html') });
+  } catch (error) {
+    alert('Error opening diagnostics: ' + error.message);
+  }
+}
+
+/**
+ * Display initialization error
+ * @param {Error} error - Error object
+ */
+function showInitializationError(error) {
+  const errorContainer = document.createElement('div');
+  errorContainer.className = 'initialization-error';
+  
+  // Apply styles using style property
+  errorContainer.style.position = 'fixed';
+  errorContainer.style.top = '50%';
+  errorContainer.style.left = '50%';
+  errorContainer.style.transform = 'translate(-50%, -50%)';
+  errorContainer.style.backgroundColor = 'white';
+  errorContainer.style.border = '2px solid #f44336';
+  errorContainer.style.borderRadius = '8px';
+  errorContainer.style.padding = '20px';
+  errorContainer.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.2)';
+  errorContainer.style.zIndex = '9999';
+  errorContainer.style.maxWidth = '80%';
+  
+  // Create title
+  const title = document.createElement('h2');
+  title.style.color = '#f44336';
+  title.style.marginTop = '0';
+  title.textContent = 'Dashboard Initialization Error';
+  errorContainer.appendChild(title);
+  
+  // Create message
+  const message = document.createElement('p');
+  message.textContent = error.message;
+  errorContainer.appendChild(message);
+  
+  // Create button container
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.display = 'flex';
+  buttonContainer.style.gap = '10px';
+  buttonContainer.style.marginTop = '20px';
+  
+  // Create retry button
+  const retryButton = document.createElement('button');
+  retryButton.id = 'retry-init-btn';
+  retryButton.style.padding = '8px 16px';
+  retryButton.style.backgroundColor = '#4285f4';
+  retryButton.style.color = 'white';
+  retryButton.style.border = 'none';
+  retryButton.style.borderRadius = '4px';
+  retryButton.style.cursor = 'pointer';
+  retryButton.textContent = 'Retry';
+  buttonContainer.appendChild(retryButton);
+  
+  // Create debug info button
+  const debugButton = document.createElement('button');
+  debugButton.id = 'debug-info-btn';
+  debugButton.style.padding = '8px 16px';
+  debugButton.style.backgroundColor = '#f5f5f5';
+  debugButton.style.color = '#333';
+  debugButton.style.border = 'none';
+  debugButton.style.borderRadius = '4px';
+  debugButton.style.cursor = 'pointer';
+  debugButton.textContent = 'Show Debug Info';
+  buttonContainer.appendChild(debugButton);
+  
+  // Create diagnostics button
+  const diagnosticsButton = document.createElement('button');
+  diagnosticsButton.id = 'diagnostics-btn';
+  diagnosticsButton.style.padding = '8px 16px';
+  diagnosticsButton.style.backgroundColor = '#f5f5f5';
+  diagnosticsButton.style.color = '#333';
+  diagnosticsButton.style.border = 'none';
+  diagnosticsButton.style.borderRadius = '4px';
+  diagnosticsButton.style.cursor = 'pointer';
+  diagnosticsButton.textContent = 'Open Diagnostics';
+  buttonContainer.appendChild(diagnosticsButton);
+  
+  errorContainer.appendChild(buttonContainer);
   document.body.appendChild(errorContainer);
   
   // Add retry button functionality
-  document.getElementById('retry-init-btn')?.addEventListener('click', () => {
-    errorContainer.remove();
-    dashboardInitialized = false;
-    servicesInitialized = false;
-    uiInitialized = false;
-    
-    // Clear module cache before retrying
-    clearModuleCache();
-    
-    initDashboard();
-  });
+  if (retryButton) {
+    retryButton.addEventListener('click', function() {
+      handleRetryButtonClick(errorContainer);
+    });
+  }
   
-  // Add debug info button
-  document.getElementById('debug-info-btn')?.addEventListener('click', () => {
-    const debugInfo = document.createElement('div');
-    debugInfo.className = 'debug-info';
-    debugInfo.style.marginTop = '15px';
-    debugInfo.style.padding = '10px';
-    debugInfo.style.backgroundColor = '#f5f5f5';
-    debugInfo.style.borderRadius = '4px';
-    debugInfo.style.maxHeight = '200px';
-    debugInfo.style.overflow = 'auto';
-    debugInfo.style.fontFamily = 'monospace';
-    debugInfo.style.fontSize = '12px';
-    
-    // Get module status
-    const moduleStatus = getModuleStatus();
-    
-    debugInfo.innerHTML = `
-      <h3 style="margin-top: 0; font-size: 14px;">Debug Information</h3>
-      <pre style="margin: 0; white-space: pre-wrap;">
-Dashboard initialized: ${dashboardInitialized}
-Services initialized: ${servicesInitialized}
-UI initialized: ${uiInitialized}
-Panel handlers registered: ${panelHandlersRegistered}
-Initialization attempts: ${initializationAttempts}
-
-Available panels: ${Array.from(document.querySelectorAll('.content-panel')).map(p => p.id).join(', ')}
-Available nav items: ${Array.from(document.querySelectorAll('.nav-item')).map(n => n.getAttribute('data-panel')).join(', ')}
-
-Loaded modules: ${moduleStatus.loaded.join(', ') || 'None'}
-Failed modules: ${moduleStatus.failed.join(', ') || 'None'}
-
-Error: ${error.stack || error.message}
-      </pre>
-    `;
-    
-    // Replace any existing debug info
-    const existingDebugInfo = errorContainer.querySelector('.debug-info');
-    if (existingDebugInfo) {
-      existingDebugInfo.remove();
-    }
-    
-    errorContainer.appendChild(debugInfo);
-  });
+  // Add debug info button functionality
+  if (debugButton) {
+    debugButton.addEventListener('click', function() {
+      handleDebugInfoButtonClick(errorContainer, error);
+    });
+  }
   
-  // Add diagnostics button
-  document.getElementById('diagnostics-btn')?.addEventListener('click', () => {
-    try {
-      // Open diagnostics in a new tab
-      chrome.tabs.create({ url: chrome.runtime.getURL('popup/diagnostics.html') });
-    } catch (error) {
-      alert('Error opening diagnostics: ' + error.message);
-    }
-  });
+  // Add diagnostics button functionality
+  if (diagnosticsButton) {
+    diagnosticsButton.addEventListener('click', handleDiagnosticsButtonClick);
+  }
 }
 
 /**
@@ -478,15 +662,13 @@ async function loadAndInitializePanel(panelId) {
     const capitalizedName = panelId.charAt(0).toUpperCase() + panelId.slice(1);
     const initFunctionName = `init${capitalizedName}Panel`;
     
-    // Try to load the panel module
-    const modulePath = `${panelId}-panel`;
+    // Get component name
+    const componentName = `${panelId}-panel`;
     
-    // Use the direct path
-    logger.debug(`Loading panel module: ${modulePath}`);
+    // Get the panel module from global registry
+    logger.debug(`Getting panel module from registry: ${componentName}`);
     
-    const panelModule = await safeImport(modulePath, {
-      type: 'component'
-    });
+    const panelModule = window.MarvinComponents[componentName];
     
     if (!panelModule || !panelModule[initFunctionName]) {
       logger.warn(`Module or init function not found for panel: ${panelId}`);
@@ -508,9 +690,6 @@ async function loadAndInitializePanel(panelId) {
   }
 }
 
-
-
-
 /**
  * Handle lazy initialization of panels
  * @param {string} panelId - ID of panel being activated
@@ -525,8 +704,18 @@ function handlePanelActivation(panelId) {
   });
 }
 
-// Main entry point - Run when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+/**
+ * Handle window unload event
+ */
+function handleWindowUnload() {
+  // Any cleanup or state saving can be done here
+  logger.info('Dashboard unloading');
+}
+
+/**
+ * Handle DOM content loaded
+ */
+function handleDOMContentLoaded() {
   console.log('DOM loaded, starting dashboard initialization');
   
   try {
@@ -535,88 +724,127 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionStorage.setItem('current_dashboard_instance', instanceId);
     
     // Start initialization with a slight delay to ensure DOM is fully ready
-    setTimeout(() => {
-      initDashboard();
-    }, 100);
+    setTimeout(initDashboard, 100);
     
     // Expose key functions to window for debugging
-    window.marvinDashboard = {
-      refreshAll: async () => {
-        dashboardInitialized = false;
-        servicesInitialized = false;
-        uiInitialized = false;
-        panelHandlersRegistered = false;
-        
-        // Clear component cache
-        componentsCache.clear();
-        
-        // Clear module cache
-        clearModuleCache();
-        
-        await initDashboard();
-      },
-      initPanel: handlePanelActivation,
-      loadModule: safeImport,
-      getModuleStatus: getModuleStatus,
-      clearModuleCache: clearModuleCache,
-      debug: {
-        getState: () => ({
-          dashboardInitialized,
-          servicesInitialized,
-          uiInitialized,
-          panelHandlersRegistered,
-          initializationAttempts,
-          moduleStatus: getModuleStatus()
-        }),
-        getPanels: () => Array.from(document.querySelectorAll('.content-panel')).map(p => p.id),
-        getNavItems: () => Array.from(document.querySelectorAll('.nav-item')).map(n => ({
-          panel: n.getAttribute('data-panel'),
-          text: n.textContent.trim(),
-          isActive: n.classList.contains('active')
-        }))
-      }
-    };
+    createDebugInterface();
   } catch (error) {
     console.error('Critical error in dashboard initialization:', error);
     showNotification('Dashboard initialization failed', 'error');
   }
-});
+}
 
-// Handle beforeunload event
-window.addEventListener('beforeunload', () => {
-  // Any cleanup or state saving can be done here
-  logger.info('Dashboard unloading');
-});
-
-// Make a test function available globally for debugging
-if (typeof window !== 'undefined') {
-  window.__testModuleLoad = async function(moduleName, exactPath) {
-    console.log(`[TEST] Testing direct module load for: ${moduleName}`);
-    console.log(`[TEST] Using path: ${exactPath}`);
-    
-    try {
-      // Get the full URL
-      const url = chrome.runtime.getURL(exactPath);
-      console.log(`[TEST] Resolved URL: ${url}`);
-      
-      // Check if the file exists
-      const response = await fetch(url);
-      if (!response.ok) {
-        console.log(`[TEST] File not found at ${url} (status: ${response.status})`);
-        return null;
-      }
-      
-      console.log(`[TEST] Found file at ${url}`);
-      
-      // Try to import the module
-      const module = await import(/* webpackIgnore: true */ url);
-      console.log(`[TEST] Successfully imported module`);
-      console.log(`[TEST] Module exports:`, Object.keys(module));
-      
-      return module;
-    } catch (error) {
-      console.error(`[TEST] Error loading module:`, error);
-      return null;
+/**
+ * Create debug interface object
+ */
+/**
+ * Create debug interface on window object
+ */
+function createDebugInterface() {
+  // Store internal state for debug access
+  const debugState = {
+    getState: function() {
+      return {
+        dashboardInitialized,
+        servicesInitialized,
+        uiInitialized,
+        panelHandlersRegistered,
+        initializationAttempts
+      };
+    },
+    getPanels: function() {
+      return Array.from(document.querySelectorAll('.content-panel')).map(p => p.id);
+    },
+    getNavItems: function() {
+      return Array.from(document.querySelectorAll('.nav-item')).map(n => ({
+        panel: n.getAttribute('data-panel'),
+        text: n.textContent.trim(),
+        isActive: n.classList.contains('active')
+      }));
     }
   };
+  
+  // Create refresh function
+  const refreshAllFunc = function() {
+    dashboardInitialized = false;
+    servicesInitialized = false;
+    uiInitialized = false;
+    panelHandlersRegistered = false;
+    
+    // Clear component cache
+    componentsCache.clear();
+    
+    // Initialize dashboard
+    return initDashboard();
+  };
+  
+  // Expose debug interface
+  window.marvinDashboard = {
+    refreshAll: refreshAllFunc,
+    initPanel: handlePanelActivation,
+    debug: debugState
+  };
 }
+
+
+
+// Attach event listeners
+document.addEventListener('DOMContentLoaded', handleDOMContentLoaded);
+window.addEventListener('beforeunload', handleWindowUnload);
+
+
+
+/**
+ * Module test function for development
+ * This function has been simplified to avoid CSP issues
+ */
+function testModuleLoad(moduleName, exactPath) {
+  console.warn('[TEST] testModuleLoad has been simplified due to CSP restrictions');
+  console.warn('[TEST] Access components through window.MarvinComponents instead');
+  
+  // Log the parameters for debugging purposes
+  console.log(`[TEST] Requested module: ${moduleName}, path: ${exactPath}`);
+  
+  // Return component from registry if available
+  if (window.MarvinComponents && window.MarvinComponents[moduleName]) {
+    console.log(`[TEST] Found component in registry: ${moduleName}`);
+    return window.MarvinComponents[moduleName];
+  }
+  
+  console.log(`[TEST] Component not found in registry: ${moduleName}`);
+  return null;
+}
+
+// Export main functions for testing/debugging
+export {
+  initDashboard,
+  initServices,
+  initUI,
+  handlePanelActivation,
+  validateComponents
+};
+
+// Set up dom content loaded handler
+function setupDomContentLoadedHandler() {
+  document.removeEventListener('DOMContentLoaded', handleDOMContentLoaded);
+  document.addEventListener('DOMContentLoaded', handleDOMContentLoaded);
+}
+
+// Set up beforeunload handler
+function setupBeforeUnloadHandler() {
+  window.removeEventListener('beforeunload', handleWindowUnload);
+  window.addEventListener('beforeunload', handleWindowUnload);
+}
+
+// Make test function available globally for debugging
+if (typeof window !== 'undefined') {
+  window.__testModuleLoad = testModuleLoad;
+}
+
+// Setup DOM event handlers - called directly to avoid inline handlers
+setupDomContentLoadedHandler();
+setupBeforeUnloadHandler();
+
+// Perform initial component validation
+const validComponentCount = validateComponents();
+debugLog(`Initially found ${validComponentCount} valid components`);

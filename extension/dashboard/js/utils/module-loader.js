@@ -56,60 +56,50 @@ export async function safeImport(moduleName, options = {}) {
   // Check global registry for components
   const componentName = moduleName.replace(/\.js$/, '');
   if (window.MarvinComponents && window.MarvinComponents[componentName]) {
-    // Check if it's a stub - if it has a _isStub property, we'll try to load the real component
     const component = window.MarvinComponents[componentName];
-    if (component._isStub) {
-      debugLog(`Found stub in global registry for: ${moduleName}, will try to load real component`);
-    } else {
+    if (!component._isStub) {
       debugLog(`Found module in global registry: ${moduleName}`);
       return window.MarvinComponents[componentName];
     }
+    debugLog(`Found stub in global registry for: ${moduleName}, will try to load real component`);
   }
   
   // Convert bare module name to path if needed
   const modulePath = moduleName.endsWith('.js') ? moduleName : `${moduleName}.js`;
   
-  // Determine the correct paths to try based on module type
+  // Get extension base URL
+  const baseUrl = chrome.runtime.getURL('/');
+  
+  // Determine the correct paths to try with full URLs
   let pathsToTry = [];
   
   if (type === 'component') {
     pathsToTry = [
-      `dashboard/js/components/${modulePath}`,
-      `/dashboard/js/components/${modulePath}`,
-      `../dashboard/js/components/${modulePath}`
+      `${baseUrl}dashboard/js/components/${modulePath}`,
+      `${baseUrl}js/components/${modulePath}`
     ];
   } else if (type === 'util') {
     pathsToTry = [
-      `dashboard/js/utils/${modulePath}`,
-      `/dashboard/js/utils/${modulePath}`,
-      `../dashboard/js/utils/${modulePath}`
+      `${baseUrl}dashboard/js/utils/${modulePath}`,
+      `${baseUrl}shared/utils/${modulePath}`
     ];
   } else if (type === 'shared') {
     pathsToTry = [
-      `shared/utils/${modulePath}`,
-      `/shared/utils/${modulePath}`,
-      `../shared/utils/${modulePath}`
+      `${baseUrl}shared/utils/${modulePath}`
     ];
   }
+  
+  // Add debug information about paths
+  debugLog(`Paths to try for ${moduleName}:`, pathsToTry);
   
   // Try each path until we find one that works
   for (const path of pathsToTry) {
     try {
-      // Check if the file exists
-      const extensionPath = chrome.runtime.getURL(path);
-      debugLog(`Trying path: ${extensionPath}`);
-      
-      const available = await isModuleAvailable(path);
-      if (!available) {
-        debugLog(`File not found at ${extensionPath}`);
-        continue;
-      }
-      
-      debugLog(`File exists at ${extensionPath}, importing...`);
+      debugLog(`Trying to import from path: ${path}`);
       
       try {
         // Use dynamic import
-        const module = await import(/* webpackIgnore: true */ extensionPath);
+        const module = await import(/* webpackIgnore: true */ path);
         
         // Cache successful module
         moduleCache.set(moduleName, module);
@@ -126,8 +116,13 @@ export async function safeImport(moduleName, options = {}) {
     }
   }
   
-  // If we get here, all paths failed
-  debugLog(`All paths failed for module: ${moduleName}`);
+  // All paths failed - log detailed error info
+  debugLog(`All paths failed for module: ${moduleName}`, {
+    paths: pathsToTry,
+    cache: Array.from(moduleCache.keys()),
+    failed: Array.from(failedModules)
+  });
+  
   failedModules.add(moduleName);
   
   // Return a stub module
