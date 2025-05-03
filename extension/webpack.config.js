@@ -3,25 +3,25 @@ const CopyPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
-entry: {
-  background: './background/background.js',
-  popup: './popup/popup.js',
-  options: './options/options.js',
-  content: './content/content.js',
-  dashboard: './dashboard/js/dashboard.js',
-  'dashboard/js/components/navigation': './dashboard/js/components/navigation.js',
-  'dashboard/js/components/overview-panel': './dashboard/js/components/overview-panel.js',
-  'dashboard/js/components/capture-panel': './dashboard/js/components/capture-panel.js',
-  'dashboard/js/components/knowledge-panel': './dashboard/js/components/knowledge-panel.js',
-  'dashboard/js/components/settings-panel': './dashboard/js/components/settings-panel.js',
-  'dashboard/js/components/tasks-panel': './dashboard/js/components/tasks-panel.js',
-  'dashboard/js/components/assistant-panel': './dashboard/js/components/assistant-panel.js',
-  'dashboard/js/utils/ui-utils': './dashboard/js/utils/ui-utils.js',
-  'dashboard/js/utils/navigation-debug': './dashboard/js/utils/navigation-debug.js',
-  'dashboard/js/utils/module-loader': './dashboard/js/utils/module-loader.js',
-  'dashboard/js/utils/component-loader': './dashboard/js/utils/component-loader.js',
-  'dashboard/js/utils/debug-panel': './dashboard/js/utils/debug-panel.js'
-},
+  entry: {
+    background: './src/background/background.js',
+    popup: './src/popup/popup.js',
+    options: './src/options/options.js',
+    content: './src/content/content.js',
+    dashboard: './src/dashboard/dashboard.js',
+    'components/core/navigation': './src/components/core/navigation.js',
+    'components/panels/overview/overview-panel': './src/components/panels/overview/overview-panel.js',
+    'components/panels/capture/capture-panel': './src/components/panels/capture/capture-panel.js',
+    'components/panels/knowledge/knowledge-panel': './src/components/panels/knowledge/knowledge-panel.js',
+    'components/panels/settings/settings-panel': './src/components/panels/settings/settings-panel.js',
+    'components/panels/tasks/tasks-panel': './src/components/panels/tasks/tasks-panel.js',
+    'components/panels/assistant/assistant-panel': './src/components/panels/assistant/assistant-panel.js',
+    'utils/ui-utils': './src/utils/ui-utils.js',
+    'components/panels/debug/navigation-debug': './src/components/panels/debug/navigation-debug.js',
+    'core/module-loader': './src/core/module-loader.js',
+    'core/component-loader': './src/core/component-loader.js',
+    'components/panels/debug/debug-panel': './src/components/panels/debug/debug-panel.js'
+  },
 
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -69,14 +69,16 @@ entry: {
   resolve: {
     extensions: ['.js', '.jsx', '.json'],
     alias: {
-      '@shared': path.resolve(__dirname, 'shared'),
-      '@dashboard': path.resolve(__dirname, 'dashboard'),
-      '@background': path.resolve(__dirname, 'background'),
-      '@content': path.resolve(__dirname, 'content'),
+      '@shared': path.resolve(__dirname, 'src/components/shared'),
+      '@dashboard': path.resolve(__dirname, 'src/dashboard'),
+      '@background': path.resolve(__dirname, 'src/background'),
+      '@content': path.resolve(__dirname, 'src/content'),
       // Add specific aliases for component paths
-      '@components': path.resolve(__dirname, 'dashboard/js/components'),
-      '@services': path.resolve(__dirname, 'dashboard/js/services'),
-      '@utils': path.resolve(__dirname, 'dashboard/js/utils')
+      '@components': path.resolve(__dirname, 'src/components'),
+      '@services': path.resolve(__dirname, 'src/services'),
+      '@utils': path.resolve(__dirname, 'src/utils'),
+      '@core': path.resolve(__dirname, 'src/core'),
+      '@constants': path.resolve(__dirname, 'src/constants')
     }
   },
   plugins: [
@@ -84,46 +86,41 @@ entry: {
       patterns: [
         { from: 'manifest.json', to: 'manifest.json' },
         { from: 'icons', to: 'icons' },
-        { from: 'popup/popup.css', to: 'popup/popup.css' },
-        { from: 'popup/diagnostics.html', to: 'popup/diagnostics.html' },
-        { from: 'popup/diagnostics.js', to: 'popup/diagnostics.js' },
-        { from: 'shared/utils/DiagnosticTools.js', to: 'shared/utils/DiagnosticTools.js' },
-        { from: 'options/options.css', to: 'options/options.css' },
-        { from: 'dashboard/dashboard.css', to: 'dashboard/dashboard.css' },
+        { from: 'src/popup/popup.css', to: 'popup/popup.css' },
+        { from: 'src/popup/diagnostics.html', to: 'popup/diagnostics.html' },
+        { from: 'src/popup/diagnostics.js', to: 'popup/diagnostics.js' },
+        { from: 'src/components/shared/diagnostictools.js', to: 'shared/utils/DiagnosticTools.js' },
+        { from: 'src/options/options.css', to: 'options/options.css' },
+        { from: 'src/dashboard/dashboard.css', to: 'dashboard/dashboard.css' },
         
-        // Add these explicit file copies
-        { from: 'dashboard/js/dashboard.js', to: 'dashboard/js/dashboard.js' },
-        { from: 'shared/utils/log-manager.js', to: 'shared/utils/log-manager.js' },
+        // Copy the entire utils directory
+        { from: 'src/utils', to: 'utils' },
         
-        // Copy the entire shared utils directory
-        { from: 'shared/utils', to: 'shared/utils' },
-        
-        // Copy dashboard component files explicitly
-        { from: 'dashboard/js/components', to: 'dashboard/js/components' },
+        // Copy dashboard component files
+        { from: 'src/components', to: 'components' },
         
         // Copy dashboard services
-        { from: 'dashboard/js/services', to: 'dashboard/js/services' },
+        { from: 'src/services', to: 'services' },
         
-        // Copy dashboard utilities
-        { from: 'dashboard/js/utils', to: 'dashboard/js/utils' },
+        // Copy core files
+        { from: 'src/core', to: 'core' },
         
-        // Explicitly copy specific utility files that might be missing
-        { from: 'dashboard/js/utils/navigation-debug.js', to: 'dashboard/js/utils/navigation-debug.js' },
-        { from: 'dashboard/js/utils/ui-utils.js', to: 'dashboard/js/utils/ui-utils.js' },
+        // Copy constants
+        { from: 'src/constants', to: 'constants' },
       ],
     }),    
     new HtmlWebpackPlugin({
-      template: './popup/popup.html',
+      template: './src/popup/popup.html',
       filename: 'popup/popup.html',
       chunks: ['popup'],
     }),
     new HtmlWebpackPlugin({
-      template: './options/options.html',
+      template: './src/options/options.html',
       filename: 'options/options.html',
       chunks: ['options'],
     }),
     new HtmlWebpackPlugin({
-      template: './dashboard/dashboard.html',
+      template: './src/dashboard/dashboard.html',
       filename: 'dashboard/dashboard.html',
       chunks: ['dashboard'],
     }),
