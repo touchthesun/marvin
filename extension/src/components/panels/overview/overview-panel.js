@@ -29,7 +29,7 @@ let statsData = {
 };
 let recentCaptures = [];
 
-const OverviewPanelComponent = {
+const OverviewPanel = {
   // Main initialization function
   initOverviewPanel() {
     return initOverviewPanel();
@@ -419,5 +419,4 @@ try {
 }
 
 // Export the initialization function
-export default OverviewPanelComponent;
-export { initOverviewPanel };
+export { OverviewPanel };

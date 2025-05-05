@@ -7,17 +7,17 @@ import {
   getSelectedTabs,
   initTabsCapture,
   extractTabContent
- } from '../capture/tabs-capture.js';
+ } from '.tabs-capture.js';
 
 import { 
   initBookmarksCapture, 
   getSelectedBookmarks 
-} from '../capture/bookmarks-capture.js';
+} from './bookmarks-capture.js';
 
 import { 
   initHistoryCapture, 
   getSelectedHistoryItems 
-} from '../capture/history-capture.js';
+} from './history-capture.js';
 
 /**
  * Logger for capture panel operations
@@ -34,7 +34,7 @@ const logger = new LogManager({
 let captureInitialized = false;
 
 
-const CapturePanelComponent = {
+const CapturePanel = {
   // Main initialization function
   initCapturePanel() {
     return initCapturePanel();
@@ -425,12 +425,12 @@ try {
   // First, try to use the global registerComponent function
   if (typeof self.registerComponent === 'function') {
     logger.log('debug', 'Registering capture panel component using global registerComponent');
-    self.registerComponent('capture-panel', CapturePanelComponent);
+    self.registerComponent('capture-panel', CapturePanel);
   } else {
     // If registerComponent isn't available, register directly in global registry
     logger.log('debug', 'Global registerComponent not found, using direct registry access');
     self.MarvinComponents = self.MarvinComponents || {};
-    self.MarvinComponents['capture-panel'] = CapturePanelComponent;
+    self.MarvinComponents['capture-panel'] = CapturePanel;
   }
   
   logger.log('info', 'Capture panel component registered successfully');
@@ -439,16 +439,11 @@ try {
   // Try window as fallback if self fails
   try {
     window.MarvinComponents = window.MarvinComponents || {};
-    window.MarvinComponents['capture-panel'] = CapturePanelComponent;
+    window.MarvinComponents['capture-panel'] = CapturePanel;
     logger.log('debug', 'Capture panel component registered using window fallback');
   } catch (windowError) {
     logger.log('error', 'Failed to register capture panel component:', windowError);
   }
 }
 
-// Export functions that need to be accessed from other modules
-export default CapturePanelComponent;
-export { 
-  captureSelectedItems, 
-  initCapturePanel
- };
+export { CapturePanel };

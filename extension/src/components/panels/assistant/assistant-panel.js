@@ -13,7 +13,7 @@ const logger = new LogManager({
 let assistantInitialized = false;
 
 
-const AssistantPanelComponent = {
+const AssistantPanel = {
   // Main initialization function
   initAssistantPanel() {
     return initAssistantPanel();
@@ -397,12 +397,12 @@ try {
   // First, try to use the global registerComponent function
   if (typeof self.registerComponent === 'function') {
     logger.log('debug', 'Registering assistant panel component using global registerComponent');
-    self.registerComponent('assistant-panel', AssistantPanelComponent);
+    self.registerComponent('assistant-panel', AssistantPanel);
   } else {
     // If registerComponent isn't available, register directly in global registry
     logger.log('debug', 'Global registerComponent not found, using direct registry access');
     self.MarvinComponents = self.MarvinComponents || {};
-    self.MarvinComponents['assistant-panel'] = AssistantPanelComponent;
+    self.MarvinComponents['assistant-panel'] = AssistantPanel;
   }
   
   logger.log('info', 'Assistant panel component registered successfully');
@@ -411,17 +411,11 @@ try {
   // Try window as fallback if self fails
   try {
     window.MarvinComponents = window.MarvinComponents || {};
-    window.MarvinComponents['assistant-panel'] = AssistantPanelComponent;
+    window.MarvinComponents['assistant-panel'] = AssistantPanel;
     logger.log('debug', 'Assistant panel component registered using window fallback');
   } catch (windowError) {
     logger.log('error', 'Failed to register assistant panel component:', windowError);
   }
 }
 
-// Export the component object as default, and also export individual functions
-export default AssistantPanelComponent;
-export { 
-  addMessageToChat, 
-  initAssistantPanel,
-  loadChatHistory
-}
+export { AssistantPanel };
