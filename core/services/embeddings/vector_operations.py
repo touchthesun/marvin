@@ -1,6 +1,6 @@
 # core/services/embeddings/vector_operations.py
 import numpy as np
-from typing import List, Union, Optional, Tuple
+from typing import List, Union
 from core.domain.embeddings.models import EmbeddingVector
 
 from core.utils.logger import get_logger
@@ -17,7 +17,7 @@ def cosine_similarity(vec1: Union[List[float], EmbeddingVector],
             vec1 = vec1.vector
         if isinstance(vec2, EmbeddingVector):
             vec2 = vec2.vector
-            
+        
         # Convert to numpy arrays
         a = np.array(vec1)
         b = np.array(vec2)

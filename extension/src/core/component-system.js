@@ -7,7 +7,6 @@ import { Navigation } from '../components/navigation.js';
 import { OverviewPanel } from '../components/panels/overview/overview-panel.js';
 import { CapturePanel } from '../components/panels/capture/capture-panel.js';
 import { KnowledgePanel } from '../components/panels/knowledge/knowledge-panel.js';
-import { GraphPanel } from '../../../notes/archive-code/graph-panel.js';
 import { SettingsPanel } from '../components/panels/settings/settings-panel.js';
 import { TasksPanel } from '../components/panels/tasks/tasks-panel.js';
 import { AssistantPanel } from '../components/panels/assistant/assistant-panel.js';
@@ -84,7 +83,6 @@ export class ComponentSystem {
       { name: 'overview-panel', implementation: OverviewPanel },
       { name: 'capture-panel', implementation: CapturePanel },
       { name: 'knowledge-panel', implementation: KnowledgePanel },
-      { name: 'graph-panel', implemen },
       { name: 'settings-panel', implementation: SettingsPanel },
       { name: 'tasks-panel', implementation: TasksPanel },
       { name: 'assistant-panel', implementation: AssistantPanel }
