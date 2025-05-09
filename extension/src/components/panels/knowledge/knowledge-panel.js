@@ -34,7 +34,7 @@ const KnowledgePanel = {
       
       // Initialize the split view utility
       const ui = container.getUtil('ui');
-      ui.setupSplitView();
+      ui.initSplitView();
       
       // Initialize visualization service
       await visualizationService.initialize();

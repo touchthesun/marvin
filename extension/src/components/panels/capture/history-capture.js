@@ -1,13 +1,9 @@
-import { showNotification } from '../../../services/notification-service.js';
-import { LogManager } from '../../../utils/log-manager.js';
-import { isValidCaptureUrl } from '../../shared/capture.js';
-import { truncateText } from '../capture/capture-ui.js';
+import { container } from '../../../core/dependency-container.js';
 
 /**
- * Logger for history capture operations
- * @type {LogManager}
+ * Initialize logger for history capture operations
  */
-const logger = new LogManager({
+const logger = new (container.getUtil('LogManager'))({
   isBackgroundScript: false,
   context: 'history-capture',
   storageKey: 'marvin_history_capture_logs',
@@ -25,7 +21,7 @@ function debounce(func, wait) {
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
 }
-
+ 
 // Create debounced versions of functions
 const debouncedFilterHistory = debounce(filterHistory, 300);
 
@@ -47,7 +43,15 @@ async function initHistoryCapture() {
     logger.info('History capture initialized successfully');
   } catch (error) {
     logger.error('Error initializing history capture:', error);
-    showNotification('Error loading history: ' + error.message, 'error');
+    
+    try {
+      const notificationService = container.getService('notificationService');
+      if (notificationService) {
+        notificationService.showNotification('Error loading history: ' + error.message, 'error');
+      }
+    } catch (serviceError) {
+      logger.error('Could not access notification service:', serviceError);
+    }
   }
 }
 
@@ -82,7 +86,26 @@ async function loadHistory() {
     });
     
     // Filter out invalid URLs
-    const validHistoryItems = historyItems.filter(item => isValidCaptureUrl(item.url));
+    let validHistoryItems = [];
+    try {
+      const captureUtils = container.getUtil('capture');
+      if (captureUtils && captureUtils.isValidCaptureUrl) {
+        validHistoryItems = historyItems.filter(item => captureUtils.isValidCaptureUrl(item.url));
+      } else {
+        // Fallback validation if utility isn't available
+        validHistoryItems = historyItems.filter(item => {
+          const url = item.url.toLowerCase();
+          return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:');
+        });
+      }
+    } catch (error) {
+      logger.warn('Capture utility not available, using fallback validation', error);
+      // Fallback validation
+      validHistoryItems = historyItems.filter(item => {
+        const url = item.url.toLowerCase();
+        return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:');
+      });
+    }
     
     if (validHistoryItems.length === 0) {
       historyList.innerHTML = '<div class="empty-state">No history items found</div>';
@@ -186,6 +209,22 @@ function displayHistoryItems(historyItems) {
     const visitDate = new Date(item.lastVisitTime);
     const dateStr = formatDate(visitDate);
     
+    // Get the formatting utility for truncateText
+    let truncatedUrl = item.url;
+    try {
+      const formatting = container.getUtil('formatting');
+      if (formatting && formatting.truncateText) {
+        truncatedUrl = formatting.truncateText(item.url, 50);
+      } else {
+        // Fallback if formatting utility isn't available
+        truncatedUrl = item.url.length > 50 ? item.url.substring(0, 50) + '...' : item.url;
+      }
+    } catch (error) {
+      logger.warn('Formatting utility not available, using fallback truncation', error);
+      // Fallback truncation
+      truncatedUrl = item.url.length > 50 ? item.url.substring(0, 50) + '...' : item.url;
+    }
+    
     historyItem.innerHTML = `
       <div class="item-selector">
         <input type="checkbox" id="history-${item.id}" class="item-checkbox">
@@ -195,7 +234,7 @@ function displayHistoryItems(historyItems) {
       </div>
       <div class="item-content">
         <div class="item-title">${item.title || 'Untitled'}</div>
-        <div class="item-url">${truncateText(item.url, 50)}</div>
+        <div class="item-url">${truncatedUrl}</div>
       </div>
       <div class="item-meta">
         <span class="item-date">Last visit: ${dateStr}</span>

@@ -1,13 +1,10 @@
-import { showNotification } from '../../../services/notification-service.js'
-import { LogManager } from '../../../utils/log-manager.js';
-import { isValidCaptureUrl } from '../../../components/panels/capture/capture-utils.js';
-import { truncateText } from '../../../components/panels/capture/capture-ui.js';
+import { container } from '../../../core/dependency-container.js';
 
 /**
  * Logger for bookmarks capture operations
  * @type {LogManager}
  */
-const logger = new LogManager({
+const logger = new (container.getUtil('LogManager'))({
   isBackgroundScript: false,
   context: 'bookmarks-capture',
   storageKey: 'marvin_bookmarks_capture_logs',
@@ -24,7 +21,7 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
-}
+} 
 
 // Create debounced versions of functions
 const debouncedFilterBookmarks = debounce(filterBookmarks, 300);
@@ -47,7 +44,15 @@ async function initBookmarksCapture() {
     logger.info('Bookmarks capture initialized successfully');
   } catch (error) {
     logger.error('Error initializing bookmarks capture:', error);
-    showNotification('Error loading bookmarks: ' + error.message, 'error');
+    
+    try {
+      const notificationService = container.getService('notificationService');
+      if (notificationService) {
+        notificationService.showNotification('Error loading bookmarks: ' + error.message, 'error');
+      }
+    } catch (serviceError) {
+      logger.error('Could not access notification service:', serviceError);
+    }
   }
 }
 
@@ -92,6 +97,16 @@ async function loadBookmarks() {
   } catch (error) {
     logger.error('Error loading bookmarks:', error);
     bookmarksList.innerHTML = `<div class="error-state">Error loading bookmarks: ${error.message}</div>`;
+    
+    // Show notification about the error
+    try {
+      const notificationService = container.getService('notificationService');
+      if (notificationService) {
+        notificationService.showNotification('Error loading bookmarks: ' + error.message, 'error');
+      }
+    } catch (serviceError) {
+      logger.error('Could not access notification service:', serviceError);
+    }
   }
 }
 
@@ -117,7 +132,29 @@ function flattenBookmarks(bookmarkNodes, path = "") {
     
     if (node.url) {
       // Skip invalid URLs
-      if (!isValidCaptureUrl(node.url)) {
+      let isValid = true;
+      try {
+        // Try to get capture utils from container
+        const captureUtils = container.getUtil('capture');
+        if (captureUtils && captureUtils.isValidCaptureUrl) {
+          isValid = captureUtils.isValidCaptureUrl(node.url);
+        } else {
+          // Fallback validation if utility isn't available
+          const url = node.url.toLowerCase();
+          isValid = !url.startsWith('chrome://') && 
+                   !url.startsWith('chrome-extension://') && 
+                   !url.startsWith('about:');
+        }
+      } catch (error) {
+        logger.warn('Capture utility not available, using fallback validation', error);
+        // Fallback validation
+        const url = node.url.toLowerCase();
+        isValid = !url.startsWith('chrome://') && 
+                 !url.startsWith('chrome-extension://') && 
+                 !url.startsWith('about:');
+      }
+      
+      if (!isValid) {
         continue;
       }
       
@@ -218,6 +255,22 @@ function displayBookmarks(bookmarks) {
       logger.warn(`Error getting favicon for ${bookmark.url}:`, error);
     }
     
+    // Get truncate function from formatting utilities
+    let truncatedUrl = bookmark.url;
+    try {
+      const formatting = container.getUtil('formatting');
+      if (formatting && formatting.truncateText) {
+        truncatedUrl = formatting.truncateText(bookmark.url, 50);
+      } else {
+        // Fallback truncation if utility isn't available
+        truncatedUrl = bookmark.url.length > 50 ? bookmark.url.substring(0, 50) + '...' : bookmark.url;
+      }
+    } catch (error) {
+      logger.warn('Formatting utility not available, using fallback truncation', error);
+      // Fallback truncation
+      truncatedUrl = bookmark.url.length > 50 ? bookmark.url.substring(0, 50) + '...' : bookmark.url;
+    }
+    
     bookmarkItem.innerHTML = `
       <div class="item-selector">
         <input type="checkbox" id="bookmark-${bookmark.id}" class="item-checkbox">
@@ -227,7 +280,7 @@ function displayBookmarks(bookmarks) {
       </div>
       <div class="item-content">
         <div class="item-title">${bookmark.title || 'Untitled'}</div>
-        <div class="item-url">${truncateText(bookmark.url, 50)}</div>
+        <div class="item-url">${truncatedUrl}</div>
       </div>
       <div class="item-meta">
         <span class="item-folder">${bookmark.path || 'Root'}</span>

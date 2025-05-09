@@ -1,13 +1,10 @@
 import { LogManager } from './log-manager.js';
-import { initCapturePanel } from '../components/panels/capture/capture-panel.js';
 
 const logger = new LogManager({
   isBackgroundScript: false,
   storageKey: 'marvin_ui_logs',
   maxEntries: 1000
 });
-
-
 
 
 /**
@@ -52,27 +49,7 @@ export function showSaveConfirmation(form) {
   }, 2000);
   }
 
-// Setup force initialization buttons (for debugging)
-export async function setupForceInitButtons() {
-  logWithStack('setupForceInitButtons called');
 
-  // Capture panel force init
-  const forceInitCaptureButton = document.getElementById('force-init-capture');
-  logger.log(`Force init capture button found: ${!!forceInitCaptureButton}`);
-
-  if (forceInitCaptureButton) {
-    logger.log('Adding click handler to force-init-capture button');
-    forceInitCaptureButton.addEventListener('click', async () => { 
-      logger.log('Force initializing capture panel');
-      captureInitialized = false; 
-      await initCapturePanel(); 
-
-      // Check capture button after forced initialization
-      const captureBtn = document.getElementById('capture-selected');
-      logger.log(`Capture button after force init: ${!!captureBtn}, disabled=${captureBtn?.disabled}, text=${captureBtn?.textContent}`);
-    });
-  }
-}
 
 /**
  * Initialize split view for knowledge panel

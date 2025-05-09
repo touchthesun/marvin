@@ -1,63 +1,74 @@
-// dashboard/js/services/visualization-service.js
-// Service for handling visualizations and D3-related functionality
-
-import { LogManager } from '../utils/log-manager.js';
-
-// Initialize logger
-const logger = new LogManager({
-  isBackgroundScript: false,
-  context: 'visualization-service',
-  storageKey: 'marvin_visualization_logs',
-  maxEntries: 1000
-});
+// src/services/visualization-service.js
+import { container } from '../core/dependency-container.js';
 
 /**
  * Visualization Service - Handles D3 and other visualization tasks
  */
-class VisualizationService {
+export class VisualizationService {
+  /**
+   * Create a new VisualizationService instance
+   */
   constructor() {
+    // State initialization
     this.initialized = false;
     this.d3Available = false;
-    
-    // Try to detect if D3 is available
-    try {
-      this.d3Available = typeof d3 !== 'undefined';
-      logger.debug(`D3 availability: ${this.d3Available}`);
-    } catch (e) {
-      logger.warn('D3 not available:', e.message);
-      this.d3Available = false;
-    }
+    this.logger = null;
   }
   
   /**
-   * Initialize the visualization service
+   * Initialize the service
+   * @returns {Promise<boolean>} Success state
    */
   async initialize() {
-    if (this.initialized) return;
-    
-    logger.debug('Initializing visualization service');
+    if (this.initialized) {
+      return true;
+    }
     
     try {
+      // Get logger instance
+      this.logger = new (container.getUtil('LogManager'))({
+        context: 'visualization-service',
+        isBackgroundScript: false,
+        storageKey: 'marvin_visualization_logs',
+        maxEntries: 1000
+      });
+      
+      this.logger.info('Initializing visualization service');
+      
+      // Try to detect if D3 is available
+      try {
+        this.d3Available = typeof d3 !== 'undefined';
+        this.logger.debug(`D3 availability: ${this.d3Available}`);
+      } catch (e) {
+        this.logger.warn('D3 not available:', e.message);
+        this.d3Available = false;
+      }
+      
       // If D3 is not available, try to dynamically load it
       if (!this.d3Available) {
         try {
           // For safety, we'll check if window.d3 is already available
           if (typeof window !== 'undefined' && window.d3) {
             this.d3Available = true;
-            logger.debug('D3 found in global scope');
+            this.logger.debug('D3 found in global scope');
           } else {
-            logger.warn('D3 not available and could not be loaded');
+            this.logger.warn('D3 not available and could not be loaded');
           }
         } catch (loadError) {
-          logger.error('Error loading D3:', loadError);
+          this.logger.error('Error loading D3:', loadError);
         }
       }
       
       this.initialized = true;
-      logger.debug('Visualization service initialized successfully');
+      this.logger.info('Visualization service initialized successfully');
+      return true;
     } catch (error) {
-      logger.error('Error initializing visualization service:', error);
-      throw error;
+      if (this.logger) {
+        this.logger.error('Error initializing visualization service:', error);
+      } else {
+        console.error('Error initializing visualization service:', error);
+      }
+      return false;
     }
   }
   
@@ -69,12 +80,16 @@ class VisualizationService {
    * @returns {boolean} - Whether visualization was successful
    */
   createBarChart(containerId, data, options = {}) {
-    logger.debug(`Creating bar chart in ${containerId}`);
+    if (!this.initialized) {
+      this.initialize();
+    }
+    
+    this.logger.debug(`Creating bar chart in ${containerId}`);
     
     try {
       const container = document.getElementById(containerId);
       if (!container) {
-        logger.warn(`Container element not found: ${containerId}`);
+        this.logger.warn(`Container element not found: ${containerId}`);
         return false;
       }
       
@@ -87,14 +102,14 @@ class VisualizationService {
       try {
         // D3 visualization code would go here
         // Since we're moving away from direct D3 dependency, this is left as a stub
-        logger.debug('D3 visualization not implemented yet');
+        this.logger.debug('D3 visualization not implemented yet');
         return this._createFallbackBarChart(container, data, options);
       } catch (d3Error) {
-        logger.error('Error creating D3 visualization:', d3Error);
+        this.logger.error('Error creating D3 visualization:', d3Error);
         return this._createFallbackBarChart(container, data, options);
       }
     } catch (error) {
-      logger.error('Error creating bar chart:', error);
+      this.logger.error('Error creating bar chart:', error);
       return false;
     }
   }
@@ -108,12 +123,16 @@ class VisualizationService {
    * @returns {boolean} - Whether visualization was successful
    */
   createKnowledgeGraph(containerId, nodes = [], links = [], options = {}) {
-    logger.debug(`Creating knowledge graph in ${containerId}`);
+    if (!this.initialized) {
+      this.initialize();
+    }
+    
+    this.logger.debug(`Creating knowledge graph in ${containerId}`);
     
     try {
       const container = document.getElementById(containerId);
       if (!container) {
-        logger.warn(`Container element not found: ${containerId}`);
+        this.logger.warn(`Container element not found: ${containerId}`);
         return false;
       }
       
@@ -126,14 +145,14 @@ class VisualizationService {
       try {
         // D3 visualization code would go here
         // Since we're moving away from direct D3 dependency, this is left as a stub
-        logger.debug('D3 graph visualization not implemented yet');
+        this.logger.debug('D3 graph visualization not implemented yet');
         return this._createFallbackGraph(container, nodes, links, options);
       } catch (d3Error) {
-        logger.error('Error creating D3 graph visualization:', d3Error);
+        this.logger.error('Error creating D3 graph visualization:', d3Error);
         return this._createFallbackGraph(container, nodes, links, options);
       }
     } catch (error) {
-      logger.error('Error creating knowledge graph:', error);
+      this.logger.error('Error creating knowledge graph:', error);
       return false;
     }
   }
@@ -147,7 +166,7 @@ class VisualizationService {
    * @returns {boolean} - Whether visualization was successful
    */
   _createFallbackBarChart(container, data, options = {}) {
-    logger.debug('Creating fallback bar chart');
+    this.logger.debug('Creating fallback bar chart');
     
     try {
       // Clear container
@@ -214,7 +233,7 @@ class VisualizationService {
       container.appendChild(chartContainer);
       return true;
     } catch (error) {
-      logger.error('Error creating fallback bar chart:', error);
+      this.logger.error('Error creating fallback bar chart:', error);
       return false;
     }
   }
@@ -229,7 +248,7 @@ class VisualizationService {
    * @returns {boolean} - Whether visualization was successful
    */
   _createFallbackGraph(container, nodes = [], links = [], options = {}) {
-    logger.debug('Creating fallback graph visualization');
+    this.logger.debug('Creating fallback graph visualization');
     
     try {
       // Clear container
@@ -338,14 +357,25 @@ class VisualizationService {
       container.appendChild(resetButton);
       return true;
     } catch (error) {
-      logger.error('Error creating fallback graph:', error);
+      this.logger.error('Error creating fallback graph:', error);
       return false;
     }
   }
+  
+  /**
+   * Cleanup service resources
+   * @returns {Promise<void>}
+   */
+  async cleanup() {
+    if (!this.initialized) {
+      return;
+    }
+    
+    this.logger.info('Cleaning up visualization service');
+    
+    // No active event listeners or resources to clean up in this service
+    
+    this.initialized = false;
+    this.logger.debug('Visualization service cleanup completed');
+  }
 }
-
-// Create singleton instance
-const visualizationService = new VisualizationService();
-
-// Export the service
-export { visualizationService };

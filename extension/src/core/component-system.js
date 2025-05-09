@@ -1,9 +1,9 @@
 import { container } from './dependency-container.js';
-import { registerAllServices, initializeAllServices } from '../services/service-registry.js';
-import { UtilsRegistry } from '../utils/utils-registry.js';
+import { ServiceRegistry } from './service-registry.js';
+import { UtilsRegistry } from './utils-registry.js';
 
 // Import all components directly
-import { Navigation } from '../components/navigation.js';
+import { Navigation } from '../components/core/navigation.js';
 import { OverviewPanel } from '../components/panels/overview/overview-panel.js';
 import { CapturePanel } from '../components/panels/capture/capture-panel.js';
 import { KnowledgePanel } from '../components/panels/knowledge/knowledge-panel.js';
@@ -34,8 +34,8 @@ export class ComponentSystem {
       this.registerUtilities();
       
       // 2. Register and initialize services
-      registerAllServices();
-      await initializeAllServices();
+      ServiceRegistry.registerAll();
+      await ServiceRegistry.initializeAll();
       
       // 3. Register components
       this.registerComponents();
@@ -132,9 +132,9 @@ export class ComponentSystem {
       const initFuncName = `init${this.capitalizeFirst(this.toCamelCase(panelName))}`;
       
       if (component && component[initFuncName]) {
-        await component[initFuncName]();
-        console.log(`Panel ${panelName} initialized successfully`);
-        return true;
+        const success = await component[initFuncName]();
+        console.log(`Panel ${panelName} initialized with result: ${success}`);
+        return success;
       }
       
       console.error(`Cannot initialize ${panelName}: missing ${initFuncName}`);
@@ -167,7 +167,7 @@ export class ComponentSystem {
       initialized: this.initialized,
       validationResults: this.validationResults,
       componentCount: container.components.size,
-      serviceCount: container.serviceInstances.size,
+      serviceCount: container.services.size,
       utilityCount: container.utils.size
     };
   }

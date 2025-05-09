@@ -11,7 +11,32 @@ export function formatDate(timestamp) {
     const date = new Date(timestamp);
     return date.toLocaleString();
   }
+
+/**
+ * Utility: Format timestamp as time
+ * @param {number} timestamp - Timestamp in milliseconds
+ * @returns {string} Formatted time
+ */
+export function formatTime(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Truncate text to specified length
+ * @param {string} text - Text to truncate
+ * @param {number} maxLength - Maximum length
+ * @returns {string} Truncated text
+ */
+export function truncateText(text, maxLength) {
+  if (!text) return '';
   
+  if (text.length <= maxLength) {
+    return text;
+  }
+  
+  return text.substring(0, maxLength) + '...';
+}
 
 /**
  * Format context for display

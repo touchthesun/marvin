@@ -1,15 +1,21 @@
-// src/services/service-registry.js - Updated for DI integration
+// src/services/service-registry.js
 import { container } from '../core/dependency-container.js';
-import { ApiService } from './api-service.js';
-import { NotificationService } from './notification-service.js';
-import { StorageService } from './storage-service.js';
-import { TaskService } from './task-service.js';
-import { StatusService } from './status-service.js';
-import { VisualizationService } from './visualization-service.js';
-
-// ServiceRegistry that integrates with dependency container
+import { ApiService } from '../services/api-service.js';
+import { NotificationService } from '../services/notification-service.js';
+import { StorageService } from '../services/storage-service.js';
+import { TaskService } from '../services/task-service.js';
+import { StatusService } from '../services/status-service.js';
+import { VisualizationService } from '../services/visualization-service.js';
+ 
+/**
+ * ServiceRegistry - Central service management for Marvin extension
+ * Handles registration and initialization of all application services
+ */
 export const ServiceRegistry = {
-  // Register all services with the dependency container
+  /**
+   * Register all services with the dependency container
+   * @returns {Object} ServiceRegistry instance for chaining
+   */
   registerAll() {
     // Register services with their classes, not instances
     container.registerService('apiService', ApiService);
@@ -22,14 +28,21 @@ export const ServiceRegistry = {
     return this;
   },
   
-  // Get service instances from the container
+  /**
+   * Get service instance from the container
+   * @param {string} name - Service name to retrieve
+   * @returns {Object} Service instance
+   */
   getService(name) {
     return container.getService(name);
   },
   
-  // Initialize all services in the correct order
+  /**
+   * Initialize all services in the correct dependency order
+   * @returns {Promise<Object>} ServiceRegistry instance for chaining
+   */
   async initializeAll() {
-    // Create instances if they don't exist
+    // Get service instances - they will be created if they don't exist
     const storageService = this.getService('storageService');
     const apiService = this.getService('apiService');
     const taskService = this.getService('taskService');
@@ -48,16 +61,3 @@ export const ServiceRegistry = {
     return this;
   }
 };
-
-// Alternatively, create convenience functions for registration
-// export function registerAllServices() {
-//   ServiceRegistry.registerAll();
-// }
-
-// export function getService(name) {
-//   return ServiceRegistry.getService(name);
-// }
-
-// export function initializeAllServices() {
-//   return ServiceRegistry.initializeAll();
-// }

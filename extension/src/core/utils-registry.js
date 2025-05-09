@@ -2,7 +2,7 @@
 import { LogManager } from '../utils/log-manager';
 import { formatDate, formatTime, truncateText } from '../utils/formatting';
 import { setupTimeout, clearTimeouts } from '../utils/timeout.js';
-import { showSaveConfirmation, setupSplitView } from '../utils/ui-utils';
+import { showSaveConfirmation, initSplitView } from '../utils/ui-utils';
 
 // Export utils registry object
 export const UtilsRegistry = {
@@ -24,6 +24,6 @@ export const UtilsRegistry = {
   // UI utilities
   ui: {
     showSaveConfirmation,
-    setupSplitView
+    initSplitView
   }
 };

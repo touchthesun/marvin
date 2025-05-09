@@ -1,5 +1,6 @@
 import { captureCurrentTab, setupCaptureButton } from '../components/shared/capture.js';
 import { LogManager } from '../utils/log-manager.js';
+import { formatTime } from '../utils/formatting.js';
 
 // Initialize logger
 const logger = new LogManager({
@@ -870,15 +871,6 @@ function truncate(str, length) {
   return str.length > length ? str.substring(0, length) + '...' : str;
 }
 
-/**
- * Utility: Format timestamp as time
- * @param {number} timestamp - Timestamp in milliseconds
- * @returns {string} Formatted time
- */
-function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
 
 // Initialize popup when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

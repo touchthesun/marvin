@@ -1,12 +1,9 @@
-import { showNotification } from '../../../services/notification-service.js';
-import { LogManager } from '../../../utils/log-manager.js';
-import { isValidCaptureUrl } from '../../shared/capture.js';
+import { container } from '../../../core/dependency-container.js';
 
 /**
- * Logger for tabs capture operations
- * @type {LogManager}
+ * Initialize logger for tabs capture operations
  */
-const logger = new LogManager({
+const logger = new (container.getUtil('LogManager'))({
   isBackgroundScript: false,
   context: 'tabs-capture',
   storageKey: 'marvin_tabs_capture_logs',
@@ -23,7 +20,7 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
-}
+} 
 
 // Create debounced versions of functions
 const debouncedFilterTabs = debounce(applyFilters, 300);
@@ -49,7 +46,12 @@ async function initTabsCapture() {
     logger.info('Tabs capture initialized successfully');
   } catch (error) {
     logger.error('Error initializing tabs capture:', error);
-    showNotification('Error loading tabs: ' + error.message, 'error');
+
+    // Get notification service from container
+    const notificationService = container.getService('notificationService');
+    if (notificationService) {
+      notificationService.showNotification('message', 'type');
+    }
   }
 }
 
@@ -164,7 +166,18 @@ async function loadOpenTabs() {
  * @returns {boolean} True if tab should be shown
  */
 function shouldShowTab(tab) {
-  return isValidCaptureUrl(tab.url);
+  // Get the utility for validation if available
+  try {
+    const captureUtils = container.getUtil('capture');
+    if (captureUtils && captureUtils.isValidCaptureUrl) {
+      return captureUtils.isValidCaptureUrl(tab.url);
+    }
+  } catch (error) {
+    logger.warn('Capture utils not available, using fallback validation');
+  }
+  
+  // Fallback validation
+  return !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://');
 }
 
 /**

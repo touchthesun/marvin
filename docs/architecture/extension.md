@@ -271,7 +271,7 @@ export const UtilsRegistry = {
   
   ui: {
     showSaveConfirmation,
-    setupSplitView
+    initSplitView
   }
 };
 ```
@@ -282,7 +282,7 @@ export const UtilsRegistry = {
 |---------|---------|-------|
 | `LogManager` | Logging system | `new LogManager(options)` |
 | `formatting` | Text formatting | `formatting.truncateText()` |
-| `ui` | UI helpers | `ui.setupSplitView()` |
+| `ui` | UI helpers | `ui.initSplitView()` |
 
 ## Development Patterns
 

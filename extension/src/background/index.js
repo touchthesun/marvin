@@ -1,13 +1,13 @@
 import { container } from '@core/dependency-container.js';
-import { registerAllServices, initializeAllServices } from '@services/service-registry.js';
+import { ServiceRegistry } from '@core/service-registry.js';
 
 async function initialize() {
   try {
-    // Register all services
-    registerAllServices();
+    // Register all services using ServiceRegistry
+    ServiceRegistry.registerAll();
     
     // Initialize all services
-    await initializeAllServices();
+    await ServiceRegistry.initializeAll();
     
     // Import and start background service logic
     const { BackgroundService } = await import('./background-service.js');

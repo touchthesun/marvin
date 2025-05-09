@@ -1,25 +1,26 @@
 // src/components/core/navigation.js
-import { LogManager } from '../../utils/log-manager.js';
-import { showNotification } from '../../services/notification-service.js';
-import { componentStubs } from '../../core/component-registry.js';
+import { container } from '../../core/dependency-container.js';
 
 export class Navigation {
   constructor(dependencies = {}) {
-    // Dependency injection
-    this.logger = dependencies.logger || new LogManager({
+    // Get dependencies from container if not explicitly provided
+    this.logger = dependencies.logger || new (container.getUtil('LogManager'))({
       isBackgroundScript: false,
       context: 'navigation',
       storageKey: 'marvin_navigation_logs',
       maxEntries: 1000
     });
     
-    this.notificationService = dependencies.notificationService || {
-      show: showNotification
-    };
+    // Use notification service from the container
+    this.notificationService = dependencies.notificationService || 
+      (container.services.has('notificationService') ? container.getService('notificationService') : 
+      { showNotification: function(message, type) { console.log(`[${type}] ${message}`); } });
     
     this.chrome = dependencies.chrome || window.chrome;
     this.componentRegistry = dependencies.componentRegistry || window.MarvinComponents;
-    this.componentStubs = dependencies.componentStubs || componentStubs;
+    
+    // Create fallback component stubs internally instead of importing them
+    this.componentStubs = dependencies.componentStubs || this.createComponentStubs();
     
     // State initialization
     this.navigationInitialized = false;
@@ -39,6 +40,35 @@ export class Navigation {
     this.restoreLastActiveTab = this.restoreLastActiveTab.bind(this);
     this.navigateToPanel = this.navigateToPanel.bind(this);
     this.navigateToTab = this.navigateToTab.bind(this);
+    this.createComponentStubs = this.createComponentStubs.bind(this);
+  }
+  
+  /**
+   * Create stub implementations for panel components
+   * @returns {Object} Object containing stub implementations for panels
+   */
+  createComponentStubs() {
+    // Create a function that returns a simple panel stub
+    const createPanelStub = (panelName) => {
+      const initFunctionName = `init${panelName.charAt(0).toUpperCase() + panelName.slice(1)}Panel`;
+      
+      return {
+        [initFunctionName]: async () => {
+          this.logger.warn(`Using stub implementation for ${panelName} panel`);
+          return true; // Return success to allow navigation to continue
+        }
+      };
+    };
+    
+    // Create stubs for all main panel types
+    return {
+      'overview-panel': createPanelStub('overview'),
+      'capture-panel': createPanelStub('capture'),
+      'knowledge-panel': createPanelStub('knowledge'),
+      'assistant-panel': createPanelStub('assistant'),
+      'settings-panel': createPanelStub('settings'),
+      'tasks-panel': createPanelStub('tasks')
+    };
   }
   
   // ----- PUBLIC API METHODS -----
@@ -122,7 +152,7 @@ export class Navigation {
             } catch (navError) {
               this.debugLog(`ERROR handling navigation to ${panelName}:`, navError);
               this.logger.error(`Error handling navigation to ${panelName}:`, navError);
-              this.notificationService.show(`Error navigating to ${panelName}: ${navError.message}`, 'error');
+              this.notificationService.showNotification(`Error navigating to ${panelName}: ${navError.message}`, 'error');
               
               // Try fallback navigation (just show the panel without initialization)
               this.debugLog(`Attempting fallback navigation to ${panelName}`);
@@ -167,7 +197,7 @@ export class Navigation {
       this.navigationInitialized = false;
       this.debugLog('ERROR initializing navigation:', error);
       this.logger.error('Error initializing navigation:', error);
-      this.notificationService.show('Error initializing navigation: ' + error.message, 'error');
+      this.notificationService.showNotification('Error initializing navigation: ' + error.message, 'error');
     }
   }
   
@@ -231,7 +261,7 @@ export class Navigation {
               this.handleTabChange(targetTab, tabButtons, tabPanes, newButton);
             } catch (tabError) {
               this.logger.error(`Error handling tab change to ${targetTab}:`, tabError);
-              this.notificationService.show(`Error changing tab: ${tabError.message}`, 'error');
+              this.notificationService.showNotification(`Error changing tab: ${tabError.message}`, 'error');
             }
           });
         } catch (buttonError) {
@@ -253,7 +283,7 @@ export class Navigation {
     } catch (error) {
       this.tabsInitialized = false;
       this.logger.error('Error initializing tabs:', error);
-      this.notificationService.show('Error initializing tabs: ' + error.message, 'error');
+      this.notificationService.showNotification('Error initializing tabs: ' + error.message, 'error');
     }
   }
   
@@ -268,12 +298,12 @@ export class Navigation {
         return true;
       } else {
         this.logger.warn(`Navigation item for panel ${panelName} not found`);
-        this.notificationService.show(`Panel "${panelName}" not found`, 'error');
+        this.notificationService.showNotification(`Panel "${panelName}" not found`, 'error');
         return false;
       }
     } catch (error) {
       this.logger.error(`Error navigating to panel ${panelName}:`, error);
-      this.notificationService.show(`Error navigating to panel: ${error.message}`, 'error');
+      this.notificationService.showNotification(`Error navigating to panel: ${error.message}`, 'error');
       return false;
     }
   }
@@ -302,12 +332,12 @@ export class Navigation {
         return true;
       } else {
         this.logger.warn(`Tab button for ${tabName} not found in panel ${panelName}`);
-        this.notificationService.show(`Tab "${tabName}" not found in panel "${panelName}"`, 'error');
+        this.notificationService.showNotification(`Tab "${tabName}" not found in panel "${panelName}"`, 'error');
         return false;
       }
     } catch (error) {
       this.logger.error(`Error navigating to tab ${tabName} in panel ${panelName}:`, error);
-      this.notificationService.show(`Error navigating to tab: ${error.message}`, 'error');
+      this.notificationService.showNotification(`Error navigating to tab: ${error.message}`, 'error');
       return false;
     }
   }
@@ -316,6 +346,24 @@ export class Navigation {
     this.logger.debug('Restoring last active panel');
     
     try {
+      // Try to get storage service from container
+      const storageService = container.getService('storageService');
+      
+      if (storageService) {
+        // Use storage service if available
+        try {
+          const activeState = await storageService.getActiveState();
+          if (activeState && activeState.panel) {
+            this.logger.info(`Restoring last active panel from storage service: ${activeState.panel}`);
+            return await this.navigateToPanel(activeState.panel);
+          }
+        } catch (storageServiceError) {
+          this.logger.warn('Error using storage service for panel restore:', storageServiceError);
+          // Continue with fallback approach
+        }
+      }
+      
+      // Fallback to direct chrome.storage access
       const data = await this.chrome.storage.local.get('lastActivePanel');
       const lastActivePanel = data.lastActivePanel;
       
@@ -377,6 +425,30 @@ export class Navigation {
     this.logger.debug(`Restoring last active tab for panel: ${panelId}`);
     
     try {
+      // Try to get storage service from container
+      const storageService = container.getService('storageService');
+      
+      if (storageService) {
+        // Use storage service if available
+        try {
+          const activeState = await storageService.getActiveState();
+          if (activeState && activeState.tab) {
+            this.logger.info(`Restoring last active tab from storage service: ${activeState.tab}`);
+            
+            const tabButton = document.querySelector(`#${panelId} .tab-btn[data-tab="${activeState.tab}"]`);
+            if (tabButton) {
+              tabButton.click();
+              this.logger.debug(`Clicked tab button for ${activeState.tab}`);
+              return true;
+            }
+          }
+        } catch (storageServiceError) {
+          this.logger.warn('Error using storage service for tab restore:', storageServiceError);
+          // Continue with fallback approach
+        }
+      }
+      
+      // Fallback to direct chrome.storage access
       const storageKey = `lastActiveTab_${panelId}`;
       const data = await this.chrome.storage.local.get(storageKey);
       const lastActiveTab = data[storageKey];
@@ -513,7 +585,7 @@ export class Navigation {
       
       if (!panelFound) {
         this.debugLog(`WARNING: Panel not found for target: ${targetPanel}`);
-        this.notificationService.show(`Panel not found: ${targetPanel}`, 'error');
+        this.notificationService.showNotification(`Panel not found: ${targetPanel}`, 'error');
       }
       
       // Initialize panel if needed
@@ -524,8 +596,18 @@ export class Navigation {
       
       // Save last active panel to storage
       try {
-        this.debugLog(`Saving last active panel: ${targetPanel}`);
-        this.chrome.storage.local.set({ lastActivePanel: targetPanel });
+        // Try to use storage service from container
+        const storageService = container.getService('storageService');
+        
+        if (storageService) {
+          // Use storage service if available
+          await storageService.saveActiveState(targetPanel);
+          this.debugLog(`Saved last active panel using storage service: ${targetPanel}`);
+        } else {
+          // Fallback to direct chrome.storage access
+          this.debugLog(`Saving last active panel: ${targetPanel}`);
+          this.chrome.storage.local.set({ lastActivePanel: targetPanel });
+        }
       } catch (storageError) {
         this.debugLog(`ERROR saving last active panel:`, storageError);
         this.logger.warn('Error saving last active panel:', storageError);
@@ -539,7 +621,7 @@ export class Navigation {
     }
   }
   
-  handleTabChange(targetTab, tabButtons, tabPanes, clickedButton) {
+  async handleTabChange(targetTab, tabButtons, tabPanes, clickedButton) {
     this.logger.debug(`Handling tab change to: ${targetTab}`);
     
     try {
@@ -603,9 +685,19 @@ export class Navigation {
         const panelId = parentPanel ? parentPanel.id : null;
         
         if (panelId) {
-          const storageKey = `lastActiveTab_${panelId}`;
-          this.chrome.storage.local.set({ [storageKey]: targetTab });
-          this.logger.debug(`Saved last active tab for ${panelId}: ${targetTab}`);
+          // Try to use storage service from container
+          const storageService = container.getService('storageService');
+          
+          if (storageService) {
+            // Use storage service if available
+            await storageService.saveActiveState(panelId.replace('-panel', ''), targetTab);
+            this.logger.debug(`Saved last active tab using storage service for ${panelId}: ${targetTab}`);
+          } else {
+            // Fallback to direct chrome.storage access
+            const storageKey = `lastActiveTab_${panelId}`;
+            this.chrome.storage.local.set({ [storageKey]: targetTab });
+            this.logger.debug(`Saved last active tab for ${panelId}: ${targetTab}`);
+          }
         }
       } catch (storageError) {
         this.logger.warn('Error saving last active tab:', storageError);
@@ -614,8 +706,7 @@ export class Navigation {
       this.logger.error(`Error in handleTabChange for ${targetTab}:`, error);
       throw error;
     }
-  }
-  
+  }  
   fallbackNavigation(targetPanel, navItems, contentPanels) {
     this.debugLog(`FALLBACK: Simple navigation to ${targetPanel}`);
     
@@ -667,7 +758,20 @@ export class Navigation {
     try {
       const componentName = `${targetPanel}-panel`;
       
-      // First check the global component registry
+      // First try to get component from container
+      try {
+        const component = container.getComponent(componentName);
+        if (component) {
+          this.logger.debug(`Using component from container: ${componentName}`);
+          await this.callInitFunction(targetPanel, component);
+          return;
+        }
+      } catch (containerError) {
+        this.logger.debug(`Component ${componentName} not found in container: ${containerError.message}`);
+        // Continue with other approaches
+      }
+      
+      // Then check the global component registry
       if (this.componentRegistry && this.componentRegistry[componentName]) {
         const component = this.componentRegistry[componentName];
         this.logger.debug(`Using registered component for ${componentName}`);
@@ -675,19 +779,19 @@ export class Navigation {
         return;
       }
       
-      // If not in registry, use stub implementation
+      // If not found in registry, use stub implementation
       if (this.componentStubs[componentName]) {
         this.logger.warn(`Component ${componentName} not found in registry, using stub`);
         await this.callInitFunction(targetPanel, this.componentStubs[componentName]);
         return;
       }
       
-      // No stub available
+      // No stub available (should not happen as we now generate stubs)
       this.logger.error(`No implementation or stub available for ${componentName}`);
-      this.notificationService.show(`Panel ${targetPanel} could not be loaded`, 'error');
+      this.notificationService.showNotification(`Panel ${targetPanel} could not be loaded`, 'error');
     } catch (error) {
       this.logger.error(`Error initializing panel ${targetPanel}:`, error);
-      this.notificationService.show(`Error initializing panel ${targetPanel}: ${error.message}`, 'error');
+      this.notificationService.showNotification(`Error initializing panel ${targetPanel}: ${error.message}`, 'error');
     }
   }
   
@@ -749,83 +853,79 @@ export class Navigation {
     } catch (error) {
         this.logger.error(`Error calling init function for ${panelName}:`, error);
         throw error;
-      }
     }
   }
+}
   
-  // Backward compatibility wrapper
-  export const NavigationComponent = {
-    // Create a singleton instance for backward compatibility
-    _instance: null,
-    
-    get instance() {
-      if (!this._instance) {
-        this._instance = new Navigation();
-      }
-      return this._instance;
-    },
-    
-    initNavigation() {
-      return this.instance.initNavigation();
-    },
-    
-    initTabs() {
-      return this.instance.initTabs();
-    },
-    
-    restoreLastActivePanel() {
-      return this.instance.restoreLastActivePanel();
-    },
-    
-    restoreLastActiveTab(panelId) {
-      return this.instance.restoreLastActiveTab(panelId);
-    },
-    
-    navigateToPanel(panelName) {
-      return this.instance.navigateToPanel(panelName);
-    },
-    
-    navigateToTab(panelName, tabName) {
-      return this.instance.navigateToTab(panelName, tabName);
+// Backward compatibility wrapper
+export const NavigationComponent = {
+  // Create a singleton instance for backward compatibility
+  _instance: null,
+  
+  get instance() {
+    if (!this._instance) {
+      this._instance = new Navigation();
     }
-  };
+    return this._instance;
+  },
   
-  // Also export individual functions for backward compatibility
-  export const {
-    initNavigation,
-    initTabs,
-    restoreLastActivePanel,
-    restoreLastActiveTab,
-    navigateToPanel,
-    navigateToTab
-  } = NavigationComponent;
+  initNavigation() {
+    return this.instance.initNavigation();
+  },
   
-  // Register the component with fallback mechanism
+  initTabs() {
+    return this.instance.initTabs();
+  },
+  
+  restoreLastActivePanel() {
+    return this.instance.restoreLastActivePanel();
+  },
+  
+  restoreLastActiveTab(panelId) {
+    return this.instance.restoreLastActiveTab(panelId);
+  },
+  
+  navigateToPanel(panelName) {
+    return this.instance.navigateToPanel(panelName);
+  },
+  
+  navigateToTab(panelName, tabName) {
+    return this.instance.navigateToTab(panelName, tabName);
+  }
+};
+  
+// Also export individual functions for backward compatibility
+export const {
+  initNavigation,
+  initTabs,
+  restoreLastActivePanel,
+  restoreLastActiveTab,
+  navigateToPanel,
+  navigateToTab
+} = NavigationComponent;
+  
+// Register the component with fallback mechanism
+try {
+  // First, try to use the global registerComponent function
+  if (typeof self.registerComponent === 'function') {
+    console.log('Registering navigation component using global registerComponent');
+    self.registerComponent('navigation', NavigationComponent);
+  } else {
+    // If registerComponent isn't available, register directly in global registry
+    console.log('Global registerComponent not found, using direct registry access');
+    self.MarvinComponents = self.MarvinComponents || {};
+    self.MarvinComponents['navigation'] = NavigationComponent;
+  }
+  
+  console.log('Navigation component registered successfully');
+} catch (error) {
+  console.error('Error registering navigation component:', error);
+  // Try window as fallback if self fails
   try {
-    // First, try to use the global registerComponent function
-    if (typeof self.registerComponent === 'function') {
-      console.log('Registering navigation component using global registerComponent');
-      self.registerComponent('navigation', NavigationComponent);
-    } else {
-      // If registerComponent isn't available, register directly in global registry
-      console.log('Global registerComponent not found, using direct registry access');
-      self.MarvinComponents = self.MarvinComponents || {};
-      self.MarvinComponents['navigation'] = NavigationComponent;
-    }
-    
-    console.log('Navigation component registered successfully');
-  } catch (error) {
-    console.error('Error registering navigation component:', error);
-    // Try window as fallback if self fails
-    try {
-      window.MarvinComponents = window.MarvinComponents || {};
-      window.MarvinComponents['navigation'] = NavigationComponent;
-      console.log('Navigation component registered using window fallback');
-    } catch (windowError) {
-      console.error('Failed to register navigation component:', windowError);
-    }
+    window.MarvinComponents = window.MarvinComponents || {};
+    window.MarvinComponents['navigation'] = NavigationComponent;
+    console.log('Navigation component registered using window fallback');
+  } catch (windowError) {
+    console.error('Failed to register navigation component:', windowError);
   }
-  
-  // Export default as Navigation class
-  export default Navigation;
-  
+}

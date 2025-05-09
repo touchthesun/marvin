@@ -76,21 +76,7 @@ function createListItem(item, type) {
   return listItem;
 }
 
-/**
- * Truncate text to specified length
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} Truncated text
- */
-function truncateText(text, maxLength) {
-  if (!text) return '';
-  
-  if (text.length <= maxLength) {
-    return text;
-  }
-  
-  return text.substring(0, maxLength) + '...';
-}
+
 
 /**
  * Format date for display
@@ -282,7 +268,6 @@ function createDomainGroupHeader(domain, count) {
 // Export all UI helper functions
 export {
   createListItem,
-  truncateText,
   formatDate,
   setupSelectionControls,
   createLoadingIndicator,
