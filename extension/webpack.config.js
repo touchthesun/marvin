@@ -4,16 +4,21 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
 module.exports = {
   mode: 'development',
+  devtool: 'source-map',
+  target: 'webworker',
   entry: {
     dashboard: './src/dashboard/index.js',
-    background: './src/background/index.js',
+    background: './src/background/background.js',
     popup: './src/popup/popup.js',
-    options: './src/options/options.js'
+    options: './src/options/options.js',
+    content: './src/content/content.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name]/[name].js',
-    clean: true
+    clean: true,
+    publicPath: '/',
+    globalObject: 'self',  
   },
   module: {
     rules: [
@@ -46,7 +51,7 @@ module.exports = {
         { from: "src/assets/icons", to: "icons" },
         { from: "src/dashboard/dashboard.html", to: "dashboard" },
         { from: "src/popup/popup.html", to: "popup" },
-        { from: "src/options/options.html", to: "options" },
+        { from: "src/options/options.html", to: "options" }
       ]
     })
   ]

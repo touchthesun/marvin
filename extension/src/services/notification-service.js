@@ -24,6 +24,10 @@ export class NotificationService {
     };
     
     this.initialized = false;
+    
+    // Detect if we're in a service worker context
+    this.isServiceWorkerContext = typeof self !== 'undefined' && 
+                                 typeof document === 'undefined';
   }
   
   /**
@@ -39,14 +43,18 @@ export class NotificationService {
       // Get logger instance
       this.logger = new (container.getUtil('LogManager'))({
         context: 'notification-service',
-        isBackgroundScript: false,
+        isBackgroundScript: this.isServiceWorkerContext,
         maxEntries: 100
       });
       
       this.logger.info('Initializing notification service');
       
-      // Create notification container if it doesn't exist
-      this.ensureNotificationContainer();
+      // Create notification container if in browser context
+      if (!this.isServiceWorkerContext) {
+        this.ensureNotificationContainer();
+      } else {
+        this.logger.info('Running in service worker context - UI notifications disabled');
+      }
       
       this.initialized = true;
       this.logger.info('Notification service initialized successfully');
@@ -62,6 +70,9 @@ export class NotificationService {
    * @private
    */
   ensureNotificationContainer() {
+    // Only run in browser context
+    if (this.isServiceWorkerContext) return;
+    
     // Check if container already exists
     if (document.getElementById('notification-container')) {
       return;
@@ -187,6 +198,12 @@ export class NotificationService {
     if (this.logger) {
       this.logger.debug(`Showing ${type} notification: ${message}${progress !== null ? ` (progress: ${progress}%)` : ''}`);
     }
+
+    // Early return in service worker context
+    if (this.isServiceWorkerContext) {
+      // We can still log the notification but can't show UI
+      return null;
+    }
     
     if (!message) {
       if (this.logger) {
@@ -240,6 +257,12 @@ export class NotificationService {
    */
   createOrUpdateProgressNotification(message, type, progress, config) {
     const container = document.getElementById('notification-container');
+    // Early return in service worker context
+    if (this.isServiceWorkerContext) {
+      // We can still log the notification but can't show UI
+      return null;
+    }
+
     if (!container) {
       if (this.logger) {
         this.logger.warn('Notification container not found');
@@ -320,6 +343,11 @@ export class NotificationService {
    */
   createStandardNotification(message, type, config) {
     const container = document.getElementById('notification-container');
+    // Early return in service worker context
+    if (this.isServiceWorkerContext) {
+      return null;
+    }
+
     if (!container) {
       if (this.logger) {
         this.logger.warn('Notification container not found');
@@ -572,5 +600,34 @@ export class NotificationService {
     
     // Update default configuration
     Object.assign(this.config, config);
+  }
+  
+  /**
+   * Service worker compatible notification that only logs
+   * @param {string} message - Message to log
+   * @param {string} type - Type of notification
+   */
+  log(message, type = 'info') {
+    if (!this.initialized) {
+      this.initialize();
+    }
+    
+    if (this.logger) {
+      switch (type) {
+        case 'error':
+          this.logger.error(message);
+          break;
+        case 'warning':
+          this.logger.warn(message);
+          break;
+        case 'info':
+          this.logger.info(message);
+          break;
+        default:
+          this.logger.debug(message);
+      }
+    } else {
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
   }
 }

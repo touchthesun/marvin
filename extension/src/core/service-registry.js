@@ -6,6 +6,8 @@ import { StorageService } from '../services/storage-service.js';
 import { TaskService } from '../services/task-service.js';
 import { StatusService } from '../services/status-service.js';
 import { VisualizationService } from '../services/visualization-service.js';
+import { AnalysisService } from '../services/analysis-service.js';
+import { GraphService } from '../services/graph-service.js';
  
 /**
  * ServiceRegistry - Central service management for Marvin extension
@@ -24,6 +26,8 @@ export const ServiceRegistry = {
     container.registerService('taskService', TaskService);
     container.registerService('statusService', StatusService);
     container.registerService('visualizationService', VisualizationService);
+    container.registerService('analysisService', AnalysisService);
+    container.registerService('graphService', GraphService);
     
     return this;
   },
@@ -49,6 +53,8 @@ export const ServiceRegistry = {
     const statusService = this.getService('statusService');
     const notificationService = this.getService('notificationService');
     const visualizationService = this.getService('visualizationService');
+    const analysisService = this.getService('analysisService');
+    const graphService = this.getService('graphService');
     
     // Initialize in dependency order
     await storageService.initialize();
@@ -57,6 +63,8 @@ export const ServiceRegistry = {
     await statusService.initialize();
     await notificationService.initialize();
     await visualizationService.initialize();
+    await analysisService.initialize();
+    await graphService.initialize();
     
     return this;
   }

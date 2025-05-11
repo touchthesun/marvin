@@ -18,8 +18,7 @@
     "https://github.com/*"
   ],
   "background": {
-    "service_worker": "background/background.js",
-    "type": "module"
+    "service_worker": "background/background.js"
   },
   "action": {
     "default_popup": "popup/popup.html",

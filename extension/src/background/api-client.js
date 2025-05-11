@@ -275,7 +275,6 @@ class MarvinAPIClient {
     this.savePendingRequests();
   }
   
-  // Network status change handler (called from background.js)
   handleNetworkChange(isOnline) {
     console.log(`Network status changed: ${isOnline ? 'online' : 'offline'}`);
     this.isOnline = isOnline;

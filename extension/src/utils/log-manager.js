@@ -5,6 +5,16 @@ export class LogManager {
     this.storageKey = options.storageKey || 'marvin_debug_logs';
     this.logs = [];
     
+    // Detect if we're in a service worker context
+    this.isServiceWorkerContext = typeof window === 'undefined' || 
+                                  (typeof self !== 'undefined' && 
+                                   typeof self.ServiceWorkerGlobalScope !== 'undefined');
+    
+    // Use service worker context flag if detected
+    if (this.isServiceWorkerContext) {
+      this.isBackgroundScript = true; // Service workers are background scripts
+    }
+    
     // Minimal level mapping
     this.levelMap = {
       error: 1,
@@ -56,15 +66,19 @@ export class LogManager {
           }
           return String(arg);
         }).join(' ');
+        
+        // Limit message size
+        message = this._limitMessageSize(message, 1000);
       } catch (e) {
         message = '[Error formatting log message]';
       }
       
-      // Create log entry
+      // Create log entry with appropriate context
       const entry = {
         timestamp: new Date().toISOString(),
         level,
-        context: this.isBackgroundScript ? 'background' : 'content',
+        context: this.isServiceWorkerContext ? 'service-worker' : 
+                (this.isBackgroundScript ? 'background' : 'content'),
         message
       };
       
@@ -76,8 +90,8 @@ export class LogManager {
         this.logs.splice(0, this.logs.length - this.maxEntries);
       }
       
-      // Send to background if not in background
-      if (!this.isBackgroundScript) {
+      // Send to background if not in background or service worker
+      if (!this.isBackgroundScript && !this.isServiceWorkerContext) {
         this._safeSendToBackground(entry);
       }
       
@@ -117,61 +131,6 @@ export class LogManager {
     return message.substring(0, maxLength) + `... [truncated, ${message.length - maxLength} more characters]`;
   }
   
-  // Update the log method to use this limit
-  log(level, ...args) {
-    try {
-      // Create a basic message string
-      let message = '';
-      try {
-        message = args.map(arg => {
-          if (arg === null) return 'null';
-          if (arg === undefined) return 'undefined';
-          if (typeof arg === 'object') {
-            try {
-              // For objects, just give type information to avoid circular reference issues
-              const type = arg.constructor ? arg.constructor.name : 'Object';
-              return `[${type}]`;
-            } catch (e) {
-              return '[Object]';
-            }
-          }
-          return String(arg);
-        }).join(' ');
-        
-        // Limit message size
-        message = this._limitMessageSize(message, 1000);
-      } catch (e) {
-        message = '[Error formatting log message]';
-      }
-      
-      // Create log entry
-      const entry = {
-        timestamp: new Date().toISOString(),
-        level,
-        context: this.isBackgroundScript ? 'background' : 'content',
-        message
-      };
-      
-      // Add to logs array
-      this.logs.push(entry);
-      
-      // Keep logs under max size
-      if (this.logs.length > this.maxEntries) {
-        this.logs.splice(0, this.logs.length - this.maxEntries);
-      }
-      
-      // Send to background if not in background
-      if (!this.isBackgroundScript) {
-        this._safeSendToBackground(entry);
-      }
-      
-      return true;
-    } catch (e) {
-      // Fail silently - we can't log the error or we'd cause recursion
-      return false;
-    }
-  }
-  
   // Safe send to background with immediate error handling
   _safeSendToBackground(entry) {
     try {
@@ -203,7 +162,7 @@ export class LogManager {
     try {
       let allLogs;
       
-      if (this.isBackgroundScript) {
+      if (this.isBackgroundScript || this.isServiceWorkerContext) {
         allLogs = this.logs;
       } else {
         try {
@@ -237,7 +196,7 @@ export class LogManager {
     try {
       this.logs = [];
       
-      if (this.isBackgroundScript) {
+      if (this.isBackgroundScript || this.isServiceWorkerContext) {
         chrome.storage.local.remove(this.storageKey);
       }
       
