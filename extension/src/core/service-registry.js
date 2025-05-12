@@ -57,15 +57,39 @@ export const ServiceRegistry = {
     const graphService = this.getService('graphService');
     
     // Initialize in dependency order
-    await storageService.initialize();
-    await apiService.initialize();
-    await taskService.initialize();
-    await statusService.initialize();
-    await notificationService.initialize();
-    await visualizationService.initialize();
-    await analysisService.initialize();
-    await graphService.initialize();
+    if (storageService && storageService.initialize) {
+      await storageService.initialize();
+    }
     
+    if (apiService && apiService.initialize) {
+      await apiService.initialize();
+    }
+    
+    if (taskService && taskService.initialize) {
+      await taskService.initialize();
+    }
+    
+    if (statusService && statusService.initialize) {
+      await statusService.initialize();
+    }
+    
+    if (notificationService && notificationService.initialize) {
+      await notificationService.initialize();
+    }
+    
+    if (visualizationService && visualizationService.initialize) {
+      await visualizationService.initialize();
+    }
+
+    if (analysisService && analysisService.initialize) {
+      await analysisService.initialize();
+    }
+
+    if (graphService && graphService.initialize) {
+      await graphService.initialize();
+    }
+    
+    console.log('All services initialized successfully');
     return this;
   }
 };

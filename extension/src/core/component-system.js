@@ -1,3 +1,14 @@
+// Import LogManager directly first
+import { LogManager } from '../utils/log-manager.js';
+
+// Create logger directly
+const logger = new LogManager({
+  context: 'component-system',
+  isBackgroundScript: false,
+  maxEntries: 1000
+});
+
+// Then import other dependencies
 import { container } from './dependency-container.js';
 import { ServiceRegistry } from './service-registry.js';
 import { UtilsRegistry } from './utils-registry.js';
@@ -10,6 +21,17 @@ import { KnowledgePanel } from '../components/panels/knowledge/knowledge-panel.j
 import { SettingsPanel } from '../components/panels/settings/settings-panel.js';
 import { TasksPanel } from '../components/panels/tasks/tasks-panel.js';
 import { AssistantPanel } from '../components/panels/assistant/assistant-panel.js';
+
+// Register LogManager immediately
+function registerEssentialUtilities() {
+  if (!container.utils.has('LogManager')) {
+    container.registerUtil('LogManager', LogManager);
+    console.log('LogManager registered directly in component-system.js');
+  }
+}
+
+// Register essential utilities
+registerEssentialUtilities();
 
 /**
  * Component System - Handles all component management with DI
@@ -30,25 +52,39 @@ export class ComponentSystem {
     }
 
     try {
-      // 1. Register utilities first
+      // Ensure LogManager is registered
+      registerEssentialUtilities();
+      
+      // Register remaining utilities
       this.registerUtilities();
       
-      // 2. Register and initialize services
-      ServiceRegistry.registerAll();
-      await ServiceRegistry.initializeAll();
+      // Register and initialize services
+      try {
+        ServiceRegistry.registerAll();
+        await ServiceRegistry.initializeAll();
+      } catch (serviceError) {
+        console.error('Error initializing services:', serviceError);
+        logger.error('Error initializing services:', serviceError);
+        // Continue with component initialization anyway
+      }
       
-      // 3. Register components
+      // Register components
       this.registerComponents();
       
-      // 4. Validate components
+      // Validate components
       this.validationResults = this.validateComponents();
+      
+      // Initialize core components (like navigation)
+      await this.initializeCoreComponents();
       
       this.initialized = true;
       console.log('Component system initialized successfully');
+      logger.info('Component system initialized successfully');
       
       return this.validationResults;
     } catch (error) {
       console.error('Component system initialization failed:', error);
+      logger.error('Component system initialization failed:', error);
       throw error;
     }
   }
@@ -57,10 +93,7 @@ export class ComponentSystem {
    * Register all utilities
    */
   registerUtilities() {
-    // Register top-level utilities
-    if (UtilsRegistry.LogManager) {
-      container.registerUtil('LogManager', UtilsRegistry.LogManager);
-    }
+    // LogManager is already registered, so register the rest
     
     // Register nested utilities
     if (UtilsRegistry.formatting) {
@@ -72,6 +105,9 @@ export class ComponentSystem {
     if (UtilsRegistry.ui) {
       container.registerUtil('ui', UtilsRegistry.ui);
     }
+    
+    // Note: We don't register component system functions as utilities anymore
+    // as they're imported directly where needed
   }
 
   /**
@@ -94,6 +130,32 @@ export class ComponentSystem {
   }
 
   /**
+   * Initialize core components that other components might depend on
+   */
+  async initializeCoreComponents() {
+    try {
+      // Get the navigation component instance
+      const navigation = container.getComponent('navigation');
+      
+      // Initialize navigation if it has an init method
+      if (navigation && navigation.initNavigation) {
+        console.log('Initializing navigation component...');
+        logger.info('Initializing navigation component...');
+        await navigation.initNavigation();
+        console.log('Navigation component initialized successfully');
+        logger.info('Navigation component initialized successfully');
+      } else {
+        console.warn('Navigation component missing initNavigation method');
+        logger.warn('Navigation component missing initNavigation method');
+      }
+    } catch (error) {
+      console.error('Error initializing core components:', error);
+      logger.error('Error initializing core components:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Validate all components have required initialization functions
    */
   validateComponents() {
@@ -110,11 +172,12 @@ export class ComponentSystem {
       if (!hasInitFunc) {
         allValid = false;
         console.warn(`Component ${name} missing ${initFuncName}`);
+        logger.warn(`Component ${name} missing ${initFuncName}`);
       }
     });
 
     console.log(`Component validation: ${allValid ? 'PASSED' : 'FAILED'}`);
-    console.log('Validation results:', results);
+    logger.info(`Component validation: ${allValid ? 'PASSED' : 'FAILED'}`);
 
     return {
       allValid,
@@ -125,22 +188,29 @@ export class ComponentSystem {
 
   /**
    * Load and initialize a specific panel
+   * @param {string} panelName - Name of the panel to initialize
    */
   async loadAndInitializePanel(panelName) {
     try {
+      // Get component instance - this will create an instance if it doesn't exist
       const component = container.getComponent(panelName);
       const initFuncName = `init${this.capitalizeFirst(this.toCamelCase(panelName))}`;
       
       if (component && component[initFuncName]) {
+        console.log(`Initializing panel: ${panelName}`);
+        logger.info(`Initializing panel: ${panelName}`);
         const success = await component[initFuncName]();
         console.log(`Panel ${panelName} initialized with result: ${success}`);
+        logger.info(`Panel ${panelName} initialized with result: ${success}`);
         return success;
       }
       
       console.error(`Cannot initialize ${panelName}: missing ${initFuncName}`);
+      logger.error(`Cannot initialize ${panelName}: missing ${initFuncName}`);
       return false;
     } catch (error) {
       console.error(`Error initializing panel ${panelName}:`, error);
+      logger.error(`Error initializing panel ${panelName}:`, error);
       return false;
     }
   }
@@ -168,7 +238,8 @@ export class ComponentSystem {
       validationResults: this.validationResults,
       componentCount: container.components.size,
       serviceCount: container.services.size,
-      utilityCount: container.utils.size
+      utilityCount: container.utils.size,
+      componentInstanceCount: container.componentInstances?.size || 0
     };
   }
 }

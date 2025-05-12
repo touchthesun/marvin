@@ -1,11 +1,12 @@
 // src/utils/utils-registry.js
-import { LogManager } from '../utils/log-manager';
-import { formatDate, formatTime, truncateText } from '../utils/formatting';
+import { LogManager } from '../utils/log-manager.js';
+import { formatDate, formatTime, truncateText } from '../utils/formatting.js';
 import { setupTimeout, clearTimeouts } from '../utils/timeout.js';
-import { showSaveConfirmation, initSplitView } from '../utils/ui-utils';
+import { showSaveConfirmation, initSplitView } from '../utils/ui-utils.js';
 
 // Export utils registry object
 export const UtilsRegistry = {
+  // Core utilities
   LogManager,
   
   // Formatting utilities

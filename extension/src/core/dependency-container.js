@@ -3,6 +3,7 @@ export class DependencyContainer {
   constructor() {
     this.services = new Map();
     this.components = new Map();
+    this.componentInstances = new Map();
     this.utils = new Map();
     this.serviceInstances = new Map();
   }
@@ -40,7 +41,16 @@ export class DependencyContainer {
     if (!this.components.has(name)) {
       throw new Error(`Component not found: ${name}`);
     }
-    return this.components.get(name);
+    
+    // Return existing instance or create new one
+    if (!this.componentInstances.has(name)) {
+      const Component = this.components.get(name);
+      // Create a new instance if it's a class, otherwise use the object directly
+      const instance = typeof Component === 'function' ? new Component() : Component;
+      this.componentInstances.set(name, instance);
+    }
+    
+    return this.componentInstances.get(name);
   }
   
   // Register a utility
@@ -55,6 +65,18 @@ export class DependencyContainer {
       throw new Error(`Utility not found: ${name}`);
     }
     return this.utils.get(name);
+  }
+
+  // Clear component instance (for testing or reinitialization)
+  clearComponentInstance(name) {
+    this.componentInstances.delete(name);
+    return this;
+  }
+  
+  // Clear all component instances
+  clearAllComponentInstances() {
+    this.componentInstances.clear();
+    return this;
   }
 }
 

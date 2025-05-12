@@ -11,17 +11,18 @@ Coding Standards:
 - Follow separation of concerns principle
 
 Project Structure:
-- marvin/core: Backend Python code for LLM and knowledge graph
-- marvin/extension: Chrome extension code
-- marvin/utils: Development utilities
-- docs/: Project documentation
-- archive/: Archived code and experiments. Ignore in search.
+- core: Backend Python code for LLM and knowledge graph
+- extension: Chrome extension code
+- api: FastAPI server, routes, models
+- utils: Development utilities
+- docs: Project documentation
+
 
 Libraries and Tools:
 - Neo4j for knowledge graph
 - FastAPI for backend API
-- LangChain for LLM integration
-- React/TypeScript for extension UI
+- Javascript for extension UI
+
 
 Testing Requirements:
 - Write unit tests before implementation
