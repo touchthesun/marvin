@@ -1,4 +1,5 @@
 // services/status-service.js
+import { LogManager } from '../utils/log-manager.js';
 import { container } from '../core/dependency-container.js';
 
 /**
@@ -16,6 +17,14 @@ export class StatusService {
     this.API_CHECK_INTERVAL = 60000; // 1 minute
     this.initialized = false;
     this.checkIntervalId = null;
+    
+    // Dependencies
+    this.logger = null;
+    this.notificationService = null;
+    
+    // Bind methods that will be used as event handlers
+    this.handleOnlineEvent = this.handleOnlineEvent.bind(this);
+    this.handleOfflineEvent = this.handleOfflineEvent.bind(this);
   }
   
   /**
@@ -28,14 +37,17 @@ export class StatusService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly
+      this.logger = new LogManager({
         context: 'status-service',
         isBackgroundScript: false,
         maxEntries: 1000
       });
       
       this.logger.info('Initializing status service');
+      
+      // Resolve dependencies
+      await this.resolveDependencies();
       
       // Set up status monitoring
       this.setupStatusMonitoring();
@@ -54,6 +66,25 @@ export class StatusService {
   }
   
   /**
+   * Resolve service dependencies
+   * @private
+   */
+  async resolveDependencies() {
+    try {
+      // Get notification service (optional)
+      this.notificationService = container.getService('notificationService');
+      if (!this.notificationService) {
+        this.logger.warn('Notification service not available, notifications will be disabled');
+      } else {
+        this.logger.debug('Notification service resolved successfully');
+      }
+    } catch (error) {
+      this.logger.warn('Error resolving dependencies:', error);
+      // Continue even if dependencies can't be resolved
+    }
+  }
+  
+  /**
    * Set up status monitoring for network and API
    */
   setupStatusMonitoring() {
@@ -64,8 +95,8 @@ export class StatusService {
       this.updateNetworkStatus();
       
       // Add event listeners for online/offline events
-      window.addEventListener('online', this.handleOnlineEvent.bind(this));
-      window.addEventListener('offline', this.handleOfflineEvent.bind(this));
+      window.addEventListener('online', this.handleOnlineEvent);
+      window.addEventListener('offline', this.handleOfflineEvent);
       
       // Set up periodic API status check
       this.setupApiStatusCheck();
@@ -90,9 +121,8 @@ export class StatusService {
     this.checkApiStatus();
     
     // Notify user
-    const notificationService = container.getService('notificationService');
-    if (notificationService) {
-      notificationService.showNotification('Network connection restored', 'success');
+    if (this.notificationService) {
+      this.notificationService.showNotification('Network connection restored', 'success');
     }
   }
   
@@ -110,9 +140,8 @@ export class StatusService {
     this.updateApiStatusIndicator();
     
     // Notify user
-    const notificationService = container.getService('notificationService');
-    if (notificationService) {
-      notificationService.showNotification('Network connection lost', 'warning');
+    if (this.notificationService) {
+      this.notificationService.showNotification('Network connection lost', 'warning');
     }
   }
   
@@ -286,6 +315,9 @@ export class StatusService {
    * @returns {boolean} Whether the network is online
    */
   getNetworkStatus() {
+    if (!this.initialized) {
+      this.initialize();
+    }
     return this.isOnline;
   }
   
@@ -294,6 +326,9 @@ export class StatusService {
    * @returns {string} API status ('online', 'offline', 'error', 'unknown', 'checking')
    */
   getApiStatus() {
+    if (!this.initialized) {
+      this.initialize();
+    }
     return this.apiStatus;
   }
   
@@ -301,6 +336,9 @@ export class StatusService {
    * Force update of all status indicators
    */
   refreshStatusIndicators() {
+    if (!this.initialized) {
+      this.initialize();
+    }
     this.updateNetworkStatus();
     this.updateApiStatusIndicator();
   }
@@ -310,8 +348,8 @@ export class StatusService {
    */
   cleanup() {
     // Remove event listeners
-    window.removeEventListener('online', this.handleOnlineEvent.bind(this));
-    window.removeEventListener('offline', this.handleOfflineEvent.bind(this));
+    window.removeEventListener('online', this.handleOnlineEvent);
+    window.removeEventListener('offline', this.handleOfflineEvent);
     
     // Clear interval
     if (this.checkIntervalId) {
@@ -319,6 +357,6 @@ export class StatusService {
       this.checkIntervalId = null;
     }
     
-    this.logger.debug('Status service cleaned up');
+    this.logger?.debug('Status service cleaned up');
   }
 }

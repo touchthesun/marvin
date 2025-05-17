@@ -1,4 +1,5 @@
 // src/services/task-service.js
+import { LogManager } from '../utils/log-manager.js';
 import { container } from '../core/dependency-container.js';
 
 /**
@@ -11,7 +12,11 @@ export class TaskService {
   constructor() {
     // State initialization
     this.initialized = false;
+    
+    // Dependencies
     this.logger = null;
+    this.apiService = null;
+    this.notificationService = null;
     
     // Task tracking
     this.activeTasks = [];
@@ -32,8 +37,8 @@ export class TaskService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly
+      this.logger = new LogManager({
         context: 'task-service',
         isBackgroundScript: false,
         storageKey: 'marvin_task_service_logs',
@@ -41,6 +46,9 @@ export class TaskService {
       });
       
       this.logger.info('Initializing task service');
+      
+      // Resolve dependencies
+      await this.resolveDependencies();
       
       // Load initial tasks from background or API
       await this.refreshTasks();
@@ -58,6 +66,33 @@ export class TaskService {
         console.error('Error initializing task service:', error);
       }
       return false;
+    }
+  }
+  
+  /**
+   * Resolve service dependencies
+   * @private
+   */
+  async resolveDependencies() {
+    try {
+      // Get API service (required for most operations)
+      this.apiService = container.getService('apiService');
+      if (!this.apiService) {
+        this.logger.warn('API service not available, some task operations may fail');
+      } else {
+        this.logger.debug('API service resolved successfully');
+      }
+      
+      // Get notification service (optional)
+      this.notificationService = container.getService('notificationService');
+      if (!this.notificationService) {
+        this.logger.warn('Notification service not available, notifications will be disabled');
+      } else {
+        this.logger.debug('Notification service resolved successfully');
+      }
+    } catch (error) {
+      this.logger.warn('Error resolving dependencies:', error);
+      // Continue even if dependencies can't be resolved
     }
   }
   
@@ -150,12 +185,11 @@ export class TaskService {
     this.logger.debug('Fetching tasks from API');
     
     try {
-      const apiService = container.getService('apiService');
-      if (!apiService) {
+      if (!this.apiService) {
         throw new Error('API service not available');
       }
       
-      const response = await apiService.fetchAPI('/api/v1/tasks');
+      const response = await this.apiService.fetchAPI('/api/v1/tasks');
       
       if (response.success) {
         this.processTaskUpdates(response.data.tasks || []);
@@ -201,12 +235,11 @@ export class TaskService {
     
     // Show notifications for completed tasks
     statusChanges.completed.forEach(task => {
-      const notificationService = container.getService('notificationService');
-      if (notificationService) {
+      if (this.notificationService) {
         if (task.status === 'complete') {
-          notificationService.showNotification(`Task completed: ${task.title || 'Unknown task'}`, 'success');
+          this.notificationService.showNotification(`Task completed: ${task.title || 'Unknown task'}`, 'success');
         } else if (task.status === 'error') {
-          notificationService.showNotification(`Task failed: ${task.title || 'Unknown task'}`, 'error');
+          this.notificationService.showNotification(`Task failed: ${task.title || 'Unknown task'}`, 'error');
         }
       }
     });
@@ -304,12 +337,11 @@ export class TaskService {
         }
       } else {
         // Fall back to API
-        const apiService = container.getService('apiService');
-        if (!apiService) {
+        if (!this.apiService) {
           throw new Error('API service not available');
         }
         
-        const response = await apiService.fetchAPI('/api/v1/tasks', {
+        const response = await this.apiService.fetchAPI('/api/v1/tasks', {
           method: 'POST',
           body: JSON.stringify(taskData)
         });
@@ -376,12 +408,11 @@ export class TaskService {
         }
       } else {
         // Fall back to API
-        const apiService = container.getService('apiService');
-        if (!apiService) {
+        if (!this.apiService) {
           throw new Error('API service not available');
         }
         
-        const response = await apiService.fetchAPI(`/api/v1/tasks/${taskId}/cancel`, {
+        const response = await this.apiService.fetchAPI(`/api/v1/tasks/${taskId}/cancel`, {
           method: 'POST'
         });
         
@@ -436,12 +467,11 @@ export class TaskService {
         }
       } else {
         // Fall back to API
-        const apiService = container.getService('apiService');
-        if (!apiService) {
+        if (!this.apiService) {
           throw new Error('API service not available');
         }
         
-        const response = await apiService.fetchAPI(`/api/v1/tasks/${taskId}/retry`, {
+        const response = await this.apiService.fetchAPI(`/api/v1/tasks/${taskId}/retry`, {
           method: 'POST'
         });
         
@@ -575,18 +605,17 @@ export class TaskService {
       }
       
       // Show notification
-      const notificationService = container.getService('notificationService');
       let notificationId;
       
-      if (notificationService) {
-        notificationId = notificationService.showNotification(`Capturing ${captureData.url}...`, 'info', 0);
+      if (this.notificationService) {
+        notificationId = this.notificationService.showNotification(`Capturing ${captureData.url}...`, 'info', 0);
       }
       
       // Monitor task progress
       return await this.monitorTaskProgress(task.id, (progress, status) => {
         // Update notification
-        if (notificationService && notificationId) {
-          notificationService.updateNotificationProgress(`Capturing: ${status}`, progress * 100, notificationId);
+        if (this.notificationService && notificationId) {
+          this.notificationService.updateNotificationProgress(`Capturing: ${status}`, progress * 100, notificationId);
         }
         
         // Call progress callback if provided

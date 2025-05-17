@@ -1,4 +1,5 @@
-// src/services/graph-service.js
+// src/services/graph-service.js - Updated with proper dependency injection
+import { LogManager } from '../utils/log-manager.js';
 import { container } from '../core/dependency-container.js';
 
 /**
@@ -7,6 +8,8 @@ import { container } from '../core/dependency-container.js';
 export class GraphService {
   constructor() {
     this.initialized = false;
+    this.logger = null;
+    this.apiService = null;
   }
   
   /**
@@ -19,8 +22,8 @@ export class GraphService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly
+      this.logger = new LogManager({
         context: 'graph-service',
         isBackgroundScript: false,
         maxEntries: 1000
@@ -28,8 +31,13 @@ export class GraphService {
       
       this.logger.info('Initializing graph service');
       
-      // Get API service
+      // Get API service from container AFTER container is initialized
+      // This is safe because services are initialized after utilities/container setup
       this.apiService = container.getService('apiService');
+      
+      if (!this.apiService) {
+        throw new Error('ApiService not available in container');
+      }
       
       this.initialized = true;
       this.logger.info('Graph service initialized successfully');

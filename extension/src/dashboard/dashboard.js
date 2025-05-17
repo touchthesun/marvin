@@ -1,80 +1,100 @@
 // src/dashboard/dashboard.js
-// Import LogManager directly first to avoid dependency issues
-import { LogManager } from '../utils/log-manager.js';
-
-// Create logger instance directly
-const logger = new LogManager({ 
-  context: 'dashboard', 
-  isBackgroundScript: false,
-  maxEntries: 1000
-});
-
-// Then import container and other dependencies
+// Import the centralized container initializer
+import { LogManager } from '../../utils/log-manager.js';
+import { ensureContainerInitialized } from '../core/container-init.js';
 import { container } from '../core/dependency-container.js';
-import { initializeComponentSystem, loadAndInitializePanel, getComponentSystemStatus } from '../core/component-system.js';
-
-// Register LogManager immediately to avoid "Utility not found" errors
-function registerEssentialUtilities() {
-  if (!container.utils.has('LogManager')) {
-    container.registerUtil('LogManager', LogManager);
-    console.log('LogManager registered directly in dashboard.js');
-  }
-}
-
-// Register essential utilities first
-registerEssentialUtilities();
+import { ComponentRegistry } from '../core/component-registry.js';
 
 // Dashboard initialization flag
 let dashboardInitialized = false;
+let logger = null;
 
 /**
- * Initialize dashboard
+ * Initialize dashboard using centralized container initialization
  */
 async function initDashboard() {
   if (dashboardInitialized) {
-    logger.debug('Dashboard already initialized, skipping');
+    if (logger) {
+      logger.debug('Dashboard already initialized, skipping');
+    }
     return;
   }
   
-  logger.info('Starting dashboard initialization');
-  console.log('Starting dashboard initialization'); // Extra console log for visibility
+  console.log('Starting dashboard initialization'); // Initial console log
   
   try {
-    // First initialize the component system - this will initialize the navigation component
-    logger.info('Initializing component system');
-    await initializeComponentSystem();
+    // Ensure the container is initialized first
+    const initResult = await ensureContainerInitialized({
+      isBackgroundScript: false,
+      context: 'dashboard'
+    });
     
-    // Navigation should already be initialized by the component system
-    // But we'll check to make sure
-    const navigation = container.getComponent('navigation');
-    if (!navigation || !navigation.initialized) {
-      logger.warn('Navigation component not initialized by component system, initializing now');
-      
-      if (navigation && navigation.initNavigation) {
-        await navigation.initNavigation();
-        logger.info('Navigation component initialized manually');
-      } else {
-        throw new Error('Navigation component not found or missing initNavigation method');
-      }
-    } else {
-      logger.info('Navigation component already initialized');
+    // Get logger from the initialized container
+    logger = new LogManager({
+      context: 'dashboard',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    logger.info('Starting dashboard initialization');
+    logger.debug('Container initialization result:', initResult);
+    
+    // Register components if not already done
+    if (initResult.components.count === 0) {
+      logger.info('Registering components');
+      ComponentRegistry.registerAll();
     }
+    
+    // Initialize navigation component specifically
+    await initializeNavigationComponent();
     
     // Set up event handlers for debug panel and other non-navigation elements
     setupNonNavigationEventHandlers();
     
     // Add direct click handlers for navigation items as a fallback
-    // This shouldn't be needed with our fixed navigation system, but it's a safety measure
     setupDirectNavHandlersFallback();
     
     dashboardInitialized = true;
     logger.info('Dashboard initialization completed successfully');
-    console.log('Dashboard initialization completed successfully'); // Extra console log
+    console.log('Dashboard initialization completed successfully'); // Final console log
     
   } catch (error) {
-    logger.error('Error initializing dashboard:', error);
-    console.error('Error initializing dashboard:', error); // Extra console error
+    if (logger) {
+      logger.error('Error initializing dashboard:', error);
+    }
+    console.error('Error initializing dashboard:', error); // Always log errors to console
     showInitializationError(error);
+  }
+}
+
+/**
+ * Initialize the navigation component
+ */
+async function initializeNavigationComponent() {
+  try {
+    logger.info('Initializing navigation component');
+    
+    // Get navigation component from container
+    const navigation = container.getComponent('navigation');
+    
+    if (!navigation) {
+      throw new Error('Navigation component not found in container');
+    }
+    
+    // Initialize navigation if it has an init method
+    if (navigation.initNavigation && typeof navigation.initNavigation === 'function') {
+      const success = await navigation.initNavigation();
+      if (success) {
+        logger.info('Navigation component initialized successfully');
+      } else {
+        logger.warn('Navigation component initialization returned false');
+      }
+    } else {
+      logger.warn('Navigation component missing initNavigation method');
+    }
+  } catch (error) {
+    logger.error('Error initializing navigation component:', error);
+    throw error;
   }
 }
 
@@ -106,8 +126,8 @@ function setupNonNavigationEventHandlers() {
       testComponentsBtn.addEventListener('click', () => {
         logger.info('Testing components');
         
-        // Use imported getComponentSystemStatus function
-        const status = getComponentSystemStatus();
+        // Get container status
+        const status = getContainerStatus();
         
         const debugOutput = document.getElementById('debug-output');
         if (debugOutput) {
@@ -115,10 +135,10 @@ function setupNonNavigationEventHandlers() {
             <pre>
 Component System Status:
 - Initialized: ${status.initialized}
-- Component Count: ${status.componentCount}
-- Service Count: ${status.serviceCount}
-- Utility Count: ${status.utilityCount}
-- Component Instance Count: ${status.componentInstanceCount || 0}
+- Component Count: ${status.componentCount || status.components?.count || 0}
+- Service Count: ${status.serviceCount || status.services?.count || 0}
+- Utility Count: ${status.utilityCount || status.utilities?.count || 0}
+- Component Instance Count: ${status.componentInstanceCount || status.components?.instanceCount || 0}
             </pre>
           `;
         }
@@ -180,8 +200,11 @@ function setupDirectNavHandlersFallback() {
             }
           });
           
-          // Initialize the panel using imported function
-          await loadAndInitializePanel(`${panelName}-panel`);
+          // Initialize the panel using component system
+          const componentSystem = container.getComponent('component-system');
+          if (componentSystem && componentSystem.loadAndInitializePanel) {
+            await componentSystem.loadAndInitializePanel(`${panelName}-panel`);
+          }
           
           // Store the active panel
           try {
@@ -246,7 +269,13 @@ function createDebugInterface() {
       dashboardInitialized = false;
       initDashboard();
     },
-    initPanel: loadAndInitializePanel, // Use imported function directly
+    initPanel: async (panelName) => {
+      const componentSystem = container.getComponent('component-system');
+      if (componentSystem && componentSystem.loadAndInitializePanel) {
+        return await componentSystem.loadAndInitializePanel(panelName);
+      }
+      return false;
+    },
     getContainer: () => container,
     getLogger: () => logger,
     debug: () => ({
@@ -260,7 +289,7 @@ function createDebugInterface() {
     })
   };
   
-  logger.debug('Debug interface created', self.marvinDashboard);
+  logger?.debug('Debug interface created', self.marvinDashboard);
 }
 
 // Initialize dashboard on DOMContentLoaded

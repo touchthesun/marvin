@@ -147,20 +147,23 @@
     </div>
 
     <div class="panel">
-      <h2>Component Tests</h2>
-      <div id="component-status">Click buttons below to test individual components</div>
-      <div class="grid">
-        <button id="load-overview">Load Overview Panel</button>
-        <button id="load-capture">Load Capture Panel</button>
-        <button id="load-knowledge">Load Knowledge Panel</button>
-        <button id="load-settings">Load Settings Panel</button>
-      </div>
+      <h2>Component System Test</h2>
+      <div id="component-status">Click button below to test component system directly</div>
+      <p><small><em>Note: This tests the component system in the diagnostics context, not the popup/dashboard context.</em></small></p>
+      <button id="test-component-system">Test Component System</button>
     </div>
 
     <div class="panel">
       <h2>Background Connection</h2>
       <div id="background-status">Click to test connection to background script</div>
       <button id="ping-background">Ping Background</button>
+    </div>
+
+    <div class="panel">
+      <h2>Message Statistics</h2>
+      <div id="message-stats">Click buttons below to view message statistics</div>
+      <button id="get-message-stats">Get Statistics</button>
+      <button id="reset-message-stats">Reset Statistics</button>
     </div>
 
     <div id="status-container" class="status">

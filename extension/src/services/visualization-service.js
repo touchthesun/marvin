@@ -1,5 +1,5 @@
 // src/services/visualization-service.js
-import { container } from '../core/dependency-container.js';
+import { LogManager } from '../utils/log-manager.js';
 
 /**
  * Visualization Service - Handles D3 and other visualization tasks
@@ -25,8 +25,8 @@ export class VisualizationService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly
+      this.logger = new LogManager({
         context: 'visualization-service',
         isBackgroundScript: false,
         storageKey: 'marvin_visualization_logs',

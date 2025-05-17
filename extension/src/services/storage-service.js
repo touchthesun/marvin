@@ -1,4 +1,5 @@
 // src/services/storage-service.js
+import { LogManager } from '../utils/log-manager.js';
 import { container } from '../core/dependency-container.js';
 
 /**
@@ -12,6 +13,7 @@ export class StorageService {
     // State initialization
     this.initialized = false;
     this.logger = null;
+    this.notificationService = null;
     
     // Default settings
     this.DEFAULT_SETTINGS = {
@@ -57,6 +59,9 @@ export class StorageService {
       captureHistory: 30000, // 30 seconds
       stats: 60000 // 1 minute
     };
+    
+    // Bind methods for event listeners
+    this.handleStorageChanges = this.handleStorageChanges.bind(this);
   }
   
   /**
@@ -69,8 +74,8 @@ export class StorageService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly
+      this.logger = new LogManager({
         context: 'storage-service',
         isBackgroundScript: false,
         storageKey: 'marvin_storage_logs',
@@ -78,6 +83,9 @@ export class StorageService {
       });
       
       this.logger.info('Initializing storage service');
+      
+      // Resolve dependencies
+      await this.resolveDependencies();
       
       // Pre-load common data
       await this.getSettings();
@@ -99,32 +107,59 @@ export class StorageService {
   }
   
   /**
+   * Resolve service dependencies
+   * @private
+   */
+  async resolveDependencies() {
+    try {
+      // Get notification service (optional)
+      this.notificationService = container.getService('notificationService');
+      if (!this.notificationService) {
+        this.logger.warn('Notification service not available, notifications will be disabled');
+      } else {
+        this.logger.debug('Notification service resolved successfully');
+      }
+    } catch (error) {
+      this.logger.warn('Error resolving dependencies:', error);
+      // Continue even if dependencies can't be resolved
+    }
+  }
+  
+  /**
    * Set up listeners for storage changes
    * @returns {void}
    */
   setupStorageListeners() {
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'local') return;
-      
-      this.logger.debug('Storage changes detected:', changes);
-      
-      // Clear relevant caches when data changes
-      if (changes.apiConfig || changes.captureSettings || 
-          changes.analysisSettings || changes.uiSettings) {
-        this.cache.settings = null;
-        this.logger.debug('Settings cache cleared due to storage changes');
-      }
-      
-      if (changes.captureHistory) {
-        this.cache.captureHistory = null;
-        this.logger.debug('Capture history cache cleared due to storage changes');
-      }
-      
-      if (changes.stats) {
-        this.cache.stats = null;
-        this.logger.debug('Stats cache cleared due to storage changes');
-      }
-    });
+    chrome.storage.onChanged.addListener(this.handleStorageChanges);
+    this.logger.debug('Storage change listener set up');
+  }
+  
+  /**
+   * Handle storage change events
+   * @param {Object} changes - Changed storage items
+   * @param {string} area - Storage area ('local', 'sync', etc.)
+   */
+  handleStorageChanges(changes, area) {
+    if (area !== 'local') return;
+    
+    this.logger.debug('Storage changes detected:', changes);
+    
+    // Clear relevant caches when data changes
+    if (changes.apiConfig || changes.captureSettings || 
+        changes.analysisSettings || changes.uiSettings) {
+      this.cache.settings = null;
+      this.logger.debug('Settings cache cleared due to storage changes');
+    }
+    
+    if (changes.captureHistory) {
+      this.cache.captureHistory = null;
+      this.logger.debug('Capture history cache cleared due to storage changes');
+    }
+    
+    if (changes.stats) {
+      this.cache.stats = null;
+      this.logger.debug('Stats cache cleared due to storage changes');
+    }
   }
   
   /**
@@ -132,6 +167,10 @@ export class StorageService {
    * @returns {Promise<Object>} Settings object
    */
   async getSettings() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    
     // Check cache first
     if (this.cache.settings && (Date.now() - this.cache.lastRefresh.settings < this.CACHE_TTL.settings)) {
       this.logger.debug('Returning cached settings');
@@ -566,16 +605,14 @@ export class StorageService {
       }
       
       // Show notification
-      const notificationService = container.getService('notificationService');
-      if (notificationService) {
-        notificationService.showNotification('Local data cleared successfully', 'success');
+      if (this.notificationService) {
+        this.notificationService.showNotification('Local data cleared successfully', 'success');
       }
     } catch (error) {
       this.logger.error('Error clearing local data:', error);
       
-      const notificationService = container.getService('notificationService');
-      if (notificationService) {
-        notificationService.showNotification(`Error clearing local data: ${error.message}`, 'error');
+      if (this.notificationService) {
+        this.notificationService.showNotification(`Error clearing local data: ${error.message}`, 'error');
       }
       
       throw error;
@@ -713,18 +750,16 @@ export class StorageService {
       
       this.logger.debug('Data imported successfully', result);
       
-      const notificationService = container.getService('notificationService');
-      if (notificationService) {
-        notificationService.showNotification('Data imported successfully', 'success');
+      if (this.notificationService) {
+        this.notificationService.showNotification('Data imported successfully', 'success');
       }
       
       return result;
     } catch (error) {
       this.logger.error('Error importing data:', error);
       
-      const notificationService = container.getService('notificationService');
-      if (notificationService) {
-        notificationService.showNotification(`Error importing data: ${error.message}`, 'error');
+      if (this.notificationService) {
+        this.notificationService.showNotification(`Error importing data: ${error.message}`, 'error');
       }
       
       throw error;
@@ -810,7 +845,7 @@ export class StorageService {
     
     // Remove event listeners
     try {
-      chrome.storage.onChanged.removeListener();
+      chrome.storage.onChanged.removeListener(this.handleStorageChanges);
       this.logger.debug('Removed storage change listeners');
     } catch (error) {
       this.logger.warn('Error removing storage change listeners:', error);

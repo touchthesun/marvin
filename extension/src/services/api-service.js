@@ -1,5 +1,5 @@
 // services/api-service.js
-import { container } from '../core/dependency-container.js';
+import { LogManager } from '../utils/log-manager.js';
 
 /**
  * API Service - Handles all API communication for the extension
@@ -11,6 +11,7 @@ export class ApiService {
   constructor() {
     this.baseURL = 'http://localhost:8000'; // Default base URL
     this.initialized = false;
+    this.logger = null; // Don't create logger until initialize()
   }
   
   /**
@@ -23,8 +24,8 @@ export class ApiService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly - no container access needed
+      this.logger = new LogManager({
         context: 'api-service',
         isBackgroundScript: false,
         maxEntries: 1000

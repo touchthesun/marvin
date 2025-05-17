@@ -1,5 +1,5 @@
 // services/notification-service.js
-import { container } from '../core/dependency-container.js';
+import { LogManager } from '../utils/log-manager.js';
 
 /**
  * Notification Service - Manages UI notifications throughout the extension
@@ -24,6 +24,7 @@ export class NotificationService {
     };
     
     this.initialized = false;
+    this.logger = null;
     
     // Detect if we're in a service worker context
     this.isServiceWorkerContext = typeof self !== 'undefined' && 
@@ -40,8 +41,8 @@ export class NotificationService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly - no container access needed
+      this.logger = new LogManager({
         context: 'notification-service',
         isBackgroundScript: this.isServiceWorkerContext,
         maxEntries: 100

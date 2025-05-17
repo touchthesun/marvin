@@ -1,4 +1,5 @@
 // src/services/analysis-service.js
+import { LogManager } from '../utils/log-manager.js';
 import { container } from '../core/dependency-container.js';
 
 /**
@@ -11,6 +12,9 @@ export class AnalysisService {
   constructor() {
     // State initialization
     this.initialized = false;
+    this.logger = null;
+    this.apiService = null;
+    this.notificationService = null;
     this.activeTasks = new Map(); // Track active analysis tasks
     this.taskListeners = new Set(); // For notifying about task events
     
@@ -28,14 +32,17 @@ export class AnalysisService {
     }
     
     try {
-      // Get logger instance
-      this.logger = new (container.getUtil('LogManager'))({
+      // Create logger directly - no container access needed
+      this.logger = new LogManager({
         context: 'analysis-service',
         isBackgroundScript: false,
         maxEntries: 1000
       });
       
       this.logger.info('Initializing analysis service');
+      
+      // Get dependent services from container
+      await this.resolveDependencies();
       
       // Register cleanup handler for when extension is unloaded
       if (typeof window !== 'undefined') {
@@ -54,6 +61,31 @@ export class AnalysisService {
         console.error('Error initializing analysis service:', error);
       }
       return false;
+    }
+  }
+  
+  /**
+   * Resolve service dependencies
+   * @private
+   */
+  async resolveDependencies() {
+    try {
+      // Get API service (required)
+      this.apiService = container.getService('apiService');
+      if (!this.apiService) {
+        throw new Error('API service not available');
+      }
+      
+      // Get notification service (optional)
+      this.notificationService = container.getService('notificationService');
+      if (!this.notificationService) {
+        this.logger.warn('Notification service not available, notifications will be disabled');
+      }
+      
+      this.logger.debug('Service dependencies resolved successfully');
+    } catch (error) {
+      this.logger.error('Failed to resolve dependencies:', error);
+      throw error;
     }
   }
   
@@ -94,13 +126,12 @@ export class AnalysisService {
     this.logger.info(`Initiating analysis for URL: ${url}`);
     
     try {
-      const apiService = container.getService('apiService');
-      if (!apiService) {
+      if (!this.apiService) {
         throw new Error('API service not available');
       }
       
       // Use the documented Analysis API
-      const response = await apiService.fetchAPI('/api/v1/analysis/analyze', {
+      const response = await this.apiService.fetchAPI('/api/v1/analysis/analyze', {
         method: 'POST',
         body: JSON.stringify({
           url: url,
@@ -176,13 +207,12 @@ export class AnalysisService {
     taskState.lastChecked = Date.now();
     
     try {
-      const apiService = container.getService('apiService');
-      if (!apiService) {
+      if (!this.apiService) {
         throw new Error('API service not available');
       }
       
       // Use the documented Analysis Status API
-      const response = await apiService.fetchAPI(`/api/v1/analysis/status/${taskId}`);
+      const response = await this.apiService.fetchAPI(`/api/v1/analysis/status/${taskId}`);
       
       if (response.success) {
         // Update task state
@@ -349,10 +379,9 @@ export class AnalysisService {
    */
   onAnalysisCompleted(taskId, response) {
     try {
-      // Get notification service from container
-      const notificationService = container.getService('notificationService');
-      if (notificationService) {
-        notificationService.showNotification(
+      // Use the already resolved notification service
+      if (this.notificationService) {
+        this.notificationService.showNotification(
           'Analysis Complete',
           'The page analysis has been completed successfully.',
           'success'
@@ -381,10 +410,9 @@ export class AnalysisService {
    */
   onAnalysisError(taskId, response) {
     try {
-      // Get notification service from container
-      const notificationService = container.getService('notificationService');
-      if (notificationService) {
-        notificationService.showNotification(
+      // Use the already resolved notification service
+      if (this.notificationService) {
+        this.notificationService.showNotification(
           'Analysis Failed',
           `Error: ${response.error || 'Unknown error'}`,
           'error'
@@ -423,13 +451,12 @@ export class AnalysisService {
     this.logger.info(`Attempting to cancel analysis task: ${taskId}`);
     
     try {
-      const apiService = container.getService('apiService');
-      if (!apiService) {
+      if (!this.apiService) {
         throw new Error('API service not available');
       }
       
       // This is a speculative endpoint - it might not exist yet but follows API convention
-      const response = await apiService.fetchAPI(`/api/v1/analysis/cancel/${taskId}`, {
+      const response = await this.apiService.fetchAPI(`/api/v1/analysis/cancel/${taskId}`, {
         method: 'POST'
       });
       
