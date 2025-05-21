@@ -379,12 +379,10 @@ src/
 │   ├── formatting.js
 │   └── ui-utils.js
 ├── background/
-│   ├── index.js               # Entry point
 │   ├── background-service.js  # Main logic
 │   ├── message-handlers.js    # Message handling
 │   └── browser-events.js      # Chrome API events
 ├── dashboard/
-│   ├── index.js              # Entry point
 │   ├── dashboard.js          # Main logic
 │   └── dashboard.html
 ├── popup/
@@ -400,8 +398,6 @@ src/
 ```javascript
 module.exports = {
   entry: {
-    background: './src/background/index.js',
-    dashboard: './src/dashboard/index.js',
     popup: './src/popup/popup.js',
     options: './src/options/options.js'
   },

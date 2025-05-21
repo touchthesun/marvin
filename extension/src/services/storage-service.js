@@ -113,15 +113,17 @@ export class StorageService {
   async resolveDependencies() {
     try {
       // Get notification service (optional)
-      this.notificationService = container.getService('notificationService');
-      if (!this.notificationService) {
-        this.logger.warn('Notification service not available, notifications will be disabled');
-      } else {
+      try {
+        this.notificationService = container.getService('notificationService');
         this.logger.debug('Notification service resolved successfully');
+      } catch (notificationError) {
+        this.logger.warn('Notification service not available, notifications will be disabled');
+        this.notificationService = null; // Explicitly set to null
       }
     } catch (error) {
       this.logger.warn('Error resolving dependencies:', error);
-      // Continue even if dependencies can't be resolved
+      // Ensure notificationService is null if resolution fails
+      this.notificationService = null;
     }
   }
   
@@ -130,8 +132,20 @@ export class StorageService {
    * @returns {void}
    */
   setupStorageListeners() {
-    chrome.storage.onChanged.addListener(this.handleStorageChanges);
-    this.logger.debug('Storage change listener set up');
+    try {
+      // Remove any existing listeners first to prevent duplicates
+      try {
+        chrome.storage.onChanged.removeListener(this.handleStorageChanges);
+      } catch (removeError) {
+        this.logger.debug('No existing storage listener to remove');
+      }
+      
+      // Add the listener
+      chrome.storage.onChanged.addListener(this.handleStorageChanges);
+      this.logger.debug('Storage change listener set up');
+    } catch (error) {
+      this.logger.error('Error setting up storage listeners:', error);
+    }
   }
   
   /**
@@ -140,6 +154,7 @@ export class StorageService {
    * @param {string} area - Storage area ('local', 'sync', etc.)
    */
   handleStorageChanges(changes, area) {
+    if (!this.logger) return; // Skip if logger not available
     if (area !== 'local') return;
     
     this.logger.debug('Storage changes detected:', changes);
@@ -168,7 +183,18 @@ export class StorageService {
    */
   async getSettings() {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Storage service failed to initialize');
+          // Return defaults on initialization failure
+          return { ...this.DEFAULT_SETTINGS };
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        // Return defaults on initialization error
+        return { ...this.DEFAULT_SETTINGS };
+      }
     }
     
     // Check cache first
@@ -217,7 +243,15 @@ export class StorageService {
    */
   async updateSettings(settings) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        throw error;
+      }
     }
     
     if (!settings) {
@@ -276,7 +310,15 @@ export class StorageService {
    */
   async resetSettings() {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        throw error;
+      }
     }
     
     this.logger.info('Resetting settings to defaults');
@@ -316,7 +358,16 @@ export class StorageService {
    */
   async getCaptureHistory(limit = 0) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Storage service failed to initialize');
+          return []; // Return empty array on initialization failure
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        return []; // Return empty array on initialization error
+      }
     }
     
     // Check cache first
@@ -358,7 +409,15 @@ export class StorageService {
    */
   async updateCaptureHistory(newEntries, maxEntries = 100) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        throw error;
+      }
     }
     
     if (!newEntries || newEntries.length === 0) {
@@ -421,7 +480,26 @@ export class StorageService {
    */
   async getStats() {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Storage service failed to initialize');
+          // Return empty stats on initialization failure
+          return {
+            captures: 0,
+            relationships: 0,
+            queries: 0
+          };
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        // Return empty stats on initialization error
+        return {
+          captures: 0,
+          relationships: 0,
+          queries: 0
+        };
+      }
     }
     
     // Check cache first
@@ -465,7 +543,15 @@ export class StorageService {
    */
   async updateStats(stats) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        throw error;
+      }
     }
     
     if (!stats) {
@@ -497,7 +583,15 @@ export class StorageService {
    */
   async incrementStatsCounter(counter, amount = 1) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        return null;
+      }
     }
     
     if (!counter || amount <= 0) {
@@ -535,7 +629,15 @@ export class StorageService {
    */
   async clearLocalData(keepSettings = true) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        throw error;
+      }
     }
     
     this.logger.info(`Clearing local data${keepSettings ? ' (keeping settings)' : ''}`);
@@ -626,7 +728,15 @@ export class StorageService {
    */
   async exportData(dataTypes = ['settings', 'captureHistory', 'stats']) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        throw error;
+      }
     }
     
     this.logger.info(`Exporting data: ${dataTypes.join(', ')}`);
@@ -678,7 +788,15 @@ export class StorageService {
    */
   async importData(importData, overwrite = false) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        throw error;
+      }
     }
     
     if (!importData || !importData.data) {
@@ -774,7 +892,15 @@ export class StorageService {
    */
   async saveActiveState(panel, tab) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize storage service');
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        return; // Just return instead of throwing for this non-critical operation
+      }
     }
     
     if (!panel) {
@@ -808,7 +934,16 @@ export class StorageService {
    */
   async getActiveState() {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Storage service failed to initialize');
+          return { panel: null, tab: null };
+        }
+      } catch (error) {
+        console.error('Error initializing storage service:', error);
+        return { panel: null, tab: null };
+      }
     }
     
     this.logger.debug('Getting active state');
@@ -841,6 +976,10 @@ export class StorageService {
    * @returns {Promise<void>}
    */
   async cleanup() {
+    if (!this.initialized) {
+      return; // No need to clean up if not initialized
+    }
+    
     this.logger.info('Cleaning up storage service');
     
     // Remove event listeners
@@ -855,6 +994,9 @@ export class StorageService {
     this.cache.settings = null;
     this.cache.captureHistory = null;
     this.cache.stats = null;
+    
+    // Clear object references
+    this.notificationService = null;
     
     this.initialized = false;
     this.logger.debug('Storage service cleanup completed');

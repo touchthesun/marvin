@@ -1,0 +1,43 @@
+.activity-item {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.activity-title {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.activity-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #666;
+}
+
+.activity-status {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.status-success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-pending {
+  background-color: #fff3e0;
+  color: #ef6c00;
+}
+
+.empty-state, .error-state {
+  padding: 16px;
+  text-align: center;
+  color: #666;
+  font-size: 12px;
+}
+
+.error-state {
+  color: #c62828;
+}

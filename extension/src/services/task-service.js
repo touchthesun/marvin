@@ -25,6 +25,9 @@ export class TaskService {
     this.isPolling = false;
     this.POLLING_INTERVAL = 5000; // 5 seconds
     this.pollingIntervalId = null;
+    
+    // Bind methods for callbacks and event handlers
+    this.pollTasks = this.pollTasks.bind(this);
   }
   
   /**
@@ -76,23 +79,27 @@ export class TaskService {
   async resolveDependencies() {
     try {
       // Get API service (required for most operations)
-      this.apiService = container.getService('apiService');
-      if (!this.apiService) {
-        this.logger.warn('API service not available, some task operations may fail');
-      } else {
+      try {
+        this.apiService = container.getService('apiService');
         this.logger.debug('API service resolved successfully');
+      } catch (apiError) {
+        this.logger.warn('API service not available, some task operations may fail');
+        this.apiService = null;
       }
       
       // Get notification service (optional)
-      this.notificationService = container.getService('notificationService');
-      if (!this.notificationService) {
-        this.logger.warn('Notification service not available, notifications will be disabled');
-      } else {
+      try {
+        this.notificationService = container.getService('notificationService');
         this.logger.debug('Notification service resolved successfully');
+      } catch (notificationError) {
+        this.logger.warn('Notification service not available, notifications will be disabled');
+        this.notificationService = null;
       }
     } catch (error) {
       this.logger.warn('Error resolving dependencies:', error);
-      // Continue even if dependencies can't be resolved
+      // Ensure dependencies are explicitly null if resolution fails
+      this.apiService = this.apiService || null;
+      this.notificationService = this.notificationService || null;
     }
   }
   
@@ -107,20 +114,33 @@ export class TaskService {
     }
     
     this.logger.debug('Starting task polling');
+    
+    // Clear any existing interval first
+    if (this.pollingIntervalId) {
+      clearInterval(this.pollingIntervalId);
+      this.pollingIntervalId = null;
+    }
+    
     this.isPolling = true;
     
-    // Set up interval
-    this.pollingIntervalId = setInterval(async () => {
-      try {
-        // Only poll if we have active tasks
-        if (this.activeTasks.length > 0) {
-          this.logger.debug(`Polling for updates on ${this.activeTasks.length} active tasks`);
-          await this.refreshTasks();
-        }
-      } catch (error) {
-        this.logger.error('Error during task polling:', error);
+    // Set up interval using bound method
+    this.pollingIntervalId = setInterval(this.pollTasks, this.POLLING_INTERVAL);
+  }
+  
+  /**
+   * Poll for task updates (used by polling interval)
+   * @returns {Promise<void>}
+   */
+  async pollTasks() {
+    try {
+      // Only poll if we have active tasks
+      if (this.activeTasks.length > 0) {
+        this.logger.debug(`Polling for updates on ${this.activeTasks.length} active tasks`);
+        await this.refreshTasks();
       }
-    }, this.POLLING_INTERVAL);
+    } catch (error) {
+      this.logger.error('Error during task polling:', error);
+    }
   }
   
   /**
@@ -148,7 +168,15 @@ export class TaskService {
    */
   async refreshTasks() {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize task service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing task service:', error);
+        throw error;
+      }
     }
     
     this.logger.debug('Refreshing tasks');
@@ -173,6 +201,7 @@ export class TaskService {
         await this.fetchTasksFromApi();
       } catch (apiError) {
         this.logger.error('Error fetching tasks from API:', apiError);
+        // Don't throw here to prevent breaking polling
       }
     }
   }
@@ -191,11 +220,11 @@ export class TaskService {
       
       const response = await this.apiService.fetchAPI('/api/v1/tasks');
       
-      if (response.success) {
-        this.processTaskUpdates(response.data.tasks || []);
-        this.logger.debug(`Fetched ${response.data.tasks?.length || 0} tasks from API`);
+      if (response && response.success) {
+        this.processTaskUpdates(response.data?.tasks || []);
+        this.logger.debug(`Fetched ${response.data?.tasks?.length || 0} tasks from API`);
       } else {
-        throw new Error(response.error?.message || 'Unknown error fetching tasks');
+        throw new Error((response?.error?.message) || 'Unknown error fetching tasks');
       }
     } catch (error) {
       this.logger.error('Error fetching tasks from API:', error);
@@ -234,15 +263,15 @@ export class TaskService {
     this.completedTasks = newCompletedTasks;
     
     // Show notifications for completed tasks
-    statusChanges.completed.forEach(task => {
-      if (this.notificationService) {
+    if (this.notificationService) {
+      statusChanges.completed.forEach(task => {
         if (task.status === 'complete') {
           this.notificationService.showNotification(`Task completed: ${task.title || 'Unknown task'}`, 'success');
         } else if (task.status === 'error') {
           this.notificationService.showNotification(`Task failed: ${task.title || 'Unknown task'}`, 'error');
         }
-      }
-    });
+      });
+    }
     
     // Notify listeners about changes
     if (statusChanges.completed.length > 0 || statusChanges.updated.length > 0) {
@@ -303,7 +332,15 @@ export class TaskService {
    */
   async createTask(taskData) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize task service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing task service:', error);
+        throw error;
+      }
     }
     
     this.logger.info('Creating new task', taskData);
@@ -346,7 +383,7 @@ export class TaskService {
           body: JSON.stringify(taskData)
         });
         
-        if (response.success && response.data) {
+        if (response && response.success && response.data) {
           // Add to active tasks
           this.activeTasks.push(response.data);
           
@@ -364,7 +401,7 @@ export class TaskService {
           this.logger.debug('Task created successfully via API:', response.data);
           return response.data;
         } else {
-          throw new Error(response.error?.message || 'Unknown error creating task');
+          throw new Error((response?.error?.message) || 'Unknown error creating task');
         }
       }
     } catch (error) {
@@ -380,7 +417,15 @@ export class TaskService {
    */
   async cancelTask(taskId) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize task service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing task service:', error);
+        throw error;
+      }
     }
     
     if (!taskId) {
@@ -416,14 +461,14 @@ export class TaskService {
           method: 'POST'
         });
         
-        if (response.success) {
+        if (response && response.success) {
           // Refresh tasks to update lists
           await this.refreshTasks();
           
           this.logger.debug(`Task ${taskId} cancelled successfully via API`);
           return true;
         } else {
-          throw new Error(response.error?.message || 'Unknown error cancelling task');
+          throw new Error((response?.error?.message) || 'Unknown error cancelling task');
         }
       }
     } catch (error) {
@@ -439,7 +484,15 @@ export class TaskService {
    */
   async retryTask(taskId) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize task service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing task service:', error);
+        throw error;
+      }
     }
     
     if (!taskId) {
@@ -475,14 +528,14 @@ export class TaskService {
           method: 'POST'
         });
         
-        if (response.success) {
+        if (response && response.success) {
           // Refresh tasks to update lists
           await this.refreshTasks();
           
           this.logger.debug(`Task ${taskId} retried successfully via API`);
           return true;
         } else {
-          throw new Error(response.error?.message || 'Unknown error retrying task');
+          throw new Error((response?.error?.message) || 'Unknown error retrying task');
         }
       }
     } catch (error) {
@@ -496,9 +549,18 @@ export class TaskService {
    * @param {string} taskId - ID of task to get
    * @returns {Object|null} Task object or null if not found
    */
-  getTaskById(taskId) {
+  async getTaskById(taskId) {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Task service failed to initialize');
+          return null;
+        }
+      } catch (error) {
+        console.error('Error initializing task service:', error);
+        return null;
+      }
     }
     
     if (!taskId) {
@@ -510,11 +572,20 @@ export class TaskService {
   
   /**
    * Get all active tasks
-   * @returns {Array} Array of active task objects
+   * @returns {Promise<Array>} Array of active task objects
    */
-  getActiveTasks() {
+  async getActiveTasks() {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Task service failed to initialize');
+          return [];
+        }
+      } catch (error) {
+        console.error('Error initializing task service:', error);
+        return [];
+      }
     }
     
     return [...this.activeTasks];
@@ -522,11 +593,20 @@ export class TaskService {
   
   /**
    * Get all completed tasks
-   * @returns {Array} Array of completed task objects
+   * @returns {Promise<Array>} Array of completed task objects
    */
-  getCompletedTasks() {
+  async getCompletedTasks() {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Task service failed to initialize');
+          return [];
+        }
+      } catch (error) {
+        console.error('Error initializing task service:', error);
+        return [];
+      }
     }
     
     return [...this.completedTasks];
@@ -537,9 +617,18 @@ export class TaskService {
    * @param {Function} listener - Listener function
    * @returns {Function} Function to remove the listener
    */
-  addTaskListener(listener) {
+  async addTaskListener(listener) {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          this.logger?.warn('Task service failed to initialize');
+          return () => {}; // Return no-op function on failure
+        }
+      } catch (error) {
+        console.error('Error initializing task service:', error);
+        return () => {}; // Return no-op function on error
+      }
     }
     
     if (typeof listener !== 'function') {
@@ -564,7 +653,7 @@ export class TaskService {
    * @returns {void}
    */
   notifyTaskListeners(updateData) {
-    if (this.taskListeners.length === 0) {
+    if (!this.taskListeners || this.taskListeners.length === 0) {
       return;
     }
     
@@ -576,6 +665,7 @@ export class TaskService {
         listener(updateData);
       } catch (error) {
         this.logger.error('Error in task listener:', error);
+        // Continue notifying other listeners even if one fails
       }
     });
   }
@@ -588,7 +678,15 @@ export class TaskService {
    */
   async createCaptureTask(captureData, progressCallback) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize task service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing task service:', error);
+        throw error;
+      }
     }
     
     this.logger.info('Creating capture task', captureData);
@@ -637,7 +735,15 @@ export class TaskService {
    */
   async monitorTaskProgress(taskId, progressCallback) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize task service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing task service:', error);
+        throw error;
+      }
     }
     
     if (!taskId) {
@@ -647,7 +753,7 @@ export class TaskService {
     this.logger.debug(`Monitoring progress for task ${taskId}`);
     
     // Get initial task
-    let task = this.getTaskById(taskId);
+    let task = await this.getTaskById(taskId);
     
     if (!task) {
       throw new Error(`Task ${taskId} not found`);
@@ -660,16 +766,30 @@ export class TaskService {
     
     // Return promise that resolves when task completes
     return new Promise((resolve, reject) => {
-      const checkInterval = setInterval(async () => {
+      let checkInterval;
+      let timeout;
+      
+      const cleanupTimers = () => {
+        if (checkInterval) {
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+      };
+      
+      const checkTaskStatus = async () => {
         try {
           // Refresh tasks
           await this.refreshTasks();
           
           // Get updated task
-          task = this.getTaskById(taskId);
+          task = await this.getTaskById(taskId);
           
           if (!task) {
-            clearInterval(checkInterval);
+            cleanupTimers();
             reject(new Error(`Task ${taskId} disappeared`));
             return;
           }
@@ -681,7 +801,7 @@ export class TaskService {
           
           // Check if task is done
           if (task.status === 'complete' || task.status === 'error') {
-            clearInterval(checkInterval);
+            cleanupTimers();
             
             if (task.status === 'complete') {
               resolve(task.result || task);
@@ -692,11 +812,14 @@ export class TaskService {
         } catch (error) {
           this.logger.error(`Error monitoring task ${taskId}:`, error);
         }
-      }, 1000); // Check every second
+      };
+      
+      // Set interval to check task status
+      checkInterval = setInterval(checkTaskStatus, 1000); // Check every second
       
       // Set timeout to prevent hanging
-      setTimeout(() => {
-        clearInterval(checkInterval);
+      timeout = setTimeout(() => {
+        cleanupTimers();
         reject(new Error('Task monitoring timed out after 5 minutes'));
       }, 5 * 60 * 1000);
     });
@@ -722,6 +845,10 @@ export class TaskService {
     // Clear task lists
     this.activeTasks = [];
     this.completedTasks = [];
+    
+    // Clear service references
+    this.apiService = null;
+    this.notificationService = null;
     
     this.initialized = false;
     this.logger.debug('Task service cleanup completed');

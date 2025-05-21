@@ -1,81 +1,112 @@
+// src/components/panels/capture/tabs-capture.js
+import { LogManager } from '../../../utils/log-manager.js';
 import { container } from '../../../core/dependency-container.js';
 
 /**
- * Initialize logger for tabs capture operations
+ * Tabs Capture Component
+ * Manages browser tabs loading, filtering, and selection
  */
-const logger = new (container.getUtil('LogManager'))({
-  isBackgroundScript: false,
-  context: 'tabs-capture',
-  storageKey: 'marvin_tabs_capture_logs',
-  maxEntries: 1000
-});
-
-// Initialization flag
-let tabsInitialized = false;
-
-// Debounce function for search and filter operations
-function debounce(func, wait) {
-  let timeout;
-  return function(...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(this, args), wait);
-  };
-} 
-
-// Create debounced versions of functions
-const debouncedFilterTabs = debounce(applyFilters, 300);
-
-/**
- * Initialize tabs capture functionality
- * @returns {Promise<void>}
- */
-async function initTabsCapture() {
-  logger.debug('initTabsCapture called');
+const TabsCapture = {
+  // Track resources for proper cleanup
+  _eventListeners: [],
+  _timeouts: [],
+  _intervals: [],
+  _domElements: [],
+  initialized: false,
   
-  try {
-    // Load open tabs
-    await loadOpenTabs();
-    
-    // Set up windows and tabs data for filtering
-    chrome.windows.getAll({ populate: true }, (windows) => {
-      updateWindowFilter(windows);
-      setupTabsFilter(windows.reduce((tabs, window) => [...tabs, ...window.tabs], []));
+  // Store tabs data
+  _tabs: [],
+  _windows: [],
+  
+  /**
+   * Initialize tabs capture functionality
+   * @returns {Promise<boolean>} Success state
+   */
+  async initTabsCapture() {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'tabs-capture',
+      isBackgroundScript: false,
+      maxEntries: 1000
     });
     
-    tabsInitialized = true;
-    logger.info('Tabs capture initialized successfully');
-  } catch (error) {
-    logger.error('Error initializing tabs capture:', error);
-
-    // Get notification service from container
-    const notificationService = container.getService('notificationService');
-    if (notificationService) {
-      notificationService.showNotification('message', 'type');
+    logger.debug('initTabsCapture called');
+    
+    if (this.initialized) {
+      logger.debug('Tabs capture already initialized, skipping');
+      return true;
     }
-  }
-}
-
-/**
- * Load open tabs into the UI
- * @returns {Promise<void>}
- */
-async function loadOpenTabs() {
-  logger.debug('loadOpenTabs called');
-  const tabsList = document.getElementById('tabs-list');
+    
+    try {
+      // Load open tabs
+      await this.loadOpenTabs(logger);
+      
+      // Set up windows and tabs data for filtering
+      await new Promise((resolve) => {
+        chrome.windows.getAll({ populate: true }, (windows) => {
+          this._windows = windows;
+          this.updateWindowFilter(logger, windows);
+          this.setupTabsFilter(logger, windows.reduce((tabs, window) => [...tabs, ...window.tabs], []));
+          resolve();
+        });
+      });
+      
+      this.initialized = true;
+      logger.info('Tabs capture initialized successfully');
+      return true;
+    } catch (error) {
+      logger.error('Error initializing tabs capture:', error);
+      
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
+      notificationService.showNotification('Error initializing tabs capture: ' + error.message, 'error');
+      return false;
+    }
+  },
   
-  if (!tabsList) {
-    logger.error('tabs-list element not found');
-    return;
-  }
-
-  tabsList.innerHTML = '<div class="loading-indicator">Loading tabs...</div>';
+  /**
+   * Get service with error handling and fallback
+   * @param {LogManager} logger - Logger instance
+   * @param {string} serviceName - Name of the service to get
+   * @param {Object} fallback - Fallback implementation if service not available
+   * @returns {Object} Service instance or fallback
+   */
+  getService(logger, serviceName, fallback) {
+    try {
+      return container.getService(serviceName);
+    } catch (error) {
+      logger.warn(`${serviceName} not available:`, error);
+      return fallback;
+    }
+  },
   
-  try {
-    // Get all windows with tabs
-    logger.debug('Calling chrome.windows.getAll');
-    chrome.windows.getAll({ populate: true }, (windows) => {
+  /**
+   * Load open tabs into the UI
+   * @param {LogManager} logger - Logger instance
+   * @returns {Promise<void>}
+   */
+  async loadOpenTabs(logger) {
+    logger.debug('loadOpenTabs called');
+    const tabsList = document.getElementById('tabs-list');
+    
+    if (!tabsList) {
+      logger.error('tabs-list element not found');
+      return;
+    }
+    
+    tabsList.innerHTML = '<div class="loading-indicator">Loading tabs...</div>';
+    
+    try {
+      // Get all windows with tabs
+      logger.debug('Calling chrome.windows.getAll');
+      const windows = await new Promise((resolve) => {
+        chrome.windows.getAll({ populate: true }, resolve);
+      });
+      
       logger.debug(`Got ${windows.length} windows`);
-
+      
       if (windows.length === 0) {
         tabsList.innerHTML = '<div class="empty-state">No open tabs found</div>';
         return;
@@ -86,11 +117,11 @@ async function loadOpenTabs() {
       const tabsHierarchy = tabsList.querySelector('.tabs-hierarchy');
       
       // Create window filter dropdown
-      updateWindowFilter(windows);
+      this.updateWindowFilter(logger, windows);
       
       // Group tabs by windows
       windows.forEach(window => {
-        const filteredTabs = window.tabs.filter(shouldShowTab);
+        const filteredTabs = window.tabs.filter(tab => this.shouldShowTab(logger, tab));
         if (filteredTabs.length === 0) return;
         
         const windowGroup = document.createElement('div');
@@ -127,7 +158,7 @@ async function loadOpenTabs() {
         
         // Add tabs to container
         filteredTabs.forEach(tab => {
-          const tabItem = createTabListItem(tab, window.id);
+          const tabItem = this.createTabListItem(logger, tab, window.id);
           tabsContainer.appendChild(tabItem);
         });
         
@@ -135,306 +166,401 @@ async function loadOpenTabs() {
         tabsHierarchy.appendChild(windowGroup);
         
         // Window checkbox selects all tabs
-        windowCheckbox.addEventListener('change', () => {
+        const windowCheckboxHandler = () => {
           const checked = windowCheckbox.checked;
           tabsContainer.querySelectorAll('.item-checkbox').forEach(checkbox => {
             checkbox.checked = checked;
           });
+        };
+        
+        windowCheckbox.addEventListener('change', windowCheckboxHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: windowCheckbox,
+          type: 'change',
+          listener: windowCheckboxHandler
         });
         
         // Toggle expand/collapse
-        toggleButton.addEventListener('click', () => {
+        const toggleHandler = () => {
           tabsContainer.style.display = tabsContainer.style.display === 'none' ? 'block' : 'none';
           toggleButton.innerHTML = tabsContainer.style.display === 'none' ? '▶' : '▼';
+        };
+        
+        toggleButton.addEventListener('click', toggleHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: toggleButton,
+          type: 'click',
+          listener: toggleHandler
         });
       });
       
       // Add search functionality
-      setupSearchAndFilter();
+      this.setupSearchAndFilter(logger);
       
       logger.info('Tabs loaded successfully');
-    });
-  } catch (error) {
-    logger.error('Error loading tabs:', error);
-    tabsList.innerHTML = `<div class="error-state">Error loading tabs: ${error.message}</div>`;
-  }
-}
-
-/**
- * Filter tabs that should be shown (e.g., skip chrome:// URLs)
- * @param {object} tab - Tab object to check
- * @returns {boolean} True if tab should be shown
- */
-function shouldShowTab(tab) {
-  // Get the utility for validation if available
-  try {
-    const captureUtils = container.getUtil('capture');
-    if (captureUtils && captureUtils.isValidCaptureUrl) {
-      return captureUtils.isValidCaptureUrl(tab.url);
-    }
-  } catch (error) {
-    logger.warn('Capture utils not available, using fallback validation');
-  }
-  
-  // Fallback validation
-  return !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://');
-}
-
-/**
- * Create a list item for a tab
- * @param {object} tab - Tab object
- * @param {number} windowId - Window ID
- * @returns {HTMLElement} Tab list item element
- */
-function createTabListItem(tab, windowId) {
-  const item = document.createElement('div');
-  item.className = 'tab-item';
-  item.setAttribute('data-id', tab.id);
-  item.setAttribute('data-url', tab.url);
-  item.setAttribute('data-window-id', windowId);
-  
-  const favicon = tab.favIconUrl || '../icons/icon16.png';
-  
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.id = `tab-${tab.id}`;
-  checkbox.className = 'item-checkbox';
-  
-  const icon = document.createElement('img');
-  icon.src = favicon;
-  icon.alt = '';
-  icon.className = 'tab-icon';
-  
-  const content = document.createElement('div');
-  content.className = 'tab-content';
-  
-  const title = document.createElement('div');
-  title.className = 'tab-title';
-  title.textContent = tab.title || 'Untitled';
-  
-  const url = document.createElement('div');
-  url.className = 'tab-url';
-  url.textContent = tab.url;
-  
-  content.appendChild(title);
-  content.appendChild(url);
-  
-  item.appendChild(checkbox);
-  item.appendChild(icon);
-  item.appendChild(content);
-  
-  return item;
-}
-
-/**
- * Update the window filter dropdown
- * @param {Array} windows - Array of window objects
- */
-function updateWindowFilter(windows) {
-  logger.debug('Updating window filter with', windows.length, 'windows');
-  const windowFilter = document.getElementById('tabs-window-filter');
-  
-  if (!windowFilter) {
-    logger.error('tabs-window-filter element not found');
-    return;
-  }
-  
-  // Clear existing options
-  windowFilter.innerHTML = '<option value="all">All Windows</option>';
-  
-  // Add options for each window
-  windows.forEach(window => {
-    const option = document.createElement('option');
-    option.value = window.id.toString();
-    option.textContent = `Window ${window.id} (${window.tabs.length} tabs)`;
-    windowFilter.appendChild(option);
-  });
-}
-
-/**
- * Set up tabs filtering
- * @param {Array} allTabs - Array of all tabs
- */
-function setupTabsFilter(allTabs) {
-  logger.debug('Setting up tabs filter');
-  
-  const searchInput = document.getElementById('tabs-search');
-  const windowFilter = document.getElementById('tabs-window-filter');
-  
-  if (!searchInput || !windowFilter) {
-    logger.error('Filter elements not found');
-    return;
-  }
-  
-  // Search functionality
-  searchInput.addEventListener('input', () => {
-    debouncedFilterTabs();
-  });
-  
-  windowFilter.addEventListener('change', () => {
-    debouncedFilterTabs();
-  });
-  
-  // Set up advanced filters
-  setupAdvancedFilters();
-}
-
-/**
- * Set up advanced filtering options
- */
-function setupAdvancedFilters() {
-  logger.debug('Setting up advanced filters');
-  
-  // Add advanced filters button and panel
-  const listControls = document.querySelector('.list-controls');
-  
-  if (!listControls) {
-    logger.error('List controls element not found');
-    return;
-  }
-  
-  const advancedButton = document.createElement('button');
-  advancedButton.className = 'btn-text';
-  advancedButton.textContent = 'Advanced Filters';
-  advancedButton.addEventListener('click', toggleAdvancedFilters);
-  listControls.appendChild(advancedButton);
-  
-  // Create advanced filters panel
-  const advancedFilters = document.createElement('div');
-  advancedFilters.className = 'advanced-filters';
-  advancedFilters.style.display = 'none';
-  
-  advancedFilters.innerHTML = `
-    <div class="filter-row">
-      <span class="filter-label">Domain:</span>
-      <input type="text" id="domain-filter" placeholder="e.g., example.com">
-    </div>
-    <div class="filter-row">
-      <span class="filter-label">Exclude:</span>
-      <input type="text" id="exclude-filter" placeholder="e.g., social">
-    </div>
-    <div class="filter-row">
-      <span class="filter-label">Type:</span>
-      <select id="type-filter">
-        <option value="all">All types</option>
-        <option value="http">HTTP</option>
-        <option value="https">HTTPS</option>
-        <option value="file">Files</option>
-      </select>
-    </div>
-    <button class="btn-secondary" id="apply-filters">Apply Filters</button>
-    <button class="btn-text" id="reset-filters">Reset</button>
-  `;
-  
-  document.getElementById('tabs-content').insertBefore(advancedFilters, document.getElementById('tabs-list'));
-  
-  // Set up filter application
-  document.getElementById('apply-filters').addEventListener('click', applyFilters);
-  document.getElementById('reset-filters').addEventListener('click', resetFilters);
-}
-
-/**
- * Toggle advanced filters visibility
- */
-function toggleAdvancedFilters() {
-  const advancedFilters = document.querySelector('.advanced-filters');
-  
-  if (!advancedFilters) {
-    logger.error('Advanced filters element not found');
-    return;
-  }
-  
-  advancedFilters.style.display = advancedFilters.style.display === 'none' ? 'block' : 'none';
-}
-
-/**
- * Apply all filters to tabs
- */
-function applyFilters() {
-  logger.debug('Applying filters to tabs');
-  
-  const searchTerm = document.getElementById('tabs-search')?.value.toLowerCase() || '';
-  const windowId = document.getElementById('tabs-window-filter')?.value || 'all';
-  const domainFilter = document.getElementById('domain-filter')?.value.toLowerCase() || '';
-  const excludeFilter = document.getElementById('exclude-filter')?.value.toLowerCase() || '';
-  const typeFilter = document.getElementById('type-filter')?.value || 'all';
-  
-  // Process all tab items
-  const tabItems = document.querySelectorAll('.tab-item');
-  let visibleCount = 0;
-  
-  tabItems.forEach(item => {
-    const url = item.getAttribute('data-url').toLowerCase();
-    const title = item.querySelector('.tab-title')?.textContent.toLowerCase() || '';
-    const itemWindowId = item.getAttribute('data-window-id');
-    
-    let visible = true;
-    
-    // Apply window filter
-    if (windowId !== 'all' && itemWindowId !== windowId) {
-      visible = false;
-    }
-    
-    // Apply search filter
-    if (searchTerm && !url.includes(searchTerm) && !title.includes(searchTerm)) {
-      visible = false;
-    }
-    
-    // Apply domain filter
-    if (domainFilter && !url.includes(domainFilter)) {
-      visible = false;
-    }
-    
-    // Apply exclude filter
-    if (excludeFilter && (url.includes(excludeFilter) || title.includes(excludeFilter))) {
-      visible = false;
-    }
-    
-    // Apply type filter
-    if (typeFilter === 'http' && !url.startsWith('http:')) {
-      visible = false;
-    } else if (typeFilter === 'https' && !url.startsWith('https:')) {
-      visible = false;
-    } else if (typeFilter === 'file' && !url.startsWith('file:')) {
-      visible = false;
-    }
-    
-    // Update visibility
-    item.style.display = visible ? 'flex' : 'none';
-    if (visible) visibleCount++;
-  });
-  
-  // Update window visibility based on visible tabs
-  const windowGroups = document.querySelectorAll('.window-group');
-  windowGroups.forEach(group => {
-    const visibleTabsInWindow = Array.from(group.querySelectorAll('.tab-item'))
-      .filter(item => item.style.display !== 'none').length;
+    } catch (error) {
+      logger.error('Error loading tabs:', error);
+      tabsList.innerHTML = `<div class="error-state">Error loading tabs: ${error.message}</div>`;
       
-    group.style.display = visibleTabsInWindow > 0 ? 'block' : 'none';
-  });
-  
-  // Show message if no results
-  const tabsList = document.getElementById('tabs-list');
-  const noResults = tabsList?.querySelector('.no-results');
-  
-  if (visibleCount === 0 && tabsList) {
-    if (!noResults) {
-      const message = document.createElement('div');
-      message.className = 'no-results empty-state';
-      message.textContent = 'No tabs match your filters';
-      tabsList.appendChild(message);
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
+      notificationService.showNotification('Error loading tabs: ' + error.message, 'error');
     }
-  } else if (noResults) {
-    noResults.remove();
-  }
+  },
   
-  logger.debug(`Filter applied: ${visibleCount} tabs visible`);
-}
-
-/**
- * Reset all filters to default values
- */
-function resetFilters() {
+  /**
+   * Filter tabs that should be shown (e.g., skip chrome:// URLs)
+   * @param {LogManager} logger - Logger instance
+   * @param {object} tab - Tab object to check
+   * @returns {boolean} True if tab should be shown
+   */
+  shouldShowTab(logger, tab) {
+    try {
+      const captureUtils = this.getService(logger, 'capture', {
+        isValidCaptureUrl: (url) => {
+          const lowerUrl = url.toLowerCase();
+          return !lowerUrl.startsWith('chrome://') && 
+                 !lowerUrl.startsWith('chrome-extension://') && 
+                 !lowerUrl.startsWith('about:');
+        }
+      });
+      
+      return captureUtils.isValidCaptureUrl(tab.url);
+    } catch (error) {
+      logger.warn('Error validating tab URL:', error);
+      // Fallback validation
+      return !tab.url.startsWith('chrome://') && 
+             !tab.url.startsWith('chrome-extension://') && 
+             !tab.url.startsWith('about:');
+    }
+  },
+  
+  /**
+   * Create a list item for a tab
+   * @param {LogManager} logger - Logger instance
+   * @param {object} tab - Tab object
+   * @param {number} windowId - Window ID
+   * @returns {HTMLElement} Tab list item element
+   */
+  createTabListItem(logger, tab, windowId) {
+    const item = document.createElement('div');
+    item.className = 'tab-item';
+    item.setAttribute('data-id', tab.id);
+    item.setAttribute('data-url', tab.url);
+    item.setAttribute('data-window-id', windowId);
+    
+    const favicon = tab.favIconUrl || '../icons/icon16.png';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `tab-${tab.id}`;
+    checkbox.className = 'item-checkbox';
+    
+    const icon = document.createElement('img');
+    icon.src = favicon;
+    icon.alt = '';
+    icon.className = 'tab-icon';
+    
+    const content = document.createElement('div');
+    content.className = 'tab-content';
+    
+    const title = document.createElement('div');
+    title.className = 'tab-title';
+    title.textContent = tab.title || 'Untitled';
+    
+    const url = document.createElement('div');
+    url.className = 'tab-url';
+    url.textContent = tab.url;
+    
+    content.appendChild(title);
+    content.appendChild(url);
+    
+    item.appendChild(checkbox);
+    item.appendChild(icon);
+    item.appendChild(content);
+    
+    return item;
+  },
+  
+  /**
+   * Update the window filter dropdown
+   * @param {LogManager} logger - Logger instance
+   * @param {Array} windows - Array of window objects
+   */
+  updateWindowFilter(logger, windows) {
+    logger.debug('Updating window filter with', windows.length, 'windows');
+    const windowFilter = document.getElementById('tabs-window-filter');
+    
+    if (!windowFilter) {
+      logger.error('tabs-window-filter element not found');
+      return;
+    }
+    
+    // Clear existing options
+    windowFilter.innerHTML = '<option value="all">All Windows</option>';
+    
+    // Add options for each window
+    windows.forEach(window => {
+      const option = document.createElement('option');
+      option.value = window.id.toString();
+      option.textContent = `Window ${window.id} (${window.tabs.length} tabs)`;
+      windowFilter.appendChild(option);
+    });
+  },
+  
+  /**
+   * Set up tabs filtering
+   * @param {LogManager} logger - Logger instance
+   * @param {Array} allTabs - Array of all tabs
+   */
+  setupTabsFilter(logger, allTabs) {
+    logger.debug('Setting up tabs filter');
+    
+    const searchInput = document.getElementById('tabs-search');
+    const windowFilter = document.getElementById('tabs-window-filter');
+    
+    if (!searchInput || !windowFilter) {
+      logger.error('Filter elements not found');
+      return;
+    }
+    
+    // Search functionality
+    const searchHandler = () => {
+      this.applyFilters(logger);
+    };
+    
+    searchInput.addEventListener('input', searchHandler);
+    
+    // Track this listener for cleanup
+    this._eventListeners.push({
+      element: searchInput,
+      type: 'input',
+      listener: searchHandler
+    });
+    
+    const windowFilterHandler = () => {
+      this.applyFilters(logger);
+    };
+    
+    windowFilter.addEventListener('change', windowFilterHandler);
+    
+    // Track this listener for cleanup
+    this._eventListeners.push({
+      element: windowFilter,
+      type: 'change',
+      listener: windowFilterHandler
+    });
+    
+    // Set up advanced filters
+    this.setupAdvancedFilters(logger);
+  },
+  
+  /**
+   * Set up advanced filtering options
+   * @param {LogManager} logger - Logger instance
+   */
+  setupAdvancedFilters(logger) {
+    logger.debug('Setting up advanced filters');
+    
+    // Add advanced filters button and panel
+    const listControls = document.querySelector('.list-controls');
+    
+    if (!listControls) {
+      logger.error('List controls element not found');
+      return;
+    }
+    
+    const advancedButton = document.createElement('button');
+    advancedButton.className = 'btn-text';
+    advancedButton.textContent = 'Advanced Filters';
+    
+    const toggleHandler = () => {
+      this.toggleAdvancedFilters(logger);
+    };
+    
+    advancedButton.addEventListener('click', toggleHandler);
+    
+    // Track this listener for cleanup
+    this._eventListeners.push({
+      element: advancedButton,
+      type: 'click',
+      listener: toggleHandler
+    });
+    
+    listControls.appendChild(advancedButton);
+    
+    // Create advanced filters panel
+    const advancedFilters = document.createElement('div');
+    advancedFilters.className = 'advanced-filters';
+    advancedFilters.style.display = 'none';
+    
+    advancedFilters.innerHTML = `
+      <div class="filter-row">
+        <span class="filter-label">Domain:</span>
+        <input type="text" id="domain-filter" placeholder="e.g., example.com">
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">Exclude:</span>
+        <input type="text" id="exclude-filter" placeholder="e.g., social">
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">Type:</span>
+        <select id="type-filter">
+          <option value="all">All types</option>
+          <option value="http">HTTP</option>
+          <option value="https">HTTPS</option>
+          <option value="file">Files</option>
+        </select>
+      </div>
+      <button class="btn-secondary" id="apply-filters">Apply Filters</button>
+      <button class="btn-text" id="reset-filters">Reset</button>
+    `;
+    
+    document.getElementById('tabs-content').insertBefore(advancedFilters, document.getElementById('tabs-list'));
+    
+    // Set up filter application
+    const applyButton = document.getElementById('apply-filters');
+    const resetButton = document.getElementById('reset-filters');
+    
+    if (applyButton && resetButton) {
+      const applyHandler = () => {
+        this.applyFilters(logger);
+      };
+      
+      const resetHandler = () => {
+        this.resetFilters(logger);
+      };
+      
+      applyButton.addEventListener('click', applyHandler);
+      resetButton.addEventListener('click', resetHandler);
+      
+      // Track these listeners for cleanup
+      this._eventListeners.push(
+        {
+          element: applyButton,
+          type: 'click',
+          listener: applyHandler
+        },
+        {
+          element: resetButton,
+          type: 'click',
+          listener: resetHandler
+        }
+      );
+    }
+  },
+  
+  /**
+   * Toggle advanced filters visibility
+   * @param {LogManager} logger - Logger instance
+   */
+  toggleAdvancedFilters(logger) {
+    const advancedFilters = document.querySelector('.advanced-filters');
+    
+    if (!advancedFilters) {
+      logger.error('Advanced filters element not found');
+      return;
+    }
+    
+    advancedFilters.style.display = advancedFilters.style.display === 'none' ? 'block' : 'none';
+  },
+  
+  /**
+   * Apply all filters to tabs
+   * @param {LogManager} logger - Logger instance
+   */
+  applyFilters(logger) {
+    logger.debug('Applying filters to tabs');
+    
+    const searchTerm = document.getElementById('tabs-search')?.value.toLowerCase() || '';
+    const windowId = document.getElementById('tabs-window-filter')?.value || 'all';
+    const domainFilter = document.getElementById('domain-filter')?.value.toLowerCase() || '';
+    const excludeFilter = document.getElementById('exclude-filter')?.value.toLowerCase() || '';
+    const typeFilter = document.getElementById('type-filter')?.value || 'all';
+    
+    // Process all tab items
+    const tabItems = document.querySelectorAll('.tab-item');
+    let visibleCount = 0;
+    
+    tabItems.forEach(item => {
+      const url = item.getAttribute('data-url').toLowerCase();
+      const title = item.querySelector('.tab-title')?.textContent.toLowerCase() || '';
+      const itemWindowId = item.getAttribute('data-window-id');
+      
+      let visible = true;
+      
+      // Apply window filter
+      if (windowId !== 'all' && itemWindowId !== windowId) {
+        visible = false;
+      }
+      
+      // Apply search filter
+      if (searchTerm && !url.includes(searchTerm) && !title.includes(searchTerm)) {
+        visible = false;
+      }
+      
+      // Apply domain filter
+      if (domainFilter && !url.includes(domainFilter)) {
+        visible = false;
+      }
+      
+      // Apply exclude filter
+      if (excludeFilter && (url.includes(excludeFilter) || title.includes(excludeFilter))) {
+        visible = false;
+      }
+      
+      // Apply type filter
+      if (typeFilter === 'http' && !url.startsWith('http:')) {
+        visible = false;
+      } else if (typeFilter === 'https' && !url.startsWith('https:')) {
+        visible = false;
+      } else if (typeFilter === 'file' && !url.startsWith('file:')) {
+        visible = false;
+      }
+      
+      // Update visibility
+      item.style.display = visible ? 'flex' : 'none';
+      if (visible) visibleCount++;
+    });
+    
+    // Update window visibility based on visible tabs
+    const windowGroups = document.querySelectorAll('.window-group');
+    windowGroups.forEach(group => {
+      const visibleTabsInWindow = Array.from(group.querySelectorAll('.tab-item'))
+        .filter(item => item.style.display !== 'none').length;
+        
+      group.style.display = visibleTabsInWindow > 0 ? 'block' : 'none';
+    });
+    
+    // Show message if no results
+    const tabsList = document.getElementById('tabs-list');
+    const noResults = tabsList?.querySelector('.no-results');
+    
+    if (visibleCount === 0 && tabsList) {
+      if (!noResults) {
+        const message = document.createElement('div');
+        message.className = 'no-results empty-state';
+        message.textContent = 'No tabs match your filters';
+        tabsList.appendChild(message);
+      }
+    } else if (noResults) {
+      noResults.remove();
+    }
+    
+    logger.debug(`Filter applied: ${visibleCount} tabs visible`);
+  },
+  
+  /**
+   * Reset all filters to default values
+   * @param {LogManager} logger - Logger instance
+   */
+  resetFilters(logger) {
     logger.debug('Resetting filters');
     
     const searchInput = document.getElementById('tabs-search');
@@ -449,14 +575,15 @@ function resetFilters() {
     if (excludeFilter) excludeFilter.value = '';
     if (typeFilter) typeFilter.value = 'all';
     
-    applyFilters();
+    this.applyFilters(logger);
     logger.debug('Filters reset successfully');
-  }
-
-/**
- * Set up search and filter UI
- */
-function setupSearchAndFilter() {
+  },
+  
+  /**
+   * Set up search and filter UI
+   * @param {LogManager} logger - Logger instance
+   */
+  setupSearchAndFilter(logger) {
     logger.debug('Setting up search and filter UI');
     
     const searchInput = document.getElementById('tabs-search');
@@ -468,15 +595,42 @@ function setupSearchAndFilter() {
     }
     
     // Apply filters when search changes
-    searchInput.addEventListener('input', applyFilters);
-    windowFilter.addEventListener('change', applyFilters);
-  }
+    const searchHandler = () => {
+      this.applyFilters(logger);
+    };
+    
+    const windowFilterHandler = () => {
+      this.applyFilters(logger);
+    };
+    
+    searchInput.addEventListener('input', searchHandler);
+    windowFilter.addEventListener('change', windowFilterHandler);
+    
+    // Track these listeners for cleanup
+    this._eventListeners.push(
+      {
+        element: searchInput,
+        type: 'input',
+        listener: searchHandler
+      },
+      {
+        element: windowFilter,
+        type: 'change',
+        listener: windowFilterHandler
+      }
+    );
+  },
   
-/**
- * Get selected tabs from the UI
- * @returns {Array} Array of selected tab objects
- */
-function getSelectedTabs() {
+  /**
+   * Get selected tabs from the UI
+   * @returns {Array} Array of selected tab objects
+   */
+  getSelectedTabs() {
+    const logger = new LogManager({
+      context: 'tabs-capture',
+      isBackgroundScript: false
+    });
+    
     logger.debug('Getting selected tabs');
     
     const selectedItems = [];
@@ -505,63 +659,129 @@ function getSelectedTabs() {
     
     logger.debug(`Found ${selectedItems.length} selected tabs`);
     return selectedItems;
-  }
+  },
   
   /**
    * Extract content from a tab
    * @param {number} tabId - Tab ID to extract content from
    * @returns {Promise<object>} Extracted content and metadata
    */
-  async function extractTabContent(tabId) {
-  logger.debug(`Extracting content from tab ${tabId}`);
-  
-  try {
-    // We'll use the executeScript method to extract content from the tab
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      function: () => {
-        return {
-          content: document.documentElement.outerHTML,
-          title: document.title,
-          metadata: {
-            description: document.querySelector('meta[name="description"]')?.content || '',
-            keywords: document.querySelector('meta[name="keywords"]')?.content || '',
-            author: document.querySelector('meta[name="author"]')?.content || '',
-            ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
-            ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
-            ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
-          }
-        };
-      }
+  async extractTabContent(tabId) {
+    const logger = new LogManager({
+      context: 'tabs-capture',
+      isBackgroundScript: false
     });
     
-    if (!results || !results[0] || chrome.runtime.lastError) {
-      throw new Error(chrome.runtime.lastError?.message || 'Failed to extract content');
+    logger.debug(`Extracting content from tab ${tabId}`);
+    
+    try {
+      // We'll use the executeScript method to extract content from the tab
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        function: () => {
+          return {
+            content: document.documentElement.outerHTML,
+            title: document.title,
+            metadata: {
+              description: document.querySelector('meta[name="description"]')?.content || '',
+              keywords: document.querySelector('meta[name="keywords"]')?.content || '',
+              author: document.querySelector('meta[name="author"]')?.content || '',
+              ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
+              ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
+              ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
+            }
+          };
+        }
+      });
+      
+      if (!results || !results[0] || chrome.runtime.lastError) {
+        throw new Error(chrome.runtime.lastError?.message || 'Failed to extract content');
+      }
+      
+      logger.debug(`Content extracted successfully from tab ${tabId}`);
+      return results[0].result;
+    } catch (error) {
+      logger.error(`Error extracting content from tab ${tabId}:`, error);
+      // Return minimal data if extraction fails
+      return {
+        content: "",
+        title: "",
+        metadata: {}
+      };
+    }
+  },
+  
+  /**
+   * Clean up resources when component is unmounted
+   * This helps prevent memory leaks and browser crashes
+   */
+  cleanup() {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'tabs-capture',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    if (!this.initialized) {
+      logger.debug('Tabs capture not initialized, skipping cleanup');
+      return;
     }
     
-    logger.debug(`Content extracted successfully from tab ${tabId}`);
-    return results[0].result;
-  } catch (error) {
-    logger.error(`Error extracting content from tab ${tabId}:`, error);
-    // Return minimal data if extraction fails
-    return {
-      content: "",
-      title: "",
-      metadata: {}
-    };
-    }
+    logger.info('Cleaning up tabs capture resources');
+    
+    // Clear all timeouts
+    this._timeouts.forEach(id => {
+      try {
+        clearTimeout(id);
+      } catch (error) {
+        logger.warn(`Error clearing timeout:`, error);
+      }
+    });
+    this._timeouts = [];
+    
+    // Clear all intervals
+    this._intervals.forEach(id => {
+      try {
+        clearInterval(id);
+      } catch (error) {
+        logger.warn(`Error clearing interval:`, error);
+      }
+    });
+    this._intervals = [];
+    
+    // Remove all event listeners
+    this._eventListeners.forEach(({element, type, listener}) => {
+      try {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, listener);
+        }
+      } catch (error) {
+        logger.warn(`Error removing event listener:`, error);
+      }
+    });
+    this._eventListeners = [];
+    
+    // Clean up DOM elements
+    this._domElements.forEach(el => {
+      try {
+        if (el && el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      } catch (error) {
+        logger.warn('Error removing DOM element:', error);
+      }
+    });
+    this._domElements = [];
+    
+    // Clear data
+    this._tabs = [];
+    this._windows = [];
+    this.initialized = false;
+    
+    logger.debug('Tabs capture cleanup completed');
   }
-  
-  // Export all necessary functions
-  export {
-    extractTabContent,
-    getSelectedTabs,
-    initTabsCapture,
-    loadOpenTabs,
-    shouldShowTab,
-    createTabListItem,
-    updateWindowFilter,
-    setupTabsFilter,
-    applyFilters,
-    resetFilters
-  };
+};
+
+// Export using named export
+export { TabsCapture };

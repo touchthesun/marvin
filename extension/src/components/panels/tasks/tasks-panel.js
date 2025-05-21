@@ -1,4 +1,5 @@
 // src/components/panels/tasks/tasks-panel.js
+import { LogManager } from '../../../utils/log-manager.js'; 
 import { container } from '@core/dependency-container.js';
 
 /**
@@ -6,25 +7,44 @@ import { container } from '@core/dependency-container.js';
  * Manages and displays task execution and monitoring
  */
 const TasksPanel = {
+  // Track resources for proper cleanup
+  _eventListeners: [],
+  _timeouts: [],
+  _intervals: [],
+  _domElements: [],
+  initialized: false,
+  
+  // Panel state
+  activeTasks: [],
+  completedTasks: [],
+  
   /**
    * Initialize the tasks panel
    * @returns {Promise<boolean>} Success state
    */
   async initTasksPanel() {
-    // Get dependencies from container
-    const logger = new (container.getUtil('LogManager'))({
+    // Create logger directly
+    const logger = new LogManager({
       context: 'tasks-panel',
       isBackgroundScript: false,
       maxEntries: 1000
     });
     
-    const notificationService = container.getService('notificationService');
-    
     logger.info('Initializing tasks panel');
     
     try {
+      // Check if already initialized
+      if (this.initialized) {
+        logger.debug('Tasks panel already initialized');
+        return true;
+      }
+      
+      // Get dependencies with error handling
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
       // Initialize state
-      this.initialized = false;
       this.activeTasks = [];
       this.completedTasks = [];
       
@@ -39,8 +59,30 @@ const TasksPanel = {
       return true;
     } catch (error) {
       logger.error('Failed to initialize tasks panel:', error);
+      
+      // Get notification service with error handling
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
       notificationService.showNotification('Failed to initialize tasks panel', 'error');
       return false;
+    }
+  },
+  
+  /**
+   * Get service with error handling and fallback
+   * @param {LogManager} logger - Logger instance
+   * @param {string} serviceName - Name of the service to get
+   * @param {Object} fallback - Fallback implementation if service not available
+   * @returns {Object} Service instance or fallback
+   */
+  getService(logger, serviceName, fallback) {
+    try {
+      return container.getService(serviceName);
+    } catch (error) {
+      logger.warn(`${serviceName} not available:`, error);
+      return fallback;
     }
   },
   
@@ -55,7 +97,16 @@ const TasksPanel = {
       // Set up refresh button
       const refreshBtn = document.getElementById('refreshBtn');
       if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => this.refreshData(logger));
+        const refreshHandler = () => this.refreshData(logger);
+        refreshBtn.addEventListener('click', refreshHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: refreshBtn,
+          type: 'click',
+          listener: refreshHandler
+        });
+        
         logger.debug('Refresh button listener attached');
       } else {
         logger.warn('Refresh button not found in DOM');
@@ -64,7 +115,16 @@ const TasksPanel = {
       // Set up cancel all button
       const cancelAllBtn = document.getElementById('cancelAllBtn');
       if (cancelAllBtn) {
-        cancelAllBtn.addEventListener('click', () => this.cancelAllTasks(logger));
+        const cancelAllHandler = () => this.cancelAllTasks(logger);
+        cancelAllBtn.addEventListener('click', cancelAllHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: cancelAllBtn,
+          type: 'click',
+          listener: cancelAllHandler
+        });
+        
         logger.debug('Cancel all button listener attached');
       } else {
         logger.warn('Cancel all button not found in DOM');
@@ -73,7 +133,16 @@ const TasksPanel = {
       // Set up clear completed button
       const clearCompletedBtn = document.getElementById('clearCompletedBtn');
       if (clearCompletedBtn) {
-        clearCompletedBtn.addEventListener('click', () => this.clearCompletedTasks(logger));
+        const clearCompletedHandler = () => this.clearCompletedTasks(logger);
+        clearCompletedBtn.addEventListener('click', clearCompletedHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: clearCompletedBtn,
+          type: 'click',
+          listener: clearCompletedHandler
+        });
+        
         logger.debug('Clear completed button listener attached');
       } else {
         logger.warn('Clear completed button not found in DOM');
@@ -92,7 +161,9 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async refreshAllTasks(logger) {
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     logger.info('Refreshing all tasks');
     
@@ -190,7 +261,9 @@ const TasksPanel = {
    * @returns {Promise<void>}
    */
   async refreshData(logger) {
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     logger.info('Manual refresh requested');
     
@@ -283,8 +356,17 @@ const TasksPanel = {
       // Add event listeners
       const cancelButton = taskElement.querySelector('.cancel-task');
       if (cancelButton) {
-        cancelButton.addEventListener('click', () => {
+        const cancelHandler = () => {
           this.cancelTask(logger, task.id);
+        };
+        
+        cancelButton.addEventListener('click', cancelHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: cancelButton,
+          type: 'click',
+          listener: cancelHandler
         });
       }
       
@@ -386,16 +468,34 @@ const TasksPanel = {
       if (task.status === 'error') {
         const retryButton = taskElement.querySelector('.retry-task');
         if (retryButton) {
-          retryButton.addEventListener('click', () => {
+          const retryHandler = () => {
             this.retryTask(logger, task.id);
+          };
+          
+          retryButton.addEventListener('click', retryHandler);
+          
+          // Track this listener for cleanup
+          this._eventListeners.push({
+            element: retryButton,
+            type: 'click',
+            listener: retryHandler
           });
         }
       }
       
       const removeButton = taskElement.querySelector('.remove-task');
       if (removeButton) {
-        removeButton.addEventListener('click', () => {
+        const removeHandler = () => {
           this.removeTask(logger, task.id);
+        };
+        
+        removeButton.addEventListener('click', removeHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: removeButton,
+          type: 'click',
+          listener: removeHandler
         });
       }
       
@@ -475,7 +575,9 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async cancelTask(logger, taskId) {
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     if (!taskId) {
       logger.warn('Attempted to cancel task with no ID');
@@ -523,7 +625,9 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async retryTask(logger, taskId) {
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     if (!taskId) {
       logger.warn('Attempted to retry task with no ID');
@@ -600,7 +704,9 @@ const TasksPanel = {
       return true;
     } catch (error) {
       logger.error(`Error removing task ${taskId}:`, error);
-      const notificationService = container.getService('notificationService');
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
       notificationService.showNotification(`Error removing task: ${error.message}`, 'error');
       return false;
     }
@@ -612,7 +718,9 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async cancelAllTasks(logger) {
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     if (this.activeTasks.length === 0) {
       logger.info('No active tasks to cancel');
@@ -689,7 +797,9 @@ const TasksPanel = {
    * @returns {boolean} Success state
    */
   clearCompletedTasks(logger) {
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     if (this.completedTasks.length === 0) {
       logger.info('No completed tasks to clear');
@@ -730,12 +840,14 @@ const TasksPanel = {
    * @returns {boolean} Success state
    */
   viewTaskResult(taskId) {
-    const logger = new (container.getUtil('LogManager'))({
+    const logger = new LogManager({
       context: 'tasks-panel',
       isBackgroundScript: false
     });
     
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     if (!taskId) {
       logger.warn('Attempted to view task with no ID');
@@ -785,11 +897,24 @@ const TasksPanel = {
         const closeButton = document.createElement('button');
         closeButton.className = 'btn-secondary close-details';
         closeButton.textContent = 'Close';
-        closeButton.addEventListener('click', () => {
+        
+        const closeHandler = () => {
           detailsContainer.style.display = 'none';
+        };
+        
+        closeButton.addEventListener('click', closeHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: closeButton,
+          type: 'click',
+          listener: closeHandler
         });
         
         detailsContainer.appendChild(closeButton);
+        
+        // Track this element for cleanup
+        this._domElements.push(closeButton);
       }
       
       logger.debug(`Task ${taskId} details displayed`);
@@ -837,6 +962,73 @@ const TasksPanel = {
    */
   getCompletedTasks() {
     return [...this.completedTasks];
+  },
+  
+  /**
+   * Clean up resources when component is unmounted
+   * This helps prevent memory leaks and browser crashes
+   */
+  cleanup() {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'tasks-panel',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    if (!this.initialized) {
+      logger.debug('Tasks panel not initialized, skipping cleanup');
+      return;
+    }
+    
+    logger.info('Cleaning up tasks panel resources');
+    
+    // Clear all timeouts
+    this._timeouts.forEach(id => {
+      try {
+        clearTimeout(id);
+      } catch (error) {
+        logger.warn(`Error clearing timeout:`, error);
+      }
+    });
+    this._timeouts = [];
+    
+    // Clear all intervals
+    this._intervals.forEach(id => {
+      try {
+        clearInterval(id);
+      } catch (error) {
+        logger.warn(`Error clearing interval:`, error);
+      }
+    });
+    this._intervals = [];
+    
+    // Remove all event listeners
+    this._eventListeners.forEach(({element, type, listener}) => {
+      try {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, listener);
+        }
+      } catch (error) {
+        logger.warn(`Error removing event listener:`, error);
+      }
+    });
+    this._eventListeners = [];
+    
+    // Clean up DOM elements
+    this._domElements.forEach(el => {
+      try {
+        if (el && el.parentNode && !el.id?.includes('panel')) {
+          el.parentNode.removeChild(el);
+        }
+      } catch (error) {
+        logger.warn('Error removing DOM element:', error);
+      }
+    });
+    this._domElements = [];
+    
+    this.initialized = false;
+    logger.debug('Tasks panel cleanup completed');
   }
 };
 

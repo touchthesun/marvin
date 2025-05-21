@@ -9,12 +9,17 @@ export class NotificationService {
    * Create a new NotificationService instance
    */
   constructor() {
+    // State initialization
+    this.initialized = false;
+    this.logger = null;
+    
     // Configuration defaults
     this.config = {
-      autoHideDuration: 3000,  // Duration before auto-hiding notifications (ms)
-      maxNotifications: 3,     // Maximum number of notifications to show at once
-      position: 'top-right',   // Position of notifications
-      transitionDuration: 300  // Duration of fade animations (ms)
+      autoHideDuration: 3000,     // Duration before auto-hiding notifications (ms)
+      maxNotifications: 3,        // Maximum number of notifications to show at once
+      position: 'top-right',      // Position of notifications
+      transitionDuration: 300,    // Duration of fade animations (ms)
+      maxCreatedNotifications: 50 // Track created notifications for diagnostics
     };
 
     // Store for active notifications
@@ -23,8 +28,24 @@ export class NotificationService {
       progress: null
     };
     
-    this.initialized = false;
-    this.logger = null;
+    // Track event handlers for cleanup
+    this.eventHandlers = new Map();
+    
+    // Track created DOM elements for cleanup
+    this.createdElements = new Set();
+    
+    // Track notification statistics
+    this.stats = {
+      created: 0,
+      dismissed: 0,
+      byType: {
+        success: 0,
+        error: 0,
+        warning: 0,
+        info: 0
+      },
+      history: [] // Store recent notifications for debugging
+    };
     
     // Detect if we're in a service worker context
     this.isServiceWorkerContext = typeof self !== 'undefined' && 
@@ -52,7 +73,7 @@ export class NotificationService {
       
       // Create notification container if in browser context
       if (!this.isServiceWorkerContext) {
-        this.ensureNotificationContainer();
+        await this.ensureNotificationContainer();
       } else {
         this.logger.info('Running in service worker context - UI notifications disabled');
       }
@@ -68,33 +89,47 @@ export class NotificationService {
   
   /**
    * Ensure notification container exists in the DOM
+   * @returns {Promise<HTMLElement|null>} The container element or null
    * @private
    */
-  ensureNotificationContainer() {
+  async ensureNotificationContainer() {
     // Only run in browser context
-    if (this.isServiceWorkerContext) return;
-    
-    // Check if container already exists
-    if (document.getElementById('notification-container')) {
-      return;
+    if (this.isServiceWorkerContext) {
+      return null;
     }
     
-    // Create container
-    const container = document.createElement('div');
-    container.id = 'notification-container';
-    container.className = `notification-container ${this.config.position}`;
-    document.body.appendChild(container);
-    
-    // Add styles if they don't exist
-    if (!document.getElementById('notification-styles')) {
-      const style = document.createElement('style');
-      style.id = 'notification-styles';
-      style.textContent = this.getNotificationStyles();
-      document.head.appendChild(style);
-    }
-    
-    if (this.logger) {
+    try {
+      // Check if container already exists
+      let container = document.getElementById('notification-container');
+      if (container) {
+        return container;
+      }
+      
+      // Create container
+      container = document.createElement('div');
+      container.id = 'notification-container';
+      container.className = `notification-container ${this.config.position}`;
+      document.body.appendChild(container);
+      
+      // Track created element
+      this.createdElements.add(container);
+      
+      // Add styles if they don't exist
+      if (!document.getElementById('notification-styles')) {
+        const style = document.createElement('style');
+        style.id = 'notification-styles';
+        style.textContent = this.getNotificationStyles();
+        document.head.appendChild(style);
+        
+        // Track created element
+        this.createdElements.add(style);
+      }
+      
       this.logger.debug('Notification container created');
+      return container;
+    } catch (error) {
+      this.logger.error('Error creating notification container:', error);
+      return null;
     }
   }
   
@@ -109,6 +144,7 @@ export class NotificationService {
         position: fixed;
         z-index: 9999;
         max-width: 300px;
+        pointer-events: none;
       }
       .notification-container.top-right {
         top: 20px;
@@ -135,6 +171,8 @@ export class NotificationService {
         opacity: 0;
         transform: translateY(-10px);
         transition: opacity ${this.config.transitionDuration}ms, transform ${this.config.transitionDuration}ms;
+        position: relative;
+        pointer-events: auto;
       }
       .notification.show {
         opacity: 1;
@@ -164,6 +202,11 @@ export class NotificationService {
         cursor: pointer;
         font-size: 16px;
         opacity: 0.6;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .notification-close:hover {
         opacity: 1;
@@ -189,16 +232,28 @@ export class NotificationService {
    * @param {string} type - Type of notification (success, error, info, warning)
    * @param {number|null} progress - Progress percentage (0-100) or null for no progress bar
    * @param {object} options - Additional options
-   * @returns {HTMLElement} Notification element
+   * @returns {Promise<HTMLElement|null>} Notification element or null
    */
-  showNotification(message, type = 'success', progress = null, options = {}) {
+  async showNotification(message, type = 'success', progress = null, options = {}) {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        console.error('Failed to initialize notification service:', error);
+        return null;
+      }
     }
     
-    if (this.logger) {
-      this.logger.debug(`Showing ${type} notification: ${message}${progress !== null ? ` (progress: ${progress}%)` : ''}`);
+    // Track notification creation
+    this.stats.created++;
+    if (this.stats.byType[type] !== undefined) {
+      this.stats.byType[type]++;
     }
+    
+    // Add to history with limited size
+    this.trackNotificationHistory(message, type, progress);
+    
+    this.logger.debug(`Showing ${type} notification: ${message}${progress !== null ? ` (progress: ${progress}%)` : ''}`);
 
     // Early return in service worker context
     if (this.isServiceWorkerContext) {
@@ -207,27 +262,21 @@ export class NotificationService {
     }
     
     if (!message) {
-      if (this.logger) {
-        this.logger.warn('Attempted to show notification with empty message');
-      }
+      this.logger.warn('Attempted to show notification with empty message');
       message = 'Notification';
     }
     
     // Validate notification type
     const validTypes = ['success', 'error', 'info', 'warning'];
     if (!validTypes.includes(type)) {
-      if (this.logger) {
-        this.logger.warn(`Invalid notification type: ${type}, defaulting to 'info'`);
-      }
+      this.logger.warn(`Invalid notification type: ${type}, defaulting to 'info'`);
       type = 'info';
     }
     
     // Validate progress value if provided
     if (progress !== null) {
       if (typeof progress !== 'number' || progress < 0 || progress > 100) {
-        if (this.logger) {
-          this.logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
-        }
+        this.logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
         progress = Math.max(0, Math.min(100, Number(progress) || 0));
       }
     }
@@ -235,16 +284,47 @@ export class NotificationService {
     // Merge options with defaults
     const config = { ...this.config, ...options };
     
-    // Ensure notification container exists
-    this.ensureNotificationContainer();
-    
-    // Handle progress notifications differently
-    if (progress !== null) {
-      return this.createOrUpdateProgressNotification(message, type, progress, config);
+    try {
+      // Ensure notification container exists
+      const container = await this.ensureNotificationContainer();
+      if (!container) {
+        this.logger.error('Failed to create notification container');
+        return null;
+      }
+      
+      // Handle progress notifications differently
+      if (progress !== null) {
+        return this.createOrUpdateProgressNotification(message, type, progress, config);
+      }
+      
+      // Manage standard notifications
+      return this.createStandardNotification(message, type, config);
+    } catch (error) {
+      this.logger.error('Error showing notification:', error);
+      return null;
     }
+  }
+  
+  /**
+   * Track notification in history for debugging
+   * @param {string} message - Notification message
+   * @param {string} type - Notification type
+   * @param {number|null} progress - Progress value if any
+   * @private
+   */
+  trackNotificationHistory(message, type, progress) {
+    // Add to history with timestamp
+    this.stats.history.unshift({
+      message,
+      type,
+      progress,
+      timestamp: Date.now()
+    });
     
-    // Manage standard notifications
-    return this.createStandardNotification(message, type, config);
+    // Limit history size
+    if (this.stats.history.length > this.config.maxCreatedNotifications) {
+      this.stats.history.pop();
+    }
   }
   
   /**
@@ -253,85 +333,91 @@ export class NotificationService {
    * @param {string} type - Notification type
    * @param {number} progress - Progress percentage
    * @param {object} config - Configuration options
-   * @returns {HTMLElement} Notification element
+   * @returns {HTMLElement|null} Notification element
    * @private
    */
   createOrUpdateProgressNotification(message, type, progress, config) {
-    const container = document.getElementById('notification-container');
-    // Early return in service worker context
-    if (this.isServiceWorkerContext) {
-      // We can still log the notification but can't show UI
-      return null;
-    }
-
-    if (!container) {
-      if (this.logger) {
+    try {
+      const container = document.getElementById('notification-container');
+      if (!container) {
         this.logger.warn('Notification container not found');
+        return null;
       }
-      return null;
-    }
-    
-    // Remove any existing progress notification
-    const existingNotification = container.querySelector('.notification.progress-notification');
-    if (existingNotification) {
-      // If we have an existing progress notification, update it instead of creating a new one
-      const messageEl = existingNotification.querySelector('.notification-message');
-      const progressBar = existingNotification.querySelector('.notification-progress-bar');
       
-      if (messageEl) messageEl.textContent = message;
-      if (progressBar) progressBar.style.width = `${progress}%`;
+      // Remove any existing progress notification
+      const existingNotification = container.querySelector('.notification.progress-notification');
+      if (existingNotification) {
+        // If we have an existing progress notification, update it instead of creating a new one
+        const messageEl = existingNotification.querySelector('.notification-message');
+        const progressBar = existingNotification.querySelector('.notification-progress-bar');
+        
+        if (messageEl) messageEl.textContent = message;
+        if (progressBar) progressBar.style.width = `${progress}%`;
+        
+        // Update the notification type if it changed
+        existingNotification.className = `notification ${type} progress-notification show`;
+        
+        // Store reference
+        this.activeNotifications.progress = existingNotification;
+        
+        return existingNotification;
+      }
       
-      // Update the notification type if it changed
-      existingNotification.className = `notification ${type} progress-notification show`;
+      // Create a new progress notification
+      const notification = document.createElement('div');
+      notification.className = `notification ${type} progress-notification`;
+      notification.setAttribute('role', 'alert');
+      notification.setAttribute('aria-live', 'polite');
+      
+      // Add custom ID if provided
+      if (config.id) {
+        notification.id = config.id;
+      }
+      
+      // Create notification content
+      notification.innerHTML = `
+        <span class="notification-message">${message}</span>
+        <div class="notification-progress-container">
+          <div class="notification-progress-bar" style="width: ${progress}%"></div>
+        </div>
+        ${config.dismissible !== false ? '<button class="notification-close" aria-label="Close notification">&times;</button>' : ''}
+      `;
+      
+      // Add to DOM and track
+      container.appendChild(notification);
+      this.createdElements.add(notification);
+      
+      // Add close button handler if dismissible
+      if (config.dismissible !== false) {
+        const closeButton = notification.querySelector('.notification-close');
+        if (closeButton) {
+          const handleClick = () => {
+            this.hideNotification(notification);
+          };
+          
+          closeButton.addEventListener('click', handleClick);
+          
+          // Store handler reference for cleanup
+          this.eventHandlers.set(closeButton, {
+            event: 'click',
+            handler: handleClick
+          });
+        }
+      }
+      
+      // Fade in
+      requestAnimationFrame(() => {
+        notification.classList.add('show');
+      });
       
       // Store reference
-      this.activeNotifications.progress = existingNotification;
+      this.activeNotifications.progress = notification;
       
-      return existingNotification;
+      return notification;
+    } catch (error) {
+      this.logger.error('Error creating progress notification:', error);
+      return null;
     }
-    
-    // Create a new progress notification
-    const notification = document.createElement('div');
-    notification.className = `notification ${type} progress-notification`;
-    notification.setAttribute('role', 'alert');
-    notification.setAttribute('aria-live', 'polite');
-    
-    // Add custom ID if provided
-    if (config.id) {
-      notification.id = config.id;
-    }
-    
-    // Create notification content
-    notification.innerHTML = `
-      <span class="notification-message">${message}</span>
-      <div class="notification-progress-container">
-        <div class="notification-progress-bar" style="width: ${progress}%"></div>
-      </div>
-      ${config.dismissible ? '<button class="notification-close" aria-label="Close notification">&times;</button>' : ''}
-    `;
-    
-    // Add to DOM
-    container.appendChild(notification);
-    
-    // Add close button handler if dismissible
-    if (config.dismissible) {
-      const closeButton = notification.querySelector('.notification-close');
-      if (closeButton) {
-        closeButton.addEventListener('click', () => {
-          this.hideNotification(notification);
-        });
-      }
-    }
-    
-    // Fade in
-    requestAnimationFrame(() => {
-      notification.classList.add('show');
-    });
-    
-    // Store reference
-    this.activeNotifications.progress = notification;
-    
-    return notification;
   }
   
   /**
@@ -339,73 +425,83 @@ export class NotificationService {
    * @param {string} message - Message to display
    * @param {string} type - Notification type
    * @param {object} config - Configuration options
-   * @returns {HTMLElement} Notification element
+   * @returns {HTMLElement|null} Notification element
    * @private
    */
   createStandardNotification(message, type, config) {
-    const container = document.getElementById('notification-container');
-    // Early return in service worker context
-    if (this.isServiceWorkerContext) {
-      return null;
-    }
-
-    if (!container) {
-      if (this.logger) {
+    try {
+      const container = document.getElementById('notification-container');
+      if (!container) {
         this.logger.warn('Notification container not found');
+        return null;
       }
+      
+      // Manage notification limit
+      this.manageNotificationLimit(config.maxNotifications);
+      
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.setAttribute('role', 'alert');
+      notification.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+      
+      // Add custom ID if provided
+      if (config.id) {
+        notification.id = config.id;
+      }
+      
+      // Create notification content
+      notification.innerHTML = `
+        <span class="notification-message">${message}</span>
+        ${config.dismissible !== false ? '<button class="notification-close" aria-label="Close notification">&times;</button>' : ''}
+      `;
+      
+      // Add to DOM and track
+      container.appendChild(notification);
+      this.createdElements.add(notification);
+      
+      // Add close button handler if dismissible
+      if (config.dismissible !== false) {
+        const closeButton = notification.querySelector('.notification-close');
+        if (closeButton) {
+          const handleClick = () => {
+            this.hideNotification(notification);
+          };
+          
+          closeButton.addEventListener('click', handleClick);
+          
+          // Store handler reference for cleanup
+          this.eventHandlers.set(closeButton, {
+            event: 'click',
+            handler: handleClick
+          });
+        }
+      }
+      
+      // Fade in
+      requestAnimationFrame(() => {
+        notification.classList.add('show');
+      });
+      
+      // Auto-hide after duration
+      const duration = typeof config.duration === 'number' ? config.duration : config.autoHideDuration;
+      if (duration > 0) {
+        const timeoutId = setTimeout(() => {
+          this.hideNotification(notification);
+        }, duration);
+        
+        // Store timeout ID on the element for cleanup
+        notification.dataset.timeoutId = String(timeoutId);
+      }
+      
+      // Store reference
+      this.activeNotifications.standard.push(notification);
+      
+      return notification;
+    } catch (error) {
+      this.logger.error('Error creating standard notification:', error);
       return null;
     }
-    
-    // Manage notification limit
-    this.manageNotificationLimit(config.maxNotifications);
-    
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.setAttribute('role', 'alert');
-    notification.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
-    
-    // Add custom ID if provided
-    if (config.id) {
-      notification.id = config.id;
-    }
-    
-    // Create notification content
-    notification.innerHTML = `
-      <span class="notification-message">${message}</span>
-      ${config.dismissible ? '<button class="notification-close" aria-label="Close notification">&times;</button>' : ''}
-    `;
-    
-    // Add to DOM
-    container.appendChild(notification);
-    
-    // Add close button handler if dismissible
-    if (config.dismissible) {
-      const closeButton = notification.querySelector('.notification-close');
-      if (closeButton) {
-        closeButton.addEventListener('click', () => {
-          this.hideNotification(notification);
-        });
-      }
-    }
-    
-    // Fade in
-    requestAnimationFrame(() => {
-      notification.classList.add('show');
-    });
-    
-    // Auto-hide after duration
-    const duration = typeof config.duration === 'number' ? config.duration : config.autoHideDuration;
-    if (duration > 0) {
-      setTimeout(() => {
-        this.hideNotification(notification);
-      }, duration);
-    }
-    
-    // Store reference
-    this.activeNotifications.standard.push(notification);
-    
-    return notification;
   }
   
   /**
@@ -414,16 +510,20 @@ export class NotificationService {
    * @private
    */
   manageNotificationLimit(maxNotifications) {
-    if (this.activeNotifications.standard.length >= maxNotifications) {
-      // Remove oldest notifications to make room
-      const notificationsToRemove = this.activeNotifications.standard.slice(
-        0, 
-        this.activeNotifications.standard.length - maxNotifications + 1
-      );
-      
-      notificationsToRemove.forEach(notification => {
-        this.hideNotification(notification, true); // true = immediate
-      });
+    try {
+      if (this.activeNotifications.standard.length >= maxNotifications) {
+        // Remove oldest notifications to make room
+        const notificationsToRemove = this.activeNotifications.standard.slice(
+          0, 
+          this.activeNotifications.standard.length - maxNotifications + 1
+        );
+        
+        notificationsToRemove.forEach(notification => {
+          this.hideNotification(notification, true); // true = immediate
+        });
+      }
+    } catch (error) {
+      this.logger.error('Error managing notification limit:', error);
     }
   }
   
@@ -434,34 +534,63 @@ export class NotificationService {
    * @private
    */
   hideNotification(notification, immediate = false) {
-    if (!notification || !notification.parentNode) {
-      return;
-    }
-    
-    // Remove from active notifications tracking
-    if (notification.classList.contains('progress-notification')) {
-      this.activeNotifications.progress = null;
-    } else {
-      const index = this.activeNotifications.standard.indexOf(notification);
-      if (index !== -1) {
-        this.activeNotifications.standard.splice(index, 1);
+    try {
+      if (!notification || !notification.parentNode) {
+        return;
       }
-    }
-    
-    if (immediate) {
-      notification.remove();
-      return;
-    }
-    
-    // Animate out
-    notification.classList.remove('show');
-    
-    // Remove after animation
-    setTimeout(() => {
-      if (notification.parentNode) {
+      
+      // Track dismissal
+      this.stats.dismissed++;
+      
+      // Clear any auto-hide timeout
+      if (notification.dataset.timeoutId) {
+        clearTimeout(Number(notification.dataset.timeoutId));
+        delete notification.dataset.timeoutId;
+      }
+      
+      // Remove event listeners
+      const closeButton = notification.querySelector('.notification-close');
+      if (closeButton && this.eventHandlers.has(closeButton)) {
+        const { event, handler } = this.eventHandlers.get(closeButton);
+        closeButton.removeEventListener(event, handler);
+        this.eventHandlers.delete(closeButton);
+      }
+      
+      // Remove from active notifications tracking
+      if (notification.classList.contains('progress-notification')) {
+        this.activeNotifications.progress = null;
+      } else {
+        const index = this.activeNotifications.standard.indexOf(notification);
+        if (index !== -1) {
+          this.activeNotifications.standard.splice(index, 1);
+        }
+      }
+      
+      // Stop tracking this element
+      this.createdElements.delete(notification);
+      
+      if (immediate) {
+        notification.remove();
+        return;
+      }
+      
+      // Animate out
+      notification.classList.remove('show');
+      
+      // Remove after animation
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.remove();
+        }
+      }, this.config.transitionDuration);
+    } catch (error) {
+      this.logger.error('Error hiding notification:', error);
+      
+      // Force removal on error
+      if (notification && notification.parentNode) {
         notification.remove();
       }
-    }, this.config.transitionDuration);
+    }
   }
   
   /**
@@ -469,120 +598,166 @@ export class NotificationService {
    * @param {string} message - Updated message
    * @param {number} progress - Updated progress percentage
    * @param {string} type - Optional notification type to change
-   * @returns {HTMLElement|null} Updated notification element or null if not found
+   * @returns {Promise<HTMLElement|null>} Updated notification element or null if not found
    */
-  updateNotificationProgress(message, progress, type = null) {
+  async updateNotificationProgress(message, progress, type = null) {
     if (!this.initialized) {
-      this.initialize();
-    }
-    
-    if (this.logger) {
-      this.logger.debug(`Updating progress notification: ${message} (${progress}%)`);
-    }
-    
-    // Validate progress value
-    if (typeof progress !== 'number' || progress < 0 || progress > 100) {
-      if (this.logger) {
-        this.logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
+      try {
+        await this.initialize();
+      } catch (error) {
+        console.error('Failed to initialize notification service:', error);
+        return null;
       }
-      progress = Math.max(0, Math.min(100, Number(progress) || 0));
     }
     
-    const container = document.getElementById('notification-container');
-    if (!container) {
-      if (this.logger) {
-        this.logger.warn('Notification container not found');
-      }
+    this.logger.debug(`Updating progress notification: ${message} (${progress}%)`);
+    
+    // Early return in service worker context
+    if (this.isServiceWorkerContext) {
       return null;
     }
     
-    const notification = container.querySelector('.notification.progress-notification');
-    
-    if (notification) {
-      const messageEl = notification.querySelector('.notification-message');
-      const progressBar = notification.querySelector('.notification-progress-bar');
-      
-      if (messageEl) messageEl.textContent = message;
-      if (progressBar) progressBar.style.width = `${progress}%`;
-      
-      // Update type if specified
-      if (type && ['success', 'error', 'info', 'warning'].includes(type)) {
-        // Remove existing type classes
-        notification.classList.remove('success', 'error', 'info', 'warning');
-        // Add new type class
-        notification.classList.add(type);
+    try {
+      // Validate progress value
+      if (typeof progress !== 'number' || progress < 0 || progress > 100) {
+        this.logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
+        progress = Math.max(0, Math.min(100, Number(progress) || 0));
       }
       
-      return notification;
-    } else {
-      // Create a new one if it doesn't exist
-      if (this.logger) {
+      const container = document.getElementById('notification-container');
+      if (!container) {
+        this.logger.warn('Notification container not found');
+        return null;
+      }
+      
+      const notification = container.querySelector('.notification.progress-notification');
+      
+      if (notification) {
+        const messageEl = notification.querySelector('.notification-message');
+        const progressBar = notification.querySelector('.notification-progress-bar');
+        
+        if (messageEl) messageEl.textContent = message;
+        if (progressBar) progressBar.style.width = `${progress}%`;
+        
+        // Update type if specified
+        if (type && ['success', 'error', 'info', 'warning'].includes(type)) {
+          // Remove existing type classes
+          notification.classList.remove('success', 'error', 'info', 'warning');
+          // Add new type class
+          notification.classList.add(type);
+        }
+        
+        return notification;
+      } else {
+        // Create a new one if it doesn't exist
         this.logger.debug('No existing progress notification found, creating new one');
+        return this.showNotification(message, type || 'info', progress);
       }
-      return this.showNotification(message, type || 'info', progress);
+    } catch (error) {
+      this.logger.error('Error updating progress notification:', error);
+      return null;
     }
   }
   
   /**
    * Dismiss all active notifications
    * @param {boolean} immediate - Whether to remove immediately without animation
+   * @returns {Promise<void>}
    */
-  dismissAllNotifications(immediate = false) {
-    if (this.logger) {
-      this.logger.debug('Dismissing all notifications');
+  async dismissAllNotifications(immediate = false) {
+    if (!this.initialized) {
+      try {
+        await this.initialize();
+      } catch (error) {
+        console.error('Failed to initialize notification service:', error);
+        return;
+      }
     }
     
-    const container = document.getElementById('notification-container');
-    if (!container) return;
+    this.logger.debug('Dismissing all notifications');
     
-    // Get all notifications
-    const notifications = container.querySelectorAll('.notification');
+    // Early return in service worker context
+    if (this.isServiceWorkerContext) {
+      return;
+    }
     
-    // Hide each notification
-    notifications.forEach(notification => {
-      this.hideNotification(notification, immediate);
-    });
-    
-    // Clear tracking arrays
-    this.activeNotifications.standard = [];
-    this.activeNotifications.progress = null;
+    try {
+      const container = document.getElementById('notification-container');
+      if (!container) return;
+      
+      // Get all notifications
+      const notifications = container.querySelectorAll('.notification');
+      
+      // Hide each notification
+      notifications.forEach(notification => {
+        this.hideNotification(notification, immediate);
+      });
+      
+      // Clear tracking arrays
+      this.activeNotifications.standard = [];
+      this.activeNotifications.progress = null;
+    } catch (error) {
+      this.logger.error('Error dismissing all notifications:', error);
+    }
   }
   
   /**
    * Dismiss a specific notification by ID
    * @param {string} id - ID of the notification to dismiss
    * @param {boolean} immediate - Whether to remove immediately without animation
-   * @returns {boolean} Whether the notification was found and dismissed
+   * @returns {Promise<boolean>} Whether the notification was found and dismissed
    */
-  dismissNotificationById(id, immediate = false) {
-    if (!id) {
-      if (this.logger) {
-        this.logger.warn('Attempted to dismiss notification with no ID');
+  async dismissNotificationById(id, immediate = false) {
+    if (!this.initialized) {
+      try {
+        await this.initialize();
+      } catch (error) {
+        console.error('Failed to initialize notification service:', error);
+        return false;
       }
+    }
+    
+    if (!id) {
+      this.logger.warn('Attempted to dismiss notification with no ID');
       return false;
     }
     
-    if (this.logger) {
+    // Early return in service worker context
+    if (this.isServiceWorkerContext) {
+      return false;
+    }
+    
+    try {
       this.logger.debug(`Dismissing notification with ID: ${id}`);
-    }
-    
-    const notification = document.getElementById(id);
-    if (notification && notification.classList.contains('notification')) {
-      this.hideNotification(notification, immediate);
-      return true;
-    }
-    
-    if (this.logger) {
+      
+      const notification = document.getElementById(id);
+      if (notification && notification.classList.contains('notification')) {
+        this.hideNotification(notification, immediate);
+        return true;
+      }
+      
       this.logger.debug(`No notification found with ID: ${id}`);
+      return false;
+    } catch (error) {
+      this.logger.error(`Error dismissing notification with ID ${id}:`, error);
+      return false;
     }
-    return false;
   }
   
   /**
    * Get the count of currently active notifications
-   * @returns {object} Counts of active notifications by type
+   * @returns {Promise<object>} Counts of active notifications by type
    */
-  getActiveNotificationCount() {
+  async getActiveNotificationCount() {
+    if (!this.initialized) {
+      try {
+        await this.initialize();
+      } catch (error) {
+        console.error('Failed to initialize notification service:', error);
+        return { standard: 0, progress: 0, total: 0 };
+      }
+    }
+    
     return {
       standard: this.activeNotifications.standard.length,
       progress: this.activeNotifications.progress ? 1 : 0,
@@ -593,42 +768,157 @@ export class NotificationService {
   /**
    * Configure global notification defaults
    * @param {object} config - Configuration options to set
+   * @returns {Promise<void>}
    */
-  configureNotifications(config = {}) {
-    if (this.logger) {
-      this.logger.debug('Updating notification configuration', config);
+  async configureNotifications(config = {}) {
+    if (!this.initialized) {
+      try {
+        await this.initialize();
+      } catch (error) {
+        console.error('Failed to initialize notification service:', error);
+        return;
+      }
     }
+    
+    this.logger.debug('Updating notification configuration', config);
     
     // Update default configuration
     Object.assign(this.config, config);
+    
+    // Update position if it changed
+    if (config.position && !this.isServiceWorkerContext) {
+      try {
+        const container = document.getElementById('notification-container');
+        if (container) {
+          // Remove all position classes
+          container.classList.remove('top-right', 'top-left', 'bottom-right', 'bottom-left');
+          // Add new position class
+          container.classList.add(config.position);
+        }
+      } catch (error) {
+        this.logger.error('Error updating notification position:', error);
+      }
+    }
   }
   
   /**
    * Service worker compatible notification that only logs
    * @param {string} message - Message to log
    * @param {string} type - Type of notification
+   * @returns {Promise<void>}
    */
-  log(message, type = 'info') {
+  async log(message, type = 'info') {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        console.error('Failed to initialize notification service:', error);
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        return;
+      }
     }
     
-    if (this.logger) {
-      switch (type) {
-        case 'error':
-          this.logger.error(message);
-          break;
-        case 'warning':
-          this.logger.warn(message);
-          break;
-        case 'info':
-          this.logger.info(message);
-          break;
-        default:
-          this.logger.debug(message);
-      }
-    } else {
-      console.log(`[${type.toUpperCase()}] ${message}`);
+    switch (type) {
+      case 'error':
+        this.logger.error(message);
+        break;
+      case 'warning':
+        this.logger.warn(message);
+        break;
+      case 'success':
+        this.logger.info(`[SUCCESS] ${message}`);
+        break;
+      case 'info':
+        this.logger.info(message);
+        break;
+      default:
+        this.logger.debug(message);
     }
+  }
+  
+  /**
+   * Get notification service statistics
+   * @returns {object} Service statistics
+   */
+  getStatistics() {
+    return {
+      created: this.stats.created,
+      dismissed: this.stats.dismissed,
+      active: this.activeNotifications.standard.length + (this.activeNotifications.progress ? 1 : 0),
+      byType: { ...this.stats.byType },
+      recentNotifications: this.stats.history.slice(0, 10) // Return most recent 10
+    };
+  }
+  
+  /**
+   * Get service status
+   * @returns {object} Service status
+   */
+  getStatus() {
+    return {
+      initialized: this.initialized,
+      hasLogger: !!this.logger,
+      isServiceWorkerContext: this.isServiceWorkerContext,
+      activeElements: this.createdElements.size,
+      activeEventHandlers: this.eventHandlers.size,
+      activeNotifications: {
+        standard: this.activeNotifications.standard.length,
+        progress: this.activeNotifications.progress ? 1 : 0,
+        total: this.activeNotifications.standard.length + (this.activeNotifications.progress ? 1 : 0)
+      },
+      stats: {
+        created: this.stats.created,
+        dismissed: this.stats.dismissed
+      }
+    };
+  }
+  
+  /**
+   * Clean up resources
+   * @returns {Promise<void>}
+   */
+  async cleanup() {
+    if (!this.initialized) {
+      return;
+    }
+    
+    this.logger.info('Cleaning up notification service');
+    
+    // Dismiss all notifications
+    await this.dismissAllNotifications(true);
+    
+    // Remove event listeners
+    this.eventHandlers.forEach((data, element) => {
+      try {
+        const { event, handler } = data;
+        element.removeEventListener(event, handler);
+      } catch (error) {
+        this.logger.warn('Error removing event listener:', error);
+      }
+    });
+    
+    // Clear event handlers map
+    this.eventHandlers.clear();
+    
+    // Remove created DOM elements
+    this.createdElements.forEach(element => {
+      try {
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+      } catch (error) {
+        this.logger.warn('Error removing DOM element:', error);
+      }
+    });
+    
+    // Clear created elements set
+    this.createdElements.clear();
+    
+    // Reset state
+    this.activeNotifications.standard = [];
+    this.activeNotifications.progress = null;
+    this.initialized = false;
+    
+    this.logger.debug('Notification service cleanup complete');
   }
 }

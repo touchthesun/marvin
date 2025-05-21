@@ -1,28 +1,57 @@
 // src/components/panels/settings/settings-panel.js
-import { container } from '@core/dependency-container.js';
+import { LogManager } from '../../../utils/log-manager.js'; 
+import { container } from '../../../core/dependency-container.js';
 
-// Define the SettingsPanel object
+/**
+ * Settings Panel Component
+ * Manages user settings and configuration
+ */
 const SettingsPanel = {
+  // Track resources for proper cleanup
+  _eventListeners: [],
+  _timeouts: [],
+  _intervals: [],
+  _domElements: [],
+  initialized: false,
+  
   /**
    * Initialize settings panel
    * @returns {Promise<boolean>} Success state
    */
   async initSettingsPanel() {
-    // Get dependencies from container
-    const logger = new (container.getUtil('LogManager'))({
+    // Create logger directly
+    const logger = new LogManager({
       context: 'settings-panel',
       isBackgroundScript: false,
       maxEntries: 1000
     });
     
-    const notificationService = container.getService('notificationService');
-    const ui = container.getUtil('ui');
-    
     logger.info('Initializing settings panel');
     
     try {
-      // Track initialization state
-      this.initialized = false;
+      // Check if already initialized
+      if (this.initialized) {
+        logger.debug('Settings panel already initialized');
+        return true;
+      }
+      
+      // Get dependencies with error handling
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
+      const ui = this.getService(logger, 'ui', {
+        showSaveConfirmation: (form) => {
+          const originalText = form.querySelector('button[type="submit"]')?.textContent;
+          const button = form.querySelector('button[type="submit"]');
+          if (button) {
+            button.textContent = 'Saved!';
+            setTimeout(() => {
+              button.textContent = originalText;
+            }, 2000);
+          }
+        }
+      });
       
       // Load current settings
       await this.loadCurrentSettings(logger);
@@ -33,32 +62,71 @@ const SettingsPanel = {
       // Set up action buttons
       this.setupActionButtons(logger, notificationService);
       
-      // Mark as initialized
+      // Set up status monitoring
+      this.setupStatusMonitoring(logger);
+      
       this.initialized = true;
       logger.info('Settings panel initialized successfully');
       return true;
     } catch (error) {
       logger.error('Error initializing settings panel:', error);
+      
+      // Get notification service with error handling
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
       notificationService.showNotification('Failed to initialize settings panel', 'error');
       
       // Show error in the settings container
       const settingsContainer = document.querySelector('.settings-container');
       if (settingsContainer) {
-        settingsContainer.innerHTML = `
-          <div class="error-state">
-            Error initializing settings: ${error.message}
-            <br><br>
-            <button id="retry-settings-btn" class="btn-secondary">Retry</button>
-          </div>
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-state';
+        errorDiv.innerHTML = `
+          Error initializing settings: ${error.message}
+          <br><br>
+          <button id="retry-settings-btn" class="btn-secondary">Retry</button>
         `;
         
+        settingsContainer.innerHTML = '';
+        settingsContainer.appendChild(errorDiv);
+        
         // Add retry button functionality
-        document.getElementById('retry-settings-btn')?.addEventListener('click', () => {
-          this.initSettingsPanel();
-        });
+        const retryBtn = document.getElementById('retry-settings-btn');
+        if (retryBtn) {
+          const retryHandler = () => {
+            this.initSettingsPanel();
+          };
+          
+          retryBtn.addEventListener('click', retryHandler);
+          
+          // Track this listener for cleanup
+          this._eventListeners.push({
+            element: retryBtn,
+            type: 'click',
+            listener: retryHandler
+          });
+        }
       }
       
       return false;
+    }
+  },
+  
+  /**
+   * Get service with error handling and fallback
+   * @param {LogManager} logger - Logger instance
+   * @param {string} serviceName - Name of the service to get
+   * @param {Object} fallback - Fallback implementation if service not available
+   * @returns {Object} Service instance or fallback
+   */
+  getService(logger, serviceName, fallback) {
+    try {
+      return container.getService(serviceName);
+    } catch (error) {
+      logger.warn(`${serviceName} not available:`, error);
+      return fallback;
     }
   },
   
@@ -214,8 +282,6 @@ const SettingsPanel = {
       } else {
         logger.warn('Auto analyze checkbox not found');
       }
-      
-      // Additional analysis settings can be added here
     } catch (error) {
       logger.error('Error populating analysis settings form:', error);
     }
@@ -261,7 +327,7 @@ const SettingsPanel = {
       return;
     }
     
-    apiConfigForm.addEventListener('submit', async (e) => {
+    const submitHandler = async (e) => {
       e.preventDefault();
       
       logger.info('API config form submitted');
@@ -309,6 +375,15 @@ const SettingsPanel = {
         logger.error('Error saving API settings:', error);
         notificationService.showNotification('Error saving API settings: ' + error.message, 'error');
       }
+    };
+    
+    apiConfigForm.addEventListener('submit', submitHandler);
+    
+    // Track this listener for cleanup
+    this._eventListeners.push({
+      element: apiConfigForm,
+      type: 'submit',
+      listener: submitHandler
     });
   },
   
@@ -327,7 +402,7 @@ const SettingsPanel = {
       return;
     }
     
-    captureSettingsForm.addEventListener('submit', async (e) => {
+    const submitHandler = async (e) => {
       e.preventDefault();
       
       logger.info('Capture settings form submitted');
@@ -381,6 +456,15 @@ const SettingsPanel = {
         logger.error('Error saving capture settings:', error);
         notificationService.showNotification('Error saving capture settings: ' + error.message, 'error');
       }
+    };
+    
+    captureSettingsForm.addEventListener('submit', submitHandler);
+    
+    // Track this listener for cleanup
+    this._eventListeners.push({
+      element: captureSettingsForm,
+      type: 'submit',
+      listener: submitHandler
     });
   },
   
@@ -413,7 +497,7 @@ const SettingsPanel = {
       return;
     }
     
-    analysisSettingsForm.addEventListener('submit', async (e) => {
+    const submitHandler = async (e) => {
       e.preventDefault();
       
       logger.info('Analysis settings form submitted');
@@ -425,7 +509,6 @@ const SettingsPanel = {
         // Create analysis settings object
         const analysisSettings = {
           autoAnalyze
-          // Additional settings can be added here
         };
         
         logger.debug('Saving analysis settings', analysisSettings);
@@ -447,6 +530,15 @@ const SettingsPanel = {
         logger.error('Error saving analysis settings:', error);
         notificationService.showNotification('Error saving analysis settings: ' + error.message, 'error');
       }
+    };
+    
+    analysisSettingsForm.addEventListener('submit', submitHandler);
+    
+    // Track this listener for cleanup
+    this._eventListeners.push({
+      element: analysisSettingsForm,
+      type: 'submit',
+      listener: submitHandler
     });
   },
   
@@ -462,7 +554,16 @@ const SettingsPanel = {
       // Set up clear data button
       const clearDataBtn = document.getElementById('clear-data-btn');
       if (clearDataBtn) {
-        clearDataBtn.addEventListener('click', () => this.handleClearData(logger, notificationService));
+        const clearDataHandler = () => this.handleClearData(logger, notificationService);
+        clearDataBtn.addEventListener('click', clearDataHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: clearDataBtn,
+          type: 'click',
+          listener: clearDataHandler
+        });
+        
         logger.debug('Clear data button listener attached');
       } else {
         logger.warn('Clear data button not found');
@@ -471,7 +572,16 @@ const SettingsPanel = {
       // Set up API test button
       const testApiBtn = document.getElementById('test-api-btn');
       if (testApiBtn) {
-        testApiBtn.addEventListener('click', () => this.testApiConnection(logger, notificationService));
+        const testApiHandler = () => this.testApiConnection(logger, notificationService);
+        testApiBtn.addEventListener('click', testApiHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: testApiBtn,
+          type: 'click',
+          listener: testApiHandler
+        });
+        
         logger.debug('Test API button listener attached');
       } else {
         logger.warn('Test API button not found');
@@ -480,14 +590,32 @@ const SettingsPanel = {
       // Set up export data button if it exists
       const exportDataBtn = document.getElementById('export-data-btn');
       if (exportDataBtn) {
-        exportDataBtn.addEventListener('click', () => this.handleExportData(logger, notificationService));
+        const exportDataHandler = () => this.handleExportData(logger, notificationService);
+        exportDataBtn.addEventListener('click', exportDataHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: exportDataBtn,
+          type: 'click',
+          listener: exportDataHandler
+        });
+        
         logger.debug('Export data button listener attached');
       }
       
       // Set up import data button if it exists
       const importDataBtn = document.getElementById('import-data-btn');
       if (importDataBtn) {
-        importDataBtn.addEventListener('click', () => this.handleImportData(logger, notificationService));
+        const importDataHandler = () => this.handleImportData(logger, notificationService);
+        importDataBtn.addEventListener('click', importDataHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: importDataBtn,
+          type: 'click',
+          listener: importDataHandler
+        });
+        
         logger.debug('Import data button listener attached');
       }
       
@@ -564,12 +692,15 @@ const SettingsPanel = {
       testApiBtn.textContent = 'Test Connection';
       
       // Clear success status after delay (keep error status visible)
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         if (apiStatusEl.className !== 'status-error') {
           apiStatusEl.textContent = '';
           apiStatusEl.className = '';
         }
       }, 5000);
+      
+      // Track this timeout for cleanup
+      this._timeouts.push(timeoutId);
     }
   },
   
@@ -670,11 +801,21 @@ const SettingsPanel = {
       document.body.appendChild(a);
       a.click();
       
+      // Track this element for cleanup
+      this._domElements.push(a);
+      
       // Clean up
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+      const timeoutId = setTimeout(() => {
+        try {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (error) {
+          logger.warn('Error cleaning up export elements:', error);
+        }
       }, 100);
+      
+      // Track this timeout for cleanup
+      this._timeouts.push(timeoutId);
       
       logger.info('Data exported successfully');
       notificationService.showNotification('Data exported successfully', 'success');
@@ -699,8 +840,11 @@ const SettingsPanel = {
       fileInput.type = 'file';
       fileInput.accept = 'application/json';
       
+      // Track this element for cleanup
+      this._domElements.push(fileInput);
+      
       // Handle file selection
-      fileInput.onchange = async (e) => {
+      const fileChangeHandler = async (e) => {
         try {
           const file = e.target.files[0];
           if (!file) {
@@ -713,7 +857,8 @@ const SettingsPanel = {
           
           // Read file
           const reader = new FileReader();
-          reader.onload = async (event) => {
+          
+          const readerLoadHandler = async (event) => {
             try {
               const jsonData = JSON.parse(event.target.result);
               
@@ -751,14 +896,26 @@ const SettingsPanel = {
               notificationService.showNotification('Data imported successfully', 'success');
               
               // Reload page to reflect changes
-              setTimeout(() => {
+              const timeoutId = setTimeout(() => {
                 window.location.reload();
               }, 1000);
+              
+              // Track this timeout for cleanup
+              this._timeouts.push(timeoutId);
             } catch (parseError) {
               logger.error('Error parsing import file:', parseError);
               notificationService.showNotification(`Error parsing import file: ${parseError.message}`, 'error');
             }
           };
+          
+          reader.onload = readerLoadHandler;
+          
+          // Track this listener for cleanup
+          this._eventListeners.push({
+            element: reader,
+            type: 'load',
+            listener: readerLoadHandler
+          });
           
           reader.onerror = () => {
             logger.error('Error reading file');
@@ -772,6 +929,15 @@ const SettingsPanel = {
         }
       };
       
+      fileInput.addEventListener('change', fileChangeHandler);
+      
+      // Track this listener for cleanup
+      this._eventListeners.push({
+        element: fileInput,
+        type: 'change',
+        listener: fileChangeHandler
+      });
+      
       // Trigger file selection
       fileInput.click();
     } catch (error) {
@@ -782,13 +948,9 @@ const SettingsPanel = {
   
   /**
    * Set up status monitoring for network and API
+   * @param {LogManager} logger - Logger instance
    */
-  setupStatusMonitoring() {
-    const logger = new (container.getUtil('LogManager'))({
-      context: 'settings-panel-status',
-      isBackgroundScript: false
-    });
-    
+  setupStatusMonitoring(logger) {
     logger.debug('Setting up status monitoring');
     
     try {
@@ -801,7 +963,7 @@ const SettingsPanel = {
         return;
       }
       
-      function updateNetworkStatus() {
+      const updateNetworkStatus = () => {
         if (navigator.onLine) {
           statusDot.classList.add('online');
           statusText.textContent = 'Online';
@@ -817,7 +979,7 @@ const SettingsPanel = {
         });
         
         logger.debug(`Network status updated: ${navigator.onLine ? 'Online' : 'Offline'}`);
-      }
+      };
       
       // Check initial status
       updateNetworkStatus();
@@ -825,6 +987,20 @@ const SettingsPanel = {
       // Listen for changes
       window.addEventListener('online', updateNetworkStatus);
       window.addEventListener('offline', updateNetworkStatus);
+      
+      // Track these listeners for cleanup
+      this._eventListeners.push(
+        {
+          element: window,
+          type: 'online',
+          listener: updateNetworkStatus
+        },
+        {
+          element: window,
+          type: 'offline',
+          listener: updateNetworkStatus
+        }
+      );
       
       logger.info('Status monitoring set up successfully');
     } catch (error) {
@@ -837,12 +1013,14 @@ const SettingsPanel = {
    * @returns {Promise<void>}
    */
   async resetSettingsToDefaults() {
-    const logger = new (container.getUtil('LogManager'))({
+    const logger = new LogManager({
       context: 'settings-panel',
       isBackgroundScript: false
     });
     
-    const notificationService = container.getService('notificationService');
+    const notificationService = this.getService(logger, 'notificationService', {
+      showNotification: (message, type) => console.error(`[${type}] ${message}`)
+    });
     
     logger.info('Resetting settings to defaults');
     
@@ -884,13 +1062,83 @@ const SettingsPanel = {
       notificationService.showNotification('Settings reset to defaults', 'success');
       
       // Reload page to reflect changes
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         window.location.reload();
       }, 1000);
+      
+      // Track this timeout for cleanup
+      this._timeouts.push(timeoutId);
     } catch (error) {
       logger.error('Error resetting settings:', error);
       notificationService.showNotification(`Error resetting settings: ${error.message}`, 'error');
     }
+  },
+  
+  /**
+   * Clean up resources when component is unmounted
+   * This helps prevent memory leaks and browser crashes
+   */
+  cleanup() {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'settings-panel',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    if (!this.initialized) {
+      logger.debug('Settings panel not initialized, skipping cleanup');
+      return;
+    }
+    
+    logger.info('Cleaning up settings panel resources');
+    
+    // Clear all timeouts
+    this._timeouts.forEach(id => {
+      try {
+        clearTimeout(id);
+      } catch (error) {
+        logger.warn(`Error clearing timeout:`, error);
+      }
+    });
+    this._timeouts = [];
+    
+    // Clear all intervals
+    this._intervals.forEach(id => {
+      try {
+        clearInterval(id);
+      } catch (error) {
+        logger.warn(`Error clearing interval:`, error);
+      }
+    });
+    this._intervals = [];
+    
+    // Remove all event listeners
+    this._eventListeners.forEach(({element, type, listener}) => {
+      try {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, listener);
+        }
+      } catch (error) {
+        logger.warn(`Error removing event listener:`, error);
+      }
+    });
+    this._eventListeners = [];
+    
+    // Clean up DOM elements
+    this._domElements.forEach(el => {
+      try {
+        if (el && el.parentNode && !el.id?.includes('panel')) {
+          el.parentNode.removeChild(el);
+        }
+      } catch (error) {
+        logger.warn('Error removing DOM element:', error);
+      }
+    });
+    this._domElements = [];
+    
+    this.initialized = false;
+    logger.debug('Settings panel cleanup completed');
   }
 };
 

@@ -1,4 +1,15 @@
 /* In popup.css */
+
+.hidden {
+  display: none !important;
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .analysis-queue {
     margin-top: 10px;
     max-height: 150px;

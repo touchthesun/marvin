@@ -5,14 +5,14 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 module.exports = {
   mode: 'development',
   devtool: 'source-map',
-  target: 'webworker',
+  // Remove target: 'webworker' as it's not needed for service workers
   entry: {
-    dashboard: './src/dashboard/index.js',
+    dashboard: './src/dashboard/dashboard.js',
     background: './src/background/background.js',
     popup: './src/popup/popup.js',
     options: './src/options/options.js',
     content: './src/content/content.js',
-    diagnostics: './src/popup/diagnostics.js' // Add diagnostics entry point
+    diagnostics: './src/popup/diagnostics.js' 
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -26,7 +26,7 @@ module.exports = {
     },
     clean: true,
     publicPath: '/',
-    globalObject: 'self',  
+    // Remove globalObject: 'self' as it's not needed
   },
   module: {
     rules: [
@@ -34,7 +34,8 @@ module.exports = {
         test: /\.css$/,
         use: [
           MiniCssExtractPlugin.loader,
-          'css-loader'
+          'css-loader',
+          'style-loader'
         ]
       }
     ]
@@ -45,7 +46,14 @@ module.exports = {
       '@core': path.resolve(__dirname, 'src/core'),
       '@components': path.resolve(__dirname, 'src/components'),
       '@services': path.resolve(__dirname, 'src/services'),
-      '@utils': path.resolve(__dirname, 'src/utils')
+      '@utils': path.resolve(__dirname, 'src/utils'),
+      '@constants': path.resolve(__dirname, 'src/constants'),
+      '@assets': path.resolve(__dirname, 'src/assets'),
+      '@background': path.resolve(__dirname, 'src/background'),
+      '@content': path.resolve(__dirname, 'src/content'),
+      '@dashboard': path.resolve(__dirname, 'src/dashboard'),
+      '@popup': path.resolve(__dirname, 'src/popup'),
+      '@options': path.resolve(__dirname, 'src/options')
     },
     extensions: ['.js']
   },
@@ -63,5 +71,11 @@ module.exports = {
         { from: "src/options/options.html", to: "options" }
       ]
     })
-  ]
+  ],
+  optimization: {
+    // Disable code splitting for service workers
+    splitChunks: false,
+    // Minimize bundle size
+    minimize: true
+  }
 };

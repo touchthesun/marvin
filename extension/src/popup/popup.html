@@ -5,34 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Marvin</title>
   <link rel="stylesheet" href="popup.css">
-  <style>
-    /* Debug section styles */
-    .debug-section {
-      margin-top: 15px;
-      padding: 10px;
-      border-top: 1px solid #ddd;
-      display: none; /* Hidden by default */
-    }
-    .debug-section h3 {
-      margin-top: 0;
-      font-size: 14px;
-      color: #666;
-    }
-    .debug-section button {
-      margin-right: 5px;
-      margin-bottom: 5px;
-    }
-    .debug-toggle {
-      font-size: 11px;
-      color: #999;
-      text-align: center;
-      margin-top: 5px;
-      cursor: pointer;
-    }
-    .debug-toggle:hover {
-      text-decoration: underline;
-    }
-  </style>
+  <link rel="stylesheet" href="debug.css">
+  <link rel="stylesheet" href="status.css">
+  <link rel="stylesheet" href="tasks.css">
+  <link rel="stylesheet" href="activity.css">
 </head>
 <body>
   <div class="container">
@@ -47,7 +23,7 @@
     </header>
     
     <div class="auth-section">
-      <div id="login-form" style="display: none;">
+      <div id="login-form" class="hidden">
         <form id="auth-form">
           <div class="form-group">
             <input type="text" id="username" placeholder="Username" required>
@@ -59,7 +35,7 @@
         </form>
       </div>
       
-      <div id="user-info" style="display: none;">
+      <div id="user-info" class="hidden">
         <div class="user-actions">
           <button id="logout-btn" class="btn-text">Logout</button>
         </div>
@@ -68,8 +44,8 @@
     
     <main>
       <div class="action-buttons">
-        <button id="capture-btn" class="btn-primary">Capture Page</button>
-        <button id="analyze-btn" class="btn-primary">Analyze Page</button>
+        <button id="capture-btn" class="btn-primary disabled">Capture Page</button>
+        <button id="analyze-btn" class="btn-primary disabled">Analyze Page</button>
       </div>
       
       <div class="active-tasks-section">
@@ -87,22 +63,19 @@
       </div>
       
       <div class="secondary-actions">
-        <button id="related-btn" class="btn-secondary">Find Related</button>
-        <button id="query-btn" class="btn-secondary">Ask Marvin</button>
+        <button id="related-btn" class="btn-secondary disabled">Find Related</button>
+        <button id="query-btn" class="btn-secondary disabled">Ask Marvin</button>
       </div>
     </main>
     
     <footer>
       <div id="status" class="status"></div>
       <div class="footer-actions">
-        <button id="open-dashboard-btn" class="btn-text">Open Dashboard</button>
+        <button id="open-dashboard-btn" class="btn-text disabled">Open Dashboard</button>
         <button id="options-btn" class="btn-text">Options</button>
       </div>
       
-      <!-- Add debug toggle link -->
       <div class="debug-toggle" id="debug-toggle">Debug Options</div>
-      
-      <!-- Debug section - hidden by default -->
       <div id="debug-section" class="debug-section">
         <h3>Debug Tools</h3>
         <button id="toggle-debug-mode" class="btn-secondary">Enable Debug Mode</button>

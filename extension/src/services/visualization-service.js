@@ -13,6 +13,10 @@ export class VisualizationService {
     this.initialized = false;
     this.d3Available = false;
     this.logger = null;
+    
+    // Bind methods that may be used as callbacks
+    this._handleNodeClick = this._handleNodeClick.bind(this);
+    this._handleResetView = this._handleResetView.bind(this);
   }
   
   /**
@@ -44,7 +48,7 @@ export class VisualizationService {
         this.d3Available = false;
       }
       
-      // If D3 is not available, try to dynamically load it
+      // If D3 is not available, try to detect it in window
       if (!this.d3Available) {
         try {
           // For safety, we'll check if window.d3 is already available
@@ -77,11 +81,29 @@ export class VisualizationService {
    * @param {string} containerId - ID of the container element
    * @param {Array} data - Data to visualize
    * @param {object} options - Visualization options
-   * @returns {boolean} - Whether visualization was successful
+   * @returns {Promise<boolean>} - Whether visualization was successful
    */
-  createBarChart(containerId, data, options = {}) {
+  async createBarChart(containerId, data, options = {}) {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize visualization service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing visualization service:', error);
+        return false;
+      }
+    }
+    
+    if (!containerId) {
+      this.logger.warn('No container ID provided for bar chart');
+      return false;
+    }
+    
+    if (!data || !Array.isArray(data)) {
+      this.logger.warn('Invalid data provided for bar chart');
+      return false;
     }
     
     this.logger.debug(`Creating bar chart in ${containerId}`);
@@ -120,11 +142,24 @@ export class VisualizationService {
    * @param {Array} nodes - Graph nodes
    * @param {Array} links - Graph links
    * @param {object} options - Visualization options
-   * @returns {boolean} - Whether visualization was successful
+   * @returns {Promise<boolean>} - Whether visualization was successful
    */
-  createKnowledgeGraph(containerId, nodes = [], links = [], options = {}) {
+  async createKnowledgeGraph(containerId, nodes = [], links = [], options = {}) {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize visualization service');
+        }
+      } catch (error) {
+        this.logger?.error('Error initializing visualization service:', error);
+        return false;
+      }
+    }
+    
+    if (!containerId) {
+      this.logger.warn('No container ID provided for knowledge graph');
+      return false;
     }
     
     this.logger.debug(`Creating knowledge graph in ${containerId}`);
@@ -166,9 +201,17 @@ export class VisualizationService {
    * @returns {boolean} - Whether visualization was successful
    */
   _createFallbackBarChart(container, data, options = {}) {
+    if (!container) {
+      this.logger.error('Container is null in _createFallbackBarChart');
+      return false;
+    }
+    
     this.logger.debug('Creating fallback bar chart');
     
     try {
+      // Track elements we create for possible cleanup later
+      const elements = [];
+      
       // Clear container
       container.innerHTML = '';
       
@@ -180,6 +223,24 @@ export class VisualizationService {
       chartContainer.style.height = options.height || '200px';
       chartContainer.style.width = options.width || '100%';
       chartContainer.style.gap = '5px';
+      elements.push(chartContainer);
+      
+      // Safety check for empty data
+      if (!data || data.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'empty-chart-placeholder';
+        placeholder.textContent = 'No data available';
+        placeholder.style.display = 'flex';
+        placeholder.style.alignItems = 'center';
+        placeholder.style.justifyContent = 'center';
+        placeholder.style.height = '100%';
+        placeholder.style.color = '#999';
+        elements.push(placeholder);
+        
+        chartContainer.appendChild(placeholder);
+        container.appendChild(chartContainer);
+        return true;
+      }
       
       // Find maximum value for scaling
       const maxValue = Math.max(...data.map(d => typeof d.value === 'number' ? d.value : 0));
@@ -192,6 +253,7 @@ export class VisualizationService {
         barContainer.style.alignItems = 'center';
         barContainer.style.gap = '10px';
         barContainer.style.height = `${100 / data.length}%`;
+        elements.push(barContainer);
         
         const label = document.createElement('div');
         label.className = 'bar-label';
@@ -201,6 +263,7 @@ export class VisualizationService {
         label.style.overflow = 'hidden';
         label.style.textOverflow = 'ellipsis';
         label.style.whiteSpace = 'nowrap';
+        elements.push(label);
         
         const barWrapper = document.createElement('div');
         barWrapper.className = 'bar-wrapper';
@@ -208,6 +271,7 @@ export class VisualizationService {
         barWrapper.style.height = '70%';
         barWrapper.style.backgroundColor = '#f0f0f0';
         barWrapper.style.borderRadius = '3px';
+        elements.push(barWrapper);
         
         const bar = document.createElement('div');
         bar.className = 'bar';
@@ -216,12 +280,14 @@ export class VisualizationService {
         bar.style.backgroundColor = item.color || '#4285f4';
         bar.style.borderRadius = '3px';
         bar.style.transition = 'width 0.5s ease-in-out';
+        elements.push(bar);
         
         const value = document.createElement('div');
         value.className = 'bar-value';
         value.textContent = item.value || '0';
         value.style.width = '50px';
         value.style.paddingLeft = '10px';
+        elements.push(value);
         
         barWrapper.appendChild(bar);
         barContainer.appendChild(label);
@@ -231,10 +297,71 @@ export class VisualizationService {
       });
       
       container.appendChild(chartContainer);
+      
+      // Store elements reference for potential cleanup
+      container._chartElements = elements;
+      
       return true;
     } catch (error) {
       this.logger.error('Error creating fallback bar chart:', error);
       return false;
+    }
+  }
+  
+  /**
+   * Handle node click event for graph visualization
+   * @private
+   * @param {Event} event - Click event
+   * @param {Object} node - Node data
+   * @param {Array} links - Graph links
+   */
+  _handleNodeClick(event, node, links) {
+    try {
+      if (!node || !links) return;
+      
+      const nodeElement = event.currentTarget;
+      
+      // Handle node click - highlight connected nodes
+      const connectedLinks = links.filter(link => 
+        link.source === node.id || link.target === node.id);
+      
+      const connectedNodeIds = new Set();
+      connectedLinks.forEach(link => {
+        connectedNodeIds.add(link.source);
+        connectedNodeIds.add(link.target);
+      });
+      
+      // Reset all nodes
+      document.querySelectorAll('.graph-node').forEach(el => {
+        el.style.opacity = '0.5';
+      });
+      
+      // Highlight connected nodes
+      connectedNodeIds.forEach(id => {
+        const el = document.querySelector(`.graph-node[data-id="${id}"]`);
+        if (el) el.style.opacity = '1';
+      });
+      
+      // Always highlight the clicked node
+      nodeElement.style.opacity = '1';
+      nodeElement.style.boxShadow = '0 0 5px rgba(0,0,0,0.5)';
+    } catch (error) {
+      this.logger?.error('Error handling node click:', error);
+    }
+  }
+  
+  /**
+   * Handle reset view button click
+   * @private
+   */
+  _handleResetView() {
+    try {
+      document.querySelectorAll('.graph-node').forEach(el => {
+        el.style.opacity = '1';
+        el.style.boxShadow = 'none';
+      });
+    } catch (error) {
+      this.logger?.error('Error handling reset view:', error);
     }
   }
   
@@ -248,14 +375,23 @@ export class VisualizationService {
    * @returns {boolean} - Whether visualization was successful
    */
   _createFallbackGraph(container, nodes = [], links = [], options = {}) {
+    if (!container) {
+      this.logger.error('Container is null in _createFallbackGraph');
+      return false;
+    }
+    
     this.logger.debug('Creating fallback graph visualization');
+    
+    // Track elements and event listeners we create for possible cleanup
+    const elements = [];
+    const eventListeners = [];
     
     try {
       // Clear container
       container.innerHTML = '';
       
       // If no data, show placeholder
-      if (nodes.length === 0) {
+      if (!nodes || nodes.length === 0) {
         const placeholder = document.createElement('div');
         placeholder.className = 'graph-placeholder';
         placeholder.style.display = 'flex';
@@ -267,19 +403,27 @@ export class VisualizationService {
         placeholder.style.backgroundColor = '#f8f9fa';
         placeholder.style.borderRadius = '5px';
         placeholder.style.border = '1px dashed #ccc';
+        elements.push(placeholder);
         
         const icon = document.createElement('div');
         icon.innerHTML = '📊';
         icon.style.fontSize = '32px';
         icon.style.marginBottom = '10px';
+        elements.push(icon);
         
         const text = document.createElement('p');
         text.textContent = 'No data available for visualization';
         text.style.color = '#666';
+        elements.push(text);
         
         placeholder.appendChild(icon);
         placeholder.appendChild(text);
         container.appendChild(placeholder);
+        
+        // Store elements reference for potential cleanup
+        container._graphElements = elements;
+        container._graphEventListeners = eventListeners;
+        
         return true;
       }
       
@@ -290,6 +434,7 @@ export class VisualizationService {
       graphContainer.style.flexWrap = 'wrap';
       graphContainer.style.gap = '10px';
       graphContainer.style.padding = '10px';
+      elements.push(graphContainer);
       
       // Create nodes
       nodes.forEach(node => {
@@ -303,33 +448,12 @@ export class VisualizationService {
         nodeElement.style.borderRadius = '20px';
         nodeElement.style.fontSize = '14px';
         nodeElement.style.cursor = 'pointer';
+        elements.push(nodeElement);
         
-        nodeElement.addEventListener('click', () => {
-          // Handle node click - highlight connected nodes
-          const connectedLinks = links.filter(link => 
-            link.source === node.id || link.target === node.id);
-          
-          const connectedNodeIds = new Set();
-          connectedLinks.forEach(link => {
-            connectedNodeIds.add(link.source);
-            connectedNodeIds.add(link.target);
-          });
-          
-          // Reset all nodes
-          document.querySelectorAll('.graph-node').forEach(el => {
-            el.style.opacity = '0.5';
-          });
-          
-          // Highlight connected nodes
-          connectedNodeIds.forEach(id => {
-            const el = document.querySelector(`.graph-node[data-id="${id}"]`);
-            if (el) el.style.opacity = '1';
-          });
-          
-          // Always highlight the clicked node
-          nodeElement.style.opacity = '1';
-          nodeElement.style.boxShadow = '0 0 5px rgba(0,0,0,0.5)';
-        });
+        // Use bound method that properly accesses this.logger
+        const clickHandler = (e) => this._handleNodeClick(e, node, links);
+        nodeElement.addEventListener('click', clickHandler);
+        eventListeners.push({ element: nodeElement, type: 'click', handler: clickHandler });
         
         graphContainer.appendChild(nodeElement);
       });
@@ -346,19 +470,59 @@ export class VisualizationService {
       resetButton.style.border = '1px solid #ccc';
       resetButton.style.borderRadius = '3px';
       resetButton.style.cursor = 'pointer';
+      elements.push(resetButton);
       
-      resetButton.addEventListener('click', () => {
-        document.querySelectorAll('.graph-node').forEach(el => {
-          el.style.opacity = '1';
-          el.style.boxShadow = 'none';
-        });
-      });
+      resetButton.addEventListener('click', this._handleResetView);
+      eventListeners.push({ element: resetButton, type: 'click', handler: this._handleResetView });
       
       container.appendChild(resetButton);
+      
+      // Store elements and listeners reference for potential cleanup
+      container._graphElements = elements;
+      container._graphEventListeners = eventListeners;
+      
       return true;
     } catch (error) {
       this.logger.error('Error creating fallback graph:', error);
+      
+      // Clean up any event listeners that were added before the error
+      eventListeners.forEach(({ element, type, handler }) => {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, handler);
+        }
+      });
+      
       return false;
+    }
+  }
+  
+  /**
+   * Cleanup chart elements and event listeners in a container
+   * @private
+   * @param {HTMLElement} container - Container element
+   */
+  _cleanupContainer(container) {
+    if (!container) return;
+    
+    try {
+      // Clean up event listeners
+      if (container._graphEventListeners) {
+        container._graphEventListeners.forEach(({ element, type, handler }) => {
+          if (element && typeof element.removeEventListener === 'function') {
+            element.removeEventListener(type, handler);
+          }
+        });
+        container._graphEventListeners = null;
+      }
+      
+      // Clean DOM reference (elements will be garbage collected)
+      container._graphElements = null;
+      container._chartElements = null;
+      
+      // Clear container
+      container.innerHTML = '';
+    } catch (error) {
+      this.logger?.error('Error cleaning up container:', error);
     }
   }
   
@@ -373,7 +537,14 @@ export class VisualizationService {
     
     this.logger.info('Cleaning up visualization service');
     
-    // No active event listeners or resources to clean up in this service
+    try {
+      // Clean up any charts that might still be in the DOM
+      document.querySelectorAll('.fallback-bar-chart, .fallback-graph').forEach(container => {
+        this._cleanupContainer(container.parentElement);
+      });
+    } catch (error) {
+      this.logger.warn('Error cleaning up visualizations:', error);
+    }
     
     this.initialized = false;
     this.logger.debug('Visualization service cleanup completed');

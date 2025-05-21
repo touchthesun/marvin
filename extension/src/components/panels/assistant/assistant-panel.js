@@ -1,36 +1,58 @@
 // src/components/panels/assistant/assistant-panel.js
-import { container } from '@core/dependency-container.js';
+import { LogManager } from '../../../utils/log-manager.js';
+import { container } from '../../../core/dependency-container.js';
 
 /**
  * Assistant Panel Component
  * Provides chat interface for interacting with the Marvin assistant
  */
 const AssistantPanel = {
+  // Track resources for proper cleanup
+  _eventListeners: [],
+  _timeouts: [],
+  _intervals: [],
+  _domElements: [],
+  initialized: false,
+  
   /**
    * Initialize the assistant panel
    * @returns {Promise<boolean>} Success state
    */
   async initAssistantPanel() {
-    // Get dependencies from container
-    const logger = new (container.getUtil('LogManager'))({
+    // Create logger directly
+    const logger = new LogManager({
       context: 'assistant-panel',
       isBackgroundScript: false,
       maxEntries: 1000
     });
     
-    const notificationService = container.getService('notificationService');
-    
     logger.info('Initializing assistant panel');
     
     try {
-      // Initialize state
-      this.initialized = false;
+      // Check if already initialized to prevent duplicate initialization
+      if (this.initialized) {
+        logger.debug('Assistant panel already initialized');
+        return true;
+      }
       
       // Get required elements
       const chatInput = document.getElementById('chat-input');
       const sendButton = document.getElementById('send-message');
       const contextButton = document.getElementById('context-selector-btn');
       const contextDropdown = document.getElementById('context-dropdown');
+      const messagesContainer = document.getElementById('chat-messages');
+      
+      // Create elements if they don't exist
+      if (!messagesContainer) {
+        logger.debug('Creating messages container');
+        this.createAssistantUI(logger);
+        
+        // Get elements again after creation
+        chatInput = document.getElementById('chat-input');
+        sendButton = document.getElementById('send-message');
+        contextButton = document.getElementById('context-selector-btn');
+        contextDropdown = document.getElementById('context-dropdown');
+      }
 
       // Check if elements exist to prevent errors
       if (!chatInput || !sendButton) {
@@ -44,7 +66,7 @@ const AssistantPanel = {
       // Load chat history from storage
       await this.loadChatHistory(logger);
       
-      // Set up context options
+      // Load context options
       await this.loadContextOptions(logger);
       
       this.initialized = true;
@@ -52,8 +74,70 @@ const AssistantPanel = {
       return true;
     } catch (error) {
       logger.error('Error initializing assistant panel:', error);
-      notificationService.showNotification('Error initializing assistant panel', 'error');
+      
+      // Get notification service with error handling
+      let notificationService;
+      try {
+        notificationService = container.getService('notificationService');
+        notificationService.showNotification('Error initializing assistant panel', 'error');
+      } catch (serviceError) {
+        logger.warn('NotificationService not available:', serviceError);
+        console.error('Error initializing assistant panel:', error);
+      }
+      
       return false;
+    }
+  },
+  
+  /**
+   * Create assistant UI if elements are missing
+   * @param {LogManager} logger - Logger instance
+   */
+  createAssistantUI(logger) {
+    logger.debug('Creating assistant panel UI');
+    
+    try {
+      const panel = document.getElementById('assistant-panel');
+      if (!panel) {
+        logger.error('Assistant panel element not found');
+        throw new Error('Assistant panel element not found');
+      }
+      
+      // Remove loading indicator
+      const loadingIndicator = panel.querySelector('.loading-indicator');
+      if (loadingIndicator) {
+        panel.removeChild(loadingIndicator);
+      }
+      
+      // Create assistant UI structure
+      const assistantUI = document.createElement('div');
+      assistantUI.className = 'assistant-container';
+      assistantUI.innerHTML = `
+        <div class="chat-container">
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-input-container">
+            <textarea id="chat-input" placeholder="Type your message..."></textarea>
+            <button id="send-message" class="btn-primary">Send</button>
+            <div class="context-controls">
+              <button id="context-selector-btn" class="btn-text">Context ⌄</button>
+              <div id="context-dropdown" class="context-dropdown">
+                <div class="context-header">Add context to your query</div>
+                <div class="context-options"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      panel.appendChild(assistantUI);
+      
+      // Track for cleanup
+      this._domElements.push(assistantUI);
+      
+      logger.debug('Assistant UI created successfully');
+    } catch (error) {
+      logger.error('Error creating assistant UI:', error);
+      throw error;
     }
   },
   
@@ -71,18 +155,36 @@ const AssistantPanel = {
     try {
       // Toggle context dropdown
       if (contextButton && contextDropdown) {
-        contextButton.addEventListener('click', () => {
+        const toggleContextHandler = () => {
           contextDropdown.classList.toggle('active');
           logger.debug('Context dropdown toggled');
+        };
+        
+        contextButton.addEventListener('click', toggleContextHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: contextButton,
+          type: 'click',
+          listener: toggleContextHandler
         });
         
         // Close context dropdown when clicking outside
-        document.addEventListener('click', (event) => {
+        const documentClickHandler = (event) => {
           if (contextButton && contextDropdown &&
               !contextButton.contains(event.target) && 
               !contextDropdown.contains(event.target)) {
             contextDropdown.classList.remove('active');
           }
+        };
+        
+        document.addEventListener('click', documentClickHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: document,
+          type: 'click',
+          listener: documentClickHandler
         });
         
         logger.debug('Context dropdown listeners attached');
@@ -92,20 +194,40 @@ const AssistantPanel = {
       
       // Handle send button click
       if (sendButton) {
-        sendButton.addEventListener('click', () => {
+        const sendButtonClickHandler = () => {
           this.sendMessage(logger);
+        };
+        
+        sendButton.addEventListener('click', sendButtonClickHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: sendButton,
+          type: 'click',
+          listener: sendButtonClickHandler
         });
+        
         logger.debug('Send button listener attached');
       }
       
       // Handle enter key in chat input
       if (chatInput) {
-        chatInput.addEventListener('keydown', (event) => {
+        const chatInputKeydownHandler = (event) => {
           if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             this.sendMessage(logger);
           }
+        };
+        
+        chatInput.addEventListener('keydown', chatInputKeydownHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: chatInput,
+          type: 'keydown',
+          listener: chatInputKeydownHandler
         });
+        
         logger.debug('Chat input keyboard listener attached');
       }
       
@@ -148,7 +270,7 @@ const AssistantPanel = {
       logger.debug(`Loaded ${chatHistory.length} messages from chat history`);
     } catch (error) {
       logger.error('Error loading chat history:', error);
-      throw error;
+      // Don't throw, as this is not critical functionality
     }
   },
   
@@ -178,6 +300,9 @@ const AssistantPanel = {
       `;
       
       messagesContainer.appendChild(messageElement);
+      
+      // Track DOM element for cleanup
+      this._domElements.push(messageElement);
       
       // Scroll to bottom
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -226,6 +351,22 @@ const AssistantPanel = {
   },
   
   /**
+   * Get service with error handling and fallback
+   * @param {LogManager} logger - Logger instance
+   * @param {string} serviceName - Name of the service to get
+   * @param {Object} fallback - Fallback implementation if service not available
+   * @returns {Object} Service instance or fallback
+   */
+  getService(logger, serviceName, fallback) {
+    try {
+      return container.getService(serviceName);
+    } catch (error) {
+      logger.warn(`${serviceName} not available:`, error);
+      return fallback;
+    }
+  },
+  
+  /**
    * Load context options for the assistant
    * @param {LogManager} logger - Logger instance
    * @returns {Promise<void>}
@@ -234,8 +375,10 @@ const AssistantPanel = {
     logger.debug('Loading context options');
     
     try {
-      // Get API service from container
-      const apiService = container.getService('apiService');
+      // Get API service with error handling
+      const apiService = this.getService(logger, 'apiService', {
+        fetchAPI: async () => ({ success: false, error: { message: 'API service not available' }})
+      });
       
       // Get recent pages to use as context options
       const response = await apiService.fetchAPI('/api/v1/pages/?limit=10');
@@ -258,6 +401,9 @@ const AssistantPanel = {
         `;
         contextOptions.appendChild(knowledgeOption);
         
+        // Track DOM element
+        this._domElements.push(knowledgeOption);
+        
         // Add recent pages as options
         response.data.pages.forEach(page => {
           const option = document.createElement('div');
@@ -271,6 +417,9 @@ const AssistantPanel = {
           `;
           
           contextOptions.appendChild(option);
+          
+          // Track DOM element
+          this._domElements.push(option);
         });
         
         logger.debug(`Loaded ${response.data.pages.length} context options`);
@@ -279,7 +428,7 @@ const AssistantPanel = {
       }
     } catch (error) {
       logger.error('Error loading context options:', error);
-      throw error;
+      // Don't throw as this is not critical functionality
     }
   },
   
@@ -292,9 +441,14 @@ const AssistantPanel = {
     logger.debug('Sending message to assistant');
     
     try {
-      // Get dependencies
-      const apiService = container.getService('apiService');
-      const notificationService = container.getService('notificationService');
+      // Get dependencies with error handling
+      const apiService = this.getService(logger, 'apiService', {
+        fetchAPI: async () => ({ success: false, error: { message: 'API service not available' }})
+      });
+      
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.log(`[Notification ${type}]:`, message)
+      });
       
       const chatInput = document.getElementById('chat-input');
       if (!chatInput) {
@@ -322,6 +476,10 @@ const AssistantPanel = {
       loadingIndicator.className = 'message assistant loading';
       loadingIndicator.innerHTML = '<div class="message-content"><p>Loading response...</p></div>';
       messagesContainer.appendChild(loadingIndicator);
+      
+      // Track DOM element
+      this._domElements.push(loadingIndicator);
+      
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
       
       // Get selected context
@@ -353,7 +511,15 @@ const AssistantPanel = {
       });
        
       // Remove loading indicator
-      messagesContainer.removeChild(loadingIndicator);
+      if (messagesContainer.contains(loadingIndicator)) {
+        messagesContainer.removeChild(loadingIndicator);
+        
+        // Remove from tracked DOM elements
+        const index = this._domElements.indexOf(loadingIndicator);
+        if (index > -1) {
+          this._domElements.splice(index, 1);
+        }
+      }
       
       if (agentResponse.success && agentResponse.data && agentResponse.data.task_id) {
         // Start checking for completion
@@ -368,15 +534,24 @@ const AssistantPanel = {
         notificationService.showNotification('Error communicating with assistant', 'error');
       }
     } catch (error) {
-      const notificationService = container.getService('notificationService');
-      
       logger.error('Error sending message to agent:', error);
+      
+      // Get notification service with error handling
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.log(`[Notification ${type}]:`, message)
+      });
       
       // Remove loading indicator
       const messagesContainer = document.getElementById('chat-messages');
-      const loadingIndicator = messagesContainer.querySelector('.message.assistant.loading');
+      const loadingIndicator = messagesContainer?.querySelector('.message.assistant.loading');
       if (messagesContainer && loadingIndicator) {
         messagesContainer.removeChild(loadingIndicator);
+        
+        // Remove from tracked DOM elements
+        const index = this._domElements.indexOf(loadingIndicator);
+        if (index > -1) {
+          this._domElements.splice(index, 1);
+        }
       }
       
       // Show error message
@@ -396,9 +571,14 @@ const AssistantPanel = {
     logger.debug(`Checking status for task ${taskId}`);
     
     try {
-      // Get dependencies
-      const apiService = container.getService('apiService');
-      const notificationService = container.getService('notificationService');
+      // Get dependencies with error handling
+      const apiService = this.getService(logger, 'apiService', {
+        fetchAPI: async () => ({ success: false, error: { message: 'API service not available' }})
+      });
+      
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.log(`[Notification ${type}]:`, message)
+      });
       
       const statusResponse = await apiService.fetchAPI(`/api/v1/agent/status/${taskId}`);
       
@@ -431,7 +611,16 @@ const AssistantPanel = {
           notificationService.showNotification('Assistant error', 'error');
         } else if (status === 'processing' || status === 'enqueued') {
           // Still processing, check again after a delay
-          setTimeout(() => this.checkTaskStatus(logger, taskId, originalQuery), 2000);
+          const timeoutId = setTimeout(() => {
+            this.checkTaskStatus(logger, taskId, originalQuery);
+            
+            // Remove from tracking array once executed
+            const index = this._timeouts.indexOf(timeoutId);
+            if (index > -1) this._timeouts.splice(index, 1);
+          }, 2000);
+          
+          // Track timeout for cleanup
+          this._timeouts.push(timeoutId);
         } else {
           // Unknown status
           logger.warn(`Unknown task status: ${status}`);
@@ -445,6 +634,65 @@ const AssistantPanel = {
       logger.error('Error checking task status:', error);
       this.addMessageToChat(logger, 'assistant', `Error: ${error.message || 'Failed to get response from assistant'}`);
     }
+  },
+  
+  /**
+   * Clean up resources when component is unmounted
+   * This helps prevent memory leaks and browser crashes
+   */
+  cleanup() {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'assistant-panel',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    if (!this.initialized) {
+      logger.debug('Assistant panel not initialized, skipping cleanup');
+      return;
+    }
+    
+    logger.info('Cleaning up assistant panel resources');
+    
+    // Clear all timeouts
+    this._timeouts.forEach(id => {
+      try {
+        clearTimeout(id);
+      } catch (error) {
+        logger.warn(`Error clearing timeout:`, error);
+      }
+    });
+    this._timeouts = [];
+    
+    // Clear all intervals
+    this._intervals.forEach(id => {
+      try {
+        clearInterval(id);
+      } catch (error) {
+        logger.warn(`Error clearing interval:`, error);
+      }
+    });
+    this._intervals = [];
+    
+    // Remove all event listeners
+    this._eventListeners.forEach(({element, type, listener}) => {
+      try {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, listener);
+        }
+      } catch (error) {
+        logger.warn(`Error removing event listener:`, error);
+      }
+    });
+    this._eventListeners = [];
+    
+    // Note: We don't remove DOM elements as they are part of the panel
+    // that may be shown again. Only remove dynamically added elements
+    // if needed in a specific use case.
+    
+    this.initialized = false;
+    logger.debug('Assistant panel cleanup completed');
   }
 };
 

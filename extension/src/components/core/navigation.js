@@ -1,12 +1,17 @@
 // src/components/core/navigation.js
-// Simplified navigation component with very basic event handlers
+import { LogManager } from '../../utils/log-manager.js';
+import { container } from '../../core/dependency-container.js';
 
 /**
  * Navigation component for the dashboard
  * Manages panel switching and navigation state
  */
 const Navigation = {
-  // Track state
+  // Track resources for proper cleanup
+  _eventListeners: [],
+  _timeouts: [],
+  _intervals: [],
+  _domElements: [],
   initialized: false,
   currentPanel: null,
   
@@ -15,11 +20,18 @@ const Navigation = {
    * @returns {Promise<boolean>} Success status
    */
   async initNavigation() {
-    console.log('[Navigation] Initializing navigation component');
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'navigation',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    logger.info('Initializing navigation component');
     
     try {
       if (this.initialized) {
-        console.log('[Navigation] Already initialized, skipping');
+        logger.debug('Already initialized, skipping');
         return true;
       }
       
@@ -27,158 +39,192 @@ const Navigation = {
       const navItems = document.querySelectorAll('.nav-item');
       const contentPanels = document.querySelectorAll('.content-panel');
       
-      console.log(`[Navigation] Found ${navItems.length} navigation items and ${contentPanels.length} content panels`);
+      logger.debug(`Found ${navItems.length} navigation items and ${contentPanels.length} content panels`);
       
       if (navItems.length === 0 || contentPanels.length === 0) {
         throw new Error('Navigation elements not found');
       }
       
       // Set up click handlers on nav items
-      this.setupNavClickHandlers(navItems, contentPanels);
+      this.setupNavClickHandlers(logger, navItems, contentPanels);
       
       // Try to restore last active panel
-      await this.restoreLastPanel();
+      await this.restoreLastPanel(logger);
       
       // Set initialized flag
       this.initialized = true;
-      console.log('[Navigation] Initialization complete');
+      logger.info('Navigation initialization complete');
       return true;
     } catch (error) {
-      console.error('[Navigation] Error initializing:', error);
+      logger.error('Error initializing navigation:', error);
       return false;
     }
   },
   
   /**
+   * Get service with error handling and fallback
+   * @param {LogManager} logger - Logger instance
+   * @param {string} serviceName - Name of the service to get
+   * @param {Object} fallback - Fallback implementation if service not available
+   * @returns {Object} Service instance or fallback
+   */
+  getService(logger, serviceName, fallback) {
+    try {
+      return container.getService(serviceName);
+    } catch (error) {
+      logger.warn(`${serviceName} not available:`, error);
+      return fallback;
+    }
+  },
+  
+  /**
    * Set up click handlers on navigation items
+   * @param {LogManager} logger - Logger instance
    * @param {NodeList} navItems - Navigation items
    * @param {NodeList} contentPanels - Content panels
    */
-  setupNavClickHandlers(navItems, contentPanels) {
-    console.log('[Navigation] Setting up click handlers');
-    
-    // Use direct reference to this object to maintain context in event handlers
-    const self = this;
+  setupNavClickHandlers(logger, navItems, contentPanels) {
+    logger.debug('Setting up click handlers');
     
     navItems.forEach(item => {
       // Get panel name from data attribute
       const panelName = item.getAttribute('data-panel');
       if (!panelName) {
-        console.warn('[Navigation] Nav item missing data-panel attribute');
+        logger.warn('Nav item missing data-panel attribute');
         return;
       }
       
-      console.log(`[Navigation] Adding click handler for ${panelName}`);
+      logger.debug(`Adding click handler for ${panelName}`);
       
-      // Set explicit click handler without cloning
-      item.onclick = function(event) {
+      // Create click handler
+      const clickHandler = async (event) => {
         event.preventDefault();
-        console.log(`[Navigation] Clicked: ${panelName}`);
+        logger.debug(`Clicked: ${panelName}`);
         
-        // Activate this nav item
-        navItems.forEach(ni => ni.classList.remove('active'));
-        this.classList.add('active');
-        
-        // Show corresponding panel
-        contentPanels.forEach(panel => {
-          if (panel.id === `${panelName}-panel`) {
-            panel.classList.add('active');
-            console.log(`[Navigation] Activated panel: ${panel.id}`);
-          } else {
-            panel.classList.remove('active');
-          }
-        });
-        
-        // Save active panel
-        self.saveActivePanel(panelName);
-        
-        // Initialize the panel
-        self.initializePanel(panelName);
-        
-        return false;
+        try {
+          // Activate this nav item
+          navItems.forEach(ni => ni.classList.remove('active'));
+          item.classList.add('active');
+          
+          // Show corresponding panel
+          contentPanels.forEach(panel => {
+            if (panel.id === `${panelName}-panel`) {
+              panel.classList.add('active');
+              logger.debug(`Activated panel: ${panel.id}`);
+            } else {
+              panel.classList.remove('active');
+            }
+          });
+          
+          // Save active panel
+          await this.saveActivePanel(logger, panelName);
+          
+          // Initialize the panel
+          await this.initializePanel(logger, panelName);
+          
+          return false;
+        } catch (error) {
+          logger.error(`Error handling navigation click for ${panelName}:`, error);
+          return false;
+        }
       };
+      
+      // Add event listener
+      item.addEventListener('click', clickHandler);
+      
+      // Track this listener for cleanup
+      this._eventListeners.push({
+        element: item,
+        type: 'click',
+        listener: clickHandler
+      });
     });
   },
   
   /**
    * Save active panel to storage
+   * @param {LogManager} logger - Logger instance
    * @param {string} panelName - Panel name
+   * @returns {Promise<void>}
    */
-  saveActivePanel(panelName) {
+  async saveActivePanel(logger, panelName) {
     try {
-      chrome.storage.local.set({ lastActivePanel: panelName });
-      console.log(`[Navigation] Saved active panel: ${panelName}`);
+      await chrome.storage.local.set({ lastActivePanel: panelName });
+      logger.debug(`Saved active panel: ${panelName}`);
     } catch (error) {
-      console.error('[Navigation] Error saving active panel:', error);
+      logger.error('Error saving active panel:', error);
+      throw error;
     }
   },
   
   /**
    * Restore last active panel from storage
+   * @param {LogManager} logger - Logger instance
    * @returns {Promise<boolean>} Success status
    */
-  async restoreLastPanel() {
+  async restoreLastPanel(logger) {
     try {
       // Get last active panel from storage
       const data = await chrome.storage.local.get('lastActivePanel');
       const lastPanel = data.lastActivePanel;
       
       if (lastPanel) {
-        console.log(`[Navigation] Restoring last panel: ${lastPanel}`);
+        logger.debug(`Restoring last panel: ${lastPanel}`);
         
         // Find the nav item
         const navItem = document.querySelector(`.nav-item[data-panel="${lastPanel}"]`);
         if (navItem) {
-          // Call the click handler directly
-          if (typeof navItem.onclick === 'function') {
-            navItem.onclick(new Event('click'));
-            return true;
-          } else {
-            // Fallback to click() if onclick is not a function
-            navItem.click();
-            return true;
-          }
+          // Create and dispatch click event
+          const clickEvent = new Event('click');
+          navItem.dispatchEvent(clickEvent);
+          return true;
         } else {
-          console.warn(`[Navigation] Nav item for panel ${lastPanel} not found`);
+          logger.warn(`Nav item for panel ${lastPanel} not found`);
         }
       }
       
       // No saved panel, default to first nav item
-      console.log('[Navigation] No saved panel, using first nav item');
+      logger.debug('No saved panel, using first nav item');
       const firstNavItem = document.querySelector('.nav-item');
       if (firstNavItem) {
-        if (typeof firstNavItem.onclick === 'function') {
-          firstNavItem.onclick(new Event('click'));
-        } else {
-          firstNavItem.click();
-        }
+        const clickEvent = new Event('click');
+        firstNavItem.dispatchEvent(clickEvent);
         return true;
       }
       
       return false;
     } catch (error) {
-      console.error('[Navigation] Error restoring last panel:', error);
+      logger.error('Error restoring last panel:', error);
       return false;
     }
   },
   
   /**
    * Initialize panel
+   * @param {LogManager} logger - Logger instance
    * @param {string} panelName - Panel name
+   * @returns {Promise<void>}
    */
-  async initializePanel(panelName) {
+  async initializePanel(logger, panelName) {
     try {
-      console.log(`[Navigation] Initializing panel: ${panelName}-panel`);
+      logger.debug(`Initializing panel: ${panelName}-panel`);
       
-      // Try to get access to the dashboard API
-      if (typeof self !== 'undefined' && self.marvinDashboard && self.marvinDashboard.initPanel) {
-        await self.marvinDashboard.initPanel(`${panelName}-panel`);
-        console.log(`[Navigation] Panel initialized via dashboard API`);
-      } else {
-        console.warn('[Navigation] Dashboard API not available, panel may not initialize properly');
-      }
+      // Get dashboard service with fallback
+      const dashboardService = this.getService(logger, 'dashboardService', {
+        initPanel: async (panelId) => {
+          logger.warn('Dashboard service not available, using fallback initialization');
+          const panel = document.getElementById(panelId);
+          if (panel && typeof panel.initPanel === 'function') {
+            await panel.initPanel();
+          }
+        }
+      });
+      
+      await dashboardService.initPanel(`${panelName}-panel`);
+      logger.debug(`Panel ${panelName} initialized successfully`);
     } catch (error) {
-      console.error(`[Navigation] Error initializing panel ${panelName}:`, error);
+      logger.error(`Error initializing panel ${panelName}:`, error);
+      throw error;
     }
   },
   
@@ -188,31 +234,102 @@ const Navigation = {
    * @returns {Promise<boolean>} Success status
    */
   async navigateToPanel(panelName) {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'navigation',
+      isBackgroundScript: false
+    });
+    
     try {
-      console.log(`[Navigation] Navigating to panel: ${panelName}`);
+      logger.debug(`Navigating to panel: ${panelName}`);
       
       // Find the nav item
       const navItem = document.querySelector(`.nav-item[data-panel="${panelName}"]`);
       
       if (navItem) {
-        // Call click handler directly if available
-        if (typeof navItem.onclick === 'function') {
-          navItem.onclick(new Event('click'));
-        } else {
-          // Fallback to standard click
-          navItem.click();
-        }
+        // Create and dispatch click event
+        const clickEvent = new Event('click');
+        navItem.dispatchEvent(clickEvent);
         return true;
       } else {
-        console.warn(`[Navigation] Nav item for panel ${panelName} not found`);
+        logger.warn(`Nav item for panel ${panelName} not found`);
         return false;
       }
     } catch (error) {
-      console.error(`[Navigation] Error navigating to panel ${panelName}:`, error);
+      logger.error(`Error navigating to panel ${panelName}:`, error);
       return false;
     }
+  },
+  
+  /**
+   * Clean up resources when component is unmounted
+   * This helps prevent memory leaks and browser crashes
+   */
+  cleanup() {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'navigation',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    if (!this.initialized) {
+      logger.debug('Navigation not initialized, skipping cleanup');
+      return;
+    }
+    
+    logger.info('Cleaning up navigation resources');
+    
+    // Clear all timeouts
+    this._timeouts.forEach(id => {
+      try {
+        clearTimeout(id);
+      } catch (error) {
+        logger.warn(`Error clearing timeout:`, error);
+      }
+    });
+    this._timeouts = [];
+    
+    // Clear all intervals
+    this._intervals.forEach(id => {
+      try {
+        clearInterval(id);
+      } catch (error) {
+        logger.warn(`Error clearing interval:`, error);
+      }
+    });
+    this._intervals = [];
+    
+    // Remove all event listeners
+    this._eventListeners.forEach(({element, type, listener}) => {
+      try {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, listener);
+        }
+      } catch (error) {
+        logger.warn(`Error removing event listener:`, error);
+      }
+    });
+    this._eventListeners = [];
+    
+    // Clean up DOM elements
+    this._domElements.forEach(el => {
+      try {
+        if (el && el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      } catch (error) {
+        logger.warn('Error removing DOM element:', error);
+      }
+    });
+    this._domElements = [];
+    
+    this.initialized = false;
+    this.currentPanel = null;
+    
+    logger.debug('Navigation cleanup completed');
   }
 };
 
-// Export the navigation component
+// Export using named export
 export { Navigation };

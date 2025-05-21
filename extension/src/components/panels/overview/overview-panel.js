@@ -1,31 +1,59 @@
 // src/components/panels/overview/overview-panel.js
-import { container } from '@core/dependency-container.js';
+import { LogManager } from '../../../utils/log-manager.js'; 
+import { container } from '../../../core/dependency-container.js';
 
 /**
  * Overview Panel Component
  * Displays dashboard overview statistics and recent activity
  */
 const OverviewPanel = {
+  // Track resources for proper cleanup
+  _eventListeners: [],
+  _timeouts: [],
+  _intervals: [],
+  _domElements: [],
+  initialized: false,
+  
+  // Panel state
+  statsData: {
+    capturedCount: 0,
+    relationshipCount: 0,
+    queryCount: 0
+  },
+  recentCaptures: [],
+  
   /**
    * Initialize the overview panel
    * @returns {Promise<boolean>} Success state
    */
   async initOverviewPanel() {
-    // Get dependencies from container
-    const logger = new (container.getUtil('LogManager'))({
+    // Create logger directly
+    const logger = new LogManager({
       context: 'overview-panel',
       isBackgroundScript: false,
       maxEntries: 1000
     });
     
-    const notificationService = container.getService('notificationService');
-    const visualizationService = container.getService('visualizationService');
-    
     logger.info('Initializing overview panel');
     
     try {
+      // Check if already initialized to prevent duplicate initialization
+      if (this.initialized) {
+        logger.debug('Overview panel already initialized');
+        return true;
+      }
+      
+      // Get dependencies with error handling
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
+      const visualizationService = this.getService(logger, 'visualizationService', {
+        initialize: async () => logger.warn('Visualization service not available'),
+        createKnowledgeGraph: () => logger.warn('Visualization service not available') && false
+      });
+      
       // Initialize state
-      this.initialized = false;
       this.statsData = {
         capturedCount: 0,
         relationshipCount: 0,
@@ -40,7 +68,7 @@ const OverviewPanel = {
       }
       
       // Initialize the visualization service
-      await visualizationService.initialize();
+      await visualizationService.initialize?.();
       
       // Load data
       await this.loadOverviewData(logger);
@@ -60,8 +88,30 @@ const OverviewPanel = {
       return true;
     } catch (error) {
       logger.error('Error initializing overview panel:', error);
+      
+      // Get notification service with error handling
+      const notificationService = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      
       notificationService.showNotification('Error initializing overview panel: ' + error.message, 'error');
       return false;
+    }
+  },
+  
+  /**
+   * Get service with error handling and fallback
+   * @param {LogManager} logger - Logger instance
+   * @param {string} serviceName - Name of the service to get
+   * @param {Object} fallback - Fallback implementation if service not available
+   * @returns {Object} Service instance or fallback
+   */
+  getService(logger, serviceName, fallback) {
+    try {
+      return container.getService(serviceName);
+    } catch (error) {
+      logger.warn(`${serviceName} not available:`, error);
+      return fallback;
     }
   },
   
@@ -182,12 +232,21 @@ const OverviewPanel = {
         `;
         
         // Add click handler to navigate to the page
-        captureItem.addEventListener('click', () => {
+        const clickHandler = () => {
           try {
             chrome.tabs.create({ url: capture.url });
           } catch (error) {
             logger.error('Error opening tab:', error);
           }
+        };
+        
+        captureItem.addEventListener('click', clickHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: captureItem,
+          type: 'click',
+          listener: clickHandler
         });
         
         recentCapturesList.appendChild(captureItem);
@@ -252,9 +311,19 @@ const OverviewPanel = {
       // Set up refresh button
       const refreshBtn = document.querySelector('.refresh-btn');
       if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
+        const refreshBtnHandler = () => {
           this.refreshOverviewData(logger, notificationService);
+        };
+        
+        refreshBtn.addEventListener('click', refreshBtnHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: refreshBtn,
+          type: 'click',
+          listener: refreshBtnHandler
         });
+        
         logger.debug('Refresh button listener attached');
       } else {
         logger.warn('Refresh button not found');
@@ -263,23 +332,36 @@ const OverviewPanel = {
       // Set up view all captures button
       const viewAllBtn = document.getElementById('view-all-captures');
       if (viewAllBtn) {
-        viewAllBtn.addEventListener('click', () => {
+        const viewAllBtnHandler = () => {
           // Navigate to capture panel
-          const navigation = container.getComponent('navigation');
+          const navigation = this.getService(logger, 'navigation', {
+            navigateToPanel: () => {
+              // Fallback navigation
+              const navItem = document.querySelector('.nav-item[data-panel="capture"]');
+              if (navItem) {
+                navItem.click();
+                logger.debug('Navigated to capture panel (fallback)');
+              } else {
+                logger.warn('Capture panel nav item not found');
+              }
+            }
+          });
+          
           if (navigation && navigation.navigateToPanel) {
             navigation.navigateToPanel('capture');
             logger.debug('Navigated to capture panel');
-          } else {
-            // Fallback navigation
-            const navItem = document.querySelector('.nav-item[data-panel="capture"]');
-            if (navItem) {
-              navItem.click();
-              logger.debug('Navigated to capture panel (fallback)');
-            } else {
-              logger.warn('Capture panel nav item not found');
-            }
           }
+        };
+        
+        viewAllBtn.addEventListener('click', viewAllBtnHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: viewAllBtn,
+          type: 'click',
+          listener: viewAllBtnHandler
         });
+        
         logger.debug('View all captures button listener attached');
       } else {
         logger.warn('View all captures button not found');
@@ -288,23 +370,36 @@ const OverviewPanel = {
       // Set up explore knowledge button
       const exploreBtn = document.getElementById('explore-knowledge');
       if (exploreBtn) {
-        exploreBtn.addEventListener('click', () => {
+        const exploreBtnHandler = () => {
           // Navigate to knowledge panel
-          const navigation = container.getComponent('navigation');
+          const navigation = this.getService(logger, 'navigation', {
+            navigateToPanel: () => {
+              // Fallback navigation
+              const navItem = document.querySelector('.nav-item[data-panel="knowledge"]');
+              if (navItem) {
+                navItem.click();
+                logger.debug('Navigated to knowledge panel (fallback)');
+              } else {
+                logger.warn('Knowledge panel nav item not found');
+              }
+            }
+          });
+          
           if (navigation && navigation.navigateToPanel) {
             navigation.navigateToPanel('knowledge');
             logger.debug('Navigated to knowledge panel');
-          } else {
-            // Fallback navigation
-            const navItem = document.querySelector('.nav-item[data-panel="knowledge"]');
-            if (navItem) {
-              navItem.click();
-              logger.debug('Navigated to knowledge panel (fallback)');
-            } else {
-              logger.warn('Knowledge panel nav item not found');
-            }
           }
+        };
+        
+        exploreBtn.addEventListener('click', exploreBtnHandler);
+        
+        // Track this listener for cleanup
+        this._eventListeners.push({
+          element: exploreBtn,
+          type: 'click',
+          listener: exploreBtnHandler
         });
+        
         logger.debug('Explore knowledge button listener attached');
       } else {
         logger.warn('Explore knowledge button not found');
@@ -403,6 +498,73 @@ const OverviewPanel = {
     } catch (error) {
       return 'Unknown';
     }
+  },
+  
+  /**
+   * Clean up resources when component is unmounted
+   * This helps prevent memory leaks and browser crashes
+   */
+  cleanup() {
+    // Create logger directly
+    const logger = new LogManager({
+      context: 'overview-panel',
+      isBackgroundScript: false,
+      maxEntries: 1000
+    });
+    
+    if (!this.initialized) {
+      logger.debug('Overview panel not initialized, skipping cleanup');
+      return;
+    }
+    
+    logger.info('Cleaning up overview panel resources');
+    
+    // Clear all timeouts
+    this._timeouts.forEach(id => {
+      try {
+        clearTimeout(id);
+      } catch (error) {
+        logger.warn(`Error clearing timeout:`, error);
+      }
+    });
+    this._timeouts = [];
+    
+    // Clear all intervals
+    this._intervals.forEach(id => {
+      try {
+        clearInterval(id);
+      } catch (error) {
+        logger.warn(`Error clearing interval:`, error);
+      }
+    });
+    this._intervals = [];
+    
+    // Remove all event listeners
+    this._eventListeners.forEach(({element, type, listener}) => {
+      try {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, listener);
+        }
+      } catch (error) {
+        logger.warn(`Error removing event listener:`, error);
+      }
+    });
+    this._eventListeners = [];
+    
+    // Clean up DOM elements
+    this._domElements.forEach(el => {
+      try {
+        if (el && el.parentNode && !el.id?.includes('panel')) {
+          el.parentNode.removeChild(el);
+        }
+      } catch (error) {
+        logger.warn('Error removing DOM element:', error);
+      }
+    });
+    this._domElements = [];
+    
+    this.initialized = false;
+    logger.debug('Overview panel cleanup completed');
   }
 };
 

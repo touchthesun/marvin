@@ -17,9 +17,12 @@ export class AnalysisService {
     this.notificationService = null;
     this.activeTasks = new Map(); // Track active analysis tasks
     this.taskListeners = new Set(); // For notifying about task events
+    this.taskCheckTimers = new Map(); // Store timeout IDs for cleanup
     
     // Bind methods that will be used as event handlers or callbacks
     this.checkTaskStatus = this.checkTaskStatus.bind(this);
+    this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
+    this.handleTaskEvent = this.handleTaskEvent.bind(this);
   }
   
   /**
@@ -44,12 +47,8 @@ export class AnalysisService {
       // Get dependent services from container
       await this.resolveDependencies();
       
-      // Register cleanup handler for when extension is unloaded
-      if (typeof window !== 'undefined') {
-        window.addEventListener('beforeunload', () => {
-          this.cleanup();
-        });
-      }
+      // Set up event listeners
+      this.setupEventListeners();
       
       this.initialized = true;
       this.logger.info('Analysis service initialized successfully');
@@ -77,15 +76,73 @@ export class AnalysisService {
       }
       
       // Get notification service (optional)
-      this.notificationService = container.getService('notificationService');
-      if (!this.notificationService) {
+      try {
+        this.notificationService = container.getService('notificationService');
+      } catch (error) {
         this.logger.warn('Notification service not available, notifications will be disabled');
+        this.notificationService = null;
       }
       
       this.logger.debug('Service dependencies resolved successfully');
     } catch (error) {
       this.logger.error('Failed to resolve dependencies:', error);
       throw error;
+    }
+  }
+  
+  /**
+   * Set up event listeners
+   * @private
+   */
+  setupEventListeners() {
+    if (typeof window !== 'undefined') {
+      // Register cleanup handler for when extension is unloaded
+      window.addEventListener('beforeunload', this.handleBeforeUnload);
+      
+      // Add custom event listeners for task events
+      document.addEventListener('analysisTaskCreated', this.handleTaskEvent);
+      document.addEventListener('analysisTaskUpdated', this.handleTaskEvent);
+    }
+    
+    this.logger.debug('Event listeners set up');
+  }
+  
+  /**
+   * Remove event listeners
+   * @private
+   */
+  removeEventListeners() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', this.handleBeforeUnload);
+      document.removeEventListener('analysisTaskCreated', this.handleTaskEvent);
+      document.removeEventListener('analysisTaskUpdated', this.handleTaskEvent);
+    }
+    
+    this.logger.debug('Event listeners removed');
+  }
+  
+  /**
+   * Handle beforeunload event
+   * @private
+   */
+  handleBeforeUnload() {
+    this.cleanup();
+  }
+  
+  /**
+   * Handle task events
+   * @param {CustomEvent} event - Task event
+   * @private
+   */
+  handleTaskEvent(event) {
+    if (event && event.detail && event.detail.taskId) {
+      const { taskId, action } = event.detail;
+      
+      this.logger.debug(`Received task event for task ${taskId}: ${event.type}`);
+      
+      if (event.type === 'analysisTaskCreated') {
+        this.monitorAnalysisTask(taskId);
+      }
     }
   }
   
@@ -100,11 +157,21 @@ export class AnalysisService {
     
     this.logger.info('Cleaning up analysis service');
     
+    // Remove event listeners
+    this.removeEventListeners();
+    
+    // Clear all timeout timers
+    this.taskCheckTimers.forEach(timeoutId => {
+      clearTimeout(timeoutId);
+    });
+    this.taskCheckTimers.clear();
+    
     // Clear all task monitoring
     this.activeTasks.clear();
     this.taskListeners.clear();
     
     this.initialized = false;
+    this.logger.debug('Analysis service cleanup complete');
   }
   
   /**
@@ -115,7 +182,14 @@ export class AnalysisService {
    */
   async analyzeUrl(url, options = {}) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        return { 
+          success: false, 
+          error: `Service initialization failed: ${error.message}` 
+        };
+      }
     }
     
     if (!url) {
@@ -183,8 +257,9 @@ export class AnalysisService {
         error: null
       });
       
-      // Start checking status
-      this.checkTaskStatus(taskId);
+      // Start checking status with a small initial delay
+      const timeoutId = setTimeout(() => this.checkTaskStatus(taskId), 1000);
+      this.taskCheckTimers.set(taskId, timeoutId);
       
       this.logger.debug(`Started monitoring task: ${taskId}`);
     } else {
@@ -198,6 +273,9 @@ export class AnalysisService {
    * @private
    */
   async checkTaskStatus(taskId) {
+    // Clear the timer ID from the map
+    this.taskCheckTimers.delete(taskId);
+    
     if (!this.activeTasks.has(taskId)) {
       return; // No longer monitoring this task
     }
@@ -251,7 +329,8 @@ export class AnalysisService {
           
           if (taskState.attempts < maxAttempts) {
             const delay = Math.min(1000 * Math.pow(1.5, Math.min(taskState.attempts, 10)), 30000);
-            setTimeout(() => this.checkTaskStatus(taskId), delay);
+            const timeoutId = setTimeout(() => this.checkTaskStatus(taskId), delay);
+            this.taskCheckTimers.set(taskId, timeoutId);
           } else {
             this.logger.warn(`Giving up monitoring task ${taskId} after ${taskState.attempts} attempts`);
             this.activeTasks.delete(taskId);
@@ -268,7 +347,8 @@ export class AnalysisService {
       
       if (taskState.attempts < maxAttempts) {
         const delay = Math.min(1000 * Math.pow(2, taskState.attempts), 60000);
-        setTimeout(() => this.checkTaskStatus(taskId), delay);
+        const timeoutId = setTimeout(() => this.checkTaskStatus(taskId), delay);
+        this.taskCheckTimers.set(taskId, timeoutId);
       } else {
         this.logger.error(`Giving up on task ${taskId} after ${taskState.attempts} failed attempts`);
         
@@ -294,11 +374,16 @@ export class AnalysisService {
   /**
    * Get the current state of a task
    * @param {string} taskId - Task ID to get state for
-   * @returns {object|null} Task state or null if not found
+   * @returns {Promise<object|null>} Task state or null if not found
    */
-  getTaskState(taskId) {
+  async getTaskState(taskId) {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        this.logger?.error('Failed to initialize service during getTaskState:', error);
+        return null;
+      }
     }
     
     return this.activeTasks.has(taskId) ? { ...this.activeTasks.get(taskId) } : null;
@@ -306,11 +391,16 @@ export class AnalysisService {
   
   /**
    * Get all active analysis tasks
-   * @returns {Array} Array of task state objects
+   * @returns {Promise<Array>} Array of task state objects
    */
-  getAllTasks() {
+  async getAllTasks() {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        this.logger?.error('Failed to initialize service during getAllTasks:', error);
+        return [];
+      }
     }
     
     return Array.from(this.activeTasks.values()).map(task => ({ ...task }));
@@ -319,11 +409,16 @@ export class AnalysisService {
   /**
    * Add a task listener to be notified of task events
    * @param {Function} listener - Listener function
-   * @returns {Function} Function to remove the listener
+   * @returns {Promise<Function>} Function to remove the listener
    */
-  addTaskListener(listener) {
+  async addTaskListener(listener) {
     if (!this.initialized) {
-      this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        this.logger?.error('Failed to initialize service during addTaskListener:', error);
+        return () => {};
+      }
     }
     
     if (typeof listener !== 'function') {
@@ -367,6 +462,7 @@ export class AnalysisService {
         listener(eventData);
       } catch (error) {
         this.logger.error('Error in task listener:', error);
+        // Continue notifying other listeners even if one fails
       }
     });
   }
@@ -440,7 +536,12 @@ export class AnalysisService {
    */
   async cancelAnalysisTask(taskId) {
     if (!this.initialized) {
-      await this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        this.logger?.error('Failed to initialize service during cancelAnalysisTask:', error);
+        return false;
+      }
     }
     
     if (!taskId) {
@@ -453,6 +554,12 @@ export class AnalysisService {
     try {
       if (!this.apiService) {
         throw new Error('API service not available');
+      }
+      
+      // Clear any pending timer for this task
+      if (this.taskCheckTimers.has(taskId)) {
+        clearTimeout(this.taskCheckTimers.get(taskId));
+        this.taskCheckTimers.delete(taskId);
       }
       
       // This is a speculative endpoint - it might not exist yet but follows API convention
@@ -484,5 +591,20 @@ export class AnalysisService {
       
       return false;
     }
+  }
+  
+  /**
+   * Get service status
+   * @returns {object} Service status information
+   */
+  getStatus() {
+    return {
+      initialized: this.initialized,
+      hasLogger: !!this.logger,
+      hasDependencies: !!this.apiService,
+      activeTaskCount: this.activeTasks.size,
+      listenerCount: this.taskListeners.size,
+      timerCount: this.taskCheckTimers.size
+    };
   }
 }

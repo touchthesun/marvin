@@ -1,832 +1,690 @@
-// src/popup/diagnostics.js - Updated to use centralized initialization
+// src/popup/diagnostics/diagnostics-dashboard.js
 import { LogManager } from '../utils/log-manager.js';
-import { ensureContainerInitialized, getContainerStatus } from '../core/container-init.js';
 import { container } from '../core/dependency-container.js';
-import { componentSystem } from '../core/component-system.js';
+import { ensureContainerInitialized } from '../core/container-init.js';
 
 /**
- * Diagnostics tool for the Marvin extension
- * Uses centralized container initialization
+ * Diagnostics Dashboard Component
+ * Provides comprehensive diagnostic tools for the Marvin extension
  */
-
-let initialized = false;
-let messageService = null;
-let logger = null;
-
-/**
- * Initialize services using centralized container initialization
- */
-async function initializeServices() {
-  if (initialized) return;
+const DiagnosticsDashboard = {
+  // Resource tracking arrays
+  _eventListeners: [],
+  _timeouts: [],
+  _intervals: [],
+  _domElements: [],
+  initialized: false,
   
-  try {
-    // Use centralized container initialization
-    const initResult = await ensureContainerInitialized({
-      isBackgroundScript: false,
-      context: 'diagnostics'
-    });
-    
-    console.log('Container initialized for diagnostics:', initResult);
-    
-    // Get services from container
-    messageService = container.getService('messageService');
-    
-    // Initialize logger
-    logger = new LogManager({
-      context: 'diagnostics',
-      isBackgroundScript: false,
-      maxEntries: 1000
-    });
-    
-    initialized = true;
-    logger.info('Diagnostics services initialized');
-  } catch (error) {
-    console.error('Error initializing services:', error);
-    throw error;
-  }
-}
-
-// Initialize diagnostic tools on DOM load
-document.addEventListener('DOMContentLoaded', async function() {
-  try {
-    // Initialize services first
-    await initializeServices();
-    
-    logger.info('Diagnostics page loaded');
-    
-    // Update status to show diagnostic tools are initializing
-    updateStatus('Initializing diagnostic tools...', 'info');
-    
-    // Set up all event listeners first (before other operations)
-    setupEventListeners();
-    
-    // Test background script connection
-    const backgroundReady = await testBackgroundConnection();
-    if (!backgroundReady) {
-      logger.warn('Background script may not be properly configured for all diagnostic actions');
-      updateStatus('Background script may not support all diagnostic actions', 'warning');
-    }
-    
-    // Update diagnostic tools status
-    const diagnosticStatus = document.getElementById('diagnostic-tools-status');
-    if (diagnosticStatus) {
-      diagnosticStatus.className = 'diagnostic-status import-success';
-      diagnosticStatus.textContent = 'Diagnostic tools initialized (Centralized Container Init)';
-    }
-    
-    // Run automatic checks
-    await runAutomaticChecks();
-    
-    updateStatus('Diagnostic tools ready', 'success');
-  } catch (error) {
-    logger?.error('Error initializing diagnostic tools:', error);
-    console.error('Error initializing diagnostic tools:', error);
-    updateStatus(`Error initializing: ${error.message}`, 'error');
-    
-    const diagnosticStatus = document.getElementById('diagnostic-tools-status');
-    if (diagnosticStatus) {
-      diagnosticStatus.className = 'diagnostic-status import-error';
-      diagnosticStatus.textContent = `Error: ${error.message}`;
-    }
-  }
-});
-
-/**
- * Update status message
- */
-function updateStatus(message, type = 'info') {
-  const statusContainer = document.getElementById('status-container');
-  const statusMessage = document.getElementById('status-message');
+  // Component state
+  _messageService: null,
+  _logger: null,
+  _memoryMonitoringInterval: null,
   
-  if (!statusContainer || !statusMessage) return;
-  
-  // Remove existing status classes
-  statusContainer.classList.remove('error', 'success', 'warning');
-  
-  // Add new status class
-  if (type === 'error') {
-    statusContainer.classList.add('error');
-  } else if (type === 'success') {
-    statusContainer.classList.add('success');
-  } else if (type === 'warning') {
-    statusContainer.classList.add('warning');
-  }
-  
-  // Update message
-  statusMessage.textContent = message;
-  
-  // Log message
-  if (logger) {
-    logger.log(type, message);
-  }
-}
-
-/**
- * Log result to output container
- */
-function logResult(title, data) {
-  const resultOutput = document.getElementById('result-output');
-  if (!resultOutput) return;
-  
-  // Format data as JSON string if it's an object
-  const formattedData = typeof data === 'object' 
-    ? JSON.stringify(data, null, 2) 
-    : String(data);
-  
-  // Add to output
-  resultOutput.textContent += `\n\n=== ${title} ===\n${formattedData}`;
-  
-  // Scroll to bottom
-  resultOutput.scrollTop = resultOutput.scrollHeight;
-  
-  if (logger) {
-    logger.debug(`Logged result: ${title}`);
-  }
-}
-
-/**
- * Set up all event listeners
- */
-function setupEventListeners() {
-  if (logger) {
-    logger.debug('Setting up event listeners');
-  }
-  
-  // Helper function to safely add event listener
-  function addEventListenerSafely(elementId, event, handler) {
-    const element = document.getElementById(elementId);
-    if (element) {
-      element.addEventListener(event, handler);
-      if (logger) {
-        logger.debug(`Added ${event} listener to ${elementId}`);
-      }
-    } else {
-      if (logger) {
-        logger.warn(`Element with ID '${elementId}' not found, skipping event listener`);
-      }
-    }
-  }
-  
-  // Clear results button
-  addEventListenerSafely('clear-results', 'click', function() {
-    const resultOutput = document.getElementById('result-output');
-    if (resultOutput) {
-      resultOutput.textContent = '';
-    }
-    if (logger) {
-      logger.debug('Results cleared');
-    }
-  });
-  
-  // Extension info check
-  addEventListenerSafely('check-extension', 'click', () => checkExtensionInfo());
-  
-  // Environment check
-  addEventListenerSafely('check-environment', 'click', () => checkEnvironment());
-  
-  // Storage check
-  addEventListenerSafely('check-storage', 'click', () => checkStorage());
-  
-  // Memory check
-  addEventListenerSafely('check-memory', 'click', () => checkMemory());
-  
-  // Memory monitoring
-  addEventListenerSafely('start-memory-monitoring', 'click', () => startMemoryMonitoring());
-  addEventListenerSafely('stop-memory-monitoring', 'click', () => stopMemoryMonitoring());
-  
-  // Background connection test
-  addEventListenerSafely('ping-background', 'click', () => testBackgroundConnection());
-  
-  // Component system test
-  addEventListenerSafely('test-component-system', 'click', () => testComponentSystem());
-  
-  // Message statistics
-  addEventListenerSafely('get-message-stats', 'click', () => getMessageStatistics());
-  addEventListenerSafely('reset-message-stats', 'click', () => resetMessageStatistics());
-  
-  if (logger) {
-    logger.debug('Event listeners set up successfully');
-  }
-}
-
-/**
- * Run automatic checks on initialization
- */
-async function runAutomaticChecks() {
-  if (logger) {
-    logger.debug('Running automatic checks');
-  }
-  
-  // Check extension info automatically
-  await checkExtensionInfo();
-  
-  // Check environment automatically
-  await checkEnvironment();
-  
-  // Test background connection
-  await testBackgroundConnection();
-  
-  // Test component system
-  await testComponentSystem();
-  
-  // Get initial message statistics
-  await getMessageStatistics();
-}
-
-/**
- * Check extension information
- */
-async function checkExtensionInfo() {
-  try {
-    updateStatus('Checking extension info...', 'info');
-    
-    const extensionInfo = document.getElementById('extension-info');
-    if (!extensionInfo) return;
-    
-    // Get manifest
-    const manifest = chrome.runtime.getManifest();
-    
-    // Format info
-    const info = {
-      name: manifest.name,
-      version: manifest.version,
-      description: manifest.description,
-      manifestVersion: manifest.manifest_version,
-      permissions: manifest.permissions || [],
-      background: manifest.background?.service_worker ? 'Service Worker' : 'None',
-      contentScripts: manifest.content_scripts?.length || 0
-    };
-    
-    // Update display
-    extensionInfo.innerHTML = `
-      <div><strong>Name:</strong> ${info.name}</div>
-      <div><strong>Version:</strong> ${info.version}</div>
-      <div><strong>Description:</strong> ${info.description}</div>
-      <div><strong>Manifest Version:</strong> ${info.manifestVersion}</div>
-      <div><strong>Background Type:</strong> ${info.background}</div>
-      <div><strong>Content Scripts:</strong> ${info.contentScripts}</div>
-      <div><strong>Permissions:</strong> ${info.permissions.join(', ') || 'None'}</div>
-    `;
-    
-    // Log result
-    logResult('Extension Info', info);
-    
-    updateStatus('Extension info retrieved', 'success');
-  } catch (error) {
-    if (logger) {
-      logger.error('Error checking extension info:', error);
-    }
-    updateStatus(`Error checking extension info: ${error.message}`, 'error');
-  }
-}
-
-/**
- * Check environment information
- */
-async function checkEnvironment() {
-  try {
-    updateStatus('Checking environment...', 'info');
-    
-    const environmentInfo = document.getElementById('environment-info');
-    if (!environmentInfo) return;
-    
-    // Get browser info
-    const userAgent = navigator.userAgent;
-    
-    function detectBrowserName(userAgent) {
-      if (userAgent.includes('Firefox')) {
-        return 'Firefox';
-      } else if (userAgent.includes('Edg')) {
-        return 'Microsoft Edge';
-      } else if (userAgent.includes('Chrome')) {
-        return 'Chrome';
-      } else if (userAgent.includes('Safari')) {
-        return 'Safari';
-      } else {
-        return 'Unknown';
-      }
-    }
-    
-    function detectBrowserVersion(userAgent) {
-      let version = 'Unknown';
-      
-      if (userAgent.includes('Chrome/')) {
-        const match = userAgent.match(/Chrome\/(\d+\.\d+)/);
-        version = match ? match[1] : 'Unknown';
-      } else if (userAgent.includes('Edg/')) {
-        const match = userAgent.match(/Edg\/(\d+\.\d+)/);
-        version = match ? match[1] : 'Unknown';
-      } else if (userAgent.includes('Firefox/')) {
-        const match = userAgent.match(/Firefox\/(\d+\.\d+)/);
-        version = match ? match[1] : 'Unknown';
-      } else if (userAgent.includes('Safari/')) {
-        const match = userAgent.match(/Version\/(\d+\.\d+)/);
-        version = match ? match[1] : 'Unknown';
-      }
-      
-      return version;
-    }
-    
-    // Get browser info
-    const browserName = detectBrowserName(userAgent);
-    const browserVersion = detectBrowserVersion(userAgent);
-    
-    // Get extension context info
-    const isServiceWorker = typeof ServiceWorkerGlobalScope !== 'undefined';
-    const hasWindowAccess = typeof window !== 'undefined';
-    const hasSelfAccess = typeof self !== 'undefined';
-    const hasDocumentAccess = typeof document !== 'undefined';
-    
-    // Format info
-    const info = {
-      browserName,
-      browserVersion,
-      userAgent,
-      isServiceWorker,
-      hasWindowAccess,
-      hasSelfAccess,
-      hasDocumentAccess,
-      isExtensionContext: !!chrome.runtime
-    };
-    
-    // Update display
-    environmentInfo.innerHTML = `
-      <div><strong>Browser:</strong> ${info.browserName} ${info.browserVersion}</div>
-      <div><strong>Extension Context:</strong> ${info.isExtensionContext ? 'Yes' : 'No'}</div>
-      <div><strong>Service Worker Context:</strong> ${info.isServiceWorker ? 'Yes' : 'No'}</div>
-      <div><strong>Window Access:</strong> ${info.hasWindowAccess ? 'Yes' : 'No'}</div>
-      <div><strong>Self Access:</strong> ${info.hasSelfAccess ? 'Yes' : 'No'}</div>
-      <div><strong>Document Access:</strong> ${info.hasDocumentAccess ? 'Yes' : 'No'}</div>
-    `;
-    
-    // Log result
-    logResult('Environment Info', info);
-    
-    updateStatus('Environment info retrieved', 'success');
-  } catch (error) {
-    if (logger) {
-      logger.error('Error checking environment:', error);
-    }
-    updateStatus(`Error checking environment: ${error.message}`, 'error');
-  }
-}
-
-/**
- * Check storage information
- */
-async function checkStorage() {
-  try {
-    updateStatus('Checking storage...', 'info');
-    
-    const storageInfo = document.getElementById('storage-info');
-    if (!storageInfo) return;
-    
-    // Get all storage data
-    chrome.storage.local.get(null, function(storageData) {
-      try {
-        // Get storage usage
-        chrome.storage.local.getBytesInUse(null, function(bytesInUse) {
-          try {
-            // Calculate size as MB
-            const sizeInMB = (bytesInUse / (1024 * 1024)).toFixed(2);
-            
-            // Get key count
-            const keyCount = Object.keys(storageData).length;
-            
-            // Format storage stats
-            const storageStats = {
-              bytesInUse,
-              sizeInMB: `${sizeInMB} MB`,
-              keyCount,
-              keys: Object.keys(storageData)
-            };
-            
-            // Update display
-            storageInfo.innerHTML = `
-              <div><strong>Storage Size:</strong> ${sizeInMB} MB</div>
-              <div><strong>Items Count:</strong> ${keyCount}</div>
-              <div><strong>Keys:</strong> ${Object.keys(storageData).join(', ').substring(0, 100)}${Object.keys(storageData).length > 10 ? '...' : ''}</div>
-            `;
-            
-            // Log result
-            logResult('Storage Stats', storageStats);
-            
-            // Log key sizes
-            const keySizes = {};
-            for (const key in storageData) {
-              try {
-                const size = JSON.stringify(storageData[key]).length;
-                keySizes[key] = `${(size / 1024).toFixed(2)} KB`;
-              } catch (e) {
-                keySizes[key] = 'Error measuring';
-              }
-            }
-            
-            logResult('Storage Key Sizes', keySizes);
-            
-            updateStatus('Storage info retrieved', 'success');
-          } catch (innerError) {
-            if (logger) {
-              logger.error('Error processing storage size:', innerError);
-            }
-            console.error('Error processing storage size:', innerError);
-            updateStatus(`Error processing storage size: ${innerError.message}`, 'error');
-          }
-        });
-      } catch (storageError) {
-        if (logger) {
-          logger.error('Error getting storage usage:', storageError);
-        }
-        console.error('Error getting storage usage:', storageError);
-        updateStatus(`Error getting storage usage: ${storageError.message}`, 'error');
-      }
-    });
-  } catch (error) {
-    if (logger) {
-      logger.error('Error checking storage:', error);
-    }
-    updateStatus(`Error checking storage: ${error.message}`, 'error');
-  }
-}
-
-/**
- * Check memory usage
- */
-async function checkMemory() {
-  try {
-    updateStatus('Checking memory usage...', 'info');
-    
-    const memoryInfo = document.getElementById('memory-info');
-    const memoryChart = document.getElementById('memory-chart');
-    const memoryBar = document.getElementById('memory-bar');
-    
-    if (!memoryInfo || !memoryChart || !memoryBar) return;
-    
-    // Check if performance.memory is available (Chrome only)
-    if (performance.memory) {
-      const memory = performance.memory;
-      
-      const usedMemory = Math.round(memory.usedJSHeapSize / 1024 / 1024);
-      const totalMemory = Math.round(memory.totalJSHeapSize / 1024 / 1024);
-      const limitMemory = Math.round(memory.jsHeapSizeLimit / 1024 / 1024);
-      
-      const percentage = Math.round((usedMemory / limitMemory) * 100);
-      
-      // Update memory info
-      memoryInfo.innerHTML = `
-        <div><strong>Used Memory:</strong> ${usedMemory} MB</div>
-        <div><strong>Total Memory:</strong> ${totalMemory} MB</div>
-        <div><strong>Memory Limit:</strong> ${limitMemory} MB</div>
-        <div><strong>Usage Percentage:</strong> ${percentage}%</div>
-      `;
-      
-      // Update memory chart
-      memoryChart.style.display = 'block';
-      memoryBar.style.width = `${percentage}%`;
-      
-      // Add warning class if getting close to limit
-      if (percentage > 80) {
-        memoryBar.style.backgroundColor = '#ea4335';
-      } else if (percentage > 60) {
-        memoryBar.style.backgroundColor = '#fbbc05';
-      } else {
-        memoryBar.style.backgroundColor = '#34a853';
-      }
-      
-      // Log result
-      logResult('Memory Usage', {
-        usedMemory: `${usedMemory} MB`,
-        totalMemory: `${totalMemory} MB`,
-        limitMemory: `${limitMemory} MB`,
-        percentage: `${percentage}%`
-      });
-      
-      updateStatus('Memory usage checked', 'success');
-    } else {
-      memoryInfo.textContent = 'Memory API not available in this browser';
-      memoryChart.style.display = 'none';
-      
-      updateStatus('Memory API not available', 'warning');
-    }
-  } catch (error) {
-    if (logger) {
-      logger.error('Error checking memory:', error);
-    }
-    updateStatus(`Error checking memory: ${error.message}`, 'error');
-  }
-}
-
-// Define memory monitoring interval variable
-let memoryMonitoringInterval = null;
-
-/**
- * Start memory monitoring
- */
-function startMemoryMonitoring() {
-  try {
-    // Already monitoring
-    if (memoryMonitoringInterval) return;
-    
-    updateStatus('Starting memory monitoring...', 'info');
-    
-    // Check every 5 seconds
-    memoryMonitoringInterval = setInterval(() => checkMemory(), 5000);
-    
-    // Update UI
-    document.getElementById('start-memory-monitoring').style.display = 'none';
-    document.getElementById('stop-memory-monitoring').style.display = 'inline-block';
-    
-    updateStatus('Memory monitoring started', 'success');
-  } catch (error) {
-    if (logger) {
-      logger.error('Error starting memory monitoring:', error);
-    }
-    updateStatus(`Error starting memory monitoring: ${error.message}`, 'error');
-  }
-}
-
-/**
- * Stop memory monitoring
- */
-function stopMemoryMonitoring() {
-  try {
-    // Not monitoring
-    if (!memoryMonitoringInterval) return;
-    
-    updateStatus('Stopping memory monitoring...', 'info');
-    
-    // Clear interval
-    clearInterval(memoryMonitoringInterval);
-    memoryMonitoringInterval = null;
-    
-    // Update UI
-    document.getElementById('start-memory-monitoring').style.display = 'inline-block';
-    document.getElementById('stop-memory-monitoring').style.display = 'none';
-    
-    updateStatus('Memory monitoring stopped', 'success');
-  } catch (error) {
-    if (logger) {
-      logger.error('Error stopping memory monitoring:', error);
-    }
-    updateStatus(`Error stopping memory monitoring: ${error.message}`, 'error');
-  }
-}
-
-/**
- * Test background connection using MessageService
- */
-async function testBackgroundConnection() {
-  try {
-    updateStatus('Testing background connection...', 'info');
-    
-    const backgroundStatus = document.getElementById('background-status');
-    if (!backgroundStatus) return false;
-    
+  /**
+   * Initialize the diagnostics dashboard
+   * @returns {Promise<boolean>} Success status
+   */
+  async initDiagnosticsDashboard() {
     try {
-      await initializeServices(); // Ensure services are available
-      
-      // Test basic ping
-      const pingResponse = await messageService.sendMessage({ action: 'ping' });
-      const isResponsive = pingResponse && pingResponse.success;
-      
-      if (!isResponsive) {
-        throw new Error('Background script not responding to ping');
-      }
-      
-      // Get component status
-      const componentStatusResponse = await messageService.sendMessage({ 
-        action: 'getComponentStatus' 
+      // Create logger directly
+      this._logger = new LogManager({
+        context: 'diagnostics-dashboard',
+        isBackgroundScript: false,
+        maxEntries: 1000
       });
       
-      if (!componentStatusResponse || !componentStatusResponse.success) {
-        throw new Error('Failed to get component status');
-      }
+      this._logger.info('Initializing diagnostics dashboard');
       
-      const componentStatus = componentStatusResponse.data || {};
+      // Initialize services
+      await this.initializeServices();
       
-      // Update display
-      backgroundStatus.innerHTML = `
-        <div><strong>Background Connection:</strong> Active</div>
-        <div><strong>Ping Response:</strong> Success</div>
-        <div><strong>Component Count:</strong> ${componentStatus.componentCount || 'Unknown'}</div>
-        <div><strong>Service Count:</strong> ${componentStatus.serviceCount || 'Unknown'}</div>
-        <div><strong>Utility Count:</strong> ${componentStatus.utilityCount || 'Unknown'}</div>
-        <div><strong>Component Instance Count:</strong> ${componentStatus.componentInstanceCount || 'Unknown'}</div>
-        <div><strong>System Initialized:</strong> ${componentStatus.initialized || 'Unknown'}</div>
-      `;
+      // Set up event listeners
+      this.setupEventListeners();
       
-      // Log service statistics if available
-      const messageStats = messageService.getStatistics();
-      if (messageStats) {
-        logResult('Message Service Statistics', messageStats);
-      }
+      // Run automatic checks
+      await this.runAutomaticChecks();
       
-      logResult('Background Connection', {
-        pingSuccess: true,
-        componentStatus
-      });
-      
-      updateStatus('Background connection successful', 'success');
+      this.initialized = true;
+      this._logger.info('Diagnostics dashboard initialized successfully');
       return true;
     } catch (error) {
-      backgroundStatus.innerHTML = `
-        <div><strong>Background Connection:</strong> Failed</div>
-        <div><strong>Error:</strong> ${error.message}</div>
-      `;
-      
-      logResult('Background Connection Error', {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      updateStatus(`Background connection failed: ${error.message}`, 'error');
+      this._logger.error('Error initializing diagnostics dashboard:', error);
+      this.updateStatus(`Error initializing: ${error.message}`, 'error');
       return false;
     }
-  } catch (error) {
-    if (logger) {
-      logger.error('Error testing background connection:', error);
-    }
-    updateStatus(`Error testing background connection: ${error.message}`, 'error');
-    return false;
-  }
-}
-
-/**
- * Test component system using centralized initialization
- */
-async function testComponentSystem() {
-  try {
-    updateStatus('Testing component system initialization...', 'info');
-    
-    const componentStatus = document.getElementById('component-status');
-    if (!componentStatus) return;
+  },
+  
+  /**
+   * Initialize services
+   */
+  async initializeServices() {
+    if (this.initialized) return;
     
     try {
-      await initializeServices(); // Ensure services are available
-      
-      // Test initialization using centralized system
-      const initResult = await componentSystem.initialize();
-      
-      // Get container status
-      const containerStatus = getContainerStatus();
-      
-      // Log detailed results
-      logResult('Component System Status', initResult);
-      logResult('Container Status', containerStatus);
-      
-      if (initResult.initialized && containerStatus.initialized) {
-        componentStatus.innerHTML = `
-          <div class="diagnostic-status import-success">
-            ✅ Component System Working (Centralized Init)<br>
-            Components: ${containerStatus.components?.count || 0}<br>
-            Services: ${containerStatus.services?.count || 0}<br>
-            Utilities: ${containerStatus.utilities?.count || 0}<br>
-            Validation: ${initResult.validationResults?.allValid ? 'Passed' : 'Failed'}
-          </div>
-        `;
-        updateStatus('Component system initialized successfully using centralized initialization', 'success');
-      } else {
-        componentStatus.innerHTML = `<div class="diagnostic-status import-error">❌ Component system failed to initialize</div>`;
-        updateStatus('Component system initialization failed', 'error');
-      }
-      
-      logResult('Component System Test', {
-        success: initResult.initialized,
-        containerInitialized: containerStatus.initialized,
-        componentCount: containerStatus.components?.count || 0,
-        serviceCount: containerStatus.services?.count || 0,
-        utilityCount: containerStatus.utilities?.count || 0,
-        validationResults: initResult.validationResults
+      // Ensure container is initialized
+      await ensureContainerInitialized({
+        isBackgroundScript: false,
+        context: 'diagnostics'
       });
+      
+      // Get services with fallbacks
+      this._messageService = this.getService('messageService', {
+        sendMessage: async (message) => {
+          this._logger.warn('MessageService not available, using fallback');
+          return { success: false, error: 'Service not available' };
+        }
+      });
+      
+      this._logger.info('Diagnostics services initialized');
     } catch (error) {
-      componentStatus.innerHTML = `<div class="diagnostic-status import-error">Error: ${error.message}</div>`;
-      updateStatus(`Error testing component system: ${error.message}`, 'error');
-      
-      logResult('Component System Test Error', {
-        error: error.message,
-        stack: error.stack
-      });
+      this._logger.error('Error initializing services:', error);
+      throw error;
     }
-  } catch (error) {
-    if (logger) {
-      logger.error('Error testing component system:', error);
+  },
+  
+  /**
+   * Get service with error handling and fallback
+   * @param {string} serviceName - Name of the service to get
+   * @param {Object} fallback - Fallback implementation if service not available
+   * @returns {Object} Service instance or fallback
+   */
+  getService(serviceName, fallback) {
+    try {
+      return container.getService(serviceName);
+    } catch (error) {
+      this._logger.warn(`${serviceName} not available:`, error);
+      return fallback;
     }
-    updateStatus(`Error testing component system: ${error.message}`, 'error');
-  }
-}
-
-/**
- * Get message statistics from background
- */
-async function getMessageStatistics() {
-  try {
-    updateStatus('Getting message statistics...', 'info');
+  },
+  
+  /**
+   * Set up event listeners
+   */
+  setupEventListeners() {
+    this._logger.debug('Setting up event listeners');
     
-    const messageStatsDiv = document.getElementById('message-stats');
-    if (!messageStatsDiv) return;
+    // Helper function to safely add event listener
+    const addEventListenerSafely = (elementId, event, handler) => {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.addEventListener(event, handler);
+        this._eventListeners.push({
+          element,
+          type: event,
+          listener: handler
+        });
+        this._logger.debug(`Added ${event} listener to ${elementId}`);
+      } else {
+        this._logger.warn(`Element with ID '${elementId}' not found, skipping event listener`);
+      }
+    };
+    
+    // Clear results
+    addEventListenerSafely('clear-results', 'click', () => {
+      const resultOutput = document.getElementById('result-output');
+      if (resultOutput) {
+        resultOutput.textContent = '';
+      }
+      this._logger.debug('Results cleared');
+    });
+    
+    // Extension info
+    addEventListenerSafely('check-extension', 'click', () => this.checkExtensionInfo());
+    
+    // Environment
+    addEventListenerSafely('check-environment', 'click', () => this.checkEnvironment());
+    
+    // Storage
+    addEventListenerSafely('check-storage', 'click', () => this.checkStorage());
+    
+    // Memory
+    addEventListenerSafely('check-memory', 'click', () => this.checkMemory());
+    addEventListenerSafely('start-memory-monitoring', 'click', () => this.startMemoryMonitoring());
+    addEventListenerSafely('stop-memory-monitoring', 'click', () => this.stopMemoryMonitoring());
+    
+    // Background connection
+    addEventListenerSafely('ping-background', 'click', () => this.testBackgroundConnection());
+    
+    // Component system
+    addEventListenerSafely('test-component-system', 'click', () => this.testComponentSystem());
+    
+    // Message statistics
+    addEventListenerSafely('get-message-stats', 'click', () => this.getMessageStatistics());
+    addEventListenerSafely('reset-message-stats', 'click', () => this.resetMessageStatistics());
+    
+    this._logger.debug('Event listeners set up successfully');
+  },
+  
+  /**
+   * Run automatic checks
+   */
+  async runAutomaticChecks() {
+    this._logger.debug('Running automatic checks');
     
     try {
-      await initializeServices(); // Ensure services are available
+      await this.checkExtensionInfo();
+      await this.checkEnvironment();
+      await this.testBackgroundConnection();
+      await this.testComponentSystem();
+      await this.getMessageStatistics();
       
-      // Get statistics from background script
-      const response = await messageService.sendMessage({ 
-        action: 'getMessageStatistics' 
-      });
+      this._logger.debug('Automatic checks completed');
+    } catch (error) {
+      this._logger.error('Error running automatic checks:', error);
+    }
+  },
+  
+  /**
+   * Update status message
+   * @param {string} message - Status message
+   * @param {string} type - Status type (info|success|error|warning)
+   */
+  updateStatus(message, type = 'info') {
+    const statusContainer = document.getElementById('status-container');
+    const statusMessage = document.getElementById('status-message');
+    
+    if (!statusContainer || !statusMessage) return;
+    
+    // Remove existing status classes
+    statusContainer.classList.remove('error', 'success', 'warning');
+    
+    // Add new status class
+    if (type === 'error') {
+      statusContainer.classList.add('error');
+    } else if (type === 'success') {
+      statusContainer.classList.add('success');
+    } else if (type === 'warning') {
+      statusContainer.classList.add('warning');
+    }
+    
+    // Update message
+    statusMessage.textContent = message;
+    
+    // Log message
+    this._logger.log(type, message);
+  },
+  
+  /**
+   * Log result to output container
+   * @param {string} title - Result title
+   * @param {any} data - Result data
+   */
+  logResult(title, data) {
+    const resultOutput = document.getElementById('result-output');
+    if (!resultOutput) return;
+    
+    // Format data as JSON string if it's an object
+    const formattedData = typeof data === 'object' 
+      ? JSON.stringify(data, null, 2) 
+      : String(data);
+    
+    // Add to output
+    resultOutput.textContent += `\n\n=== ${title} ===\n${formattedData}`;
+    
+    // Scroll to bottom
+    resultOutput.scrollTop = resultOutput.scrollHeight;
+    
+    this._logger.debug(`Logged result: ${title}`);
+  },
+  
+  /**
+   * Check extension information
+   */
+  async checkExtensionInfo() {
+    try {
+      this.updateStatus('Checking extension info...', 'info');
       
-      if (!response || !response.success) {
-        throw new Error('Failed to get message statistics');
-      }
+      const extensionInfo = document.getElementById('extension-info');
+      if (!extensionInfo) return;
       
-      const stats = response.data || {};
+      // Get manifest
+      const manifest = chrome.runtime.getManifest();
       
-      // Also get client-side statistics
-      const clientStats = messageService.getStatistics();
+      // Format info
+      const info = {
+        name: manifest.name,
+        version: manifest.version,
+        description: manifest.description,
+        permissions: manifest.permissions,
+        host_permissions: manifest.host_permissions,
+        manifest_version: manifest.manifest_version
+      };
       
-      // Update display
-      messageStatsDiv.innerHTML = `
-        <h4>Background Message Statistics</h4>
-        <div><strong>Total Messages:</strong> ${stats.totalMessages || 0}</div>
-        <div><strong>Successful Messages:</strong> ${stats.successfulMessages || 0}</div>
-        <div><strong>Failed Messages:</strong> ${stats.failedMessages || 0}</div>
-        <div><strong>Invalid Messages:</strong> ${stats.invalidMessages || 0}</div>
-        <div><strong>Success Rate:</strong> ${stats.successRate || '0%'}</div>
-        <div><strong>Average Response Time:</strong> ${stats.averageResponseTimeMs || 0}ms</div>
-        <div><strong>Uptime:</strong> ${stats.uptimeMs ? Math.round(stats.uptimeMs / 1000) : 0}s</div>
-        
-        <h4>Client Message Statistics</h4>
-        <div><strong>Total Messages:</strong> ${clientStats?.totalMessages || 0}</div>
-        <div><strong>Successful Messages:</strong> ${clientStats?.successfulMessages || 0}</div>
-        <div><strong>Failed Messages:</strong> ${clientStats?.failedMessages || 0}</div>
-        <div><strong>Timeouts:</strong> ${clientStats?.timeouts || 0}</div>
-        <div><strong>Success Rate:</strong> ${clientStats?.successRate || '0%'}</div>
-        <div><strong>Average Response Time:</strong> ${clientStats?.averageResponseTimeMs || 0}ms</div>
+      // Update UI
+      extensionInfo.innerHTML = `
+        <p><strong>Name:</strong> ${info.name}</p>
+        <p><strong>Version:</strong> ${info.version}</p>
+        <p><strong>Description:</strong> ${info.description}</p>
+        <p><strong>Manifest Version:</strong> ${info.manifest_version}</p>
+        <p><strong>Permissions:</strong></p>
+        <ul>
+          ${info.permissions.map(p => `<li>${p}</li>`).join('')}
+        </ul>
+        <p><strong>Host Permissions:</strong></p>
+        <ul>
+          ${info.host_permissions.map(p => `<li>${p}</li>`).join('')}
+        </ul>
       `;
       
-      // Log detailed statistics
-      logResult('Background Message Statistics', stats);
-      logResult('Client Message Statistics', clientStats);
-      
-      // Log most frequent messages if available
-      if (stats.messagesByActionArray && stats.messagesByActionArray.length > 0) {
-        logResult('Most Frequent Messages', stats.messagesByActionArray);
-      }
-      
-      updateStatus('Message statistics retrieved', 'success');
+      this.logResult('Extension Info', info);
+      this.updateStatus('Extension info checked', 'success');
     } catch (error) {
-      messageStatsDiv.innerHTML = `<div class="diagnostic-status import-error">Error: ${error.message}</div>`;
-      updateStatus(`Error getting message statistics: ${error.message}`, 'error');
-      
-      logResult('Message Statistics Error', {
-        error: error.message,
-        stack: error.stack
-      });
+      this._logger.error('Error checking extension info:', error);
+      this.updateStatus(`Error checking extension info: ${error.message}`, 'error');
     }
-  } catch (error) {
-    if (logger) {
-      logger.error('Error getting message statistics:', error);
-    }
-    updateStatus(`Error getting message statistics: ${error.message}`, 'error');
-  }
-}
-
-/**
- * Reset message statistics in background
- */
-async function resetMessageStatistics() {
-  try {
-    updateStatus('Resetting message statistics...', 'info');
-    
+  },
+  
+  /**
+   * Check environment information
+   */
+  async checkEnvironment() {
     try {
-      await initializeServices(); // Ensure services are available
+      this.updateStatus('Checking environment...', 'info');
       
-      // Reset background statistics
-      const response = await messageService.sendMessage({ 
-        action: 'resetMessageStatistics' 
-      });
+      const environmentInfo = document.getElementById('environment-info');
+      if (!environmentInfo) return;
       
-      if (!response || !response.success) {
-        throw new Error('Failed to reset background message statistics');
+      const info = {
+        browser: this.detectBrowserName(navigator.userAgent),
+        browserVersion: this.detectBrowserVersion(navigator.userAgent),
+        platform: navigator.platform,
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        cookiesEnabled: navigator.cookieEnabled,
+        doNotTrack: navigator.doNotTrack,
+        online: navigator.onLine,
+        screenResolution: `${window.screen.width}x${window.screen.height}`,
+        colorDepth: window.screen.colorDepth,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        memory: navigator.deviceMemory ? `${navigator.deviceMemory}GB` : 'Not available',
+        hardwareConcurrency: navigator.hardwareConcurrency || 'Not available'
+      };
+      
+      // Update UI
+      environmentInfo.innerHTML = `
+        <p><strong>Browser:</strong> ${info.browser} ${info.browserVersion}</p>
+        <p><strong>Platform:</strong> ${info.platform}</p>
+        <p><strong>Language:</strong> ${info.language}</p>
+        <p><strong>Cookies Enabled:</strong> ${info.cookiesEnabled}</p>
+        <p><strong>Do Not Track:</strong> ${info.doNotTrack}</p>
+        <p><strong>Online:</strong> ${info.online}</p>
+        <p><strong>Screen Resolution:</strong> ${info.screenResolution}</p>
+        <p><strong>Color Depth:</strong> ${info.colorDepth}</p>
+        <p><strong>Timezone:</strong> ${info.timezone}</p>
+        <p><strong>Memory:</strong> ${info.memory}</p>
+        <p><strong>CPU Cores:</strong> ${info.hardwareConcurrency}</p>
+      `;
+      
+      this.logResult('Environment Info', info);
+      this.updateStatus('Environment checked', 'success');
+    } catch (error) {
+      this._logger.error('Error checking environment:', error);
+      this.updateStatus(`Error checking environment: ${error.message}`, 'error');
+    }
+  },
+  
+  /**
+   * Detect browser name from user agent
+   * @param {string} userAgent - User agent string
+   * @returns {string} Browser name
+   */
+  detectBrowserName(userAgent) {
+    if (userAgent.includes('Chrome')) return 'Chrome';
+    if (userAgent.includes('Firefox')) return 'Firefox';
+    if (userAgent.includes('Safari')) return 'Safari';
+    if (userAgent.includes('Edge')) return 'Edge';
+    if (userAgent.includes('Opera')) return 'Opera';
+    return 'Unknown';
+  },
+  
+  /**
+   * Detect browser version from user agent
+   * @param {string} userAgent - User agent string
+   * @returns {string} Browser version
+   */
+  detectBrowserVersion(userAgent) {
+    const match = userAgent.match(/(?:Chrome|Firefox|Safari|Edge|Opera)\/(\d+\.\d+)/);
+    return match ? match[1] : 'Unknown';
+  },
+  
+  /**
+   * Check storage status
+   */
+  async checkStorage() {
+    try {
+      this.updateStatus('Checking storage...', 'info');
+      
+      const storageInfo = document.getElementById('storage-info');
+      if (!storageInfo) return;
+      
+      // Get storage info
+      const storage = await chrome.storage.local.get(null);
+      const storageSize = new Blob([JSON.stringify(storage)]).size;
+      
+      const info = {
+        totalItems: Object.keys(storage).length,
+        totalSize: `${(storageSize / 1024).toFixed(2)}KB`,
+        items: storage
+      };
+      
+      // Update UI
+      storageInfo.innerHTML = `
+        <p><strong>Total Items:</strong> ${info.totalItems}</p>
+        <p><strong>Total Size:</strong> ${info.totalSize}</p>
+      `;
+      
+      this.logResult('Storage Info', info);
+      this.updateStatus('Storage checked', 'success');
+    } catch (error) {
+      this._logger.error('Error checking storage:', error);
+      this.updateStatus(`Error checking storage: ${error.message}`, 'error');
+    }
+  },
+  
+  /**
+   * Check memory usage
+   */
+  async checkMemory() {
+    try {
+      this.updateStatus('Checking memory...', 'info');
+      
+      const memoryInfo = document.getElementById('memory-info');
+      const memoryChart = document.getElementById('memory-chart');
+      const memoryBar = document.getElementById('memory-bar');
+      
+      if (!memoryInfo || !memoryChart || !memoryBar) return;
+      
+      // Get memory info
+      const memory = await chrome.system.memory.getInfo();
+      const usedMemory = memory.capacity - memory.availableCapacity;
+      const usedPercentage = (usedMemory / memory.capacity) * 100;
+      
+      const info = {
+        total: `${(memory.capacity / (1024 * 1024 * 1024)).toFixed(2)}GB`,
+        available: `${(memory.availableCapacity / (1024 * 1024 * 1024)).toFixed(2)}GB`,
+        used: `${(usedMemory / (1024 * 1024 * 1024)).toFixed(2)}GB`,
+        usedPercentage: `${usedPercentage.toFixed(1)}%`
+      };
+      
+      // Update UI
+      memoryInfo.innerHTML = `
+        <p><strong>Total Memory:</strong> ${info.total}</p>
+        <p><strong>Available Memory:</strong> ${info.available}</p>
+        <p><strong>Used Memory:</strong> ${info.used}</p>
+        <p><strong>Used Percentage:</strong> ${info.usedPercentage}</p>
+      `;
+      
+      // Show and update chart
+      memoryChart.style.display = 'block';
+      memoryBar.style.width = `${usedPercentage}%`;
+      
+      this.logResult('Memory Info', info);
+      this.updateStatus('Memory checked', 'success');
+    } catch (error) {
+      this._logger.error('Error checking memory:', error);
+      this.updateStatus(`Error checking memory: ${error.message}`, 'error');
+    }
+  },
+  
+  /**
+   * Start memory monitoring
+   */
+  startMemoryMonitoring() {
+    try {
+      const startButton = document.getElementById('start-memory-monitoring');
+      const stopButton = document.getElementById('stop-memory-monitoring');
+      
+      if (!startButton || !stopButton) return;
+      
+      // Update UI
+      startButton.style.display = 'none';
+      stopButton.style.display = 'inline-block';
+      
+      // Start monitoring
+      this._memoryMonitoringInterval = setInterval(() => {
+        this.checkMemory();
+      }, 2000);
+      
+      this._intervals.push(this._memoryMonitoringInterval);
+      
+      this._logger.info('Memory monitoring started');
+      this.updateStatus('Memory monitoring started', 'info');
+    } catch (error) {
+      this._logger.error('Error starting memory monitoring:', error);
+      this.updateStatus(`Error starting memory monitoring: ${error.message}`, 'error');
+    }
+  },
+  
+  /**
+   * Stop memory monitoring
+   */
+  stopMemoryMonitoring() {
+    try {
+      const startButton = document.getElementById('start-memory-monitoring');
+      const stopButton = document.getElementById('stop-memory-monitoring');
+      
+      if (!startButton || !stopButton) return;
+      
+      // Update UI
+      startButton.style.display = 'inline-block';
+      stopButton.style.display = 'none';
+      
+      // Stop monitoring
+      if (this._memoryMonitoringInterval) {
+        clearInterval(this._memoryMonitoringInterval);
+        this._memoryMonitoringInterval = null;
       }
       
-      // Reset client statistics
-      messageService.resetStatistics();
-      
-      updateStatus('Message statistics reset successfully', 'success');
-      
-      // Refresh the statistics display
-      await getMessageStatistics();
+      this._logger.info('Memory monitoring stopped');
+      this.updateStatus('Memory monitoring stopped', 'info');
     } catch (error) {
-      updateStatus(`Error resetting message statistics: ${error.message}`, 'error');
+      this._logger.error('Error stopping memory monitoring:', error);
+      this.updateStatus(`Error stopping memory monitoring: ${error.message}`, 'error');
+    }
+  },
+  
+  /**
+   * Test background connection
+   */
+  async testBackgroundConnection() {
+    try {
+      this.updateStatus('Testing background connection...', 'info');
       
-      logResult('Reset Statistics Error', {
-        error: error.message,
-        stack: error.stack
+      const backgroundStatus = document.getElementById('background-status');
+      if (!backgroundStatus) return;
+      
+      // Try to get background page
+      const backgroundPage = chrome.extension.getBackgroundPage();
+      
+      if (backgroundPage && backgroundPage.marvin) {
+        backgroundStatus.textContent = 'Background script is running and accessible';
+        this.logResult('Background Connection', { status: 'connected' });
+        this.updateStatus('Background connection successful', 'success');
+      } else {
+        // Try messaging as fallback
+        const response = await this._messageService.sendMessage({ action: 'ping' });
+        
+        if (response.success) {
+          backgroundStatus.textContent = 'Background script is running (via messaging)';
+          this.logResult('Background Connection', { status: 'connected_via_messaging' });
+          this.updateStatus('Background connection successful', 'success');
+        } else {
+          backgroundStatus.textContent = 'Background script may not be running';
+          this.logResult('Background Connection', { status: 'disconnected' });
+          this.updateStatus('Background connection failed', 'error');
+        }
+      }
+    } catch (error) {
+      this._logger.error('Error testing background connection:', error);
+      this.updateStatus(`Error testing background connection: ${error.message}`, 'error');
+    }
+  },
+  
+  /**
+   * Test component system
+   */
+  async testComponentSystem() {
+    try {
+      this.updateStatus('Testing component system...', 'info');
+      
+      const componentStatus = document.getElementById('component-status');
+      if (!componentStatus) return;
+      
+      // Test component system
+      const result = await this._messageService.sendMessage({
+        action: 'testComponentSystem'
       });
+      
+      if (result.success) {
+        componentStatus.textContent = 'Component system is working correctly';
+        this.logResult('Component System Test', result);
+        this.updateStatus('Component system test successful', 'success');
+      } else {
+        componentStatus.textContent = 'Component system may have issues';
+        this.logResult('Component System Test', result);
+        this.updateStatus('Component system test failed', 'error');
+      }
+    } catch (error) {
+      this._logger.error('Error testing component system:', error);
+      this.updateStatus(`Error testing component system: ${error.message}`, 'error');
     }
-  } catch (error) {
-    if (logger) {
-      logger.error('Error resetting message statistics:', error);
+  },
+  
+  /**
+   * Get message statistics
+   */
+  async getMessageStatistics() {
+    try {
+      this.updateStatus('Getting message statistics...', 'info');
+      
+      const messageStats = document.getElementById('message-stats');
+      if (!messageStats) return;
+      
+      // Get message statistics
+      const result = await this._messageService.sendMessage({
+        action: 'getMessageStatistics'
+      });
+      
+      if (result.success) {
+        messageStats.innerHTML = `
+          <p><strong>Total Messages:</strong> ${result.total}</p>
+          <p><strong>Successful Messages:</strong> ${result.successful}</p>
+          <p><strong>Failed Messages:</strong> ${result.failed}</p>
+          <p><strong>Average Response Time:</strong> ${result.averageResponseTime}ms</p>
+        `;
+        
+        this.logResult('Message Statistics', result);
+        this.updateStatus('Message statistics retrieved', 'success');
+      } else {
+        messageStats.textContent = 'Failed to get message statistics';
+        this.logResult('Message Statistics', { error: result.error });
+        this.updateStatus('Failed to get message statistics', 'error');
+      }
+    } catch (error) {
+      this._logger.error('Error getting message statistics:', error);
+      this.updateStatus(`Error getting message statistics: ${error.message}`, 'error');
     }
-    updateStatus(`Error resetting message statistics: ${error.message}`, 'error');
+  },
+  
+  /**
+   * Reset message statistics
+   */
+  async resetMessageStatistics() {
+    try {
+      this.updateStatus('Resetting message statistics...', 'info');
+      
+      // Reset message statistics
+      const result = await this._messageService.sendMessage({
+        action: 'resetMessageStatistics'
+      });
+      
+      if (result.success) {
+        this.logResult('Message Statistics Reset', { status: 'success' });
+        this.updateStatus('Message statistics reset', 'success');
+        
+        // Refresh statistics display
+        await this.getMessageStatistics();
+      } else {
+        this.logResult('Message Statistics Reset', { error: result.error });
+        this.updateStatus('Failed to reset message statistics', 'error');
+      }
+    } catch (error) {
+      this._logger.error('Error resetting message statistics:', error);
+      this.updateStatus(`Error resetting message statistics: ${error.message}`, 'error');
+    }
+  },
+  
+  /**
+   * Clean up resources
+   */
+  cleanup() {
+    if (!this.initialized) {
+      this._logger.debug('Diagnostics dashboard not initialized, skipping cleanup');
+      return;
+    }
+    
+    this._logger.info('Cleaning up diagnostics dashboard resources');
+    
+    // Stop memory monitoring if active
+    this.stopMemoryMonitoring();
+    
+    // Clear all timeouts
+    this._timeouts.forEach(id => {
+      try {
+        clearTimeout(id);
+      } catch (error) {
+        this._logger.warn(`Error clearing timeout:`, error);
+      }
+    });
+    this._timeouts = [];
+    
+    // Clear all intervals
+    this._intervals.forEach(id => {
+      try {
+        clearInterval(id);
+      } catch (error) {
+        this._logger.warn(`Error clearing interval:`, error);
+      }
+    });
+    this._intervals = [];
+    
+    // Remove all event listeners
+    this._eventListeners.forEach(({element, type, listener}) => {
+      try {
+        if (element && typeof element.removeEventListener === 'function') {
+          element.removeEventListener(type, listener);
+        }
+      } catch (error) {
+        this._logger.warn(`Error removing event listener:`, error);
+      }
+    });
+    this._eventListeners = [];
+    
+    // Clean up DOM elements
+    this._domElements.forEach(el => {
+      try {
+        if (el && el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      } catch (error) {
+        this._logger.warn('Error removing DOM element:', error);
+      }
+    });
+    this._domElements = [];
+    
+    // Clear service references
+    this._messageService = null;
+    this._logger = null;
+    
+    this.initialized = false;
+    this._logger.debug('Diagnostics dashboard cleanup completed');
   }
-}
+};
+
+// Initialize dashboard when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  DiagnosticsDashboard.initDiagnosticsDashboard();
+});
+
+// Export the diagnostics dashboard component
+export { DiagnosticsDashboard };
