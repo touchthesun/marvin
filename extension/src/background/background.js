@@ -40,13 +40,29 @@ const BackgroundScript = {
         return true;
       }
       
-      // Ensure container is initialized
-      const initResult = await ensureContainerInitialized({
-        isBackgroundScript: true,
-        context: 'background'
-      });
-      
-      this._logger.debug('Container initialization result:', initResult);
+      // Ensure container is initialized with progress monitoring
+      let initResult;
+      try {
+        initResult = await ensureContainerInitialized({
+          isBackgroundScript: true,
+          context: 'background'
+        });
+        
+        // Log initialization progress
+        if (initResult.progress) {
+          this._logger.debug('Container initialization progress:', {
+            phase: initResult.progress.phase,
+            progress: initResult.progress.progress
+          });
+        }
+        
+        this._logger.debug('Container initialization result:', initResult);
+      } catch (error) {
+        this._logger.error('Container initialization failed:', error);
+        // Attempt to clean up any partially initialized state
+        await this.cleanup();
+        throw error;
+      }
       
       // Create and initialize the background service
       this._logger.info('Creating background service...');
@@ -57,7 +73,10 @@ const BackgroundScript = {
       this.createPublicAPI();
       
       // Register the background service with the container
-      container.registerService('backgroundService', () => this._backgroundService);
+      container.registerService('backgroundService', () => this._backgroundService, {
+        phase: 'core', // Mark as core service since it's essential for background
+        lazy: false    // Initialize immediately
+      });
       
       // Set up service worker event listeners
       this.setupServiceWorkerEvents();
@@ -79,6 +98,8 @@ const BackgroundScript = {
         this._logger.error('Container initialization failed:', error);
       }
       
+      // Ensure cleanup on failure
+      await this.cleanup();
       return false;
     }
   },

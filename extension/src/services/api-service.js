@@ -1,24 +1,213 @@
 // services/api-service.js
+import { BaseService } from '../core/base-service.js';
 import { LogManager } from '../utils/log-manager.js';
 
 /**
  * API Service - Handles all API communication for the extension
  */
-export class ApiService {
+export class ApiService extends BaseService {
   /**
    * Initialize the API service
    */
-  constructor() {
+  constructor(options = {}) {
+    super({
+      ...options,
+      maxTaskAge: 300000, // 5 minutes
+      maxActiveTasks: 50,
+      maxRetryAttempts: 3,
+      retryBackoffBase: 1000,
+      retryBackoffMax: 30000,
+      circuitBreakerThreshold: 5,
+      circuitBreakerTimeout: 60000
+    });
+
     // State initialization
-    this.baseURL = 'http://localhost:8000'; // Default base URL
-    this.initialized = false;
-    this.logger = null; // Don't create logger until initialize()
-    this.apiKey = null;
-    this.activeRequests = new Map(); // Track active requests for cleanup
-    this.abortControllers = new Map(); // For cancelling in-flight requests
+    this._baseURL = 'http://localhost:8000'; // Default base URL
+    this._apiKey = null;
+    this._activeRequests = new WeakMap(); // Track active requests for cleanup
+    this._abortControllers = new WeakMap(); // For cancelling in-flight requests
+    this._messagePorts = new WeakSet(); // Track message ports
     
-    // Request statistics
-    this.stats = {
+    // Request statistics with size limits
+    this._stats = {
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      requestsByEndpoint: {},
+      averageResponseTime: 0,
+      totalResponseTime: 0,
+      maxEndpointStats: 1000, // Limit number of endpoints tracked
+      maxRequestAge: 3600000 // 1 hour
+    };
+    
+    // Configuration
+    this._config = {
+      timeoutMs: 30000,
+      retryCount: 3,
+      retryDelay: 1000,
+      maxRequestHistory: 1000 // Limit request history
+    };
+
+    // Error tracking
+    this._errorCounts = new Map();
+    this._lastErrorTime = null;
+  }
+  
+  /**
+   * Initialize the API service
+   * @returns {Promise<boolean>} Success state
+   */
+  async _performInitialization() {
+    try {
+      // Create logger
+      this._logger = new LogManager({
+        context: 'api-service',
+        isBackgroundScript: false,
+        maxEntries: 1000
+      });
+      
+      this._logger.info('Initializing API service');
+      
+      // Load configuration from storage
+      await this._loadConfiguration();
+      
+      this._logger.info('API service initialized successfully');
+      return true;
+    } catch (error) {
+      this._logger?.error('Error initializing API service:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up resources
+   */
+  async _performCleanup() {
+    this._logger?.info('Cleaning up API service');
+    
+    // Cancel all in-flight requests
+    await this._cancelAllRequests();
+    
+    // Clear and nullify Maps
+    this._activeRequests = new WeakMap();
+    this._abortControllers = new WeakMap();
+    
+    // Reset statistics
+    this._resetStatistics();
+    
+    // Clear configuration
+    this._config = null;
+    this._baseURL = null;
+    this._apiKey = null;
+  }
+
+  /**
+   * Handle memory pressure
+   */
+  async _handleMemoryPressure(snapshot) {
+    this._logger?.warn('Memory pressure detected, cleaning up non-essential resources');
+    await super._handleMemoryPressure(snapshot);
+    
+    // Cancel non-essential requests
+    await this._cancelNonEssentialRequests();
+    
+    // Clear request statistics
+    this._resetStatistics();
+  }
+
+  /**
+   * Load API configuration from storage
+   * @private
+   */
+  async _loadConfiguration() {
+    try {
+      const data = await chrome.storage.local.get(['apiConfig', 'apiServiceConfig']);
+      
+      // Load API endpoint configuration
+      if (data.apiConfig?.baseURL) {
+        this._baseURL = data.apiConfig.baseURL;
+        this._logger.debug(`API base URL set to: ${this._baseURL}`);
+      }
+      
+      // Set API key if available
+      if (data.apiConfig?.apiKey) {
+        this._apiKey = data.apiConfig.apiKey;
+        this._logger.debug('API key configured');
+      }
+      
+      // Load service configuration
+      if (data.apiServiceConfig) {
+        this._config = {
+          ...this._config,
+          ...data.apiServiceConfig
+        };
+        this._logger.debug('API service configuration loaded', this._config);
+      }
+    } catch (error) {
+      this._logger.warn('Failed to load configuration, using defaults:', error);
+    }
+  }
+
+  /**
+   * Save API service configuration to storage
+   * @private
+   */
+  async _saveConfiguration() {
+    try {
+      await chrome.storage.local.set({
+        apiServiceConfig: this._config
+      });
+      this._logger.debug('API service configuration saved');
+      return true;
+    } catch (error) {
+      this._logger.error('Failed to save configuration:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Cancel all in-flight requests
+   * @private
+   */
+  async _cancelAllRequests() {
+    this._logger?.debug(`Cancelling ${this._abortControllers.size} in-flight requests`);
+    
+    for (const [requestId, controller] of this._abortControllers) {
+      try {
+        controller.abort();
+        this._logger?.debug(`Aborted request: ${requestId}`);
+      } catch (error) {
+        this._logger?.warn(`Error aborting request ${requestId}:`, error);
+      }
+    }
+    
+    this._abortControllers = new WeakMap();
+    this._activeRequests = new WeakMap();
+  }
+
+  /**
+   * Cancel non-essential requests during memory pressure
+   * @private
+   */
+  async _cancelNonEssentialRequests() {
+    for (const [requestId, request] of this._activeRequests) {
+      if (!request.isEssential) {
+        const controller = this._abortControllers.get(requestId);
+        if (controller) {
+          controller.abort();
+          this._abortControllers.delete(requestId);
+          this._activeRequests.delete(requestId);
+        }
+      }
+    }
+  }
+
+  /**
+   * Reset API stats
+   * @private
+   */
+  _resetStatistics() {
+    this._stats = {
       totalRequests: 0,
       successfulRequests: 0,
       failedRequests: 0,
@@ -27,97 +216,7 @@ export class ApiService {
       totalResponseTime: 0
     };
     
-    // Configuration
-    this.config = {
-      timeoutMs: 30000,
-      retryCount: 3,
-      retryDelay: 1000
-    };
-  }
-  
-  /**
-   * Initialize the API service
-   * @returns {Promise<boolean>} Success state
-   */
-  async initialize() {
-    if (this.initialized) {
-      return true;
-    }
-    
-    try {
-      // Create logger directly - no container access needed
-      this.logger = new LogManager({
-        context: 'api-service',
-        isBackgroundScript: false,
-        maxEntries: 1000
-      });
-      
-      this.logger.info('Initializing API service');
-      
-      // Load configuration from storage
-      await this.loadConfiguration();
-      
-      this.initialized = true;
-      this.logger.info('API service initialized successfully');
-      return true;
-    } catch (error) {
-      if (this.logger) {
-        this.logger.error('Error initializing API service:', error);
-      } else {
-        console.error('Error initializing API service:', error);
-      }
-      return false;
-    }
-  }
-  
-  /**
-   * Load API configuration from storage
-   * @private
-   */
-  async loadConfiguration() {
-    try {
-      const data = await chrome.storage.local.get(['apiConfig', 'apiServiceConfig']);
-      
-      // Load API endpoint configuration
-      if (data.apiConfig?.baseURL) {
-        this.baseURL = data.apiConfig.baseURL;
-        this.logger.debug(`API base URL set to: ${this.baseURL}`);
-      }
-      
-      // Set API key if available
-      if (data.apiConfig?.apiKey) {
-        this.apiKey = data.apiConfig.apiKey;
-        this.logger.debug('API key configured');
-      }
-      
-      // Load service configuration
-      if (data.apiServiceConfig) {
-        this.config = {
-          ...this.config,
-          ...data.apiServiceConfig
-        };
-        this.logger.debug('API service configuration loaded', this.config);
-      }
-    } catch (error) {
-      this.logger.warn('Failed to load configuration, using defaults:', error);
-    }
-  }
-  
-  /**
-   * Save API service configuration to storage
-   * @private
-   */
-  async saveConfiguration() {
-    try {
-      await chrome.storage.local.set({
-        apiServiceConfig: this.config
-      });
-      this.logger.debug('API service configuration saved');
-      return true;
-    } catch (error) {
-      this.logger.error('Failed to save configuration:', error);
-      return false;
-    }
+    this._logger?.debug('API statistics reset');
   }
   
   /**
@@ -126,7 +225,7 @@ export class ApiService {
    * @returns {Promise<boolean>} Success status
    */
   async setBaseUrl(url) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -135,12 +234,12 @@ export class ApiService {
     }
     
     if (!url) {
-      this.logger.warn('Attempted to set empty base URL');
+      this._logger.warn('Attempted to set empty base URL');
       return false;
     }
     
     try {
-      this.baseURL = url;
+      this._baseURL = url;
       
       // Save to storage
       await chrome.storage.local.set({
@@ -150,10 +249,10 @@ export class ApiService {
         }
       });
       
-      this.logger.debug(`API base URL updated to: ${url}`);
+      this._logger.debug(`API base URL updated to: ${url}`);
       return true;
     } catch (error) {
-      this.logger.error('Error setting base URL:', error);
+      this._logger.error('Error setting base URL:', error);
       return false;
     }
   }
@@ -164,7 +263,7 @@ export class ApiService {
    * @returns {Promise<boolean>} Success status
    */
   async setApiKey(key) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -173,12 +272,12 @@ export class ApiService {
     }
     
     if (!key) {
-      this.logger.warn('Attempted to set empty API key');
+      this._logger.warn('Attempted to set empty API key');
       return false;
     }
     
     try {
-      this.apiKey = key;
+      this._apiKey = key;
       
       // Save to storage
       await chrome.storage.local.set({
@@ -188,10 +287,10 @@ export class ApiService {
         }
       });
       
-      this.logger.debug('API key updated');
+      this._logger.debug('API key updated');
       return true;
     } catch (error) {
-      this.logger.error('Error setting API key:', error);
+      this._logger.error('Error setting API key:', error);
       return false;
     }
   }
@@ -202,7 +301,7 @@ export class ApiService {
    * @returns {Promise<boolean>} Success status
    */
   async updateConfiguration(newConfig) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -211,16 +310,16 @@ export class ApiService {
     }
     
     try {
-      this.config = {
-        ...this.config,
+      this._config = {
+        ...this._config,
         ...newConfig
       };
       
-      await this.saveConfiguration();
-      this.logger.debug('Configuration updated:', this.config);
+      await this._saveConfiguration();
+      this._logger.debug('Configuration updated:', this._config);
       return true;
     } catch (error) {
-      this.logger.error('Error updating configuration:', error);
+      this._logger.error('Error updating configuration:', error);
       return false;
     }
   }
@@ -232,7 +331,7 @@ export class ApiService {
    * @returns {Promise<object>} Response data
    */
   async fetchAPI(endpoint, options = {}) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -247,34 +346,34 @@ export class ApiService {
     const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
     // Update statistics
-    this.stats.totalRequests++;
-    this.updateEndpointStats(endpoint);
+    this._stats.totalRequests++;
+    this._updateEndpointStats(endpoint);
     
     const startTime = Date.now();
     
     try {
       // Call internal fetch with retry
-      const result = await this.fetchWithRetry(endpoint, options, requestId);
+      const result = await this._fetchWithRetry(endpoint, options, requestId);
       
       // Update timing stats
       const responseTime = Date.now() - startTime;
-      this.updateTimingStats(responseTime);
+      this._updateTimingStats(responseTime);
       
       if (result.success) {
-        this.stats.successfulRequests++;
+        this._stats.successfulRequests++;
       } else {
-        this.stats.failedRequests++;
+        this._stats.failedRequests++;
       }
       
       return result;
     } catch (error) {
       // Update timing stats
       const responseTime = Date.now() - startTime;
-      this.updateTimingStats(responseTime);
+      this._updateTimingStats(responseTime);
       
-      this.stats.failedRequests++;
+      this._stats.failedRequests++;
       
-      this.logger.error(`API Error: ${endpoint}`, { 
+      this._logger.error(`API Error: ${endpoint}`, { 
         error: error.message,
         requestId 
       });
@@ -285,8 +384,8 @@ export class ApiService {
       };
     } finally {
       // Clean up request tracking
-      this.activeRequests.delete(requestId);
-      this.abortControllers.delete(requestId);
+      this._activeRequests.delete(requestId);
+      this._abortControllers.delete(requestId);
     }
   }
   
@@ -299,7 +398,7 @@ export class ApiService {
    * @returns {Promise<object>} Response data
    * @private
    */
-  async fetchWithRetry(endpoint, options = {}, requestId, retryCount = 0) {
+  async _fetchWithRetry(endpoint, options = {}, requestId, retryCount = 0) {
     try {
       // Ensure endpoint starts with /
       const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -312,8 +411,8 @@ export class ApiService {
       };
       
       // Add API key if available
-      if (this.apiKey && !headers['Authorization']) {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      if (this._apiKey && !headers['Authorization']) {
+        headers['Authorization'] = `Bearer ${this._apiKey}`;
       }
       
       // Add request ID for tracking
@@ -323,29 +422,30 @@ export class ApiService {
       
       // Create abort controller for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
+      const timeoutId = this._resourceTracker.trackTimeout(() => {
         controller.abort();
-      }, options.timeout || this.config.timeoutMs);
+      }, options.timeout || this._config.timeoutMs);
       
       // Store abort controller for potential cleanup
-      this.abortControllers.set(requestId, controller);
+      this._abortControllers.set(requestId, controller);
       
       // Log request
-      this.logger.debug(`API Request: ${formattedEndpoint}`, { 
+      this._logger.debug(`API Request: ${formattedEndpoint}`, { 
         method: options.method || 'GET',
-        baseURL: this.baseURL,
+        baseURL: this._baseURL,
         requestId
       });
       
       // Track this request
-      this.activeRequests.set(requestId, {
+      this._activeRequests.set(requestId, {
         endpoint,
         startTime: Date.now(),
-        options
+        options,
+        isEssential: options.isEssential || false
       });
       
       // Send request
-      const response = await fetch(`${this.baseURL}${formattedEndpoint}`, {
+      const response = await fetch(`${this._baseURL}${formattedEndpoint}`, {
         ...options,
         headers,
         signal: controller.signal
@@ -372,7 +472,7 @@ export class ApiService {
           };
         }
         
-        this.logger.debug(`API Response: ${formattedEndpoint}`, { 
+        this._logger.debug(`API Response: ${formattedEndpoint}`, { 
           status: response.status,
           requestId
         });
@@ -402,24 +502,24 @@ export class ApiService {
         
         const errorMessage = errorData.error || `API error (${response.status})`;
         
-        this.logger.warn(`API Error Response: ${formattedEndpoint}`, {
+        this._logger.warn(`API Error Response: ${formattedEndpoint}`, {
           status: response.status,
           error: errorMessage,
           requestId
         });
         
         // Check if we should retry
-        if (retryCount < this.config.retryCount && this.shouldRetry(response.status)) {
+        if (retryCount < this._config.retryCount && this._shouldRetry(response.status)) {
           // Calculate delay with exponential backoff
-          const delay = this.config.retryDelay * Math.pow(2, retryCount);
+          const delay = this._config.retryDelay * Math.pow(2, retryCount);
           
-          this.logger.debug(`Retrying request (${retryCount + 1}/${this.config.retryCount}) after ${delay}ms`);
+          this._logger.debug(`Retrying request (${retryCount + 1}/${this._config.retryCount}) after ${delay}ms`);
           
           // Wait before retry
           await new Promise(resolve => setTimeout(resolve, delay));
           
           // Retry the request
-          return this.fetchWithRetry(endpoint, options, requestId, retryCount + 1);
+          return this._fetchWithRetry(endpoint, options, requestId, retryCount + 1);
         }
         
         // No more retries, return error
@@ -433,7 +533,7 @@ export class ApiService {
     } catch (error) {
       // Handle abort (timeout)
       if (error.name === 'AbortError') {
-        this.logger.warn(`API request timeout: ${endpoint}`, { requestId });
+        this._logger.warn(`API request timeout: ${endpoint}`, { requestId });
         return {
           success: false,
           error: 'Request timed out',
@@ -442,18 +542,18 @@ export class ApiService {
       }
       
       // Check if we should retry network errors
-      if (retryCount < this.config.retryCount && 
+      if (retryCount < this._config.retryCount && 
           (error.name === 'TypeError' || error.name === 'NetworkError')) {
         // Calculate delay with exponential backoff
-        const delay = this.config.retryDelay * Math.pow(2, retryCount);
+        const delay = this._config.retryDelay * Math.pow(2, retryCount);
         
-        this.logger.debug(`Retrying request after network error (${retryCount + 1}/${this.config.retryCount}) after ${delay}ms`);
+        this._logger.debug(`Retrying request after network error (${retryCount + 1}/${this._config.retryCount}) after ${delay}ms`);
         
         // Wait before retry
         await new Promise(resolve => setTimeout(resolve, delay));
         
         // Retry the request
-        return this.fetchWithRetry(endpoint, options, requestId, retryCount + 1);
+        return this._fetchWithRetry(endpoint, options, requestId, retryCount + 1);
       }
       
       throw error;
@@ -466,7 +566,7 @@ export class ApiService {
    * @returns {boolean} Whether to retry
    * @private
    */
-  shouldRetry(statusCode) {
+  _shouldRetry(statusCode) {
     // Retry server errors and specific client errors
     return (
       statusCode >= 500 || // Server errors
@@ -480,15 +580,15 @@ export class ApiService {
    * @param {string} endpoint - API endpoint
    * @private
    */
-  updateEndpointStats(endpoint) {
+  _updateEndpointStats(endpoint) {
     // Normalize endpoint by removing query parameters
     const normalizedEndpoint = endpoint.split('?')[0];
     
-    if (!this.stats.requestsByEndpoint[normalizedEndpoint]) {
-      this.stats.requestsByEndpoint[normalizedEndpoint] = 0;
+    if (!this._stats.requestsByEndpoint[normalizedEndpoint]) {
+      this._stats.requestsByEndpoint[normalizedEndpoint] = 0;
     }
     
-    this.stats.requestsByEndpoint[normalizedEndpoint]++;
+    this._stats.requestsByEndpoint[normalizedEndpoint]++;
   }
   
   /**
@@ -496,28 +596,9 @@ export class ApiService {
    * @param {number} responseTime - Response time in ms
    * @private
    */
-  updateTimingStats(responseTime) {
-    this.stats.totalResponseTime += responseTime;
-    this.stats.averageResponseTime = this.stats.totalResponseTime / this.stats.totalRequests;
-  }
-  
-  /**
-   * Cancel all in-flight requests
-   */
-  cancelAllRequests() {
-    this.logger.debug(`Cancelling ${this.abortControllers.size} in-flight requests`);
-    
-    this.abortControllers.forEach((controller, requestId) => {
-      try {
-        controller.abort();
-        this.logger.debug(`Aborted request: ${requestId}`);
-      } catch (error) {
-        this.logger.warn(`Error aborting request ${requestId}:`, error);
-      }
-    });
-    
-    this.abortControllers.clear();
-    this.activeRequests.clear();
+  _updateTimingStats(responseTime) {
+    this._stats.totalResponseTime += responseTime;
+    this._stats.averageResponseTime = this._stats.totalResponseTime / this._stats.totalRequests;
   }
   
   /**
@@ -526,7 +607,7 @@ export class ApiService {
    * @returns {Promise<object>} Response from background script
    */
   async sendMessageToBackground(message) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -537,8 +618,8 @@ export class ApiService {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(message, (response) => {
         if (chrome.runtime.lastError) {
-          if (this.logger) {
-            this.logger.error('Background message error:', chrome.runtime.lastError);
+          if (this._logger) {
+            this._logger.error('Background message error:', chrome.runtime.lastError);
           }
           reject(new Error(chrome.runtime.lastError.message));
         } else {
@@ -553,11 +634,11 @@ export class ApiService {
    * @returns {Promise<boolean>} Connection status
    */
   async checkConnection() {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        this.logger?.error('Failed to initialize service during checkConnection:', error);
+        this._logger?.error('Failed to initialize service during checkConnection:', error);
         return false;
       }
     }
@@ -571,7 +652,7 @@ export class ApiService {
       
       return response && response.success && response.status === 'ok';
     } catch (error) {
-      this.logger.warn('API connection check failed:', error);
+      this._logger.warn('API connection check failed:', error);
       return false;
     }
   }
@@ -582,28 +663,12 @@ export class ApiService {
    */
   getStatistics() {
     return {
-      ...this.stats,
-      activeRequestCount: this.activeRequests.size,
-      successRate: this.stats.totalRequests > 0 
-        ? Math.round((this.stats.successfulRequests / this.stats.totalRequests) * 100) + '%'
+      ...this._stats,
+      activeRequestCount: this._activeRequests.size,
+      successRate: this._stats.totalRequests > 0 
+        ? Math.round((this._stats.successfulRequests / this._stats.totalRequests) * 100) + '%'
         : '0%'
     };
-  }
-  
-  /**
-   * Reset API stats
-   */
-  resetStatistics() {
-    this.stats = {
-      totalRequests: 0,
-      successfulRequests: 0,
-      failedRequests: 0,
-      requestsByEndpoint: {},
-      averageResponseTime: 0,
-      totalResponseTime: 0
-    };
-    
-    this.logger?.debug('API statistics reset');
   }
   
   /**
@@ -612,38 +677,155 @@ export class ApiService {
    */
   getStatus() {
     return {
-      initialized: this.initialized,
-      baseURL: this.baseURL,
-      hasApiKey: !!this.apiKey,
-      activeRequestCount: this.activeRequests.size,
+      initialized: this._initialized,
+      baseURL: this._baseURL,
+      hasApiKey: !!this._apiKey,
+      activeRequestCount: this._activeRequests.size,
       stats: {
-        totalRequests: this.stats.totalRequests,
-        successRate: this.stats.totalRequests > 0 
-          ? Math.round((this.stats.successfulRequests / this.stats.totalRequests) * 100) + '%'
+        totalRequests: this._stats.totalRequests,
+        successRate: this._stats.totalRequests > 0 
+          ? Math.round((this._stats.successfulRequests / this._stats.totalRequests) * 100) + '%'
           : '0%',
-        averageResponseTimeMs: Math.round(this.stats.averageResponseTime)
+        averageResponseTimeMs: Math.round(this._stats.averageResponseTime)
       }
     };
   }
-  
+
+  /**
+   * Send a message to background script
+   * @param {object} message - Message to send
+   * @returns {Promise<object>} Response from background script
+   */
+  async sendMessageToBackground(message) {
+    if (!this._initialized) {
+      try {
+        await this.initialize();
+      } catch (error) {
+        throw new Error(`Service initialization failed: ${error.message}`);
+      }
+    }
+
+    if (this._isCircuitBreakerOpen()) {
+      throw new Error('Circuit breaker is open, message sending blocked');
+    }
+    
+    return new Promise((resolve, reject) => {
+      const port = chrome.runtime.connect({ name: 'api-service' });
+      this._messagePorts.add(port);
+      this._resourceTracker.trackEventListener(port, 'message', (response) => {
+        if (chrome.runtime.lastError) {
+          this._recordFailure('message');
+          if (this._logger) {
+            this._logger.error('Background message error:', chrome.runtime.lastError);
+          }
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+
+      port.postMessage(message);
+    });
+  }
+
+  /**
+   * Update endpoint statistics with size limits
+   * @param {string} endpoint - API endpoint
+   * @private
+   */
+  _updateEndpointStats(endpoint) {
+    // Normalize endpoint by removing query parameters
+    const normalizedEndpoint = endpoint.split('?')[0];
+    
+    // Clean up old entries if we exceed the limit
+    if (Object.keys(this._stats.requestsByEndpoint).length >= this._stats.maxEndpointStats) {
+      const oldestEndpoint = Object.entries(this._stats.requestsByEndpoint)
+        .sort(([, a], [, b]) => a - b)[0][0];
+      delete this._stats.requestsByEndpoint[oldestEndpoint];
+    }
+    
+    if (!this._stats.requestsByEndpoint[normalizedEndpoint]) {
+      this._stats.requestsByEndpoint[normalizedEndpoint] = 0;
+    }
+    
+    this._stats.requestsByEndpoint[normalizedEndpoint]++;
+  }
+
+  /**
+   * Clean up old request data
+   * @private
+   */
+  _cleanupOldRequests() {
+    const now = Date.now();
+    for (const [requestId, request] of this._activeRequests) {
+      if (now - request.startTime > this._stats.maxRequestAge) {
+        this._activeRequests.delete(requestId);
+        this._abortControllers.delete(requestId);
+      }
+    }
+  }
+
+  /**
+   * Record a failure for circuit breaker
+   * @param {string} type - Type of failure
+   * @private
+   */
+  _recordFailure(type) {
+    const now = Date.now();
+    this._errorCounts.set(type, (this._errorCounts.get(type) || 0) + 1);
+    this._lastErrorTime = now;
+
+    // Clean up old error counts
+    if (now - (this._lastErrorTime || 0) > this._circuitBreakerTimeout) {
+      this._errorCounts.clear();
+    }
+  }
+
+  /**
+   * Check if circuit breaker is open
+   * @returns {boolean} Whether circuit breaker is open
+   * @private
+   */
+  _isCircuitBreakerOpen() {
+    const now = Date.now();
+    if (now - (this._lastErrorTime || 0) > this._circuitBreakerTimeout) {
+      this._errorCounts.clear();
+      return false;
+    }
+
+    return Array.from(this._errorCounts.values()).some(count => count >= this._circuitBreakerThreshold);
+  }
+
   /**
    * Clean up resources
    */
-  async cleanup() {
-    if (!this.initialized) {
-      return;
-    }
-    
-    this.logger.info('Cleaning up API service');
+  async _performCleanup() {
+    this._logger?.info('Cleaning up API service');
     
     // Cancel all in-flight requests
-    this.cancelAllRequests();
+    await this._cancelAllRequests();
     
-    // Clear state
-    this.activeRequests.clear();
-    this.abortControllers.clear();
+    // Close all message ports
+    for (const port of this._messagePorts) {
+      try {
+        port.disconnect();
+      } catch (error) {
+        this._logger?.warn('Error disconnecting message port:', error);
+      }
+    }
+    this._messagePorts = new WeakSet();
     
-    this.initialized = false;
-    this.logger.debug('API service cleanup complete');
+    // Clear and nullify Maps
+    this._activeRequests = new WeakMap();
+    this._abortControllers = new WeakMap();
+    this._errorCounts.clear();
+    
+    // Reset statistics
+    this._resetStatistics();
+    
+    // Clear configuration
+    this._config = null;
+    this._baseURL = null;
+    this._apiKey = null;
   }
 }

@@ -1,4 +1,4 @@
-// src/popup/diagnostics/diagnostics-dashboard.js
+// src/popup/diagnostics.js
 import { LogManager } from '../utils/log-manager.js';
 import { container } from '../core/dependency-container.js';
 import { ensureContainerInitialized } from '../core/container-init.js';
@@ -61,17 +61,29 @@ const DiagnosticsDashboard = {
     if (this.initialized) return;
     
     try {
-      // Ensure container is initialized
-      await ensureContainerInitialized({
+      // Ensure container is initialized with progress monitoring
+      const initResult = await ensureContainerInitialized({
         isBackgroundScript: false,
         context: 'diagnostics'
       });
       
-      // Get services with fallbacks
+      // Log initialization progress
+      if (initResult.progress) {
+        this._logger.debug('Container initialization progress:', {
+          phase: initResult.progress.phase,
+          progress: initResult.progress.progress
+        });
+      }
+      
+      // Get services with fallbacks and phase information
       this._messageService = this.getService('messageService', {
-        sendMessage: async (message) => {
-          this._logger.warn('MessageService not available, using fallback');
-          return { success: false, error: 'Service not available' };
+        phase: 'core',
+        lazy: false,
+        fallback: {
+          sendMessage: async (message) => {
+            this._logger.warn('MessageService not available, using fallback');
+            return { success: false, error: 'Service not available' };
+          }
         }
       });
       

@@ -1,6 +1,6 @@
 // src/components/panels/tasks/tasks-panel.js
 import { LogManager } from '../../../utils/log-manager.js'; 
-import { container } from '@core/dependency-container.js';
+import { container } from '../../../core/dependency-container.js';
 
 /**
  * Tasks Panel Component

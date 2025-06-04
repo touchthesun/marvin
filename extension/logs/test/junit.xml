@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="10" failures="10" errors="0" time="27.041">
+  <testsuite name="Container Initialization" errors="0" failures="10" skipped="0" timestamp="2025-05-26T07:13:41" time="26.919" tests="10">
+    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="2.124">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Service Registration" name="registers core services" time="2.119">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="2.096">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Component Registration" name="registers core components" time="2.125">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="2.123">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:575:9)
+    at processTimers (node:internal/timers:549:7)
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Error Handling" name="handles initialization errors gracefully" time="2.118">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:575:9)
+    at processTimers (node:internal/timers:549:7)
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Container State" name="validates container state after initialization" time="2.116">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:575:9)
+    at processTimers (node:internal/timers:549:7)
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="3.168">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:575:9)
+    at processTimers (node:internal/timers:549:7)
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="3.16">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:575:9)
+    at processTimers (node:internal/timers:549:7)
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="3.165">
+      <failure>Error: Validation failed during essential-utilities: Missing required service: apiService, Missing required service: storageService, Missing required service: messageService, Missing required component: navigation, Missing required component: overview-panel, Container not fully initialized
+    at /Users/nathanparker/Documents/workspace/personal/marvin/extension/src/core/container-init.js:41:15
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:575:9)
+    at processTimers (node:internal/timers:549:7)
+    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:113:20)</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

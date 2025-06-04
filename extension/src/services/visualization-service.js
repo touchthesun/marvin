@@ -1,18 +1,40 @@
 // src/services/visualization-service.js
+import { BaseService } from '../core/base-service.js';
 import { LogManager } from '../utils/log-manager.js';
+import * as d3 from 'd3';
 
 /**
  * Visualization Service - Handles D3 and other visualization tasks
  */
-export class VisualizationService {
+export class VisualizationService extends BaseService {
+  static _DEFAULT_CONFIG = {
+    maxChartElements: 1000,
+    maxGraphNodes: 500,
+    maxGraphLinks: 1000,
+    cleanupInterval: 30000, // 30 seconds
+    memoryPressureThreshold: 0.8, // 80% memory usage
+    d3CheckInterval: 5000, // 5 seconds
+  };
+
   /**
    * Create a new VisualizationService instance
    */
   constructor() {
+    super();
+
+    // Initialize logger
+    this._logger = new LogManager({
+      context: 'visualization-service',
+      isBackgroundScript: false,
+      storageKey: 'marvin_visualization_logs',
+      maxEntries: 1000
+    });
+    
     // State initialization
-    this.initialized = false;
-    this.d3Available = false;
-    this.logger = null;
+    this._d3Available = false;
+    this._activeCharts = new WeakMap();
+    this._activeGraphs = new WeakMap();
+    this._d3CheckInterval = null;
     
     // Bind methods that may be used as callbacks
     this._handleNodeClick = this._handleNodeClick.bind(this);
@@ -23,58 +45,152 @@ export class VisualizationService {
    * Initialize the service
    * @returns {Promise<boolean>} Success state
    */
-  async initialize() {
-    if (this.initialized) {
-      return true;
-    }
-    
+  async _performInitialization() {
     try {
-      // Create logger directly
-      this.logger = new LogManager({
-        context: 'visualization-service',
-        isBackgroundScript: false,
-        storageKey: 'marvin_visualization_logs',
-        maxEntries: 1000
-      });
+      this._logger.info('Initializing visualization service');
       
-      this.logger.info('Initializing visualization service');
+      // Start D3 availability check
+      this._startD3Check();
       
-      // Try to detect if D3 is available
-      try {
-        this.d3Available = typeof d3 !== 'undefined';
-        this.logger.debug(`D3 availability: ${this.d3Available}`);
-      } catch (e) {
-        this.logger.warn('D3 not available:', e.message);
-        this.d3Available = false;
-      }
+      // Start cleanup interval
+      this._startCleanupInterval();
       
-      // If D3 is not available, try to detect it in window
-      if (!this.d3Available) {
-        try {
-          // For safety, we'll check if window.d3 is already available
-          if (typeof window !== 'undefined' && window.d3) {
-            this.d3Available = true;
-            this.logger.debug('D3 found in global scope');
-          } else {
-            this.logger.warn('D3 not available and could not be loaded');
-          }
-        } catch (loadError) {
-          this.logger.error('Error loading D3:', loadError);
-        }
-      }
-      
-      this.initialized = true;
-      this.logger.info('Visualization service initialized successfully');
+      this._logger.info('Visualization service initialized successfully');
       return true;
     } catch (error) {
-      if (this.logger) {
-        this.logger.error('Error initializing visualization service:', error);
-      } else {
-        console.error('Error initializing visualization service:', error);
-      }
-      return false;
+      this._logger.error('Error initializing visualization service:', error);
+      throw error;
     }
   }
+
+    /**
+   * Handle memory pressure
+   * @param {Object} snapshot - Memory snapshot
+   */
+    async _handleMemoryPressure(snapshot) {
+      this._logger.warn('Memory pressure detected in visualization service');
+      
+      // Let base implementation handle pressure level calculation and cleanup orchestration
+      await super._handleMemoryPressure(snapshot);
+  }
+    
+    // Add new method for service-specific cleanup
+    async _performServiceSpecificCleanup() {
+      // Clean up old visualizations
+      await this._cleanupOldVisualizations();
+      
+      // Clear any cached data
+      this._activeCharts = new WeakMap();
+      this._activeGraphs = new WeakMap();
+    }
+  
+    /**
+     * Start D3 availability check interval
+     * @private
+     */
+    _startD3Check() {
+      if (this._d3CheckInterval) return;
+      
+      this._d3CheckInterval = this._resourceTracker.trackInterval(
+        () => this._checkD3Availability(),
+        this.constructor._DEFAULT_CONFIG.d3CheckInterval
+      );
+    }
+  
+    /**
+     * Stop D3 availability check interval
+     * @private
+     */
+    _stopD3Check() {
+      if (this._d3CheckInterval) {
+        clearInterval(this._d3CheckInterval);
+        this._d3CheckInterval = null;
+      }
+    }
+  
+    /**
+     * Check if D3 is available
+     * @private
+     */
+    _checkD3Availability() {
+      try {
+        this._d3Available = typeof d3 !== 'undefined';
+        if (!this._d3Available && typeof window !== 'undefined' && window.d3) {
+          this._d3Available = true;
+        }
+        this._logger.debug(`D3 availability: ${this._d3Available}`);
+      } catch (error) {
+        this._logger.warn('Error checking D3 availability:', error);
+        this._d3Available = false;
+      }
+    }
+  
+    /**
+     * Start cleanup interval
+     * @private
+     */
+    _startCleanupInterval() {
+      this._resourceTracker.trackInterval(
+        () => this._cleanupOldVisualizations(),
+        this.constructor._DEFAULT_CONFIG.cleanupInterval
+      );
+    }
+  
+    /**
+     * Stop cleanup interval
+     * @private
+     */
+    _stopCleanupInterval() {
+      // Intervals are automatically cleaned up by resource tracker
+    }
+  
+    /**
+     * Cleanup old visualizations
+     * @private
+     */
+    async _cleanupOldVisualizations() {
+      try {
+        // Clean up old charts
+        for (const [container, chart] of this._activeCharts) {
+          if (!document.contains(container)) {
+            this._cleanupContainer(container);
+            this._activeCharts.delete(container);
+          }
+        }
+        
+        // Clean up old graphs
+        for (const [container, graph] of this._activeGraphs) {
+          if (!document.contains(container)) {
+            this._cleanupContainer(container);
+            this._activeGraphs.delete(container);
+          }
+        }
+      } catch (error) {
+        this._logger.error('Error cleaning up old visualizations:', error);
+      }
+    }
+  
+    /**
+     * Cleanup all visualizations
+     * @private
+     */
+    async _cleanupAllVisualizations() {
+      try {
+        // Clean up all charts
+        for (const [container] of this._activeCharts) {
+          this._cleanupContainer(container);
+        }
+        this._activeCharts = new WeakMap();
+        
+        // Clean up all graphs
+        for (const [container] of this._activeGraphs) {
+          this._cleanupContainer(container);
+        }
+        this._activeGraphs = new WeakMap();
+      } catch (error) {
+        this._logger.error('Error cleaning up all visualizations:', error);
+      }
+    }
   
   /**
    * Create a simple bar chart visualization
@@ -84,39 +200,39 @@ export class VisualizationService {
    * @returns {Promise<boolean>} - Whether visualization was successful
    */
   async createBarChart(containerId, data, options = {}) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
-        const success = await this.initialize();
-        if (!success) {
-          throw new Error('Failed to initialize visualization service');
-        }
+        await this.initialize();
       } catch (error) {
-        this.logger?.error('Error initializing visualization service:', error);
+        this._logger.error('Error initializing visualization service:', error);
         return false;
       }
     }
     
     if (!containerId) {
-      this.logger.warn('No container ID provided for bar chart');
+      this._logger.warn('No container ID provided for bar chart');
       return false;
     }
     
     if (!data || !Array.isArray(data)) {
-      this.logger.warn('Invalid data provided for bar chart');
+      this._logger.warn('Invalid data provided for bar chart');
       return false;
     }
     
-    this.logger.debug(`Creating bar chart in ${containerId}`);
+    this._logger.debug(`Creating bar chart in ${containerId}`);
     
     try {
       const container = document.getElementById(containerId);
       if (!container) {
-        this.logger.warn(`Container element not found: ${containerId}`);
+        this._logger.warn(`Container element not found: ${containerId}`);
         return false;
       }
       
+      // Track the container element
+      this._resourceTracker.trackDOMElement(container);
+      
       // If D3 is not available, create a simple HTML-based chart
-      if (!this.d3Available) {
+      if (!this._d3Available) {
         return this._createFallbackBarChart(container, data, options);
       }
       
@@ -124,14 +240,14 @@ export class VisualizationService {
       try {
         // D3 visualization code would go here
         // Since we're moving away from direct D3 dependency, this is left as a stub
-        this.logger.debug('D3 visualization not implemented yet');
+        this._logger.debug('D3 visualization not implemented yet');
         return this._createFallbackBarChart(container, data, options);
       } catch (d3Error) {
-        this.logger.error('Error creating D3 visualization:', d3Error);
+        this._logger.error('Error creating D3 visualization:', d3Error);
         return this._createFallbackBarChart(container, data, options);
       }
     } catch (error) {
-      this.logger.error('Error creating bar chart:', error);
+      this._logger.error('Error creating bar chart:', error);
       return false;
     }
   }
@@ -202,11 +318,11 @@ export class VisualizationService {
    */
   _createFallbackBarChart(container, data, options = {}) {
     if (!container) {
-      this.logger.error('Container is null in _createFallbackBarChart');
+      this._logger.error('Container is null in _createFallbackBarChart');
       return false;
     }
     
-    this.logger.debug('Creating fallback bar chart');
+    this._logger.debug('Creating fallback bar chart');
     
     try {
       // Track elements we create for possible cleanup later
@@ -223,6 +339,9 @@ export class VisualizationService {
       chartContainer.style.height = options.height || '200px';
       chartContainer.style.width = options.width || '100%';
       chartContainer.style.gap = '5px';
+      
+      // Track the chart container
+      this._resourceTracker.trackDOMElement(chartContainer);
       elements.push(chartContainer);
       
       // Safety check for empty data
@@ -235,10 +354,16 @@ export class VisualizationService {
         placeholder.style.justifyContent = 'center';
         placeholder.style.height = '100%';
         placeholder.style.color = '#999';
+        
+        // Track the placeholder
+        this._resourceTracker.trackDOMElement(placeholder);
         elements.push(placeholder);
         
         chartContainer.appendChild(placeholder);
         container.appendChild(chartContainer);
+        
+        // Store in active charts
+        this._activeCharts.set(container, { elements, type: 'bar' });
         return true;
       }
       
@@ -253,6 +378,9 @@ export class VisualizationService {
         barContainer.style.alignItems = 'center';
         barContainer.style.gap = '10px';
         barContainer.style.height = `${100 / data.length}%`;
+        
+        // Track the bar container
+        this._resourceTracker.trackDOMElement(barContainer);
         elements.push(barContainer);
         
         const label = document.createElement('div');
@@ -263,6 +391,9 @@ export class VisualizationService {
         label.style.overflow = 'hidden';
         label.style.textOverflow = 'ellipsis';
         label.style.whiteSpace = 'nowrap';
+        
+        // Track the label
+        this._resourceTracker.trackDOMElement(label);
         elements.push(label);
         
         const barWrapper = document.createElement('div');
@@ -271,6 +402,9 @@ export class VisualizationService {
         barWrapper.style.height = '70%';
         barWrapper.style.backgroundColor = '#f0f0f0';
         barWrapper.style.borderRadius = '3px';
+        
+        // Track the bar wrapper
+        this._resourceTracker.trackDOMElement(barWrapper);
         elements.push(barWrapper);
         
         const bar = document.createElement('div');
@@ -280,6 +414,9 @@ export class VisualizationService {
         bar.style.backgroundColor = item.color || '#4285f4';
         bar.style.borderRadius = '3px';
         bar.style.transition = 'width 0.5s ease-in-out';
+        
+        // Track the bar
+        this._resourceTracker.trackDOMElement(bar);
         elements.push(bar);
         
         const value = document.createElement('div');
@@ -287,6 +424,9 @@ export class VisualizationService {
         value.textContent = item.value || '0';
         value.style.width = '50px';
         value.style.paddingLeft = '10px';
+        
+        // Track the value
+        this._resourceTracker.trackDOMElement(value);
         elements.push(value);
         
         barWrapper.appendChild(bar);
@@ -298,12 +438,12 @@ export class VisualizationService {
       
       container.appendChild(chartContainer);
       
-      // Store elements reference for potential cleanup
-      container._chartElements = elements;
+      // Store in active charts
+      this._activeCharts.set(container, { elements, type: 'bar' });
       
       return true;
     } catch (error) {
-      this.logger.error('Error creating fallback bar chart:', error);
+      this._logger.error('Error creating fallback bar chart:', error);
       return false;
     }
   }
@@ -347,6 +487,7 @@ export class VisualizationService {
       nodeElement.style.boxShadow = '0 0 5px rgba(0,0,0,0.5)';
     } catch (error) {
       this.logger?.error('Error handling node click:', error);
+      throw error;
     }
   }
   
@@ -530,23 +671,40 @@ export class VisualizationService {
    * Cleanup service resources
    * @returns {Promise<void>}
    */
-  async cleanup() {
-    if (!this.initialized) {
-      return;
-    }
-    
-    this.logger.info('Cleaning up visualization service');
+  async _performCleanup() {
+    this._logger.info('Cleaning up visualization service');
     
     try {
-      // Clean up any charts that might still be in the DOM
-      document.querySelectorAll('.fallback-bar-chart, .fallback-graph').forEach(container => {
-        this._cleanupContainer(container.parentElement);
-      });
+      // Stop intervals
+      this._stopD3Check();
+      this._stopCleanupInterval();
+      
+      // Clean up all active visualizations
+      await this._cleanupAllVisualizations();
+
+      // Clean up D3 resources
+      if (this._d3Available) {
+        try {
+          // Clean up any D3 selections
+          d3.selectAll('.d3-visualization').remove();
+        } catch (error) {
+          this._logger.error('Error cleaning up D3 resources:', error);
+        }
+      }
+      
+      // Clear bound methods
+      this._handleNodeClick = null;
+      this._handleResetView = null;
+      
+      // Clear D3 reference
+      this._d3Available = false;
+      
+      // Clear maps
+      this._activeCharts = new WeakMap();
+      this._activeGraphs = new WeakMap();
     } catch (error) {
-      this.logger.warn('Error cleaning up visualizations:', error);
+      this._logger.error('Error cleaning up visualization service:', error);
+      throw error;
     }
-    
-    this.initialized = false;
-    this.logger.debug('Visualization service cleanup completed');
   }
 }

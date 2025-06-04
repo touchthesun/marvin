@@ -1,22 +1,41 @@
 // src/services/storage-service.js
 import { LogManager } from '../utils/log-manager.js';
-import { container } from '../core/dependency-container.js';
+import { BaseService } from '../core/base-service.js';
 
 /**
  * StorageService - Manages browser storage operations and caching
  */
-export class StorageService {
+export class StorageService extends BaseService {
   /**
    * Create a new StorageService instance
+   * @param {Object} options - Service options
+   * @param {LogManager} [options.logger] - Logger instance
+   * @param {Object} [options.notificationService] - Notification service instance
    */
-  constructor() {
-    // State initialization
-    this.initialized = false;
-    this.logger = null;
-    this.notificationService = null;
+  constructor(options = {}) {
+    super({
+      ...options,
+      maxTaskAge: 300000, // 5 minutes
+      maxActiveTasks: 50,
+      maxRetryAttempts: 3,
+      retryBackoffBase: 1000,
+      retryBackoffMax: 30000,
+      circuitBreakerThreshold: 5,
+      circuitBreakerTimeout: 60000
+    });
     
-    // Default settings
-    this.DEFAULT_SETTINGS = {
+    // Private properties
+    this._logger = options.logger || new LogManager({
+      context: 'storage-service',
+      isBackgroundScript: false,
+      storageKey: 'marvin_storage_logs',
+      maxEntries: 1000
+    });
+
+    this._notificationService = options.notificationService || null;
+    
+    // Default settings (frozen to prevent modifications)
+    this._DEFAULT_SETTINGS = Object.freeze({
       apiConfig: {
         baseUrl: 'http://localhost:8000',
         apiKey: ''
@@ -39,141 +58,140 @@ export class StorageService {
         sidebarWidth: 280,
         expandedSections: ['recent-captures', 'active-tasks']
       }
-    };
+    });
     
-    // Data cache
-    this.cache = {
-      settings: null,
-      captureHistory: null,
-      stats: null,
-      lastRefresh: {
-        settings: 0,
-        captureHistory: 0,
-        stats: 0
-      }
-    };
-    
-    // Cache TTL in ms
-    this.CACHE_TTL = {
+    // Cache configuration
+    this._CACHE_TTL = Object.freeze({
       settings: 60000, // 1 minute
       captureHistory: 30000, // 30 seconds
       stats: 60000 // 1 minute
-    };
+    });
+
+    this._CACHE_LIMITS = Object.freeze({
+      captureHistory: 1000, // Maximum number of history entries
+      stats: 100 // Maximum number of stat entries
+    });
+    
+    // Data cache using WeakMap for object references
+    this._cache = new WeakMap();
+    this._cacheTimestamps = new Map();
     
     // Bind methods for event listeners
-    this.handleStorageChanges = this.handleStorageChanges.bind(this);
+    this._handleStorageChanges = this._handleStorageChanges.bind(this);
   }
-  
+
   /**
-   * Initialize the service
-   * @returns {Promise<boolean>} Success state
+   * Service-specific initialization
+   * @protected
    */
-  async initialize() {
-    if (this.initialized) {
-      return true;
-    }
-    
+  async _performInitialization() {
     try {
-      // Create logger directly
-      this.logger = new LogManager({
-        context: 'storage-service',
-        isBackgroundScript: false,
-        storageKey: 'marvin_storage_logs',
-        maxEntries: 1000
-      });
-      
-      this.logger.info('Initializing storage service');
-      
-      // Resolve dependencies
-      await this.resolveDependencies();
+      this._logger.info('Initializing storage service');
       
       // Pre-load common data
       await this.getSettings();
       
-      // Set up storage change listeners
-      this.setupStorageListeners();
+      // Set up storage change listeners using resource tracker
+      this._setupStorageListeners();
       
-      this.initialized = true;
-      this.logger.info('Storage service initialized successfully');
-      return true;
+      this._logger.info('Storage service initialized successfully');
     } catch (error) {
-      if (this.logger) {
-        this.logger.error('Error initializing storage service:', error);
-      } else {
-        console.error('Error initializing storage service:', error);
-      }
-      return false;
+      this._logger.error('Error initializing storage service:', error);
+      throw error;
     }
   }
-  
+
   /**
-   * Resolve service dependencies
+   * Service-specific cleanup
+   * @protected
+   */
+  async _performCleanup() {
+    try {
+      await this._clearAllCaches();
+      this._logger.info('Storage service cleaned up successfully');
+    } catch (error) {
+      this._logger.error('Error during storage service cleanup:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle memory pressure
+   * @param {Object} snapshot - Memory usage snapshot
+   * @protected
+   */
+  async _handleMemoryPressure(snapshot) {
+    this._logger.warn('Memory pressure detected, cleaning up non-essential resources');
+    await super._handleMemoryPressure(snapshot);
+    await this._clearAllCaches();
+  }
+
+  /**
+   * Clear all caches
    * @private
    */
-  async resolveDependencies() {
-    try {
-      // Get notification service (optional)
-      try {
-        this.notificationService = container.getService('notificationService');
-        this.logger.debug('Notification service resolved successfully');
-      } catch (notificationError) {
-        this.logger.warn('Notification service not available, notifications will be disabled');
-        this.notificationService = null; // Explicitly set to null
-      }
-    } catch (error) {
-      this.logger.warn('Error resolving dependencies:', error);
-      // Ensure notificationService is null if resolution fails
-      this.notificationService = null;
-    }
+  async _clearAllCaches() {
+    this._cache = new WeakMap();
+    this._cacheTimestamps.clear();
   }
-  
+
   /**
-   * Set up listeners for storage changes
-   * @returns {void}
+   * Set up listeners for storage changes using resource tracker
+   * @private
    */
-  setupStorageListeners() {
+  _setupStorageListeners() {
     try {
       // Remove any existing listeners first to prevent duplicates
       try {
-        chrome.storage.onChanged.removeListener(this.handleStorageChanges);
+        chrome.storage.onChanged.removeListener(this._handleStorageChanges);
       } catch (removeError) {
-        this.logger.debug('No existing storage listener to remove');
+        this._logger.debug('No existing storage listener to remove');
       }
       
-      // Add the listener
-      chrome.storage.onChanged.addListener(this.handleStorageChanges);
-      this.logger.debug('Storage change listener set up');
+      // Add the listener using resource tracker
+      this._resourceTracker.trackEventListener(
+        chrome.storage.onChanged,
+        'addListener',
+        this._handleStorageChanges
+      );
+      
+      this._logger.debug('Storage change listener set up');
     } catch (error) {
-      this.logger.error('Error setting up storage listeners:', error);
+      this._logger.error('Error setting up storage listeners:', error);
+      throw error;
     }
   }
-  
+
   /**
    * Handle storage change events
    * @param {Object} changes - Changed storage items
    * @param {string} area - Storage area ('local', 'sync', etc.)
+   * @private
    */
-  handleStorageChanges(changes, area) {
-    if (!this.logger) return; // Skip if logger not available
+  _handleStorageChanges(changes, area) {
+    if (!this._logger) return; // Skip if logger not available
     if (area !== 'local') return;
     
-    this.logger.debug('Storage changes detected:', changes);
+    this._logger.debug('Storage changes detected:', changes);
     
     // Clear relevant caches when data changes
     if (changes.apiConfig || changes.captureSettings || 
         changes.analysisSettings || changes.uiSettings) {
-      this.cache.settings = null;
-      this.logger.debug('Settings cache cleared due to storage changes');
+      this._cache.delete('settings');
+      this._cacheTimestamps.delete('settings');
+      this._logger.debug('Settings cache cleared due to storage changes');
     }
     
     if (changes.captureHistory) {
-      this.cache.captureHistory = null;
-      this.logger.debug('Capture history cache cleared due to storage changes');
+      this._cache.delete('captureHistory');
+      this._cacheTimestamps.delete('captureHistory');
+      this._logger.debug('Capture history cache cleared due to storage changes');
     }
     
     if (changes.stats) {
-      this.cache.stats = null;
-      this.logger.debug('Stats cache cleared due to storage changes');
+      this._cache.delete('stats');
+      this._cacheTimestamps.delete('stats');
+      this._logger.debug('Stats cache cleared due to storage changes');
     }
   }
   
@@ -977,7 +995,7 @@ export class StorageService {
    */
   async cleanup() {
     if (!this.initialized) {
-      return; // No need to clean up if not initialized
+      return;
     }
     
     this.logger.info('Cleaning up storage service');
@@ -990,15 +1008,23 @@ export class StorageService {
       this.logger.warn('Error removing storage change listeners:', error);
     }
     
-    // Clear caches
+    // Clear and nullify caches
     this.cache.settings = null;
     this.cache.captureHistory = null;
     this.cache.stats = null;
+    this.cache.lastRefresh = null;
+    this.cache = null;
     
     // Clear object references
     this.notificationService = null;
+    this.DEFAULT_SETTINGS = null;
+    
+    // Clear bound methods
+    this.handleStorageChanges = null;
+    
+    // Clear logger reference
+    this.logger = null;
     
     this.initialized = false;
-    this.logger.debug('Storage service cleanup completed');
   }
 }

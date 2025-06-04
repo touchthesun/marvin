@@ -1,41 +1,55 @@
 // services/notification-service.js
+import { BaseService } from '../core/base-service.js';
 import { LogManager } from '../utils/log-manager.js';
 
 /**
  * Notification Service - Manages UI notifications throughout the extension
  */
-export class NotificationService {
+export class NotificationService extends BaseService {
+  /**
+   * Default configuration values
+   * @private
+   */
+  static _DEFAULT_CONFIG = {
+    autoHideDuration: 3000,     // Duration before auto-hiding notifications (ms)
+    maxNotifications: 3,        // Maximum number of notifications to show at once
+    position: 'top-right',      // Position of notifications
+    transitionDuration: 300,    // Duration of fade animations (ms)
+    maxCreatedNotifications: 50, // Track created notifications for diagnostics
+    maxHistorySize: 100,        // Maximum size of notification history
+    maxActiveElements: 100      // Maximum number of active DOM elements
+  };
+
   /**
    * Create a new NotificationService instance
+   * @param {object} options - Service options
    */
-  constructor() {
+  constructor(options = {}) {
+    super({
+      ...options,
+      maxTaskAge: 300000, // 5 minutes
+      maxActiveTasks: 50,
+      maxRetryAttempts: 3,
+      retryBackoffBase: 1000,
+      retryBackoffMax: 30000,
+      circuitBreakerThreshold: 5,
+      circuitBreakerTimeout: 60000
+    });
+
     // State initialization
-    this.initialized = false;
-    this.logger = null;
-    
-    // Configuration defaults
-    this.config = {
-      autoHideDuration: 3000,     // Duration before auto-hiding notifications (ms)
-      maxNotifications: 3,        // Maximum number of notifications to show at once
-      position: 'top-right',      // Position of notifications
-      transitionDuration: 300,    // Duration of fade animations (ms)
-      maxCreatedNotifications: 50 // Track created notifications for diagnostics
+    this._config = {
+      ...NotificationService._DEFAULT_CONFIG,
+      ...options
     };
 
     // Store for active notifications
-    this.activeNotifications = {
+    this._activeNotifications = {
       standard: [],
       progress: null
     };
     
-    // Track event handlers for cleanup
-    this.eventHandlers = new Map();
-    
-    // Track created DOM elements for cleanup
-    this.createdElements = new Set();
-    
     // Track notification statistics
-    this.stats = {
+    this._stats = {
       created: 0,
       dismissed: 0,
       byType: {
@@ -48,53 +62,49 @@ export class NotificationService {
     };
     
     // Detect if we're in a service worker context
-    this.isServiceWorkerContext = typeof self !== 'undefined' && 
+    this._isServiceWorkerContext = typeof self !== 'undefined' && 
                                  typeof document === 'undefined';
   }
-  
+
   /**
    * Initialize the notification service
    * @returns {Promise<boolean>} Success state
+   * @private
    */
-  async initialize() {
-    if (this.initialized) {
-      return true;
-    }
-    
+  async _performInitialization() {
     try {
-      // Create logger directly - no container access needed
-      this.logger = new LogManager({
+      // Create logger
+      this._logger = new LogManager({
         context: 'notification-service',
-        isBackgroundScript: this.isServiceWorkerContext,
+        isBackgroundScript: this._isServiceWorkerContext,
         maxEntries: 100
       });
       
-      this.logger.info('Initializing notification service');
+      this._logger.info('Initializing notification service');
       
       // Create notification container if in browser context
-      if (!this.isServiceWorkerContext) {
-        await this.ensureNotificationContainer();
+      if (!this._isServiceWorkerContext) {
+        await this._ensureNotificationContainer();
       } else {
-        this.logger.info('Running in service worker context - UI notifications disabled');
+        this._logger.info('Running in service worker context - UI notifications disabled');
       }
       
-      this.initialized = true;
-      this.logger.info('Notification service initialized successfully');
+      this._logger.info('Notification service initialized successfully');
       return true;
     } catch (error) {
-      console.error('Error initializing notification service:', error);
-      return false;
+      this._logger?.error('Error initializing notification service:', error);
+      throw error;
     }
   }
-  
+
   /**
    * Ensure notification container exists in the DOM
    * @returns {Promise<HTMLElement|null>} The container element or null
    * @private
    */
-  async ensureNotificationContainer() {
+  async _ensureNotificationContainer() {
     // Only run in browser context
-    if (this.isServiceWorkerContext) {
+    if (this._isServiceWorkerContext) {
       return null;
     }
     
@@ -108,37 +118,37 @@ export class NotificationService {
       // Create container
       container = document.createElement('div');
       container.id = 'notification-container';
-      container.className = `notification-container ${this.config.position}`;
+      container.className = `notification-container ${this._config.position}`;
       document.body.appendChild(container);
       
       // Track created element
-      this.createdElements.add(container);
+      this._resourceTracker.trackDOMElement(container);
       
       // Add styles if they don't exist
       if (!document.getElementById('notification-styles')) {
         const style = document.createElement('style');
         style.id = 'notification-styles';
-        style.textContent = this.getNotificationStyles();
+        style.textContent = this._getNotificationStyles();
         document.head.appendChild(style);
         
         // Track created element
-        this.createdElements.add(style);
+        this._resourceTracker.trackDOMElement(style);
       }
       
-      this.logger.debug('Notification container created');
+      this._logger.debug('Notification container created');
       return container;
     } catch (error) {
-      this.logger.error('Error creating notification container:', error);
+      this._logger.error('Error creating notification container:', error);
       return null;
     }
   }
-  
+
   /**
    * Get CSS styles for notifications
    * @returns {string} CSS styles
    * @private
    */
-  getNotificationStyles() {
+  _getNotificationStyles() {
     return `
       .notification-container {
         position: fixed;
@@ -170,7 +180,7 @@ export class NotificationService {
         background-color: #fff;
         opacity: 0;
         transform: translateY(-10px);
-        transition: opacity ${this.config.transitionDuration}ms, transform ${this.config.transitionDuration}ms;
+        transition: opacity ${this._config.transitionDuration}ms, transform ${this._config.transitionDuration}ms;
         position: relative;
         pointer-events: auto;
       }
@@ -225,7 +235,7 @@ export class NotificationService {
       }
     `;
   }
-  
+
   /**
    * Show notification with optional progress bar
    * @param {string} message - Message to display
@@ -235,76 +245,81 @@ export class NotificationService {
    * @returns {Promise<HTMLElement|null>} Notification element or null
    */
   async showNotification(message, type = 'success', progress = null, options = {}) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        console.error('Failed to initialize notification service:', error);
+        this._logger?.error('Failed to initialize notification service:', error);
         return null;
       }
     }
+
+    // Check circuit breaker
+    if (this._isCircuitBreakerOpen()) {
+      this._logger?.warn('Circuit breaker open, notification suppressed');
+      return null;
+    }
     
     // Track notification creation
-    this.stats.created++;
-    if (this.stats.byType[type] !== undefined) {
-      this.stats.byType[type]++;
+    this._stats.created++;
+    if (this._stats.byType[type] !== undefined) {
+      this._stats.byType[type]++;
     }
     
     // Add to history with limited size
-    this.trackNotificationHistory(message, type, progress);
+    this._trackNotificationHistory(message, type, progress);
     
-    this.logger.debug(`Showing ${type} notification: ${message}${progress !== null ? ` (progress: ${progress}%)` : ''}`);
+    this._logger?.debug(`Showing ${type} notification: ${message}${progress !== null ? ` (progress: ${progress}%)` : ''}`);
 
     // Early return in service worker context
-    if (this.isServiceWorkerContext) {
-      // We can still log the notification but can't show UI
+    if (this._isServiceWorkerContext) {
       return null;
     }
     
     if (!message) {
-      this.logger.warn('Attempted to show notification with empty message');
+      this._logger.warn('Attempted to show notification with empty message');
       message = 'Notification';
     }
     
     // Validate notification type
     const validTypes = ['success', 'error', 'info', 'warning'];
     if (!validTypes.includes(type)) {
-      this.logger.warn(`Invalid notification type: ${type}, defaulting to 'info'`);
+      this._logger.warn(`Invalid notification type: ${type}, defaulting to 'info'`);
       type = 'info';
     }
     
     // Validate progress value if provided
     if (progress !== null) {
       if (typeof progress !== 'number' || progress < 0 || progress > 100) {
-        this.logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
+        this._logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
         progress = Math.max(0, Math.min(100, Number(progress) || 0));
       }
     }
     
     // Merge options with defaults
-    const config = { ...this.config, ...options };
+    const config = { ...this._config, ...options };
     
     try {
       // Ensure notification container exists
-      const container = await this.ensureNotificationContainer();
+      const container = await this._ensureNotificationContainer();
       if (!container) {
-        this.logger.error('Failed to create notification container');
+        this._logger.error('Failed to create notification container');
         return null;
       }
       
       // Handle progress notifications differently
       if (progress !== null) {
-        return this.createOrUpdateProgressNotification(message, type, progress, config);
+        return this._createOrUpdateProgressNotification(message, type, progress, config);
       }
       
       // Manage standard notifications
-      return this.createStandardNotification(message, type, config);
+      return this._createStandardNotification(message, type, config);
     } catch (error) {
-      this.logger.error('Error showing notification:', error);
+      this._logger.error('Error showing notification:', error);
       return null;
     }
   }
-  
+
   /**
    * Track notification in history for debugging
    * @param {string} message - Notification message
@@ -312,9 +327,9 @@ export class NotificationService {
    * @param {number|null} progress - Progress value if any
    * @private
    */
-  trackNotificationHistory(message, type, progress) {
+  _trackNotificationHistory(message, type, progress) {
     // Add to history with timestamp
-    this.stats.history.unshift({
+    this._stats.history.unshift({
       message,
       type,
       progress,
@@ -322,11 +337,11 @@ export class NotificationService {
     });
     
     // Limit history size
-    if (this.stats.history.length > this.config.maxCreatedNotifications) {
-      this.stats.history.pop();
+    if (this._stats.history.length > this._config.maxCreatedNotifications) {
+      this._stats.history.pop();
     }
   }
-  
+
   /**
    * Creates or updates a progress notification
    * @param {string} message - Message to display
@@ -336,11 +351,11 @@ export class NotificationService {
    * @returns {HTMLElement|null} Notification element
    * @private
    */
-  createOrUpdateProgressNotification(message, type, progress, config) {
+  _createOrUpdateProgressNotification(message, type, progress, config) {
     try {
       const container = document.getElementById('notification-container');
       if (!container) {
-        this.logger.warn('Notification container not found');
+        this._logger.warn('Notification container not found');
         return null;
       }
       
@@ -358,7 +373,7 @@ export class NotificationService {
         existingNotification.className = `notification ${type} progress-notification show`;
         
         // Store reference
-        this.activeNotifications.progress = existingNotification;
+        this._activeNotifications.progress = existingNotification;
         
         return existingNotification;
       }
@@ -385,23 +400,17 @@ export class NotificationService {
       
       // Add to DOM and track
       container.appendChild(notification);
-      this.createdElements.add(notification);
+      this._resourceTracker.trackDOMElement(notification);
       
       // Add close button handler if dismissible
       if (config.dismissible !== false) {
         const closeButton = notification.querySelector('.notification-close');
         if (closeButton) {
           const handleClick = () => {
-            this.hideNotification(notification);
+            this._hideNotification(notification);
           };
           
-          closeButton.addEventListener('click', handleClick);
-          
-          // Store handler reference for cleanup
-          this.eventHandlers.set(closeButton, {
-            event: 'click',
-            handler: handleClick
-          });
+          this._resourceTracker.trackEventListener(closeButton, 'click', handleClick);
         }
       }
       
@@ -411,15 +420,15 @@ export class NotificationService {
       });
       
       // Store reference
-      this.activeNotifications.progress = notification;
+      this._activeNotifications.progress = notification;
       
       return notification;
     } catch (error) {
-      this.logger.error('Error creating progress notification:', error);
+      this._logger.error('Error creating progress notification:', error);
       return null;
     }
   }
-  
+
   /**
    * Creates a standard (non-progress) notification
    * @param {string} message - Message to display
@@ -428,16 +437,16 @@ export class NotificationService {
    * @returns {HTMLElement|null} Notification element
    * @private
    */
-  createStandardNotification(message, type, config) {
+  _createStandardNotification(message, type, config) {
     try {
       const container = document.getElementById('notification-container');
       if (!container) {
-        this.logger.warn('Notification container not found');
+        this._logger.warn('Notification container not found');
         return null;
       }
       
       // Manage notification limit
-      this.manageNotificationLimit(config.maxNotifications);
+      this._manageNotificationLimit(config.maxNotifications);
       
       // Create notification element
       const notification = document.createElement('div');
@@ -458,23 +467,17 @@ export class NotificationService {
       
       // Add to DOM and track
       container.appendChild(notification);
-      this.createdElements.add(notification);
+      this._resourceTracker.trackDOMElement(notification);
       
       // Add close button handler if dismissible
       if (config.dismissible !== false) {
         const closeButton = notification.querySelector('.notification-close');
         if (closeButton) {
           const handleClick = () => {
-            this.hideNotification(notification);
+            this._hideNotification(notification);
           };
           
-          closeButton.addEventListener('click', handleClick);
-          
-          // Store handler reference for cleanup
-          this.eventHandlers.set(closeButton, {
-            event: 'click',
-            handler: handleClick
-          });
+          this._resourceTracker.trackEventListener(closeButton, 'click', handleClick);
         }
       }
       
@@ -486,8 +489,8 @@ export class NotificationService {
       // Auto-hide after duration
       const duration = typeof config.duration === 'number' ? config.duration : config.autoHideDuration;
       if (duration > 0) {
-        const timeoutId = setTimeout(() => {
-          this.hideNotification(notification);
+        const timeoutId = this._resourceTracker.trackTimeout(() => {
+          this._hideNotification(notification);
         }, duration);
         
         // Store timeout ID on the element for cleanup
@@ -495,52 +498,52 @@ export class NotificationService {
       }
       
       // Store reference
-      this.activeNotifications.standard.push(notification);
+      this._activeNotifications.standard.push(notification);
       
       return notification;
     } catch (error) {
-      this.logger.error('Error creating standard notification:', error);
+      this._logger.error('Error creating standard notification:', error);
       return null;
     }
   }
-  
+
   /**
    * Ensures we don't exceed the maximum number of standard notifications
    * @param {number} maxNotifications - Maximum allowed notifications
    * @private
    */
-  manageNotificationLimit(maxNotifications) {
+  _manageNotificationLimit(maxNotifications) {
     try {
-      if (this.activeNotifications.standard.length >= maxNotifications) {
+      if (this._activeNotifications.standard.length >= maxNotifications) {
         // Remove oldest notifications to make room
-        const notificationsToRemove = this.activeNotifications.standard.slice(
+        const notificationsToRemove = this._activeNotifications.standard.slice(
           0, 
-          this.activeNotifications.standard.length - maxNotifications + 1
+          this._activeNotifications.standard.length - maxNotifications + 1
         );
         
         notificationsToRemove.forEach(notification => {
-          this.hideNotification(notification, true); // true = immediate
+          this._hideNotification(notification, true); // true = immediate
         });
       }
     } catch (error) {
-      this.logger.error('Error managing notification limit:', error);
+      this._logger.error('Error managing notification limit:', error);
     }
   }
-  
+
   /**
    * Hides and removes a notification
    * @param {HTMLElement} notification - Notification element to hide
    * @param {boolean} immediate - Whether to remove immediately without animation
    * @private
    */
-  hideNotification(notification, immediate = false) {
+  _hideNotification(notification, immediate = false) {
     try {
       if (!notification || !notification.parentNode) {
         return;
       }
       
       // Track dismissal
-      this.stats.dismissed++;
+      this._stats.dismissed++;
       
       // Clear any auto-hide timeout
       if (notification.dataset.timeoutId) {
@@ -548,26 +551,15 @@ export class NotificationService {
         delete notification.dataset.timeoutId;
       }
       
-      // Remove event listeners
-      const closeButton = notification.querySelector('.notification-close');
-      if (closeButton && this.eventHandlers.has(closeButton)) {
-        const { event, handler } = this.eventHandlers.get(closeButton);
-        closeButton.removeEventListener(event, handler);
-        this.eventHandlers.delete(closeButton);
-      }
-      
       // Remove from active notifications tracking
       if (notification.classList.contains('progress-notification')) {
-        this.activeNotifications.progress = null;
+        this._activeNotifications.progress = null;
       } else {
-        const index = this.activeNotifications.standard.indexOf(notification);
+        const index = this._activeNotifications.standard.indexOf(notification);
         if (index !== -1) {
-          this.activeNotifications.standard.splice(index, 1);
+          this._activeNotifications.standard.splice(index, 1);
         }
       }
-      
-      // Stop tracking this element
-      this.createdElements.delete(notification);
       
       if (immediate) {
         notification.remove();
@@ -582,9 +574,9 @@ export class NotificationService {
         if (notification.parentNode) {
           notification.remove();
         }
-      }, this.config.transitionDuration);
+      }, this._config.transitionDuration);
     } catch (error) {
-      this.logger.error('Error hiding notification:', error);
+      this._logger.error('Error hiding notification:', error);
       
       // Force removal on error
       if (notification && notification.parentNode) {
@@ -592,7 +584,7 @@ export class NotificationService {
       }
     }
   }
-  
+
   /**
    * Update an existing progress notification
    * @param {string} message - Updated message
@@ -601,32 +593,32 @@ export class NotificationService {
    * @returns {Promise<HTMLElement|null>} Updated notification element or null if not found
    */
   async updateNotificationProgress(message, progress, type = null) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        console.error('Failed to initialize notification service:', error);
+        this._logger?.error('Failed to initialize notification service:', error);
         return null;
       }
     }
     
-    this.logger.debug(`Updating progress notification: ${message} (${progress}%)`);
+    this._logger.debug(`Updating progress notification: ${message} (${progress}%)`);
     
     // Early return in service worker context
-    if (this.isServiceWorkerContext) {
+    if (this._isServiceWorkerContext) {
       return null;
     }
     
     try {
       // Validate progress value
       if (typeof progress !== 'number' || progress < 0 || progress > 100) {
-        this.logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
+        this._logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
         progress = Math.max(0, Math.min(100, Number(progress) || 0));
       }
       
       const container = document.getElementById('notification-container');
       if (!container) {
-        this.logger.warn('Notification container not found');
+        this._logger.warn('Notification container not found');
         return null;
       }
       
@@ -650,34 +642,34 @@ export class NotificationService {
         return notification;
       } else {
         // Create a new one if it doesn't exist
-        this.logger.debug('No existing progress notification found, creating new one');
+        this._logger.debug('No existing progress notification found, creating new one');
         return this.showNotification(message, type || 'info', progress);
       }
     } catch (error) {
-      this.logger.error('Error updating progress notification:', error);
+      this._logger.error('Error updating progress notification:', error);
       return null;
     }
   }
-  
+
   /**
    * Dismiss all active notifications
    * @param {boolean} immediate - Whether to remove immediately without animation
    * @returns {Promise<void>}
    */
   async dismissAllNotifications(immediate = false) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        console.error('Failed to initialize notification service:', error);
+        this._logger?.error('Failed to initialize notification service:', error);
         return;
       }
     }
     
-    this.logger.debug('Dismissing all notifications');
+    this._logger.debug('Dismissing all notifications');
     
     // Early return in service worker context
-    if (this.isServiceWorkerContext) {
+    if (this._isServiceWorkerContext) {
       return;
     }
     
@@ -690,17 +682,17 @@ export class NotificationService {
       
       // Hide each notification
       notifications.forEach(notification => {
-        this.hideNotification(notification, immediate);
+        this._hideNotification(notification, immediate);
       });
       
       // Clear tracking arrays
-      this.activeNotifications.standard = [];
-      this.activeNotifications.progress = null;
+      this._activeNotifications.standard = [];
+      this._activeNotifications.progress = null;
     } catch (error) {
-      this.logger.error('Error dismissing all notifications:', error);
+      this._logger.error('Error dismissing all notifications:', error);
     }
   }
-  
+
   /**
    * Dismiss a specific notification by ID
    * @param {string} id - ID of the notification to dismiss
@@ -708,85 +700,85 @@ export class NotificationService {
    * @returns {Promise<boolean>} Whether the notification was found and dismissed
    */
   async dismissNotificationById(id, immediate = false) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        console.error('Failed to initialize notification service:', error);
+        this._logger?.error('Failed to initialize notification service:', error);
         return false;
       }
     }
     
     if (!id) {
-      this.logger.warn('Attempted to dismiss notification with no ID');
+      this._logger.warn('Attempted to dismiss notification with no ID');
       return false;
     }
     
     // Early return in service worker context
-    if (this.isServiceWorkerContext) {
+    if (this._isServiceWorkerContext) {
       return false;
     }
     
     try {
-      this.logger.debug(`Dismissing notification with ID: ${id}`);
+      this._logger.debug(`Dismissing notification with ID: ${id}`);
       
       const notification = document.getElementById(id);
       if (notification && notification.classList.contains('notification')) {
-        this.hideNotification(notification, immediate);
+        this._hideNotification(notification, immediate);
         return true;
       }
       
-      this.logger.debug(`No notification found with ID: ${id}`);
+      this._logger.debug(`No notification found with ID: ${id}`);
       return false;
     } catch (error) {
-      this.logger.error(`Error dismissing notification with ID ${id}:`, error);
+      this._logger.error(`Error dismissing notification with ID ${id}:`, error);
       return false;
     }
   }
-  
+
   /**
    * Get the count of currently active notifications
    * @returns {Promise<object>} Counts of active notifications by type
    */
   async getActiveNotificationCount() {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        console.error('Failed to initialize notification service:', error);
+        this._logger?.error('Failed to initialize notification service:', error);
         return { standard: 0, progress: 0, total: 0 };
       }
     }
     
     return {
-      standard: this.activeNotifications.standard.length,
-      progress: this.activeNotifications.progress ? 1 : 0,
-      total: this.activeNotifications.standard.length + (this.activeNotifications.progress ? 1 : 0)
+      standard: this._activeNotifications.standard.length,
+      progress: this._activeNotifications.progress ? 1 : 0,
+      total: this._activeNotifications.standard.length + (this._activeNotifications.progress ? 1 : 0)
     };
   }
-  
+
   /**
    * Configure global notification defaults
    * @param {object} config - Configuration options to set
    * @returns {Promise<void>}
    */
   async configureNotifications(config = {}) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        console.error('Failed to initialize notification service:', error);
+        this._logger?.error('Failed to initialize notification service:', error);
         return;
       }
     }
     
-    this.logger.debug('Updating notification configuration', config);
+    this._logger.debug('Updating notification configuration', config);
     
     // Update default configuration
-    Object.assign(this.config, config);
+    Object.assign(this._config, config);
     
     // Update position if it changed
-    if (config.position && !this.isServiceWorkerContext) {
+    if (config.position && !this._isServiceWorkerContext) {
       try {
         const container = document.getElementById('notification-container');
         if (container) {
@@ -796,11 +788,11 @@ export class NotificationService {
           container.classList.add(config.position);
         }
       } catch (error) {
-        this.logger.error('Error updating notification position:', error);
+        this._logger.error('Error updating notification position:', error);
       }
     }
   }
-  
+
   /**
    * Service worker compatible notification that only logs
    * @param {string} message - Message to log
@@ -808,11 +800,11 @@ export class NotificationService {
    * @returns {Promise<void>}
    */
   async log(message, type = 'info') {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
-        console.error('Failed to initialize notification service:', error);
+        this._logger?.error('Failed to initialize notification service:', error);
         console.log(`[${type.toUpperCase()}] ${message}`);
         return;
       }
@@ -820,105 +812,125 @@ export class NotificationService {
     
     switch (type) {
       case 'error':
-        this.logger.error(message);
+        this._logger.error(message);
         break;
       case 'warning':
-        this.logger.warn(message);
+        this._logger.warn(message);
         break;
       case 'success':
-        this.logger.info(`[SUCCESS] ${message}`);
+        this._logger.info(`[SUCCESS] ${message}`);
         break;
       case 'info':
-        this.logger.info(message);
+        this._logger.info(message);
         break;
       default:
-        this.logger.debug(message);
+        this._logger.debug(message);
     }
   }
-  
+
   /**
    * Get notification service statistics
    * @returns {object} Service statistics
    */
   getStatistics() {
     return {
-      created: this.stats.created,
-      dismissed: this.stats.dismissed,
-      active: this.activeNotifications.standard.length + (this.activeNotifications.progress ? 1 : 0),
-      byType: { ...this.stats.byType },
-      recentNotifications: this.stats.history.slice(0, 10) // Return most recent 10
+      created: this._stats.created,
+      dismissed: this._stats.dismissed,
+      active: this._activeNotifications.standard.length + (this._activeNotifications.progress ? 1 : 0),
+      byType: { ...this._stats.byType },
+      recentNotifications: this._stats.history.slice(0, 10) // Return most recent 10
     };
   }
-  
+
   /**
    * Get service status
    * @returns {object} Service status
    */
   getStatus() {
     return {
-      initialized: this.initialized,
-      hasLogger: !!this.logger,
-      isServiceWorkerContext: this.isServiceWorkerContext,
-      activeElements: this.createdElements.size,
-      activeEventHandlers: this.eventHandlers.size,
+      initialized: this._initialized,
+      hasLogger: !!this._logger,
+      isServiceWorkerContext: this._isServiceWorkerContext,
+      activeElements: this._resourceTracker.getDOMElementCount(),
+      activeEventHandlers: this._resourceTracker.getEventListenerCount(),
       activeNotifications: {
-        standard: this.activeNotifications.standard.length,
-        progress: this.activeNotifications.progress ? 1 : 0,
-        total: this.activeNotifications.standard.length + (this.activeNotifications.progress ? 1 : 0)
+        standard: this._activeNotifications.standard.length,
+        progress: this._activeNotifications.progress ? 1 : 0,
+        total: this._activeNotifications.standard.length + (this._activeNotifications.progress ? 1 : 0)
       },
       stats: {
-        created: this.stats.created,
-        dismissed: this.stats.dismissed
+        created: this._stats.created,
+        dismissed: this._stats.dismissed
       }
     };
   }
-  
+
+  /**
+   * Handle memory pressure
+   * @param {object} snapshot - Memory snapshot
+   * @private
+   */
+  async _handleMemoryPressure(snapshot) {
+    this._logger?.warn('Memory pressure detected, cleaning up non-essential resources');
+    await super._handleMemoryPressure(snapshot);
+    
+    // Clean up old notifications
+    await this._cleanupOldNotifications();
+    
+    // Clear notification history
+    this._clearNotificationHistory();
+  }
+
+  /**
+   * Clean up old notifications
+   * @private
+   */
+  async _cleanupOldNotifications() {
+    const now = Date.now();
+    const oldNotifications = this._activeNotifications.standard.filter(notification => {
+      const timestamp = parseInt(notification.dataset.timestamp || '0');
+      return now - timestamp > this._maxTaskAge;
+    });
+
+    for (const notification of oldNotifications) {
+      await this._hideNotification(notification, true);
+    }
+
+    if (oldNotifications.length > 0) {
+      this._logger?.warn(`Cleaned up ${oldNotifications.length} old notifications`);
+    }
+  }
+
+  /**
+   * Clear notification history
+   * @private
+   */
+  _clearNotificationHistory() {
+    if (this._stats.history.length > this._config.maxHistorySize) {
+      this._stats.history = this._stats.history.slice(0, this._config.maxHistorySize);
+      this._logger?.debug('Cleared notification history');
+    }
+  }
+
   /**
    * Clean up resources
-   * @returns {Promise<void>}
+   * @private
    */
-  async cleanup() {
-    if (!this.initialized) {
-      return;
-    }
-    
-    this.logger.info('Cleaning up notification service');
+  async _performCleanup() {
+    this._logger?.info('Cleaning up notification service');
     
     // Dismiss all notifications
-    await this.dismissAllNotifications(true);
+    await this._dismissAllNotifications(true);
     
-    // Remove event listeners
-    this.eventHandlers.forEach((data, element) => {
-      try {
-        const { event, handler } = data;
-        element.removeEventListener(event, handler);
-      } catch (error) {
-        this.logger.warn('Error removing event listener:', error);
-      }
-    });
+    // Clear and nullify active notifications
+    this._activeNotifications.standard = [];
+    this._activeNotifications.progress = null;
+    this._activeNotifications = null;
     
-    // Clear event handlers map
-    this.eventHandlers.clear();
+    // Clear and nullify configuration
+    this._config = null;
     
-    // Remove created DOM elements
-    this.createdElements.forEach(element => {
-      try {
-        if (element.parentNode) {
-          element.parentNode.removeChild(element);
-        }
-      } catch (error) {
-        this.logger.warn('Error removing DOM element:', error);
-      }
-    });
-    
-    // Clear created elements set
-    this.createdElements.clear();
-    
-    // Reset state
-    this.activeNotifications.standard = [];
-    this.activeNotifications.progress = null;
-    this.initialized = false;
-    
-    this.logger.debug('Notification service cleanup complete');
+    // Clear and nullify statistics
+    this._stats = null;
   }
 }

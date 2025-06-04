@@ -1,8 +1,10 @@
 export class LogManager {
   constructor(options = {}) {
-    this.maxEntries = options.maxEntries || 10000;
+    // Context-aware max entries
+    this.maxEntries = options.maxEntries || this._getDefaultMaxEntries(options.context);
     this.isBackgroundScript = options.isBackgroundScript || false;
     this.storageKey = options.storageKey || 'marvin_debug_logs';
+    this.context = options.context || 'default';
     this.logs = [];
     
     // Detect if we're in a service worker context
@@ -12,10 +14,10 @@ export class LogManager {
     
     // Use service worker context flag if detected
     if (this.isServiceWorkerContext) {
-      this.isBackgroundScript = true; // Service workers are background scripts
+      this.isBackgroundScript = true;
     }
     
-    // Minimal level mapping
+    // Level mapping with security context
     this.levelMap = {
       error: 1,
       warn: 2,
@@ -24,20 +26,36 @@ export class LogManager {
       trace: 5
     };
     
-    // This flag prevents us from intercepting console
-    this.shouldInterceptConsole = false; // Disable console interception
+    // Security-sensitive contexts
+    this.securityContexts = ['auth', 'security', 'audit'];
     
     this._setup();
   }
+
+  _getDefaultMaxEntries(context) {
+    // Higher limits for security contexts
+    if (this.securityContexts.includes(context)) {
+      return 1000; // Preserve more security logs
+    }
+    // Development contexts
+    if (context === 'test' || context === 'development') {
+      return 100; // Lower limit for test/development
+    }
+    return 500; // Default for other contexts
+  }
   
   _setup() {
-    // If we're not intercepting console, there's nothing to set up
-    // Just load existing logs if in background script
     if (this.isBackgroundScript) {
       try {
         chrome.storage.local.get(this.storageKey, (data) => {
           if (data && data[this.storageKey] && data[this.storageKey].logs) {
-            this.logs = data[this.storageKey].logs.slice(0, this.maxEntries);
+            // For security contexts, load all logs
+            if (this.securityContexts.includes(this.context)) {
+              this.logs = data[this.storageKey].logs;
+            } else {
+              // For other contexts, only load recent logs
+              this.logs = data[this.storageKey].logs.slice(-this.maxEntries);
+            }
           }
         });
       } catch (e) {
@@ -46,10 +64,8 @@ export class LogManager {
     }
   }
   
-  // Basic log method without any console interception
   log(level, ...args) {
     try {
-      // Create a basic message string
       let message = '';
       try {
         message = args.map(arg => {
@@ -57,7 +73,11 @@ export class LogManager {
           if (arg === undefined) return 'undefined';
           if (typeof arg === 'object') {
             try {
-              // For objects, just give type information to avoid circular reference issues
+              // For security contexts, preserve more object details
+              if (this.securityContexts.includes(this.context)) {
+                return JSON.stringify(arg);
+              }
+              // For other contexts, just use type info
               const type = arg.constructor ? arg.constructor.name : 'Object';
               return `[${type}]`;
             } catch (e) {
@@ -67,37 +87,58 @@ export class LogManager {
           return String(arg);
         }).join(' ');
         
-        // Limit message size
-        message = this._limitMessageSize(message, 1000);
+        // Context-aware message size limits
+        const maxLength = this.securityContexts.includes(this.context) ? 2000 : 500;
+        message = this._limitMessageSize(message, maxLength);
       } catch (e) {
         message = '[Error formatting log message]';
       }
       
-      // Create log entry with appropriate context
       const entry = {
         timestamp: new Date().toISOString(),
         level,
-        context: this.isServiceWorkerContext ? 'service-worker' : 
-                (this.isBackgroundScript ? 'background' : 'content'),
-        message
+        context: this.context,
+        message,
+        isSecurityContext: this.securityContexts.includes(this.context)
       };
       
-      // Add to logs array
       this.logs.push(entry);
       
-      // Keep logs under max size
-      if (this.logs.length > this.maxEntries) {
-        this.logs.splice(0, this.logs.length - this.maxEntries);
+      // Only trim non-security logs
+      if (!this.securityContexts.includes(this.context) && 
+          this.logs.length > this.maxEntries) {
+        this.logs = this.logs.slice(-this.maxEntries);
       }
       
-      // Send to background if not in background or service worker
       if (!this.isBackgroundScript && !this.isServiceWorkerContext) {
         this._safeSendToBackground(entry);
       }
       
       return true;
     } catch (e) {
-      // Fail silently - we can't log the error or we'd cause recursion
+      return false;
+    }
+  }
+
+  async cleanup() {
+    try {
+      // Only clear non-security logs
+      this.logs = this.logs.filter(log => log.isSecurityContext);
+      
+      if (this.isBackgroundScript || this.isServiceWorkerContext) {
+        // Preserve security logs in storage
+        const data = await chrome.storage.local.get(this.storageKey);
+        const securityLogs = data[this.storageKey]?.logs.filter(log => 
+          this.securityContexts.includes(log.context)
+        ) || [];
+        
+        await chrome.storage.local.set({
+          [this.storageKey]: { logs: securityLogs }
+        });
+      }
+      
+      return true;
+    } catch (e) {
       return false;
     }
   }

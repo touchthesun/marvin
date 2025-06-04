@@ -1,143 +1,214 @@
 // src/services/graph-service.js
+import { BaseService } from '../core/base-service.js';
 import { LogManager } from '../utils/log-manager.js';
-import { container } from '../core/dependency-container.js';
 
 /**
  * GraphService - Handles interaction with the Neo4j graph database via API
  */
-export class GraphService {
+export class GraphService extends BaseService {
+  /**
+   * Default configuration values
+   * @private
+   */
+  static _DEFAULT_CONFIG = {
+    cache: {
+      enabled: true,
+      timeoutMs: 5 * 60 * 1000, // 5 minutes
+      maxSize: 100,
+      pruneThreshold: 0.2,
+      operationTimeout: 5000, // 5 seconds
+      maxRetries: 3
+    }
+  };
+
   /**
    * Create a new GraphService instance
+   * @param {object} options - Service options
+   * @param {object} options.apiService - API service instance
+   * @param {object} [options.config] - Service configuration
    */
-  constructor() {
+  constructor(options = {}) {
+    super({
+      ...options,
+      maxTaskAge: 300000, // 5 minutes
+      maxActiveTasks: 50,
+      maxRetryAttempts: 3,
+      retryBackoffBase: 1000,
+      retryBackoffMax: 30000,
+      circuitBreakerThreshold: 5,
+      circuitBreakerTimeout: 60000
+    });
+
+    // Validate required dependencies
+    if (!options.apiService) {
+      throw new Error('ApiService is required');
+    }
+
     // State initialization
-    this.initialized = false;
-    this.logger = null;
-    this.apiService = null;
+    this._apiService = options.apiService;
     
-    // Cache for graph queries to improve performance
-    this.queryCache = new Map();
-    this.cacheTimeoutMs = 5 * 60 * 1000; // 5 minutes default
-    this.cacheEnabled = true;
-    this.cacheHits = 0;
-    this.cacheMisses = 0;
+    // Initialize cache configuration with defaults
+    this._cacheConfig = {
+      ...GraphService._DEFAULT_CONFIG.cache,
+      ...(options.config?.cache || {})
+    };
+    
+    // Validate cache configuration
+    this._validateCacheConfig();
+    
+    // Cache statistics
+    this._cacheStats = {
+      hits: 0,
+      misses: 0
+    };
   }
+
+    /**
+   * Validate cache configuration
+   * @private
+   */
+    _validateCacheConfig() {
+      const { timeoutMs, maxSize, pruneThreshold, operationTimeout, maxRetries } = this._cacheConfig;
+      
+      if (timeoutMs < 0) {
+        throw new Error('Cache timeout must be positive');
+      }
+      
+      if (maxSize < 1) {
+        throw new Error('Cache max size must be at least 1');
+      }
+      
+      if (pruneThreshold <= 0 || pruneThreshold >= 1) {
+        throw new Error('Cache prune threshold must be between 0 and 1');
+      }
+      
+      if (operationTimeout < 0) {
+        throw new Error('Cache operation timeout must be positive');
+      }
+      
+      if (maxRetries < 0) {
+        throw new Error('Cache max retries must be non-negative');
+      }
+    }
   
   /**
    * Initialize the graph service
    * @returns {Promise<boolean>} Success state
    */
-  async initialize() {
-    if (this.initialized) {
-      return true;
-    }
-    
+  async _performInitialization() {
     try {
-      // Create logger directly
-      this.logger = new LogManager({
+      // Create logger
+      this._logger = new LogManager({
         context: 'graph-service',
         isBackgroundScript: false,
         maxEntries: 1000
       });
       
-      this.logger.info('Initializing graph service');
-      
-      // Get dependencies from container
-      await this.resolveDependencies();
+      this._logger.info('Initializing graph service');
       
       // Load configuration
-      await this.loadConfiguration();
+      await this._loadConfiguration();
       
-      this.initialized = true;
-      this.logger.info('Graph service initialized successfully');
+      this._logger.info('Graph service initialized successfully');
       return true;
     } catch (error) {
-      if (this.logger) {
-        this.logger.error('Error initializing graph service:', error);
-      } else {
-        console.error('Error initializing graph service:', error);
-      }
-      return false;
-    }
-  }
-  
-  /**
-   * Resolve service dependencies
-   * @private
-   */
-  async resolveDependencies() {
-    try {
-      // Get API service from container
-      this.apiService = container.getService('apiService');
-      
-      if (!this.apiService) {
-        throw new Error('ApiService not available in container');
-      }
-      
-      this.logger.debug('Dependencies resolved successfully');
-    } catch (error) {
-      this.logger.error('Failed to resolve dependencies:', error);
+      this._logger?.error('Error initializing graph service:', error);
       throw error;
     }
   }
-  
+
+  /**
+   * Clean up resources
+   */
+  async _performCleanup() {
+    this._logger?.info('Cleaning up graph service');
+    
+    // Clear cache
+    await this._clearCache();
+    
+    // Clear service references
+    this._apiService = null;
+    
+    // Reset cache configuration
+    this._cacheConfig = {
+      enabled: false,
+      timeoutMs: 0,
+      maxSize: 0,
+      pruneThreshold: 0
+    };
+    
+    // Reset cache statistics
+    this._cacheStats = {
+      hits: 0,
+      misses: 0
+    };
+  }
+
+  /**
+   * Handle memory pressure
+   */
+  async _handleMemoryPressure(snapshot) {
+    this._logger?.warn('Memory pressure detected, cleaning up non-essential resources');
+    await super._handleMemoryPressure(snapshot);
+    
+    // Clear cache
+    await this._clearCache();
+  }
+
   /**
    * Load service configuration from storage
    * @private
    */
-  async loadConfiguration() {
+  async _loadConfiguration() {
     try {
       const data = await chrome.storage.local.get('graphServiceConfig');
       
       if (data.graphServiceConfig) {
         // Apply configuration
         if (data.graphServiceConfig.cacheTimeoutMs !== undefined) {
-          this.cacheTimeoutMs = data.graphServiceConfig.cacheTimeoutMs;
+          this._cacheConfig.timeoutMs = data.graphServiceConfig.cacheTimeoutMs;
         }
         
         if (data.graphServiceConfig.cacheEnabled !== undefined) {
-          this.cacheEnabled = data.graphServiceConfig.cacheEnabled;
+          this._cacheConfig.enabled = data.graphServiceConfig.cacheEnabled;
         }
         
-        this.logger.debug('Configuration loaded:', {
-          cacheEnabled: this.cacheEnabled,
-          cacheTimeoutMs: this.cacheTimeoutMs
-        });
+        this._logger.debug('Configuration loaded:', this._cacheConfig);
       }
     } catch (error) {
-      this.logger.warn('Failed to load configuration, using defaults:', error);
+      this._logger.warn('Failed to load configuration, using defaults:', error);
     }
   }
-  
+
   /**
    * Save service configuration to storage
    * @returns {Promise<boolean>} Success status
    * @private
    */
-  async saveConfiguration() {
+  async _saveConfiguration() {
     try {
       await chrome.storage.local.set({
         graphServiceConfig: {
-          cacheEnabled: this.cacheEnabled,
-          cacheTimeoutMs: this.cacheTimeoutMs
+          cacheEnabled: this._cacheConfig.enabled,
+          cacheTimeoutMs: this._cacheConfig.timeoutMs
         }
       });
       
-      this.logger.debug('Configuration saved');
+      this._logger.debug('Configuration saved');
       return true;
     } catch (error) {
-      this.logger.error('Failed to save configuration:', error);
+      this._logger.error('Failed to save configuration:', error);
       return false;
     }
   }
-  
+
   /**
    * Update service configuration
    * @param {object} config - New configuration values
-   * @returns {Promise<boolean>} Success status
+   * @returns {Promise<object>} Success status
    */
   async updateConfiguration(config) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -151,45 +222,42 @@ export class GraphService {
     try {
       // Update cache settings
       if (config.cacheEnabled !== undefined) {
-        this.cacheEnabled = config.cacheEnabled;
+        this._cacheConfig.enabled = config.cacheEnabled;
       }
       
       if (config.cacheTimeoutMs !== undefined) {
-        this.cacheTimeoutMs = config.cacheTimeoutMs;
+        this._cacheConfig.timeoutMs = config.cacheTimeoutMs;
       }
       
       // Clear cache if disabled
       if (config.cacheEnabled === false) {
-        this.clearCache();
+        await this._clearCache();
       }
       
       // Save configuration
-      await this.saveConfiguration();
+      await this._saveConfiguration();
       
       return {
         success: true,
         message: 'Configuration updated successfully'
       };
     } catch (error) {
-      this.logger.error('Error updating configuration:', error);
+      this._logger.error('Error updating configuration:', error);
       return {
         success: false,
         error: `Failed to update configuration: ${error.message}`
       };
     }
   }
-  
+
   /**
    * Get related pages for a URL
    * @param {string} url - URL to find related pages for
    * @param {object} options - Options object
-   * @param {number} options.depth - Search depth (default: 1, range: 1-3)
-   * @param {string[]} options.relationshipTypes - Optional list of relationship types to include
-   * @param {boolean} options.bypassCache - Whether to bypass cache
    * @returns {Promise<object>} Related pages as nodes and relationships
    */
   async getRelatedPages(url, options = {}) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -201,7 +269,7 @@ export class GraphService {
     }
     
     if (!url) {
-      this.logger.warn('Attempted to get related pages with no URL provided');
+      this._logger.warn('Attempted to get related pages with no URL provided');
       return {
         success: false,
         error: 'URL is required'
@@ -209,20 +277,20 @@ export class GraphService {
     }
     
     try {
-      this.logger.debug(`Getting related pages for URL: ${url}`);
+      this._logger.debug(`Getting related pages for URL: ${url}`);
       
       // Create cache key based on parameters
-      const cacheKey = this.createCacheKey('related', url, options);
+      const cacheKey = this._createCacheKey('related', url, options);
       
       // Check cache if enabled and not bypassed
-      if (this.cacheEnabled && !options.bypassCache) {
-        const cachedResult = this.getCachedResult(cacheKey);
+      if (this._cacheConfig.enabled && !options.bypassCache) {
+        const cachedResult = await this._getCachedResult(cacheKey);
         if (cachedResult) {
           return cachedResult;
         }
       }
       
-      // Prepare query parameters according to the documentation
+      // Prepare query parameters
       const queryParams = new URLSearchParams();
       
       if (options.depth !== undefined) {
@@ -236,7 +304,7 @@ export class GraphService {
       const queryString = queryParams.toString();
       const endpoint = `/api/v1/graph/related/${encodeURIComponent(url)}${queryString ? `?${queryString}` : ''}`;
       
-      const response = await this.apiService.fetchAPI(endpoint);
+      const response = await this._apiService.fetchAPI(endpoint);
       
       if (response && response.success) {
         const result = {
@@ -247,8 +315,8 @@ export class GraphService {
         };
         
         // Cache successful result
-        if (this.cacheEnabled) {
-          this.cacheResult(cacheKey, result);
+        if (this._cacheConfig.enabled) {
+          await this._cacheResult(cacheKey, result);
         }
         
         return result;
@@ -259,7 +327,7 @@ export class GraphService {
         };
       }
     } catch (error) {
-      this.logger.error(`Error getting related pages for ${url}:`, error);
+      this._logger.error(`Error getting related pages for ${url}:`, error);
       return {
         success: false,
         error: error.message || 'An unknown error occurred'
@@ -573,22 +641,177 @@ export class GraphService {
     };
   }
   
-  /**
-   * Clean up resources
+
+    /**
+   * Create a cache key from request parameters
+   * @param {string} type - Request type
+   * @param {string} primaryKey - Primary key (URL, query, or node ID)
+   * @param {object} options - Request options
+   * @returns {string} Cache key
+   * @private
    */
-  async cleanup() {
-    if (!this.initialized) {
-      return;
+    _createCacheKey(type, primaryKey, options) {
+      return `${type}:${primaryKey}:${JSON.stringify(options)}`;
     }
     
-    this.logger.info('Cleaning up graph service');
-    
-    // Clear cache
-    this.queryCache.clear();
-    
-    // Reset state
-    this.initialized = false;
-    
-    this.logger.debug('Graph service cleanup complete');
+  /**
+   * Get a result from cache if valid
+   * @param {string} cacheKey - Cache key
+   * @returns {Promise<object|null>} Cached result or null if not found/expired
+   * @private
+   */
+  async _getCachedResult(cacheKey) {
+    try {
+      // Add timeout to cache operation
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Cache operation timeout')), 
+          this._cacheConfig.operationTimeout);
+      });
+
+      const cachedItem = await Promise.race([
+        this._resourceTracker.getCachedItem(cacheKey),
+        timeoutPromise
+      ]);
+      
+      if (!cachedItem) {
+        this._cacheStats.misses++;
+        return null;
+      }
+      
+      const now = Date.now();
+      
+      // Check if cache has expired
+      if (now - cachedItem.timestamp > this._cacheConfig.timeoutMs) {
+        await this._resourceTracker.removeCachedItem(cacheKey);
+        this._cacheStats.misses++;
+        return null;
+      }
+      
+      this._cacheStats.hits++;
+      this._logger.debug(`Cache hit for key: ${cacheKey}`);
+      
+      return cachedItem;
+    } catch (error) {
+      this._logger.error(`Error getting cached result for key ${cacheKey}:`, error);
+      return null;
+    }
   }
-}
+  
+  /**
+   * Cache a result
+   * @param {string} cacheKey - Cache key
+   * @param {object} result - Result to cache
+   * @private
+   */
+  async _cacheResult(cacheKey, result) {
+    try {
+      await this._resourceTracker.cacheItem(cacheKey, result);
+      this._logger.debug(`Cached result for key: ${cacheKey}`);
+      
+      // Check if we need to prune the cache
+      const cacheSize = await this._resourceTracker.getCacheSize();
+      if (cacheSize > this._cacheConfig.maxSize) {
+        await this._pruneCache();
+      }
+    } catch (error) {
+      this._logger.error(`Error caching result for key ${cacheKey}:`, error);
+    }
+  }
+  
+  /**
+   * Prune old items from cache
+   * @private
+   */
+  async _pruneCache() {
+    try {
+      const now = Date.now();
+      let pruneCount = 0;
+      
+      // Get all cache items
+      const cacheItems = await this._resourceTracker.getAllCachedItems();
+      
+      // Remove expired items
+      for (const [key, value] of cacheItems) {
+        if (now - value.timestamp > this._cacheConfig.timeoutMs) {
+          await this._resourceTracker.removeCachedItem(key);
+          pruneCount++;
+        }
+      }
+      
+      // If still too large, remove oldest items
+      if (cacheItems.size > this._cacheConfig.maxSize) {
+        // Sort by timestamp
+        const sortedItems = Array.from(cacheItems.entries())
+          .sort((a, b) => a[1].timestamp - b[1].timestamp);
+        
+        // Remove oldest items
+        const removeCount = Math.ceil(cacheItems.size * this._cacheConfig.pruneThreshold);
+        for (let i = 0; i < removeCount; i++) {
+          if (sortedItems[i]) {
+            await this._resourceTracker.removeCachedItem(sortedItems[i][0]);
+            pruneCount++;
+          }
+        }
+      }
+      
+      if (pruneCount > 0) {
+        this._logger.debug(`Pruned ${pruneCount} items from cache`);
+      }
+    } catch (error) {
+      this._logger.error('Error pruning cache:', error);
+    }
+  }
+  
+  /**
+   * Clear the entire cache
+   * @private
+   */
+  async _clearCache() {
+    try {
+      const cacheSize = await this._resourceTracker.getCacheSize();
+      await this._resourceTracker.clearCache();
+      this._logger.debug(`Cleared ${cacheSize} items from cache`);
+      
+      return {
+        success: true,
+        message: `Cleared ${cacheSize} items from cache`
+      };
+    } catch (error) {
+      this._logger.error('Error clearing cache:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+    
+    /**
+     * Get cache statistics
+     * @returns {object} Cache statistics
+     */
+    getCacheStats() {
+      return {
+        enabled: this._cacheConfig.enabled,
+        timeoutMs: this._cacheConfig.timeoutMs,
+        hits: this._cacheStats.hits,
+        misses: this._cacheStats.misses,
+        hitRate: this._cacheStats.hits + this._cacheStats.misses > 0
+          ? Math.round((this._cacheStats.hits / (this._cacheStats.hits + this._cacheStats.misses)) * 100) + '%'
+          : '0%'
+      };
+    }
+    
+    /**
+     * Get service status
+     * @returns {object} Service status
+     */
+    getStatus() {
+      return {
+        initialized: this._initialized,
+        hasLogger: !!this._logger,
+        hasDependencies: !!this._apiService,
+        cacheEnabled: this._cacheConfig.enabled,
+        cacheStats: this.getCacheStats()
+      };
+    }
+  }

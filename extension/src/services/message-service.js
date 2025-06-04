@@ -1,4 +1,5 @@
 // src/services/message-service.js
+import { BaseService } from '../core/base-service.js';
 import { LogManager } from '../utils/log-manager.js';
 
 /**
@@ -6,20 +7,43 @@ import { LogManager } from '../utils/log-manager.js';
  * Provides a consistent interface for sending messages to the background script
  * and listening for messages from other contexts
  */
-export class MessageService {
+export class MessageService extends BaseService {
+  /**
+   * Default configuration values
+   * @private
+   */
+  static _DEFAULT_CONFIG = {
+    defaultTimeout: 5000,
+    maxPendingRequests: 100,
+    maxRetries: 3,
+    retryDelay: 1000,
+    maxRetryDelay: 30000,
+    circuitBreakerThreshold: 5,
+    circuitBreakerTimeout: 60000
+  };
+
   /**
    * Create a new MessageService instance
+   * @param {object} options - Service options
    */
-  constructor() {
+  constructor(options = {}) {
+    super({
+      ...options,
+      maxTaskAge: 300000, // 5 minutes
+      maxActiveTasks: 50,
+      maxRetryAttempts: options.maxRetries || MessageService._DEFAULT_CONFIG.maxRetries,
+      retryBackoffBase: options.retryDelay || MessageService._DEFAULT_CONFIG.retryDelay,
+      retryBackoffMax: options.maxRetryDelay || MessageService._DEFAULT_CONFIG.maxRetryDelay,
+      circuitBreakerThreshold: options.circuitBreakerThreshold || MessageService._DEFAULT_CONFIG.circuitBreakerThreshold,
+      circuitBreakerTimeout: options.circuitBreakerTimeout || MessageService._DEFAULT_CONFIG.circuitBreakerTimeout
+    });
+
     // State initialization
-    this.initialized = false;
-    this.logger = null;
-    this.defaultTimeout = 5000;
-    this.pendingRequests = new Map(); // Track pending requests
-    this.messageListeners = new Map(); // Track message listeners by action
+    this._defaultTimeout = options.defaultTimeout || MessageService._DEFAULT_CONFIG.defaultTimeout;
+    this._maxPendingRequests = options.maxPendingRequests || MessageService._DEFAULT_CONFIG.maxPendingRequests;
     
     // Statistics tracking
-    this.stats = {
+    this._stats = {
       totalMessages: 0,
       successfulMessages: 0,
       failedMessages: 0,
@@ -31,66 +55,122 @@ export class MessageService {
     };
     
     // Generate unique instance ID for this service instance
-    this.instanceId = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+    this._instanceId = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     
     // Bind handlers
-    this.handleMessage = this.handleMessage.bind(this);
+    this._handleMessage = this._handleMessage.bind(this);
   }
   
   /**
    * Initialize the service
    * @returns {Promise<boolean>} Success status
    */
-  async initialize() {
-    if (this.initialized) {
-      return true;
-    }
-    
+  async _performInitialization() {
     try {
-      // Create logger directly - no container needed
-      this.logger = new LogManager({
+      // Create logger
+      this._logger = new LogManager({
         context: 'message-service',
         isBackgroundScript: false,
         maxEntries: 1000
       });
       
-      this.logger.info('Initializing MessageService');
+      this._logger.info('Initializing MessageService');
       
       // Set up message listener
-      this.setupMessageListener();
+      this._setupMessageListener();
       
-      this.initialized = true;
-      this.logger.info('MessageService initialized successfully');
+      this._logger.info('MessageService initialized successfully');
       return true;
     } catch (error) {
-      console.error('Error initializing MessageService:', error);
-      return false;
+      this._logger?.error('Error initializing MessageService:', error);
+      throw error;
     }
   }
+
+  /**
+   * Clean up resources
+   */
+  async _performCleanup() {
+    this._logger?.info('Cleaning up message service');
+    
+    // Remove message listener
+    this._removeMessageListener();
+    
+    // Cancel all pending requests
+    await this._cancelAllRequests();
+    
+    // Clear and nullify Maps
+    this._messageListeners = null;
+    this._pendingRequests = null;
+    
+    // Reset and nullify statistics
+    this._resetStatistics();
+    this._stats = null;
+    
+    // Clear other properties
+    this._defaultTimeout = null;
+    this._instanceId = null;
+  }
+
+  /**
+   * Handle memory pressure
+   */
+  async _handleMemoryPressure(snapshot) {
+    this._logger?.warn('Memory pressure detected, cleaning up non-essential resources');
+    await super._handleMemoryPressure(snapshot);
+    
+    // Cancel old pending requests
+    await this._cleanupOldRequests();
+  }
+
+    /**
+   * Clean up old pending requests
+   * @private
+   */
+    async _cleanupOldRequests() {
+      const now = Date.now();
+      const oldRequests = [];
   
+      // Find old requests
+      this._pendingRequests.forEach((data, requestId) => {
+        if (now - data.sentAt > this._maxTaskAge) {
+          oldRequests.push(requestId);
+        }
+      });
+  
+      // Cancel old requests
+      for (const requestId of oldRequests) {
+        await this._cancelRequest(requestId);
+      }
+  
+      if (oldRequests.length > 0) {
+        this._logger?.warn(`Cleaned up ${oldRequests.length} old pending requests`);
+      }
+    }
+
   /**
    * Set up message listener
    * @private
    */
-  setupMessageListener() {
+  _setupMessageListener() {
     // Remove any existing listener first to prevent duplicates
-    this.removeMessageListener();
+    this._removeMessageListener();
     
     // Add message listener
-    chrome.runtime.onMessage.addListener(this.handleMessage);
+    chrome.runtime.onMessage.addListener(this._handleMessage);
     
-    this.logger.debug('Message listener set up');
+    this._logger.debug('Message listener set up');
   }
   
   /**
    * Remove message listener
    * @private
    */
-  removeMessageListener() {
+  _removeMessageListener() {
     // Remove with the same bound reference
-    chrome.runtime.onMessage.removeListener(this.handleMessage);
+    chrome.runtime.onMessage.removeListener(this._handleMessage);
   }
-  
+
   /**
    * Handle incoming messages
    * @param {object} message - Incoming message
@@ -99,16 +179,16 @@ export class MessageService {
    * @returns {boolean} Whether to keep the message channel open
    * @private
    */
-  handleMessage(message, sender, sendResponse) {
+  _handleMessage(message, sender, sendResponse) {
     if (!message) {
       return false;
     }
     
-    this.stats.receivedMessages++;
+    this._stats.receivedMessages++;
     
     // Check if this is a response to one of our pending requests
-    if (message.requestId && this.pendingRequests.has(message.requestId)) {
-      const { resolve, timeoutId } = this.pendingRequests.get(message.requestId);
+    if (message.requestId && this._pendingRequests.has(message.requestId)) {
+      const { resolve, timeoutId } = this._pendingRequests.get(message.requestId);
       
       // Clear timeout
       clearTimeout(timeoutId);
@@ -117,28 +197,28 @@ export class MessageService {
       resolve(message);
       
       // Clean up request
-      this.pendingRequests.delete(message.requestId);
+      this._pendingRequests.delete(message.requestId);
       
       return false; // Don't keep channel open
     }
     
     // If it's not a response, check if we have a listener for this action
-    if (message.action && this.messageListeners.has(message.action)) {
-      const handlers = this.messageListeners.get(message.action);
+    if (message.action && this._messageListeners.has(message.action)) {
+      const handlers = this._messageListeners.get(message.action);
       
       // Execute all handlers
       const promises = handlers.map(handler => {
         try {
           return Promise.resolve(handler(message, sender));
         } catch (error) {
-          this.logger?.error(`Error in message handler for action "${message.action}":`, error);
+          this._logger?.error(`Error in message handler for action "${message.action}":`, error);
           return Promise.resolve({ success: false, error: error.message });
         }
       });
       
       // If there are handlers, keep the message channel open and handle async response
       if (handlers.length > 0) {
-        this.stats.handledMessages++;
+        this._stats.handledMessages++;
         
         // Execute all handlers and send combined response
         Promise.all(promises)
@@ -158,7 +238,7 @@ export class MessageService {
             }
           })
           .catch(error => {
-            this.logger?.error('Error processing message handlers:', error);
+            this._logger?.error('Error processing message handlers:', error);
             sendResponse({ success: false, error: error.message });
           });
         
@@ -177,35 +257,35 @@ export class MessageService {
    * @returns {function} Function to remove the listener
    */
   addMessageListener(action, handler) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         this.initialize();
       } catch (error) {
-        this.logger?.error('Failed to initialize service during addMessageListener:', error);
+        this._logger?.error('Failed to initialize service during addMessageListener:', error);
         return () => {};
       }
     }
     
     if (!action || typeof handler !== 'function') {
-      this.logger?.warn('Invalid message listener parameters');
+      this._logger?.warn('Invalid message listener parameters');
       return () => {};
     }
     
     // Get or create handlers array for this action
-    if (!this.messageListeners.has(action)) {
-      this.messageListeners.set(action, []);
+    if (!this._messageListeners.has(action)) {
+      this._messageListeners.set(action, []);
     }
     
-    const handlers = this.messageListeners.get(action);
+    const handlers = this._messageListeners.get(action);
     
     // Add handler
     handlers.push(handler);
     
-    this.logger?.debug(`Added message listener for action "${action}"`);
+    this._logger?.debug(`Added message listener for action "${action}"`);
     
     // Return function to remove this specific handler
     return () => {
-      this.removeSpecificMessageListener(action, handler);
+      this._removeSpecificMessageListener(action, handler);
     };
   }
   
@@ -215,21 +295,21 @@ export class MessageService {
    * @param {function} handler - Handler function to remove
    * @private
    */
-  removeSpecificMessageListener(action, handler) {
-    if (!this.messageListeners.has(action)) {
+  _removeSpecificMessageListener(action, handler) {
+    if (!this._messageListeners.has(action)) {
       return;
     }
     
-    const handlers = this.messageListeners.get(action);
+    const handlers = this._messageListeners.get(action);
     const index = handlers.indexOf(handler);
     
     if (index !== -1) {
       handlers.splice(index, 1);
-      this.logger?.debug(`Removed message listener for action "${action}"`);
+      this._logger?.debug(`Removed message listener for action "${action}"`);
       
       // Clean up empty handler arrays
       if (handlers.length === 0) {
-        this.messageListeners.delete(action);
+        this._messageListeners.delete(action);
       }
     }
   }
@@ -243,9 +323,9 @@ export class MessageService {
       return;
     }
     
-    if (this.messageListeners.has(action)) {
-      this.messageListeners.delete(action);
-      this.logger?.debug(`Removed all message listeners for action "${action}"`);
+    if (this._messageListeners.has(action)) {
+      this._messageListeners.delete(action);
+      this._logger?.debug(`Removed all message listeners for action "${action}"`);
     }
   }
   
@@ -255,8 +335,8 @@ export class MessageService {
    * @param {number} timeout - Timeout in milliseconds
    * @returns {Promise<any>} Response from background script
    */
-  async sendMessage(message, timeout = this.defaultTimeout) {
-    if (!this.initialized) {
+  async sendMessage(message, timeout = this._defaultTimeout) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -268,19 +348,28 @@ export class MessageService {
     }
     
     if (!message) {
-      this.logger?.warn('Attempted to send undefined or null message');
+      this._logger?.warn('Attempted to send undefined or null message');
       return {
         success: false,
         error: 'Message is required'
       };
     }
+
+    // Check circuit breaker
+    if (this._isCircuitBreakerOpen()) {
+      return {
+        success: false,
+        error: 'Circuit breaker is open',
+        circuitBreakerOpen: true
+      };
+    }
     
     // Update statistics
-    this.stats.totalMessages++;
+    this._stats.totalMessages++;
     const startTime = Date.now();
     
     // Generate unique request ID for tracking
-    const requestId = `${this.instanceId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = `${this._instanceId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     // Add request ID to message for tracking
     const messageWithId = { 
@@ -290,28 +379,31 @@ export class MessageService {
     };
     
     try {
-      const response = await this.sendMessageWithPromise(messageWithId, timeout);
+      const response = await this._sendMessageWithPromise(messageWithId, timeout);
       
       // Calculate response time
       const responseTime = Date.now() - startTime;
-      this.updateTimingStats(responseTime);
+      this._updateTimingStats(responseTime);
       
       // Update statistics
-      this.stats.successfulMessages++;
+      this._stats.successfulMessages++;
       
       return response;
     } catch (error) {
       // Calculate response time even for failures
       const responseTime = Date.now() - startTime;
-      this.updateTimingStats(responseTime);
+      this._updateTimingStats(responseTime);
       
       // Update statistics
       if (error.message && error.message.includes('timeout')) {
-        this.stats.timeouts++;
+        this._stats.timeouts++;
       }
-      this.stats.failedMessages++;
+      this._stats.failedMessages++;
       
-      this.logger?.error('Message send error:', error);
+      this._logger?.error('Message send error:', error);
+      
+      // Record failure for circuit breaker
+      this._recordFailure();
       
       return {
         success: false,
@@ -328,18 +420,24 @@ export class MessageService {
    * @returns {Promise<object>} Response from receiver
    * @private
    */
-  sendMessageWithPromise(message, timeout) {
+  _sendMessageWithPromise(message, timeout) {
     return new Promise((resolve, reject) => {
+      // Check pending requests limit
+      if (this._pendingRequests.size >= this._maxPendingRequests) {
+        reject(new Error('Too many pending requests'));
+        return;
+      }
+
       // Set up timeout
-      const timeoutId = setTimeout(() => {
-        if (this.pendingRequests.has(message.requestId)) {
-          this.pendingRequests.delete(message.requestId);
+      const timeoutId = this._resourceTracker.trackTimeout(() => {
+        if (this._pendingRequests.has(message.requestId)) {
+          this._pendingRequests.delete(message.requestId);
           reject(new Error(`Message timeout after ${timeout}ms`));
         }
       }, timeout);
       
       // Store resolver and timeout ID
-      this.pendingRequests.set(message.requestId, {
+      this._pendingRequests.set(message.requestId, {
         resolve,
         timeoutId,
         sentAt: Date.now(),
@@ -347,7 +445,7 @@ export class MessageService {
       });
       
       // Log outgoing message
-      this.logger?.debug('Sending message:', {
+      this._logger?.debug('Sending message:', {
         action: message.action,
         requestId: message.requestId
       });
@@ -356,10 +454,10 @@ export class MessageService {
       chrome.runtime.sendMessage(message).catch(error => {
         // Clear timeout and request tracking
         clearTimeout(timeoutId);
-        this.pendingRequests.delete(message.requestId);
+        this._pendingRequests.delete(message.requestId);
         
         // Log error
-        this.logger?.error('Chrome runtime error:', error);
+        this._logger?.error('Chrome runtime error:', error);
         
         // Reject with error
         reject(error);
@@ -377,9 +475,9 @@ export class MessageService {
    * @returns {Promise<any>} Response from background script
    */
   async sendMessageWithRetry(message, options = {}) {
-    const maxRetries = options.maxRetries || 3;
-    const retryDelay = options.retryDelay || 1000;
-    const timeout = options.timeout || this.defaultTimeout;
+    const maxRetries = options.maxRetries || this._maxRetryAttempts;
+    const retryDelay = options.retryDelay || this._retryBackoffBase;
+    const timeout = options.timeout || this._defaultTimeout;
     
     let lastError;
     let attempt = 0;
@@ -397,7 +495,7 @@ export class MessageService {
         lastError = new Error(response.error || 'Unknown error');
         
         // Don't retry specific error types
-        if (this.shouldNotRetry(response)) {
+        if (this._shouldNotRetry(response)) {
           throw lastError;
         }
       } catch (error) {
@@ -411,8 +509,9 @@ export class MessageService {
       
       // Only delay and retry if not on last attempt
       if (attempt < maxRetries) {
-        this.logger?.warn(`Message attempt ${attempt + 1} failed, retrying in ${retryDelay}ms:`, lastError);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        const delay = this._calculateRetryDelay(attempt, retryDelay);
+        this._logger?.warn(`Message attempt ${attempt + 1} failed, retrying in ${delay}ms:`, lastError);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
       
       attempt++;
@@ -432,7 +531,7 @@ export class MessageService {
    * @returns {boolean} Whether retry should be skipped
    * @private
    */
-  shouldNotRetry(response) {
+  _shouldNotRetry(response) {
     // Don't retry specific error types
     return (
       // If response indicates not found or forbidden, don't retry
@@ -451,14 +550,14 @@ export class MessageService {
    * @param {number} responseTime - Response time in ms
    * @private
    */
-  updateTimingStats(responseTime) {
+  _updateTimingStats(responseTime) {
     // Update total response time
-    this.stats.totalResponseTime += responseTime;
+    this._stats.totalResponseTime += responseTime;
     
     // Update average
-    const totalMessages = this.stats.successfulMessages + this.stats.failedMessages;
+    const totalMessages = this._stats.successfulMessages + this._stats.failedMessages;
     if (totalMessages > 0) {
-      this.stats.averageResponseTime = this.stats.totalResponseTime / totalMessages;
+      this._stats.averageResponseTime = this._stats.totalResponseTime / totalMessages;
     }
   }
   
@@ -471,7 +570,7 @@ export class MessageService {
       const response = await this.sendMessage({ action: 'ping' }, 3000);
       return response && response.success;
     } catch (error) {
-      this.logger?.warn('Background ping failed:', error);
+      this._logger?.warn('Background ping failed:', error);
       return false;
     }
   }
@@ -483,7 +582,7 @@ export class MessageService {
   getPendingRequests() {
     const result = [];
     
-    this.pendingRequests.forEach((data, requestId) => {
+    this._pendingRequests.forEach((data, requestId) => {
       result.push({
         requestId,
         sentAt: data.sentAt,
@@ -500,31 +599,32 @@ export class MessageService {
    * @param {string} requestId - Request ID to cancel
    * @returns {boolean} Whether request was found and cancelled
    */
-  cancelRequest(requestId) {
-    if (!this.pendingRequests.has(requestId)) {
+  async _cancelRequest(requestId) {
+    if (!this._pendingRequests.has(requestId)) {
       return false;
     }
     
-    const { timeoutId } = this.pendingRequests.get(requestId);
+    const { timeoutId } = this._pendingRequests.get(requestId);
     clearTimeout(timeoutId);
-    this.pendingRequests.delete(requestId);
-    this.logger?.debug(`Cancelled request: ${requestId}`);
+    this._pendingRequests.delete(requestId);
+    this._logger?.debug(`Cancelled request: ${requestId}`);
     
     return true;
   }
-  
+
   /**
    * Cancel all pending requests
+   * @private
    */
-  cancelAllRequests() {
-    const count = this.pendingRequests.size;
+  async _cancelAllRequests() {
+    const count = this._pendingRequests.size;
     
-    this.pendingRequests.forEach(({ timeoutId }, requestId) => {
+    this._pendingRequests.forEach(({ timeoutId }, requestId) => {
       clearTimeout(timeoutId);
     });
     
-    this.pendingRequests.clear();
-    this.logger?.debug(`Cancelled ${count} pending requests`);
+    this._pendingRequests.clear();
+    this._logger?.debug(`Cancelled ${count} pending requests`);
   }
   
   /**
@@ -533,13 +633,13 @@ export class MessageService {
    */
   getStatistics() {
     return {
-      ...this.stats,
-      pendingRequests: this.pendingRequests.size,
-      registeredListeners: this.countRegisteredListeners(),
-      successRate: this.stats.totalMessages > 0 
-        ? (this.stats.successfulMessages / this.stats.totalMessages * 100).toFixed(2) + '%'
+      ...this._stats,
+      pendingRequests: this._pendingRequests.size,
+      registeredListeners: this._countRegisteredListeners(),
+      successRate: this._stats.totalMessages > 0 
+        ? (this._stats.successfulMessages / this._stats.totalMessages * 100).toFixed(2) + '%'
         : '0%',
-      averageResponseTimeMs: Math.round(this.stats.averageResponseTime)
+      averageResponseTimeMs: Math.round(this._stats.averageResponseTime)
     };
   }
   
@@ -548,19 +648,21 @@ export class MessageService {
    * @returns {number} Count of registered listeners
    * @private
    */
-  countRegisteredListeners() {
+  _countRegisteredListeners() {
     let count = 0;
-    this.messageListeners.forEach(handlers => {
+    this._messageListeners.forEach(handlers => {
       count += handlers.length;
     });
     return count;
   }
+
   
   /**
    * Reset statistics
+   * @private
    */
-  resetStatistics() {
-    this.stats = {
+  _resetStatistics() {
+    this._stats = {
       totalMessages: 0,
       successfulMessages: 0,
       failedMessages: 0,
@@ -571,7 +673,7 @@ export class MessageService {
       handledMessages: 0
     };
     
-    this.logger?.debug('Statistics reset');
+    this._logger?.debug('Statistics reset');
   }
   
   /**
@@ -580,35 +682,12 @@ export class MessageService {
    */
   getStatus() {
     return {
-      initialized: this.initialized,
-      hasLogger: !!this.logger,
-      instanceId: this.instanceId,
-      pendingRequests: this.pendingRequests.size,
-      listenerCount: this.countRegisteredListeners(),
-      stats: this.getStatistics()
+      initialized: this._initialized,
+      hasLogger: !!this._logger,
+      instanceId: this._instanceId,
+      pendingRequests: this._pendingRequests.size,
+      listenerCount: this._countRegisteredListeners(),
+      stats: this.getStatistics(),
+      circuitBreakerOpen: this._isCircuitBreakerOpen()
     };
-  }
-  
-  /**
-   * Clean up resources
-   */
-  async cleanup() {
-    if (!this.initialized) {
-      return;
-    }
-    
-    this.logger?.info('Cleaning up message service');
-    
-    // Remove message listener
-    this.removeMessageListener();
-    
-    // Cancel all pending requests
-    this.cancelAllRequests();
-    
-    // Clear listeners
-    this.messageListeners.clear();
-    
-    this.initialized = false;
-    this.logger?.debug('Message service cleanup complete');
-  }
-}
+  }}

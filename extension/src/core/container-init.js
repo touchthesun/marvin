@@ -1,267 +1,473 @@
 // src/core/container-init.js
 import { LogManager } from '../utils/log-manager.js';
+import { UtilsRegistry } from './utils-registry.js';
 import { container } from './dependency-container.js';
 import { ServiceRegistry } from './service-registry.js';
-import { UtilsRegistry } from './utils-registry.js';
- 
-/**
- * Container Initializer - Centralized initialization of the dependency container
- * This ensures all utilities, services, and components are registered in the correct order
- */
+import { ComponentRegistry } from './component-registry.js';
+import { ResourceTracker } from '../utils/resource-tracker.js';
+import { MemoryMonitor } from '../utils/memory-monitor.js';
+
+
 export class ContainerInitializer {
   constructor() {
     this.initialized = false;
     this.initializationPromise = null;
     this.logger = null;
+    this._resourceTracker = new ResourceTracker();
+    this._memoryMonitor = new MemoryMonitor({
+      threshold: 0.8,
+      interval: 5000
+    });
+    this._memoryMetrics = {
+      peakUsage: 0,
+      lastSnapshot: null,
+      cleanupCount: 0
+    };
+    this.initializationProgress = {
+      phase: null,
+      progress: 0,
+      details: {},
+      memoryUsage: null
+    };
   }
 
-  /**
-   * Initialize the entire container system
-   * @param {Object} options - Initialization options
-   * @param {boolean} options.isBackgroundScript - Whether this is running in background
-   * @param {string} options.context - Context name for logging
-   * @returns {Promise<Object>} Initialization result
-   */
   async initialize(options = {}) {
-    // Return existing promise if initialization is in progress
+    // Always reset before initialization to ensure clean state
+    await this.reset();
+    
     if (this.initializationPromise) {
       return this.initializationPromise;
     }
 
-    // Return success if already initialized
     if (this.initialized) {
       return this.getStatus();
     }
 
-    // Start initialization
-    this.initializationPromise = this._performInitialization(options);
+    this.initializationPromise = (async () => {
+      let result = null;
+      try {
+        // Start memory monitoring
+        this._memoryMonitor.start();
+        this._memoryMonitor.onMemoryPressure(this._handleMemoryPressure.bind(this));
+        
+        result = await this._performPhasedInitialization(options);
+        this.initialized = true;
+        return result;
+      } catch (error) {
+        await this.reset();
+        throw new Error(error.message);
+      } finally {
+        this._memoryMonitor.stop();
+        this.initializationPromise = null;
+        result = null;
+      }
+    })();
+    
+    return this.initializationPromise;
+  }
+
+  async reset() {
+    // Clear initialization state
+    this.initialized = false;
+    this.initializationPromise = null;
+    this.initializationProgress = {
+      phase: null,
+      progress: 0,
+      details: {},
+      memoryUsage: null
+    };
+    
+    // Clean up resources
+    await this._resourceTracker.cleanup();
+    
+    // Clear logger with proper cleanup
+    if (this.logger) {
+      try {
+        await this.logger.cleanup();
+      } catch (error) {
+        console.error('Error cleaning up logger:', error);
+      } finally {
+        this.logger = null;
+      }
+    }
+    
+    // Reset container
+    await container.reset();
+    
+    // Reset memory metrics
+    this._memoryMetrics = {
+      peakUsage: 0,
+      lastSnapshot: null,
+      cleanupCount: 0
+    };
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+  }
+
+  /**
+   * Calculate memory pressure level based on memory usage
+   * @param {Object} snapshot - Memory snapshot
+   * @returns {string} Pressure level: 'low', 'medium', or 'high'
+   * @private
+   */
+  _calculatePressureLevel(snapshot) {
+    if (!snapshot) return 'low';
+    
+    const usageRatio = snapshot.usedJSHeapSize / snapshot.jsHeapSizeLimit;
+    
+    if (usageRatio >= 0.9) {
+        return 'high';
+    } else if (usageRatio >= 0.7) {
+        return 'medium';
+    }
+    return 'low';
+  }
+
+  /**
+  * Handle memory pressure
+  * @param {Object} snapshot - Memory snapshot
+  * @private
+  */
+  async _handleMemoryPressure(snapshot) {
+    const pressureLevel = this._calculatePressureLevel(snapshot);
+    this.logger?.warn(`Memory pressure detected: ${pressureLevel}`);
+    
+    switch (pressureLevel) {
+        case 'high':
+            await this._performAggressiveCleanup();
+            break;
+        case 'medium':
+            await this._performNormalCleanup();
+            break;
+        case 'low':
+            // Just log warning
+            break;
+    }
+    
+    this._updateMemoryMetrics(snapshot);
+  }
+
+  _updateMemoryMetrics(snapshot) {
+    this._memoryMetrics.lastSnapshot = snapshot;
+    this._memoryMetrics.peakUsage = Math.max(
+      this._memoryMetrics.peakUsage,
+      snapshot.usedJSHeapSize
+    );
+  }
+
+  async _performAggressiveCleanup() {
+    this.logger?.warn('Performing aggressive cleanup');
+    this._memoryMetrics.cleanupCount++;
+    
+    // Clear all non-essential resources
+    await this._resourceTracker.cleanup();
+    
+    // Clear initialization progress details
+    this.initializationProgress.details = {};
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+  }
+
+  async _performNormalCleanup() {
+    this.logger?.debug('Performing normal cleanup');
+    
+    // Clear only non-critical resources
+    await this._resourceTracker.cleanupNonEssential();
+  }
+
+  async _performPhasedInitialization(options) {
+    const { isBackgroundScript = false, context = 'container-init' } = options;
     
     try {
-      const result = await this.initializationPromise;
-      this.initialized = true;
+      // Phase 1: Essential utilities (including logger)
+      this._updateProgress('essential-utilities', 0);
+      await this._registerEssentialUtilities(isBackgroundScript, context);
+      await this._validatePhase('essential-utilities');
+      
+      // Phase 2: Core utilities
+      this._updateProgress('core-utilities', 20);
+      await this._registerCoreUtilities();
+      await this._validatePhase('core-utilities');
+      
+      // Phase 3: Core services (with dependency ordering)
+      this._updateProgress('core-services', 40);
+      await this._registerCoreServices();
+      await this._validatePhase('core-services');
+      
+      // Phase 4: Initialize core services
+      this._updateProgress('core-service-initialization', 60);
+      await this._initializeCoreServices();
+      await this._validatePhase('core-service-initialization');
+      
+      // Phase 5: Optional services
+      this._updateProgress('optional-services', 80);
+      await this._registerOptionalServices();
+      
+      // Phase 6: Components
+      this._updateProgress('components', 90);
+      await this._registerComponents();
+      
+      // Final validation
+      this._updateProgress('validation', 100);
+      const validationResult = await this._validateContainer();
+      
+      // Clean up validation result
+      const result = { 
+        initialized: validationResult.initialized,
+        memoryMetrics: this._memoryMetrics
+      };
+      validationResult = null;
+      
       return result;
     } catch (error) {
-      this.initializationPromise = null; // Reset on error so we can retry
+      this.logger?.error('Container initialization failed:', error);
+      await this.reset();
       throw error;
     }
   }
 
-  /**
-   * Perform the actual initialization
-   * @param {Object} options - Initialization options
-   * @returns {Promise<Object>} Initialization result
-   */
-  async _performInitialization(options) {
-    const { isBackgroundScript = false, context = 'container-init' } = options;
+  _updateProgress(phase, progress) {
+    const memorySnapshot = this._memoryMonitor.getLastSnapshot();
+    this.initializationProgress = {
+        phase,
+        progress,
+        details: {
+            ...this.initializationProgress.details,
+            memoryUsage: memorySnapshot,
+            resourceCount: this._resourceTracker.getResourceCount()
+        },
+        memoryUsage: memorySnapshot
+    };
+}
 
-    // Step 1: Register LogManager first (always needed)
-    await this._registerEssentialUtilities(isBackgroundScript, context);
-
-    // Step 2: Register all other utilities
-    await this._registerUtilities();
-
-    // Step 3: Register all services
-    await this._registerServices();
-
-    // Step 4: Initialize all services
-    await this._initializeServices();
-
-    // Step 5: Register all components
-    await this._registerComponents();
-
-    // Step 6: Validate the container state
-    const status = this._validateContainer();
-
-    this.logger.info('Container initialization completed successfully');
+  async _registerCoreUtilities() {
+    this.logger?.debug('Registering core utilities');
     
-    return status;
+    if (UtilsRegistry.formatting) {
+      container.registerUtil('formatting', UtilsRegistry.formatting);
+    }
+    if (UtilsRegistry.timeout) {
+      container.registerUtil('timeout', UtilsRegistry.timeout);
+    }
   }
 
-  /**
-   * Register essential utilities first
-   */
-  async _registerEssentialUtilities(isBackgroundScript, context) {
-    // Create logger instance if not already created
-    if (!this.logger) {
-      this.logger = new LogManager({
-        isBackgroundScript,
-        context,
-        maxEntries: 2000
-      });
-    }
+  async _registerCoreServices() {
+    this.logger?.debug('Registering core services');
+    await this._resourceTracker.trackOperation('registerCoreServices', async () => {
+        // Track each service registration
+        for (const service of ServiceRegistry.getCoreServices()) {
+            await this._resourceTracker.trackOperation(
+                `registerService:${service.name}`,
+                () => ServiceRegistry.register(service)
+            );
+        }
+    });
+}
 
-    // Register LogManager first if not already registered
+  async _registerComponents() {
+    this.logger?.debug('Registering components');
+    const components = await ComponentRegistry.registerAll();
+    
+    // Register each component in the container
+    for (const [name, component] of Object.entries(components)) {
+      container.registerComponent(name, component);
+    }
+    
+    this.logger?.debug('Components registered');
+  }
+
+  async _registerOptionalServices() {
+    this.logger?.debug('Registering optional services');
+    
+    // Register optional services as lazy-loaded
+    container.registerService('visualizationService', VisualizationService, { 
+      phase: 'optional',
+      lazy: true 
+    });
+    container.registerService('analysisService', AnalysisService, { 
+      phase: 'optional',
+      lazy: true 
+    });
+  }
+
+  async _initializeCoreServices() {
+    this.logger?.debug('Initializing core services');
+    
+    const coreServices = container.getServicesByPhase('core');
+    for (const serviceName of coreServices) {
+      try {
+        await container.initializeService(serviceName);
+      } catch (error) {
+        this.logger?.error(`Failed to initialize service ${serviceName}:`, error);
+        throw error;
+      }
+    }
+  }
+
+  async _validatePhase(phase) {
+    this.logger?.debug(`Validating phase: ${phase}`);
+    
+    const errors = [];
+    
+    try {
+      switch (phase) {
+        case 'essential-utilities':
+          if (!container.utils.has('LogManager')) {
+            errors.push('Missing required utility: LogManager');
+          }
+          break;
+          
+        case 'core-utilities':
+          if (!container.utils.has('formatting')) {
+            errors.push('Missing required utility: formatting');
+          }
+          if (!container.utils.has('timeout')) {
+            errors.push('Missing required utility: timeout');
+          }
+          break;
+          
+        case 'core-services':
+          const requiredServices = ['apiService', 'storageService', 'messageService'];
+          for (const service of requiredServices) {
+            if (!container.services.has(service)) {
+              errors.push(`Missing required service: ${service}`);
+            }
+          }
+          break;
+          
+        case 'core-service-initialization':
+          const coreServices = container.getServicesByPhase('core');
+          for (const serviceName of coreServices) {
+            const metadata = container.serviceMetadata.get(serviceName);
+            if (!metadata?.initialized) {
+              errors.push(`Service not initialized: ${serviceName}`);
+            }
+          }
+          break;
+          
+        case 'components':
+          const requiredComponents = ['navigation', 'overview-panel'];
+          for (const component of requiredComponents) {
+            if (!container.components.has(component)) {
+              errors.push(`Missing required component: ${component}`);
+            }
+          }
+          break;
+      }
+      
+      if (errors.length > 0) {
+        this.logger?.error(`Errors during ${phase}:`, errors);
+        throw new Error(`Validation failed during ${phase}: ${errors.join(', ')}`);
+      }
+      
+      return { initialized: this.initialized };
+    } finally {
+      errors.length = 0;
+    }
+  }
+
+  async _registerEssentialUtilities(isBackgroundScript, context) {
+    // Create logger first
+    this.logger = new LogManager({
+      isBackgroundScript,
+      context: context || 'container-init',
+      maxEntries: context === 'test' ? 100 : 500 // Lower limit for tests
+    });
+    
+    // Now register it in the container
     if (!container.utils.has('LogManager')) {
       container.registerUtil('LogManager', LogManager);
       this.logger.debug('LogManager registered in container');
     }
 
-    // Ensure logger is available throughout the system
     this.logger.info('Starting container initialization');
   }
 
-  /**
-   * Register all utilities from UtilsRegistry
-   */
-  async _registerUtilities() {
-    this.logger.debug('Registering utilities');
-
-    // Register formatting utilities
-    if (UtilsRegistry.formatting) {
-      container.registerUtil('formatting', UtilsRegistry.formatting);
-      this.logger.debug('Formatting utilities registered');
-    }
-
-    // Register timeout utilities
-    if (UtilsRegistry.timeout) {
-      container.registerUtil('timeout', UtilsRegistry.timeout);
-      this.logger.debug('Timeout utilities registered');
-    }
-
-    // Register UI utilities
-    if (UtilsRegistry.ui) {
-      container.registerUtil('ui', UtilsRegistry.ui);
-      this.logger.debug('UI utilities registered');
-    }
-
-    this.logger.info(`Registered ${container.utils.size} utilities`);
-  }
-
-  /**
-   * Register all services
-   */
-  async _registerServices() {
-    this.logger.debug('Registering services');
-    
-    try {
-      ServiceRegistry.registerAll();
-      this.logger.info(`Registered ${container.services.size} services`);
-    } catch (error) {
-      this.logger.error('Error registering services:', error);
-      throw new Error(`Service registration failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Initialize all services
-   */
-  async _initializeServices() {
-    this.logger.debug('Initializing services');
-    
-    try {
-      await ServiceRegistry.initializeAll();
-      this.logger.info(`Initialized ${container.serviceInstances.size} service instances`);
-    } catch (error) {
-      this.logger.error('Error initializing services:', error);
-      throw new Error(`Service initialization failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Register all components
-   */
-  async _registerComponents() {
-    this.logger.debug('Registering components');
-    
-    try {
-      // Import ComponentRegistry dynamically to avoid circular dependencies
-      const { ComponentRegistry } = await import('./component-registry.js');
-      ComponentRegistry.registerAll();
-      this.logger.info(`Registered ${container.components.size} components`);
-    } catch (error) {
-      this.logger.warn('ComponentRegistry not available, skipping component registration');
-      // Components can be registered later by specific modules
-    }
-  }
-
-  /**
-   * Validate container state
-   */
   _validateContainer() {
     const status = {
-      initialized: true,
-      timestamp: Date.now(),
+      initialized: this.initialized,
+      warnings: [],
+      errors: [],
       utilities: {
         count: container.utils.size,
-        names: Array.from(container.utils.keys())
+        required: ['LogManager'],
+        missing: []
       },
       services: {
         count: container.services.size,
-        names: Array.from(container.services.keys()),
-        instanceCount: container.serviceInstances.size,
-        instances: Array.from(container.serviceInstances.keys())
+        required: ['apiService', 'storageService', 'messageService'],
+        missing: []
       },
       components: {
         count: container.components.size,
-        names: Array.from(container.components.keys()),
-        instanceCount: container.componentInstances?.size || 0
+        required: ['navigation', 'overview-panel'],
+        missing: []
+      },
+      memory: {
+        peakUsage: this._memoryMetrics.peakUsage,
+        lastSnapshot: this._memoryMetrics.lastSnapshot,
+        cleanupCount: this._memoryMetrics.cleanupCount
       }
     };
 
-    // Validate essential utilities are present
-    const requiredUtils = ['LogManager'];
-    const missingUtils = requiredUtils.filter(util => !container.utils.has(util));
-    
-    if (missingUtils.length > 0) {
-      this.logger.warn('Missing essential utilities:', missingUtils);
-      status.warnings = status.warnings || [];
-      status.warnings.push(`Missing utilities: ${missingUtils.join(', ')}`);
+    // Check for required utilities
+    status.utilities.required.forEach(util => {
+      if (!container.utils.has(util)) {
+        status.utilities.missing.push(util);
+        status.errors.push(`Missing required utility: ${util}`);
+      }
+    });
+
+    // Check for required services
+    status.services.required.forEach(service => {
+      if (!container.services.has(service)) {
+        status.services.missing.push(service);
+        status.errors.push(`Missing required service: ${service}`);
+      }
+    });
+
+    // Check for required components
+    status.components.required.forEach(component => {
+      if (!container.components.has(component)) {
+        status.components.missing.push(component);
+        status.errors.push(`Missing required component: ${component}`);
+      }
+    });
+
+    // Validate initialization state
+    if (!this.initialized) {
+      status.errors.push('Container not fully initialized');
     }
 
-    this.logger.debug('Container validation completed', status);
     return status;
   }
 
-  /**
-   * Get current container status
-   */
   getStatus() {
     if (!this.initialized) {
       return {
         initialized: false,
-        message: 'Container not initialized'
+        message: 'Container not initialized',
+        progress: this.initializationProgress,
+        memoryMetrics: this._memoryMetrics
       };
     }
 
-    return this._validateContainer();
-  }
-
-  /**
-   * Reset container (for testing)
-   */
-  reset() {
-    this.initialized = false;
-    this.initializationPromise = null;
-    
-    // Clear all container maps
-    container.utils.clear();
-    container.services.clear();
-    container.serviceInstances.clear();
-    container.components.clear();
-    if (container.componentInstances) {
-      container.componentInstances.clear();
-    }
-    
-    this.logger = null;
-  }
-
-  /**
-   * Ensure container is initialized (convenience method)
-   */
-  async ensureInitialized(options = {}) {
-    if (!this.initialized && !this.initializationPromise) {
-      await this.initialize(options);
-    } else if (this.initializationPromise) {
-      await this.initializationPromise;
-    }
-    return this.getStatus();
+    const status = this._validateContainer();
+    status.progress = this.initializationProgress;
+    status.memoryMetrics = this._memoryMetrics;
+    return status;
   }
 }
 
-// Create and export singleton instance
+// Export singleton and convenience functions as before
 export const containerInitializer = new ContainerInitializer();
 
-// Export convenience functions
 export async function initializeContainer(options = {}) {
   return containerInitializer.initialize(options);
 }

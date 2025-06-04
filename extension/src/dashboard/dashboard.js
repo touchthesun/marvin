@@ -46,6 +46,14 @@ const Dashboard = {
         isBackgroundScript: false,
         context: 'dashboard'
       });
+
+      // Log initialization progress
+      if (initResult.progress) {
+        this._logger.debug('Container initialization progress:', {
+          phase: initResult.progress.phase,
+          progress: initResult.progress.progress
+        });
+      }
       
       this._logger.debug('Container initialization result:', initResult);
       
@@ -56,10 +64,10 @@ const Dashboard = {
       }
       
       // Get component system
-      this._componentSystem = container.getComponent('component-system');
-      if (!this._componentSystem) {
-        throw new Error('Component system not found in container');
-      }
+      this._componentSystem = container.getComponent('component-system', {
+        phase: 'core',
+        lazy: false
+      });
       
       // Initialize navigation component
       await this.initializeNavigationComponent();
@@ -79,7 +87,7 @@ const Dashboard = {
       
     } catch (error) {
       this._logger.error('Error initializing dashboard:', error);
-      this.showInitializationError(error);
+      await this.cleanup();
       return false;
     }
   },
