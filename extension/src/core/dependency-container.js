@@ -1,8 +1,18 @@
 // src/core/dependency-container.js
-import { LogManager } from '../utils/log-manager';
+import { LogManager } from '../utils/log-manager.js';
+import { MemoryMonitor } from '../utils/memory-monitor.js';
+import { ResourceTracker } from '../utils/resource-tracker.js';
+import { UtilsRegistry } from './utils-registry.js';
 
 export class DependencyContainer {
   constructor() {
+    // Initialize logger
+    this.logger = new LogManager({
+      context: 'dependency-container',
+      maxEntries: 500
+    });
+
+    // Core collections
     this.services = new Map();
     this.components = new Map();
     this.componentInstances = new Map();
@@ -10,39 +20,82 @@ export class DependencyContainer {
     this.serviceInstances = new Map();
     this.serviceMetadata = new Map(); 
     this.dependencyGraph = new Map();
-    this.initializationInProgress = new Set(); // Track services being initialized
+    this.initializationInProgress = new Set();
+
+    // Resource tracking
+    this._resourceTracker = new ResourceTracker();
+    
+    // Memory monitoring
+    this._memoryMonitor = new MemoryMonitor({
+      threshold: 0.8,
+      interval: 5000
+    });
+    this._memoryMetrics = {
+      peakUsage: 0,
+      lastSnapshot: null,
+      cleanupCount: 0
+    };
+
+    this.logger.debug('DependencyContainer initialized');
   }
 
   // Reset all container state
   async reset() {
-    // Clear instances in reverse dependency order
-    const order = this._getCleanupOrder();
+    this.logger.debug('Starting container reset');
     
-    for (const name of order) {
-      const instance = this.serviceInstances.get(name);
-      if (instance && typeof instance.cleanup === 'function') {
-        try {
-          await instance.cleanup();
-        } catch (error) {
-          console.error(`Error cleaning up service ${name}:`, error);
+    // Track the entire reset operation
+    await this._resourceTracker.trackOperation('containerReset', async () => {
+      // Clear instances in reverse dependency order
+      const order = this._getCleanupOrder();
+      
+      for (const name of order) {
+        const instance = this.serviceInstances.get(name);
+        if (instance && typeof instance.cleanup === 'function') {
+          try {
+            this.logger.debug(`Cleaning up service: ${name}`);
+            const startMemory = performance.memory?.usedJSHeapSize;
+            await instance.cleanup();
+            const endMemory = performance.memory?.usedJSHeapSize;
+            
+            // Track cleanup memory impact
+            const metadata = this.serviceMetadata.get(name);
+            if (metadata) {
+              metadata.cleanupMemory = {
+                before: startMemory,
+                after: endMemory,
+                delta: endMemory - startMemory
+              };
+            }
+          } catch (error) {
+            this.logger.error(`Error cleaning up service ${name}:`, error);
+          }
         }
       }
-    }
-    
-    // Clear all maps
-    this.serviceInstances.clear();
-    this.componentInstances.clear();
-    this.services.clear();
-    this.components.clear();
-    this.utils.clear();
-    this.serviceMetadata.clear();
-    this.dependencyGraph.clear();
-    this.initializationInProgress.clear();
-    
-    // Force garbage collection
-    if (global.gc) {
-      global.gc();
-    }
+      
+      // Clear all maps
+      this.serviceInstances.clear();
+      this.componentInstances.clear();
+      this.services.clear();
+      this.components.clear();
+      this.utils.clear();
+      this.serviceMetadata.clear();
+      this.dependencyGraph.clear();
+      this.initializationInProgress.clear();
+      
+      // Reset memory metrics
+      this._memoryMetrics = {
+        peakUsage: 0,
+        lastSnapshot: null,
+        cleanupCount: 0
+      };
+      
+      // Force garbage collection
+      if (global.gc) {
+        global.gc();
+      }
+    });
+  
+    this.logger.debug('Container reset complete');
   }
 
   _getCleanupOrder() {
@@ -76,13 +129,20 @@ export class DependencyContainer {
       lazy: options.lazy || false,
       phase: options.phase || 'core',
       initialized: false,
-      dependencies: options.dependencies || [] // Track dependencies at registration
+      dependencies: options.dependencies || [],
+      memoryUsage: null,
+      cleanupMemory: null,
+      lastAccess: Date.now(),
+      accessCount: 0
     });
     return this;
   }
 
   async getService(name) {
+    this.logger.debug(`Getting service: ${name}`);
+
     if (!this.services.has(name)) {
+      this.logger.error(`Service not found: ${name}`);
       throw new Error(`Service not found: ${name}`);
     }
     
@@ -108,9 +168,19 @@ export class DependencyContainer {
         await this.getService(depName);
       }
       
-      // Initialize the service
+      // Initialize the service with memory monitoring
       if (!metadata.lazy && typeof instance.initialize === 'function') {
+        const startMemory = performance.memory?.usedJSHeapSize;
         await instance.initialize();
+        const endMemory = performance.memory?.usedJSHeapSize;
+        
+        // Track memory usage
+        metadata.memoryUsage = {
+          initial: startMemory,
+          current: endMemory,
+          delta: endMemory - startMemory
+        };
+        
         metadata.initialized = true;
       }
       

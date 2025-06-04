@@ -184,52 +184,55 @@ export class ContainerInitializer {
   async _performPhasedInitialization(options) {
     const { isBackgroundScript = false, context = 'container-init' } = options;
     
-    try {
-      // Phase 1: Essential utilities (including logger)
-      this._updateProgress('essential-utilities', 0);
-      await this._registerEssentialUtilities(isBackgroundScript, context);
-      await this._validatePhase('essential-utilities');
-      
-      // Phase 2: Core utilities
-      this._updateProgress('core-utilities', 20);
-      await this._registerCoreUtilities();
-      await this._validatePhase('core-utilities');
-      
-      // Phase 3: Core services (with dependency ordering)
-      this._updateProgress('core-services', 40);
-      await this._registerCoreServices();
-      await this._validatePhase('core-services');
-      
-      // Phase 4: Initialize core services
-      this._updateProgress('core-service-initialization', 60);
-      await this._initializeCoreServices();
-      await this._validatePhase('core-service-initialization');
-      
-      // Phase 5: Optional services
-      this._updateProgress('optional-services', 80);
-      await this._registerOptionalServices();
-      
-      // Phase 6: Components
-      this._updateProgress('components', 90);
-      await this._registerComponents();
-      
-      // Final validation
-      this._updateProgress('validation', 100);
-      const validationResult = await this._validateContainer();
-      
-      // Clean up validation result
-      const result = { 
-        initialized: validationResult.initialized,
-        memoryMetrics: this._memoryMetrics
-      };
-      validationResult = null;
-      
-      return result;
-    } catch (error) {
-      this.logger?.error('Container initialization failed:', error);
-      await this.reset();
-      throw error;
-    }
+    // Track the entire phased initialization
+    await this._resourceTracker.trackOperation('phasedInitialization', async () => {
+      try {
+        // Phase 1: Essential utilities (including logger)
+        this._updateProgress('essential-utilities', 0);
+        await this._registerEssentialUtilities(isBackgroundScript, context);
+        await this._validatePhase('essential-utilities');
+        
+        // Phase 2: Core utilities
+        this._updateProgress('core-utilities', 20);
+        await this._registerCoreUtilities();
+        await this._validatePhase('core-utilities');
+        
+        // Phase 3: Core services (with dependency ordering)
+        this._updateProgress('core-services', 40);
+        await this._registerCoreServices();
+        await this._validatePhase('core-services');
+        
+        // Phase 4: Initialize core services
+        this._updateProgress('core-service-initialization', 60);
+        await this._initializeCoreServices();
+        await this._validatePhase('core-service-initialization');
+        
+        // Phase 5: Optional services
+        this._updateProgress('optional-services', 80);
+        await this._registerOptionalServices();
+        
+        // Phase 6: Components
+        this._updateProgress('components', 90);
+        await this._registerComponents();
+        
+        // Final validation
+        this._updateProgress('validation', 100);
+        const validationResult = await this._validateContainer();
+        
+        // Clean up validation result
+        const result = { 
+          initialized: validationResult.initialized,
+          memoryMetrics: this._memoryMetrics
+        };
+        validationResult = null;
+        
+        return result;
+      } catch (error) {
+        this.logger?.error('Container initialization failed:', error);
+        await this.reset();
+        throw error;
+      }
+    });
   }
 
   _updateProgress(phase, progress) {
@@ -297,14 +300,15 @@ export class ContainerInitializer {
   }
 
   async _initializeCoreServices() {
-    this.logger?.debug('Initializing core services');
+    this.logger.debug('Initializing core services');
     
     const coreServices = container.getServicesByPhase('core');
     for (const serviceName of coreServices) {
       try {
+        this.logger.debug(`Initializing service: ${serviceName}`);
         await container.initializeService(serviceName);
       } catch (error) {
-        this.logger?.error(`Failed to initialize service ${serviceName}:`, error);
+        this.logger.error(`Failed to initialize service ${serviceName}:`, error);
         throw error;
       }
     }
