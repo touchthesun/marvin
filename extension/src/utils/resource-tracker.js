@@ -60,6 +60,31 @@ export class ResourceTracker {
     trackDOMElement(element) {
       this._domRefs.add(element);
     }
+
+
+    async cleanupNonEssential() {
+      // Clear non-critical resources
+      for (const [target, handlers] of this._eventListeners) {
+        for (const [type, typeHandlers] of handlers) {
+          if (!this._isCriticalEvent(type)) {
+            for (const handler of typeHandlers) {
+              target.removeEventListener(type, handler);
+            }
+            handlers.delete(type);
+          }
+        }
+      }
+    }
+
+    _isCriticalEvent(type, context) {
+      const criticalEvents = new Set([
+        'error', 'unload', 'beforeunload', 'visibilitychange',
+        'storage', 'message', 'focus', 'blur', 'resize', 'scroll'
+      ]);
+      
+      return criticalEvents.has(type) || 
+             (context && context.isCritical && context.isCritical(type));
+    }
   
     /**
      * Clean up all tracked resources
@@ -76,12 +101,12 @@ export class ResourceTracker {
       this._eventListeners.clear();
   
       // Clear timeouts and intervals
-      for (const id of this._timeouts.values()) {
+      for (const [callback, id] of this._timeouts) {
         clearTimeout(id);
       }
       this._timeouts = new WeakMap();
-  
-      for (const id of this._intervals.values()) {
+
+      for (const [callback, id] of this._intervals) {
         clearInterval(id);
       }
       this._intervals = new WeakMap();

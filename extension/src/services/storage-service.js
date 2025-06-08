@@ -1,6 +1,6 @@
 // src/services/storage-service.js
 import { LogManager } from '../utils/log-manager.js';
-import { BaseService } from '../core/base-service.js';
+import { BaseService } from '../services/base-service.js'
 
 /**
  * StorageService - Manages browser storage operations and caching

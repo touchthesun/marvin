@@ -1,6 +1,6 @@
 // src/services/analysis-service.js
 import { LogManager } from '../utils/log-manager.js';
-import { BaseService } from '../core/base-service.js';
+import { BaseService } from '../services/base-service.js'
 
 /**
  * AnalysisService - Manages page analysis operations and task monitoring

@@ -17,6 +17,7 @@
     "test:services": "jest --testPathPattern=tests/services",
     "test:background": "jest --testPathPattern=tests/background",
     "test:components": "jest --testPathPattern=tests/components",
+    "test:components:no-msw": "jest --config jest.components.config.js",
     "test:diagnostics": "jest --testPathPattern=tests/diagnostics --config jest.diagnostics.config.js"
   },
   "devDependencies": {
@@ -51,6 +52,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
+    "d3": "^7.9.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "styled-components": "^6.1.13"

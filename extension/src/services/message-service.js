@@ -1,5 +1,5 @@
 // src/services/message-service.js
-import { BaseService } from '../core/base-service.js';
+import { BaseService } from '../services/base-service.js'
 import { LogManager } from '../utils/log-manager.js';
 
 /**
