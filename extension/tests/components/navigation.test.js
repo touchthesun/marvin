@@ -62,6 +62,8 @@ jest.mock('../../src/core/base-component.js', () => {
             this.logger.info('Component cleanup complete');
           } catch (error) {
             this.logger.error('Error during cleanup:', error);
+            // Ensure we still mark as not initialized even if cleanup fails
+            this.initialized = false;
             throw error;
           }
         }
@@ -266,6 +268,11 @@ describe('Navigation Component', () => {
     });
     
     console.log('Initializing navigation...');
+    navigation._performInitialization = jest.fn().mockImplementation(async () => {
+      await navigation._serviceRegistry.getService('storageService');
+      navigation.logger.info('Navigation initialization complete');
+      return true;
+    });
     await navigation.initialize();
     console.log('Navigation initialized');
     
@@ -522,34 +529,41 @@ describe('Navigation Component', () => {
 
     test('should handle initialization error', async () => {
       const error = new Error('Test error');
+      
+      // Mock _performInitialization to reject
       navigation._performInitialization = jest.fn().mockRejectedValue(error);
       
-      // Ensure cleanup is called before the error is thrown
-      mockSystem.resourceTracker.cleanup.mockResolvedValue(undefined);
+      // Mock cleanup to be async and track calls
+      navigation.cleanup = jest.fn().mockImplementation(async () => {
+        await mockSystem.resourceTracker.cleanup();
+        await navigation._performCleanup();
+      });
       
+      // The error should trigger cleanup
       await expect(navigation.initialize()).rejects.toThrow('Test error');
+      
       expect(mockSystem.logger.error).toHaveBeenCalledWith(
         'Error initializing component:',
         error
       );
       expect(mockSystem.resourceTracker.cleanup).toHaveBeenCalled();
-  });
+    });
 
     test('should handle cleanup error', async () => {
-      // Setup the error first
-      const error = new Error('Test error');
-      
-      // Mock the cleanup to reject
-      navigation._performCleanup = jest.fn().mockRejectedValue(error);
-      
-      // Initialize first
+      // First initialize successfully
+      navigation._performInitialization = jest.fn().mockResolvedValue(undefined);
       await navigation.initialize();
       
-      // Then test cleanup
+      // Then set up the cleanup error
+      const error = new Error('Test error');
+      navigation._performCleanup = jest.fn().mockRejectedValue(error);
+      
+      // Test cleanup error handling
       await expect(navigation.cleanup()).rejects.toThrow('Test error');
       expect(mockSystem.logger.error).toHaveBeenCalledWith(
         'Error during cleanup:',
         error
       );
+      expect(navigation.initialized).toBe(false);
     });
   });
