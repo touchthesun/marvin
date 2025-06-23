@@ -45,7 +45,7 @@ export class BaseService {
   };
 
   _validateResourceLimits() {
-    const counts = this._resourceTracker.getResourceCounts();
+    const counts = this._resourceTracker.getResourceCount();
     const config = this.constructor._DEFAULT_CONFIG;
     
     return {
@@ -348,7 +348,7 @@ export class BaseService {
     return {
       initialized: this._initialized,
       memoryUsage: this._memoryMonitor.getLastSnapshot(),
-      resourceCounts: this._resourceTracker.getResourceCounts(),
+      resourceCounts: this._resourceTracker.getResourceCount(),
       activeTasks: this._activeTasks.size,
       circuitBreakerStatus: {
         failureCount: this._failureCount,

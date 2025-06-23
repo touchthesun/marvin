@@ -13,8 +13,8 @@ export const d3 = {
       remove: jest.fn().mockReturnThis(),
       on: jest.fn().mockReturnThis(),
       call: jest.fn().mockReturnThis(),
-      node: jest.fn().mockReturnValue(document.createElement('div')),
-      nodes: jest.fn().mockReturnValue([document.createElement('div')])
+      node: jest.fn().mockReturnValue({}),
+      nodes: jest.fn().mockReturnValue([{}])
     }),
     selectAll: jest.fn().mockReturnValue({
       select: jest.fn().mockReturnThis(),
@@ -28,7 +28,7 @@ export const d3 = {
       remove: jest.fn().mockReturnThis(),
       on: jest.fn().mockReturnThis(),
       call: jest.fn().mockReturnThis(),
-      nodes: jest.fn().mockReturnValue([document.createElement('div')])
+      nodes: jest.fn().mockReturnValue([{}])
     }),
   
     // Scales

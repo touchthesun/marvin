@@ -14,23 +14,19 @@ import { MemoryMonitor } from '../utils/memory-monitor.js';
  * ServiceRegistry class for managing service registration and dependency resolution
  */
 export class ServiceRegistry {
-    constructor() {
-        this._services = new Map();
-        this._dependencies = new Map();
-        this._instances = new WeakMap();
-        this._resourceTracker = new ResourceTracker();
-        this._memoryMonitor = new MemoryMonitor({
-            threshold: 0.8,
-            interval: 5000
-        });
-        this._memoryMetrics = {
-            peakUsage: 0,
-            lastSnapshot: null,
-            cleanupCount: 0
-        };
-        this._initializeServiceRegistry();
-    }
-
+    static _services = new Map();
+    static _dependencies = new Map();
+    static _instances = new WeakMap();
+    static _resourceTracker = new ResourceTracker();
+    static _memoryMonitor = new MemoryMonitor({
+      threshold: 0.8,
+      interval: 5000
+    });
+    static _memoryMetrics = {
+      peakUsage: 0,
+      lastSnapshot: null,
+      cleanupCount: 0
+    };
     /**
      * Initialize the service registry with all services
      * @private
@@ -100,28 +96,28 @@ export class ServiceRegistry {
      * @param {Object} options - Registration options
      * @throws {Error} If service registration fails
      */
-    registerService(name, ServiceClass, options = {}) {
-      if (this._services.has(name)) {
+    static registerService(name, ServiceClass, options = {}) {
+        if (this._services.has(name)) {
           throw new Error(`Service ${name} is already registered`);
-      }
-
-      // Validate dependencies
-      if (options.dependencies) {
+        }
+      
+        // Validate dependencies
+        if (options.dependencies) {
           this._validateDependencies(name, options.dependencies);
-      }
-
-      // Track service registration as a resource
-      this._resourceTracker.trackOperation(`registerService:${name}`, () => {
+        }
+      
+        // Track service registration as a resource
+        this._resourceTracker.trackOperation(`registerService:${name}`, () => {
           this._services.set(name, {
-              class: ServiceClass,
-              options: options
+            class: ServiceClass,
+            options: options
           });
-
+      
           if (options.dependencies) {
-              this._dependencies.set(name, options.dependencies);
+            this._dependencies.set(name, options.dependencies);
           }
-      });
-  }
+        });
+      }
   
     /**
      * Get a service instance
@@ -253,26 +249,41 @@ export class ServiceRegistry {
      * @private
      */
     static _validateDependencies(service, dependencies) {
-      const visited = new Set();
-      const visiting = new Set();
-      
-      const visit = (name) => {
+        const visited = new Set();
+        const visiting = new Set();
+        
+        const visit = (name) => {
           if (visiting.has(name)) {
-              throw new Error(`Circular dependency detected: ${name}`);
+            throw new Error(`Circular dependency detected: ${name}`);
           }
           if (visited.has(name)) return;
           
           visiting.add(name);
-          const deps = dependencies.get(name) || [];
+          // Get dependencies for this service from the static _dependencies Map
+          const deps = this._dependencies.get(name) || [];
           for (const dep of deps) {
-              visit(dep);
+            visit(dep);
           }
           visiting.delete(name);
           visited.add(name);
-      };
-      
-      visit(service);
-  }
+        };
+        
+        visit(service);
+      }
+
+      /**
+     * Get core service definitions
+     * @returns {Array<{name: string, class: Function, options: Object}>} Core service definitions
+     */
+    static getCoreServices() {
+    return Array.from(this._services.entries())
+        .filter(([_, service]) => service.options.phase === 'core')
+        .map(([name, service]) => ({
+        name,
+        class: service.class,
+        options: service.options
+        }));
+    }
 
     /**
      * Get service cleanup order based on dependencies

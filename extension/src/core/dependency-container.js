@@ -88,6 +88,8 @@ export class DependencyContainer {
         lastSnapshot: null,
         cleanupCount: 0
       };
+
+      await this._resourceTracker.cleanup();
       
       // Force garbage collection
       if (global.gc) {

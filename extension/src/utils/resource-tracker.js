@@ -9,6 +9,7 @@ export class ResourceTracker {
       this._intervals = new WeakMap();
       this._domRefs = new WeakSet();
       this._memoryMonitor = null;
+      this._operations = new Map();
     }
   
     /**
@@ -61,6 +62,31 @@ export class ResourceTracker {
       this._domRefs.add(element);
     }
 
+    /**
+     * Track an async operation for monitoring and cleanup
+     * @param {string} name - The name of the operation
+     * @param {Function} operation - The async operation to track
+     * @returns {Promise} The result of the operation
+     */
+    async trackOperation(name, operation) {
+      const startTime = performance.now();
+      const startMemory = performance.memory?.usedJSHeapSize;
+      
+      try {
+        const result = await operation();
+        return result;
+      } finally {
+        const endTime = performance.now();
+        const endMemory = performance.memory?.usedJSHeapSize;
+        
+        this._operations.set(name, {
+          duration: endTime - startTime,
+          memoryDelta: endMemory - startMemory,
+          timestamp: Date.now()
+        });
+      }
+    }
+
 
     async cleanupNonEssential() {
       // Clear non-critical resources
@@ -99,33 +125,26 @@ export class ResourceTracker {
         }
       }
       this._eventListeners.clear();
-  
-      // Clear timeouts and intervals
-      for (const [callback, id] of this._timeouts) {
-        clearTimeout(id);
-      }
       this._timeouts = new WeakMap();
-
-      for (const [callback, id] of this._intervals) {
-        clearInterval(id);
-      }
       this._intervals = new WeakMap();
-  
-      // Clear DOM references
       this._domRefs = new WeakSet();
+      this._operations.clear();
     }
+
+    
   
     /**
      * Get the number of tracked resources
      * @returns {Object} Counts of tracked resources
      */
-    getResourceCounts() {
+    getResourceCount() {
       return {
         eventListeners: Array.from(this._eventListeners.values())
           .reduce((sum, handlers) => sum + handlers.size, 0),
         timeouts: this._timeouts.size,
         intervals: this._intervals.size,
-        domRefs: this._domRefs.size
+        domRefs: this._domRefs.size,
+        operations: this._operations.size
       };
     }
   }

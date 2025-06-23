@@ -6,7 +6,8 @@ export default {
   },
   moduleFileExtensions: ['js', 'json'],
   testMatch: ['**/tests/core/**/*.test.js'],
-  verbose: true,
+  verbose: false,
+  silent: false,
   collectCoverage: true,
   coverageDirectory: 'coverage/core',
   coverageReporters: ['text', 'lcov'],
@@ -17,7 +18,10 @@ export default {
     'NODE_OPTIONS': '--max-old-space-size=4096 --expose-gc'
   },
   reporters: [
-    'default',
+    ['default', {
+      silent: false,
+      verbose: false
+    }],
     ['jest-junit', {
       outputDirectory: 'logs/test',
       outputName: 'junit.xml',
