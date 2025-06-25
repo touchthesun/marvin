@@ -1,4 +1,9 @@
 // src/popup/popup.js
+import './popup.css';
+import './debug.css';
+import './status.css';
+import './tasks.css';
+import './activity.css';
 import { LogManager } from '../utils/log-manager.js';
 import { container } from '../core/dependency-container.js';
 import { ServiceRegistry } from '../core/service-registry.js';
@@ -1047,6 +1052,7 @@ const Popup = {
 
 // Initialize popup when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOMContentLoaded fired')
   Popup.initPopup();
   Popup.checkContentScript();
 });
