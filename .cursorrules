@@ -1,6 +1,9 @@
 Project Overview:
 Marvin is a browser extension that helps users organize and leverage their browsing history and research materials through an active knowledge graph and LLM-powered interface.
 
+Code Generation:
+- Your edit tool is not working currently. Do not try to change files yourself, instead print code in chat and allow user to implement manually.
+
 Coding Standards:
 - Use Python 3.10+ features and type hints
 - Follow PEP 8 style guide with Black formatting

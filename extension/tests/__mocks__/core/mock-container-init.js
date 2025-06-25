@@ -90,8 +90,7 @@ class MockContainerInitializer {
       memoryUsage: null
     };
     
-    // Clean up resources
-    await this._resourceTracker.cleanup();
+    await mockSystem.resourceTracker.cleanup();
     
     // Reset container
     await mockSystem.container.reset();
@@ -175,6 +174,10 @@ class MockContainerInitializer {
 
   async _registerCoreServices(mockSystem) {
     this.logger.debug('Registering core services');
+
+    // Debug: Log what mockSystem we're using
+    console.log('Mock initializer received mockSystem.services:', mockSystem.services);
+    console.log('Mock initializer received mockSystem.services.apiService:', mockSystem.services.apiService);
     
     // Debug logging
     console.log('Mock system services:', mockSystem.services);

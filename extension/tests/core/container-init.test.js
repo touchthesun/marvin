@@ -204,14 +204,6 @@ describe('Container Initialization', () => {
       status: 'completed'
     });
     
-    // Clear all references after test
-    await clearAllReferences();
-    
-    // Debug logging after clearAllReferences
-    infoLog('After clearAllReferences - Container state:', {
-      services: Array.from(mockSystem.container.services.entries()),
-      components: Array.from(mockSystem.container.components.entries())
-    });
     
     // Reset mock system
     mockSystem.reset();
@@ -330,8 +322,8 @@ describe('Container Initialization', () => {
 
   describe('Error Handling', () => {
     test('handles initialization errors gracefully', async () => {
-      await mockSystem.container.reset();
-      await forceGC();
+      // Create a separate mock system for this test
+      const testMockSystem = createMockSystem();
       
       class FailingService {
         async initialize() {
@@ -342,20 +334,33 @@ describe('Container Initialization', () => {
         }
       }
       
-      mockSystem.container.registerService('failingService', FailingService);
-
+      // Replace the apiService with the failing service
+      testMockSystem.services.apiService = FailingService;
+      testMockSystem.container.registerService('apiService', FailingService);
+      testMockSystem.container.services.set('apiService', FailingService);
+      
+      // Reset the container initializer to clear any cached state
+      await containerInitializer.reset(testMockSystem);
+      
+      // Reset the initializer's internal state
+      containerInitializer.initialized = false;
+      containerInitializer.initializationPromise = null;
+      containerInitializer.logger = testMockSystem.logger;
+      containerInitializer._resourceTracker = testMockSystem.resourceTracker;
+      containerInitializer._memoryMonitor = testMockSystem.memoryMonitor;
+    
       try {
         await containerInitializer.initialize({
           isBackgroundScript: false,
           context: 'test',
-          mockSystem
+          mockSystem: testMockSystem
         });
         throw new Error('Expected initialization to fail');
       } catch (error) {
         expect(error.message).toBe('Simulated initialization failure');
-        expect(mockSystem.logger.error).toHaveBeenCalled();
+        expect(testMockSystem.logger.error).toHaveBeenCalled();
       } finally {
-        await mockSystem.container.reset();
+        await testMockSystem.container.reset();
         await forceGC();
       }
     });
@@ -411,13 +416,14 @@ describe('Container Initialization', () => {
       await mockSystem.container.getService('serviceA');
       await mockSystem.container.getService('serviceB');
       
-      await mockSystem.container.reset();
+      // Use containerInitializer.reset() instead of container.reset()
+      await containerInitializer.reset(mockSystem);
       await forceGC();
       
       expect(cleanupOrder).toEqual(['serviceB', 'serviceA']);
       expect(mockSystem.resourceTracker.cleanup).toHaveBeenCalled();
     });
-
+  
     test('handles cleanup errors gracefully', async () => {
       mockSystem.container.registerService('failingService', class {
         async cleanup() {
@@ -426,11 +432,13 @@ describe('Container Initialization', () => {
       });
       
       await mockSystem.container.getService('failingService');
-      await expect(mockSystem.container.reset()).resolves.not.toThrow();
+      
+      // Use containerInitializer.reset() instead of container.reset()
+      await expect(containerInitializer.reset(mockSystem)).resolves.not.toThrow();
       await forceGC();
       
       expect(mockSystem.container.serviceInstances.has('failingService')).toBe(false);
       expect(mockSystem.logger.error).toHaveBeenCalled();
     });
   });
-});
+})

@@ -115,32 +115,60 @@ export const createMockSystem = () => {
       return this.serviceInstances.get(name);
     },
     
-    reset() {
-      // Reset all Jest mocks
-      Object.values(this).forEach(value => {
-        if (typeof value === 'object' && value !== null) {
-          Object.values(value).forEach(fn => {
-            if (typeof fn === 'function' && fn.mockReset) {
-              fn.mockReset();
-            }
-          });
+reset() {
+  return (async () => {
+    // Call cleanup on service instances in reverse order
+    const serviceInstances = Array.from(this.serviceInstances.entries());
+    for (let i = serviceInstances.length - 1; i >= 0; i--) {
+      const [name, instance] = serviceInstances[i];
+      if (instance && typeof instance.cleanup === 'function') {
+        try {
+          await instance.cleanup();
+        } catch (error) {
+          // Use logger instead of console.error
+          if (this.utils.has('LogManager')) {
+            this.utils.get('LogManager').error(`Error cleaning up service ${name}:`, error);
+          }
         }
-      });
-      // Clear cleanup order
-      cleanupOrder.length = 0;
-      
-      // Register LogManager BEFORE clearing maps
-      container.registerUtil('LogManager', mockLogger);
-      
-      // Then clear all maps
-      container.utils.clear();
-      container.services.clear();
-      container.components.clear();
-      container.serviceInstances.clear();
-      container.componentInstances.clear();
-      container.serviceMetadata.clear();
+      }
     }
-  };
+    
+    // Call cleanup on component instances
+    const componentInstances = Array.from(this.componentInstances.entries());
+    for (let i = componentInstances.length - 1; i >= 0; i--) {
+      const [name, instance] = componentInstances[i];
+      if (instance && typeof instance.cleanup === 'function') {
+        try {
+          await instance.cleanup();
+        } catch (error) {
+          console.error(`Error cleaning up component ${name}:`, error);
+        }
+      }
+    }
+    
+    // Reset all Jest mocks
+    Object.values(this).forEach(value => {
+      if (typeof value === 'object' && value !== null) {
+        Object.values(value).forEach(fn => {
+          if (typeof fn === 'function' && fn.mockReset) {
+            fn.mockReset();
+          }
+        });
+      }
+    });
+    
+    // Register LogManager BEFORE clearing maps
+    this.registerUtil('LogManager', mockLogger);
+    
+    // Then clear all maps
+    this.utils.clear();
+    this.services.clear();
+    this.components.clear();
+    this.serviceInstances.clear();
+    this.componentInstances.clear();
+    this.serviceMetadata.clear();
+  })();
+}}
 
   // Create the complete mock system
   const mockSystem = {
