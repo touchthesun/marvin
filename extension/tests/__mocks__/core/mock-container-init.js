@@ -1,4 +1,3 @@
-// extension/tests/__mocks__/core/mock-container-init.js
 class MockContainerInitializer {
   constructor() {
     this.initialized = false;

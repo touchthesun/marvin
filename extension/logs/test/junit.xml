@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="9" failures="0" errors="0" time="9.942">
-  <testsuite name="Container Initialization" errors="0" failures="0" skipped="0" timestamp="2025-06-25T05:22:14" time="9.813" tests="9">
-    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0.025">
+<testsuites name="jest tests" tests="9" failures="0" errors="0" time="9.899">
+  <testsuite name="Container Initialization" errors="0" failures="0" skipped="0" timestamp="2025-06-25T06:22:15" time="9.826" tests="9">
+    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0.026">
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0.019">
+    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0.02">
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0.02">
+    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0.018">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0.02">
+    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0.018">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0.022">
+    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0.021">
     </testcase>
-    <testcase classname="Container Initialization Error Handling" name="handles initialization errors gracefully" time="1.044">
+    <testcase classname="Container Initialization Error Handling" name="handles initialization errors gracefully" time="1.041">
     </testcase>
-    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="4.076">
+    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="4.094">
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="1.043">
+    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="1.042">
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="1.043">
+    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="1.042">
     </testcase>
   </testsuite>
 </testsuites>

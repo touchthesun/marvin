@@ -1,0 +1,163 @@
+Processed 62 files (555ms) 
+
+../src/components/core/navigation.js
+  ../src/core/base-component.js
+  ../src/core/service-registry.js
+../src/components/panels/assistant/assistant-panel.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/capture/bookmarks-capture.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/capture/capture-panel.js
+  ../src/components/panels/capture/bookmarks-capture.js
+  ../src/components/panels/capture/history-capture.js
+  ../src/components/panels/capture/tabs-capture.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/capture/history-capture.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/capture/tabs-capture.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/knowledge/knowledge-panel.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/overview/overview-panel.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/settings/settings-panel.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/components/panels/tasks/tasks-panel.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+../src/core/base-component.js
+  ../src/core/dependency-container.js
+  ../src/utils/log-manager.js
+  ../src/utils/memory-monitor.js
+  ../src/utils/resource-tracker.js
+../src/core/component-registry.js
+  ../src/components/core/navigation.js
+  ../src/components/panels/assistant/assistant-panel.js
+  ../src/components/panels/capture/capture-panel.js
+  ../src/components/panels/knowledge/knowledge-panel.js
+  ../src/components/panels/overview/overview-panel.js
+  ../src/components/panels/settings/settings-panel.js
+  ../src/components/panels/tasks/tasks-panel.js
+  ../src/core/dependency-container.js
+../src/core/container-init.js
+  ../src/core/component-registry.js
+  ../src/core/dependency-container.js
+  ../src/core/service-registry.js
+  ../src/core/utils-registry.js
+  ../src/services/analysis-service.js
+  ../src/services/visualization-service.js
+  ../src/utils/log-manager.js
+  ../src/utils/memory-monitor.js
+  ../src/utils/resource-tracker.js
+../src/core/dependency-container.js
+  ../src/core/utils-registry.js
+  ../src/utils/log-manager.js
+  ../src/utils/memory-monitor.js
+  ../src/utils/resource-tracker.js
+../src/core/service-registry.js
+  ../src/services/analysis-service.js
+  ../src/services/api-service.js
+  ../src/services/graph-service.js
+  ../src/services/message-service.js
+  ../src/services/notification-service.js
+  ../src/services/status-service.js
+  ../src/services/storage-service.js
+  ../src/services/task-service.js
+  ../src/services/visualization-service.js
+  ../src/utils/memory-monitor.js
+  ../src/utils/resource-tracker.js
+../src/core/utils-registry.js
+  ../src/utils/formatting.js
+  ../src/utils/log-manager.js
+  ../src/utils/timeout.js
+  ../src/utils/ui-utils.js
+../src/services/analysis-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/api-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/base-service.js
+  ../src/utils/memory-monitor.js
+  ../src/utils/resource-tracker.js
+../src/services/graph-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/message-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/notification-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/status-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/storage-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/task-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/services/visualization-service.js
+  ../src/services/base-service.js
+  ../src/utils/log-manager.js
+../src/utils/formatting.js
+../src/utils/log-manager.js
+../src/utils/memory-monitor.js
+../src/utils/resource-tracker.js
+../src/utils/timeout.js
+../src/utils/ui-utils.js
+  ../src/utils/log-manager.js
+__mocks__/chrome-api.js
+  __mocks__/chrome-api/runtime.js
+__mocks__/chrome-api/runtime.js
+__mocks__/core/mock-base-component.js
+  utils/mock-system.js
+__mocks__/core/mock-base-service.js
+__mocks__/core/mock-container-init.js
+__mocks__/core/mock-service-registry.js
+__mocks__/d3.js
+__mocks__/fileMock.js
+__mocks__/handlers.js
+__mocks__/services/analysis-service.js
+__mocks__/services/api-service.js
+__mocks__/services/graph-service.js
+__mocks__/services/message-service.js
+__mocks__/services/notification-service.js
+__mocks__/services/status-service.js
+__mocks__/services/storage-service.js
+__mocks__/services/visualization-service.js
+__mocks__/test-service.js
+components/base.test.js
+  ../src/core/base-component.js
+  utils/mock-system.js
+components/navigation.test.js
+  ../src/components/core/navigation.js
+  utils/mock-system.js
+core/container-init.test.js
+  ../src/core/container-init.js
+  utils/mock-system.js
+diagnostics/deprecation.test.js
+helpers/msw-setup.js
+  __mocks__/handlers.js
+helpers/setup-environment.js
+  __mocks__/chrome-api.js
+helpers/setup-globals.js
+services/api-service.test.js
+  ../src/services/api-service.js
+  helpers/msw-setup.js
+setup/core.setup.js
+utils/mock-registry.js
+  utils/mock-system.js
+utils/mock-system.js
+utils/test-component.js
+  ../src/core/base-component.js
+
