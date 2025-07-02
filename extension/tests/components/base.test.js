@@ -26,10 +26,10 @@ jest.mock('../../src/core/dependency-container', () => ({
 const mockSystem = createMockSystem();
 
 // Update mock implementations after creation
-const { LogManager } = require('../../src/utils/log-manager.js');
-const { MemoryMonitor } = require('../../src/utils/memory-monitor.js');
-const { ResourceTracker } = require('../../src/utils/resource-tracker.js');
-const { container } = require('../../src/core/dependency-container');
+import { LogManager } from '../../src/utils/log-manager.js';
+import { MemoryMonitor } from '../../src/utils/memory-monitor.js';
+import { ResourceTracker } from '../../src/utils/resource-tracker.js';
+import { container } from '../../src/core/dependency-container';
 
 LogManager.mockImplementation(() => mockSystem.logger);
 MemoryMonitor.mockImplementation(() => mockSystem.memoryMonitor);

@@ -177,6 +177,9 @@ class MockContainerInitializer {
     // Debug: Log what mockSystem we're using
     console.log('Mock initializer received mockSystem.services:', mockSystem.services);
     console.log('Mock initializer received mockSystem.services.apiService:', mockSystem.services.apiService);
+
+    console.log('Registering core services:', Object.keys(mockSystem.services));
+    console.log('Container services before:', Array.from(mockSystem.container.services.keys()));
     
     // Debug logging
     console.log('Mock system services:', mockSystem.services);

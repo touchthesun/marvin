@@ -535,7 +535,7 @@ export class StatusService extends BaseService {
           this._stats.apiFailures++;
           this._trackApiStatusChange('error', `API returned status ${response.status}`);
           this._logger.warn(`API health check failed with status ${response.status}`);
-          this._recordCircuitBreakerFailure();
+          this._recordFailure('api-status-error');
         }
       } catch (fetchError) {
         clearTimeout(timeoutId);
@@ -553,7 +553,7 @@ export class StatusService extends BaseService {
           this._trackApiStatusChange('offline', `API unreachable: ${fetchError.message}`);
           this._logger.error('API server unreachable:', fetchError);
         }
-        this._recordCircuitBreakerFailure();
+        this._recordFailure('api-unreachable');
       }
       
       // Update UI if status changed
@@ -579,8 +579,20 @@ export class StatusService extends BaseService {
       this._trackApiStatusChange('error', `Error checking API: ${error.message}`);
       this._updateApiStatusIndicator();
       this._logger.error('Error checking API status:', error);
-      this._recordCircuitBreakerFailure();
+      this._recordFailure('api-check');
       return this._apiStatus;
+    }
+  }
+  
+  /**
+   * Handle API check interval
+   * @private
+   */
+  async _handleApiCheckInterval() {
+    try {
+      await this._checkApiStatus();
+    } catch (error) {
+      this._logger.error('Error in API check interval:', error);
     }
   }
   

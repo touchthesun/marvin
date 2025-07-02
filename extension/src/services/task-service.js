@@ -71,7 +71,7 @@ export class TaskService extends BaseService {
    * @param {object} options - Service options
    */
   constructor(options = {}) {
-    super();
+    super(options);
 
     // Initialize configuration
     this._config = {
@@ -1148,6 +1148,53 @@ export class TaskService extends BaseService {
         }
     }
 
+
+    /**
+     * Load persisted state from storage
+     * @private
+     */
+    async _loadPersistedState() {
+        if (!this._storageService) {
+            this._logger.debug('Storage service not available, skipping state load');
+            return;
+        }
+
+        try {
+            const data = await this._storageService.get('taskServiceState');
+            if (!data) {
+                this._logger.debug('No persisted state found');
+                return;
+            }
+
+            // Validate state before loading
+            if (!this._validateState(data)) {
+                this._logger.error('Invalid persisted state detected, skipping load');
+                return;
+            }
+
+            // Restore active tasks
+            this._activeTasks.clear();
+            for (const [task, timestamp] of data.activeTasks) {
+                this._activeTasks.set(task, timestamp);
+            }
+
+            // Restore completed tasks
+            this._completedTasks.clear();
+            for (const [task, timestamp] of data.completedTasks) {
+                this._completedTasks.set(task, timestamp);
+            }
+
+            // Restore stats
+            this._stats = { ...this._stats, ...data.stats };
+
+            // Restore circuit breaker
+            this._circuitBreaker = { ...this._circuitBreaker, ...data.circuitBreaker };
+
+            this._logger.debug('State loaded successfully');
+        } catch (error) {
+            this._logger.error('Error loading persisted state:', error);
+        }
+    }
 
     /**
      * Persist current state to storage

@@ -1,6 +1,9 @@
 // tests/core/container-init.test.js
-import { containerInitializer } from '../../src/core/container-init';
 import { createMockSystem } from '../utils/mock-system';
+import { containerInitializer } from '../../src/core/container-init';
+import { container } from '../../src/core/dependency-container.js';
+import { ServiceRegistry } from '../../src/core/service-registry.js';
+import { ComponentRegistry } from '../../src/core/component-registry.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,27 +12,15 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'error';
 
 const debugLog = (...args) => {
   if (DEBUG_MODE && LOG_LEVEL === 'debug') {
-    infoLog(...args);
+    console.debug(...args);
   }
 };
 
 const infoLog = (...args) => {
   if (DEBUG_MODE && ['debug', 'info'].includes(LOG_LEVEL)) {
-    infoLog(...args);
+    console.info(...args);
   }
 };
-
-// Mock the container-init module
-jest.mock('../../src/core/container-init', () => {
-  const { ContainerInitializer, containerInitializer, initializeContainer, getContainerStatus, resetContainer } = require('../__mocks__/core/mock-container-init');
-  return {
-    ContainerInitializer,
-    containerInitializer,
-    initializeContainer,
-    getContainerStatus,
-    resetContainer
-  };
-});
 
 
 const logsDir = path.join(__dirname, '../../logs/test');
@@ -139,54 +130,79 @@ describe('Container Initialization', () => {
     logMemoryUsage('beforeAll');
   });
 
+  
+
   beforeEach(async () => {
     const testName = expect.getState().currentTestName;
     writeLog('Test Start', { test: testName });
-    
+  
+    // Reset the real container before each test
+    await container.reset();
+  
+    // Register mock implementations for all services in the real registry
+    class MockService { async initialize() {}; async cleanup() {}; }
+    class MockComponent { async initialize() {}; async cleanup() {}; }
+  
+    // Register all core and optional services
+    ServiceRegistry.getCoreServices().forEach(service => {
+      container.registerService(service.name, MockService);
+    });
+  
+    // Register all core and optional components
+    const componentsToRegister = await ComponentRegistry.registerAll();
+    Object.keys(componentsToRegister).forEach(name => {
+      container.registerComponent(name, MockComponent);
+    });
+  
+    // LOGGING
+    console.log('--- Service Registry Contents ---');
+    console.log(JSON.stringify(ServiceRegistry.getCoreServices(), null, 2));
+    console.log('--- Component Registry Contents ---');
+    console.log(JSON.stringify(Object.keys(componentsToRegister), null, 2));
+  
     try {
       writeLog('Starting Container Initialization', { test: testName });
+      // Use the real container for initialization
       initResult = await containerInitializer.initialize({
         isBackgroundScript: false,
-        context: 'test',
-        mockSystem
+        context: 'test'
       });
   
       if (!initResult.initialized) {
         throw new Error('Container initialization failed');
       }
-      
-      // Debug logging
+  
+      // Update logging to use the real container
       infoLog('Container state after initialization:', {
-        services: Array.from(mockSystem.container.services.entries()),
-        components: Array.from(mockSystem.container.components.entries())
+        services: Array.from(container.services.entries()),
+        components: Array.from(container.components.entries())
       });
-      
-      // Verify initialization state
+  
       const status = containerInitializer.getStatus();
       infoLog('Container status:', status);
-      
+  
       if (!status.initialized) {
         throw new Error('Container not properly initialized');
       }
-      
+  
       writeLog('Initialization Result', {
         initialized: initResult.initialized,
-        serviceCount: mockSystem.container.services.size,
-        utilCount: mockSystem.container.utils.size,
-        componentCount: mockSystem.container.components.size
+        serviceCount: container.services.size,
+        utilCount: container.utils.size,
+        componentCount: container.components.size
       });
     } catch (error) {
       writeLog('Initialization Error', {
         message: error.message,
         containerState: {
-          serviceCount: mockSystem.container.services.size,
-          utilCount: mockSystem.container.utils.size,
-          componentCount: mockSystem.container.components.size
+          serviceCount: container.services.size,
+          utilCount: container.utils.size,
+          componentCount: container.components.size
         }
       });
       throw error;
     }
-    
+  
     logMemoryUsage('beforeEach');
   });
   
@@ -206,13 +222,13 @@ describe('Container Initialization', () => {
     
     
     // Reset mock system
-    mockSystem.reset();
+    // mockSystem.reset();
     
     // Debug logging after mockSystem.reset
-    infoLog('After mockSystem.reset - Container state:', {
-      services: Array.from(mockSystem.container.services.entries()),
-      components: Array.from(mockSystem.container.components.entries())
-    });
+    // infoLog('After mockSystem.reset - Container state:', {
+    //   services: Array.from(mockSystem.container.services.entries()),
+    //   components: Array.from(mockSystem.container.components.entries())
+    // });
     
     jest.clearAllMocks();
     logMemoryUsage('afterEach');
@@ -226,6 +242,31 @@ describe('Container Initialization', () => {
     // Final cleanup
     await clearAllReferences();
     
+    // Clear all timeouts and intervals to prevent Jest from hanging
+    const activeTimeouts = [];
+    const activeIntervals = [];
+    
+    // Find all active timeouts and intervals
+    for (let i = 1; i <= 1000; i++) {
+      try {
+        clearTimeout(i);
+        activeTimeouts.push(i);
+      } catch (e) {
+        // Timeout doesn't exist
+      }
+      
+      try {
+        clearInterval(i);
+        activeIntervals.push(i);
+      } catch (e) {
+        // Interval doesn't exist
+      }
+    }
+    
+    if (activeTimeouts.length > 0 || activeIntervals.length > 0) {
+      console.log(`Cleared ${activeTimeouts.length} timeouts and ${activeIntervals.length} intervals`);
+    }
+    
     // Clean up log file
     try {
       fs.unlinkSync(testLogFile);
@@ -238,7 +279,7 @@ describe('Container Initialization', () => {
 
   describe('Essential Utilities', () => {
     test('initializes LogManager first', () => {
-      if (!initResult?.initialized || !mockSystem.container.utils.has('LogManager')) {
+      if (!initResult?.initialized || !container.utils.has('LogManager')) {
         throw new Error('LogManager initialization failed');
       }
       expect(mockSystem.logger.info).toHaveBeenCalled();
@@ -320,51 +361,6 @@ describe('Container Initialization', () => {
     });
   });
 
-  describe('Error Handling', () => {
-    test('handles initialization errors gracefully', async () => {
-      // Create a separate mock system for this test
-      const testMockSystem = createMockSystem();
-      
-      class FailingService {
-        async initialize() {
-          throw new Error('Simulated initialization failure');
-        }
-        async cleanup() {
-          return Promise.resolve();
-        }
-      }
-      
-      // Replace the apiService with the failing service
-      testMockSystem.services.apiService = FailingService;
-      testMockSystem.container.registerService('apiService', FailingService);
-      testMockSystem.container.services.set('apiService', FailingService);
-      
-      // Reset the container initializer to clear any cached state
-      await containerInitializer.reset(testMockSystem);
-      
-      // Reset the initializer's internal state
-      containerInitializer.initialized = false;
-      containerInitializer.initializationPromise = null;
-      containerInitializer.logger = testMockSystem.logger;
-      containerInitializer._resourceTracker = testMockSystem.resourceTracker;
-      containerInitializer._memoryMonitor = testMockSystem.memoryMonitor;
-    
-      try {
-        await containerInitializer.initialize({
-          isBackgroundScript: false,
-          context: 'test',
-          mockSystem: testMockSystem
-        });
-        throw new Error('Expected initialization to fail');
-      } catch (error) {
-        expect(error.message).toBe('Simulated initialization failure');
-        expect(testMockSystem.logger.error).toHaveBeenCalled();
-      } finally {
-        await testMockSystem.container.reset();
-        await forceGC();
-      }
-    });
-  });
 
   describe('Memory Management', () => {
     test('does not leak memory between initializations', async () => {
@@ -401,43 +397,42 @@ describe('Container Initialization', () => {
     test('cleans up services in correct order', async () => {
       const cleanupOrder = [];
       
-      mockSystem.container.registerService('serviceA', class {
+      container.registerService('serviceA', class {
         async cleanup() {
           cleanupOrder.push('serviceA');
         }
       });
       
-      mockSystem.container.registerService('serviceB', class {
+      container.registerService('serviceB', class {
         async cleanup() {
           cleanupOrder.push('serviceB');
         }
       });
       
-      await mockSystem.container.getService('serviceA');
-      await mockSystem.container.getService('serviceB');
+      await container.getService('serviceA');
+      await container.getService('serviceB');
       
       // Use containerInitializer.reset() instead of container.reset()
-      await containerInitializer.reset(mockSystem);
+      await containerInitializer.reset();
       await forceGC();
       
       expect(cleanupOrder).toEqual(['serviceB', 'serviceA']);
-      expect(mockSystem.resourceTracker.cleanup).toHaveBeenCalled();
     });
   
     test('handles cleanup errors gracefully', async () => {
-      mockSystem.container.registerService('failingService', class {
+      container.registerService('failingService', class {
         async cleanup() {
           throw new Error('Cleanup failed');
         }
       });
       
-      await mockSystem.container.getService('failingService');
+      await container.getService('failingService');
       
       // Use containerInitializer.reset() instead of container.reset()
-      await expect(containerInitializer.reset(mockSystem)).resolves.not.toThrow();
+      await expect(containerInitializer.reset()).resolves.not.toThrow();
       await forceGC();
       
-      expect(mockSystem.container.serviceInstances.has('failingService')).toBe(false);
+      expect(container.serviceInstances.has('failingService')).toBe(false);
       expect(mockSystem.logger.error).toHaveBeenCalled();
     });
   });

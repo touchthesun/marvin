@@ -31,7 +31,7 @@ export class ServiceRegistry {
      * Initialize the service registry with all services
      * @private
      */
-    _initializeServiceRegistry() {
+    static _initializeServiceRegistry() {
         // Register core services first
         this.registerService('storageService', StorageService, {
             dependencies: [],
@@ -87,6 +87,12 @@ export class ServiceRegistry {
             phase: 'optional',
             maxMemoryUsage: 150 * 1024 * 1024 // 150MB limit
         });
+    }
+
+    static initialize() {
+        if (this._services.size === 0) {
+            this._initializeServiceRegistry();
+        }
     }
   
     /**
@@ -276,6 +282,7 @@ export class ServiceRegistry {
      * @returns {Array<{name: string, class: Function, options: Object}>} Core service definitions
      */
     static getCoreServices() {
+    this.initialize();
     return Array.from(this._services.entries())
         .filter(([_, service]) => service.options.phase === 'core')
         .map(([name, service]) => ({

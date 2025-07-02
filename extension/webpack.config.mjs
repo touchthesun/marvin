@@ -1,8 +1,12 @@
-const path = require('path');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+import path from 'path';
+import { fileURLToPath } from 'url';
+import CopyWebpackPlugin from 'copy-webpack-plugin';
+import MiniCssExtractPlugin from 'mini-css-extract-plugin';
+// Reconstruct __dirname for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-module.exports = {
+export default {
   mode: 'development',
   devtool: 'source-map',
   // Remove target: 'webworker' as it's not needed for service workers
@@ -72,9 +76,7 @@ module.exports = {
     })
   ],
   optimization: {
-    // Disable code splitting for service workers
     splitChunks: false,
-    // Minimize bundle size
     minimize: true
   }
 };

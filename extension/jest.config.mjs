@@ -1,27 +1,29 @@
-// jest.core.config.js
+import baseConfig from './jest.base.config.mjs';
+
 export default {
-  testEnvironment: 'node',
+  ...baseConfig,
+  displayName: 'extension',
+  testEnvironment: 'jsdom',
   transform: {
     '^.+\\.js$': ['babel-jest', { configFile: './babel.test.config.js' }]
   },
   moduleFileExtensions: ['js', 'json'],
-  testMatch: ['**/tests/core/**/*.test.js'],
+  testMatch: ['**/tests/**/*.test.js'],
   verbose: false,
   silent: false,
   collectCoverage: true,
-  coverageDirectory: 'coverage/core',
+  coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],
-  setupFilesAfterEnv: ['./tests/setup/core.setup.js'],  // Changed from setupFiles to setupFilesAfterEnv
+  setupFilesAfterEnv: [
+    '<rootDir>/tests/helpers/msw-setup.js'
+  ],
   testTimeout: 30000,
-  maxWorkers: 1, // Run tests serially to avoid memory issues
+  maxWorkers: 1,
   globals: {
     'NODE_OPTIONS': '--max-old-space-size=4096 --expose-gc'
   },
   reporters: [
-    ['default', {
-      silent: false,
-      verbose: false
-    }],
+    ['default', { silent: false, verbose: false }],
     ['jest-junit', {
       outputDirectory: 'logs/test',
       outputName: 'junit.xml',
@@ -33,6 +35,6 @@ export default {
     url: 'http://localhost'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(module-that-needs-to-be-transformed)/)'
+    'node_modules/(?!msw|@mswjs|@mswjs/cli|@mswjs/node|@mswjs/types)'
   ]
 };

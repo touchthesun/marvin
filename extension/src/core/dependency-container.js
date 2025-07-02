@@ -163,7 +163,7 @@ export class DependencyContainer {
     try {
       const metadata = this.serviceMetadata.get(name);
       const ServiceClass = this.services.get(name);
-      const instance = new ServiceClass();
+      const instance = new ServiceClass({ container: this });
       
       // Initialize dependencies first
       for (const depName of metadata.dependencies) {

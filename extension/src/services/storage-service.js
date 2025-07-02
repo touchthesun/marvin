@@ -32,6 +32,8 @@ export class StorageService extends BaseService {
       maxEntries: 1000
     });
 
+    
+
     this._notificationService = options.notificationService || null;
     
     // Default settings (frozen to prevent modifications)
@@ -72,12 +74,23 @@ export class StorageService extends BaseService {
       stats: 100 // Maximum number of stat entries
     });
     
-    // Data cache using WeakMap for object references
-    this._cache = new WeakMap();
-    this._cacheTimestamps = new Map();
+    this._cache = {
+      settings: null,
+      captureHistory: null,
+      stats: null,
+      lastRefresh: {
+        settings: 0,
+        captureHistory: 0,
+        stats: 0
+      }
+    };
     
     // Bind methods for event listeners
     this._handleStorageChanges = this._handleStorageChanges.bind(this);
+  }
+
+  get logger() {
+    return this._logger;
   }
 
   /**
@@ -86,17 +99,17 @@ export class StorageService extends BaseService {
    */
   async _performInitialization() {
     try {
-      this._logger.info('Initializing storage service');
+      this.logger.info('Initializing storage service');
       
-      // Pre-load common data
-      await this.getSettings();
+      // Pre-load common data - pass true to skip initialization check
+      await this.getSettings(true);
       
       // Set up storage change listeners using resource tracker
       this._setupStorageListeners();
       
-      this._logger.info('Storage service initialized successfully');
+      this.logger.info('Storage service initialized successfully');
     } catch (error) {
-      this._logger.error('Error initializing storage service:', error);
+      this.logger.error('Error initializing storage service:', error);
       throw error;
     }
   }
@@ -108,9 +121,9 @@ export class StorageService extends BaseService {
   async _performCleanup() {
     try {
       await this._clearAllCaches();
-      this._logger.info('Storage service cleaned up successfully');
+      this.logger.info('Storage service cleaned up successfully');
     } catch (error) {
-      this._logger.error('Error during storage service cleanup:', error);
+      this.logger.error('Error during storage service cleanup:', error);
       throw error;
     }
   }
@@ -121,7 +134,7 @@ export class StorageService extends BaseService {
    * @protected
    */
   async _handleMemoryPressure(snapshot) {
-    this._logger.warn('Memory pressure detected, cleaning up non-essential resources');
+    this.logger.warn('Memory pressure detected, cleaning up non-essential resources');
     await super._handleMemoryPressure(snapshot);
     await this._clearAllCaches();
   }
@@ -131,8 +144,16 @@ export class StorageService extends BaseService {
    * @private
    */
   async _clearAllCaches() {
-    this._cache = new WeakMap();
-    this._cacheTimestamps.clear();
+    this._cache = {
+      settings: null,
+      captureHistory: null,
+      stats: null,
+      lastRefresh: {
+        settings: 0,
+        captureHistory: 0,
+        stats: 0
+      }
+    };
   }
 
   /**
@@ -145,19 +166,18 @@ export class StorageService extends BaseService {
       try {
         chrome.storage.onChanged.removeListener(this._handleStorageChanges);
       } catch (removeError) {
-        this._logger.debug('No existing storage listener to remove');
+        this.logger.debug('No existing storage listener to remove');
       }
       
       // Add the listener using resource tracker
-      this._resourceTracker.trackEventListener(
+      this._resourceTracker.trackChromeListener(
         chrome.storage.onChanged,
-        'addListener',
-        this._handleStorageChanges
+        this._handleStorageChanges.bind(this)
       );
       
-      this._logger.debug('Storage change listener set up');
+      this.logger.debug('Storage change listener set up');
     } catch (error) {
-      this._logger.error('Error setting up storage listeners:', error);
+      this.logger.error('Error setting up storage listeners:', error);
       throw error;
     }
   }
@@ -169,29 +189,29 @@ export class StorageService extends BaseService {
    * @private
    */
   _handleStorageChanges(changes, area) {
-    if (!this._logger) return; // Skip if logger not available
+    if (!this.logger) return; // Skip if logger not available
     if (area !== 'local') return;
     
-    this._logger.debug('Storage changes detected:', changes);
+    this.logger.debug('Storage changes detected:', changes);
     
     // Clear relevant caches when data changes
     if (changes.apiConfig || changes.captureSettings || 
         changes.analysisSettings || changes.uiSettings) {
-      this._cache.delete('settings');
-      this._cacheTimestamps.delete('settings');
-      this._logger.debug('Settings cache cleared due to storage changes');
+      this._cache.settings = null;
+      this._cache.lastRefresh.settings = 0;
+      this.logger.debug('Settings cache cleared due to storage changes');
     }
     
     if (changes.captureHistory) {
-      this._cache.delete('captureHistory');
-      this._cacheTimestamps.delete('captureHistory');
-      this._logger.debug('Capture history cache cleared due to storage changes');
+      this._cache.captureHistory = null;
+      this._cache.lastRefresh.captureHistory = 0;
+      this.logger.debug('Capture history cache cleared due to storage changes');
     }
     
     if (changes.stats) {
-      this._cache.delete('stats');
-      this._cacheTimestamps.delete('stats');
-      this._logger.debug('Stats cache cleared due to storage changes');
+      this._cache.stats = null;
+      this._cache.lastRefresh.stats = 0;
+      this.logger.debug('Stats cache cleared due to storage changes');
     }
   }
   
@@ -199,26 +219,26 @@ export class StorageService extends BaseService {
    * Get settings from storage with defaults applied
    * @returns {Promise<Object>} Settings object
    */
-  async getSettings() {
-    if (!this.initialized) {
+  async getSettings(skipInitializationCheck = false) {
+    if (!skipInitializationCheck && !this.initialized) {
       try {
         const success = await this.initialize();
         if (!success) {
           this.logger?.warn('Storage service failed to initialize');
           // Return defaults on initialization failure
-          return { ...this.DEFAULT_SETTINGS };
+          return { ...this._DEFAULT_SETTINGS };
         }
       } catch (error) {
         console.error('Error initializing storage service:', error);
         // Return defaults on initialization error
-        return { ...this.DEFAULT_SETTINGS };
+        return { ...this._DEFAULT_SETTINGS };
       }
     }
     
     // Check cache first
-    if (this.cache.settings && (Date.now() - this.cache.lastRefresh.settings < this.CACHE_TTL.settings)) {
+    if (this._cache.settings && (Date.now() - this._cache.lastRefresh.settings < this._CACHE_TTL.settings)) {
       this.logger.debug('Returning cached settings');
-      return this.cache.settings;
+      return this._cache.settings;
     }
     
     this.logger.debug('Getting settings from storage');
@@ -233,15 +253,15 @@ export class StorageService extends BaseService {
       
       // Merge with defaults
       const settings = {
-        apiConfig: { ...this.DEFAULT_SETTINGS.apiConfig, ...data.apiConfig },
-        captureSettings: { ...this.DEFAULT_SETTINGS.captureSettings, ...data.captureSettings },
-        analysisSettings: { ...this.DEFAULT_SETTINGS.analysisSettings, ...data.analysisSettings },
-        uiSettings: { ...this.DEFAULT_SETTINGS.uiSettings, ...data.uiSettings }
+        apiConfig: { ...this._DEFAULT_SETTINGS.apiConfig, ...data.apiConfig },
+        captureSettings: { ...this._DEFAULT_SETTINGS.captureSettings, ...data.captureSettings },
+        analysisSettings: { ...this._DEFAULT_SETTINGS.analysisSettings, ...data.analysisSettings },
+        uiSettings: { ...this._DEFAULT_SETTINGS.uiSettings, ...data.uiSettings }
       };
       
       // Update cache
-      this.cache.settings = settings;
-      this.cache.lastRefresh.settings = Date.now();
+      this._cache.settings = settings;
+      this._cache.lastRefresh.settings = Date.now();
       
       this.logger.debug('Retrieved settings from storage', settings);
       return settings;
@@ -250,7 +270,7 @@ export class StorageService extends BaseService {
       
       // Return defaults on error
       this.logger.debug('Returning default settings due to error');
-      return { ...this.DEFAULT_SETTINGS };
+      return { ...this._DEFAULT_SETTINGS };
     }
   }
   
@@ -303,7 +323,7 @@ export class StorageService extends BaseService {
       await chrome.storage.local.set(updates);
       
       // Clear cache
-      this.cache.settings = null;
+      this._cache.settings = null;
       
       // Send message to background script
       try {
@@ -350,7 +370,7 @@ export class StorageService extends BaseService {
       });
       
       // Clear cache
-      this.cache.settings = null;
+      this._cache.settings = null;
       
       // Send message to background script
       try {
@@ -389,9 +409,9 @@ export class StorageService extends BaseService {
     }
     
     // Check cache first
-    if (this.cache.captureHistory && (Date.now() - this.cache.lastRefresh.captureHistory < this.CACHE_TTL.captureHistory)) {
+    if (this._cache.captureHistory && (Date.now() - this._cache.lastRefresh.captureHistory < this._CACHE_TTL.captureHistory)) {
       this.logger.debug('Returning cached capture history');
-      return limit > 0 ? this.cache.captureHistory.slice(0, limit) : this.cache.captureHistory;
+      return limit > 0 ? this._cache.captureHistory.slice(0, limit) : this._cache.captureHistory;
     }
     
     this.logger.debug('Getting capture history from storage');
@@ -406,8 +426,8 @@ export class StorageService extends BaseService {
       });
       
       // Update cache
-      this.cache.captureHistory = captureHistory;
-      this.cache.lastRefresh.captureHistory = Date.now();
+      this._cache.captureHistory = captureHistory;
+      this._cache.lastRefresh.captureHistory = Date.now();
       
       this.logger.debug(`Retrieved ${captureHistory.length} capture history entries`);
       
@@ -479,8 +499,8 @@ export class StorageService extends BaseService {
       await chrome.storage.local.set({ captureHistory: finalHistory });
       
       // Update cache
-      this.cache.captureHistory = finalHistory;
-      this.cache.lastRefresh.captureHistory = Date.now();
+      this._cache.captureHistory = finalHistory;
+      this._cache.lastRefresh.captureHistory = Date.now();
       
       // Update stats
       await this.incrementStatsCounter('captures', newEntries.length);
@@ -521,9 +541,9 @@ export class StorageService extends BaseService {
     }
     
     // Check cache first
-    if (this.cache.stats && (Date.now() - this.cache.lastRefresh.stats < this.CACHE_TTL.stats)) {
+    if (this._cache.stats && (Date.now() - this._cache.lastRefresh.stats < this._CACHE_TTL.stats)) {
       this.logger.debug('Returning cached stats');
-      return this.cache.stats;
+      return this._cache.stats;
     }
     
     this.logger.debug('Getting stats from storage');
@@ -537,8 +557,8 @@ export class StorageService extends BaseService {
       };
       
       // Update cache
-      this.cache.stats = stats;
-      this.cache.lastRefresh.stats = Date.now();
+      this._cache.stats = stats;
+      this._cache.lastRefresh.stats = Date.now();
       
       this.logger.debug('Retrieved stats from storage', stats);
       return stats;
@@ -583,8 +603,8 @@ export class StorageService extends BaseService {
       await chrome.storage.local.set({ stats });
       
       // Update cache
-      this.cache.stats = stats;
-      this.cache.lastRefresh.stats = Date.now();
+      this._cache.stats = stats;
+      this._cache.lastRefresh.stats = Date.now();
       
       this.logger.debug('Stats updated successfully');
     } catch (error) {
@@ -685,8 +705,8 @@ export class StorageService extends BaseService {
         });
         
         // Clear caches
-        this.cache.captureHistory = null;
-        this.cache.stats = null;
+        this._cache.captureHistory = null;
+        this._cache.stats = null;
         
         this.logger.debug('Local data cleared successfully (keeping settings)');
       } else {
@@ -707,9 +727,9 @@ export class StorageService extends BaseService {
         });
         
         // Clear all caches
-        this.cache.settings = null;
-        this.cache.captureHistory = null;
-        this.cache.stats = null;
+        this._cache.settings = null;
+        this._cache.captureHistory = null;
+        this._cache.stats = null;
         
         this.logger.debug('All local data cleared and defaults restored');
       }
@@ -843,7 +863,7 @@ export class StorageService extends BaseService {
           await chrome.storage.local.set({ 
             captureHistory: importData.data.captureHistory 
           });
-          this.cache.captureHistory = null;
+          this._cache.captureHistory = null;
         } else {
           // Merge with existing entries
           await this.updateCaptureHistory(importData.data.captureHistory);
@@ -1009,11 +1029,11 @@ export class StorageService extends BaseService {
     }
     
     // Clear and nullify caches
-    this.cache.settings = null;
-    this.cache.captureHistory = null;
-    this.cache.stats = null;
-    this.cache.lastRefresh = null;
-    this.cache = null;
+    this._cache.settings = null;
+    this._cache.captureHistory = null;
+    this._cache.stats = null;
+    this._cache.lastRefresh = null;
+    this._cache = null;
     
     // Clear object references
     this.notificationService = null;

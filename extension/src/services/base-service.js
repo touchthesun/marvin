@@ -7,6 +7,7 @@ import { MemoryMonitor } from '../utils/memory-monitor.js';
  */
 export class BaseService {
   constructor(options = {}) {
+    this._container = options.container;
     this._resourceTracker = new ResourceTracker();
     this._memoryMonitor = new MemoryMonitor(options.memoryMonitor || {});
     this._initialized = false;
@@ -314,6 +315,16 @@ export class BaseService {
   _handleGlobalError(event) {
     this._logger?.error('Global error caught:', event.error);
     this._recordFailure();
+  }
+
+  /**
+   * Handle unhandled promise rejections
+   * @param {PromiseRejectionEvent} event - Promise rejection event
+   * @protected
+   */
+  _handleUnhandledRejection(event) {
+    this._logger?.error('Unhandled promise rejection:', event.reason);
+    this._recordFailure('unhandled-rejection');
   }
 
   /**

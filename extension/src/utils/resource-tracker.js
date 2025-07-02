@@ -3,14 +3,14 @@
  * Tracks event listeners, timeouts, intervals, and DOM references
  */
 export class ResourceTracker {
-    constructor() {
-      this._eventListeners = new Map();
-      this._timeouts = new WeakMap();
-      this._intervals = new WeakMap();
-      this._domRefs = new WeakSet();
-      this._memoryMonitor = null;
-      this._operations = new Map();
-    }
+      constructor() {
+    this._eventListeners = new Map();
+    this._timeouts = new Map();
+    this._intervals = new Map();
+    this._domRefs = new WeakSet();
+    this._memoryMonitor = null;
+    this._operations = new Map();
+  }
   
     /**
      * Track an event listener for later cleanup
@@ -53,6 +53,23 @@ export class ResourceTracker {
       this._intervals.set(callback, id);
       return id;
     }
+
+    /**
+     * Clear all tracked timeouts and intervals
+     */
+    clearAllTimers() {
+      // Clear all tracked timeouts
+      for (const [callback, id] of this._timeouts) {
+        clearTimeout(id);
+      }
+      this._timeouts.clear();
+      
+      // Clear all tracked intervals
+      for (const [callback, id] of this._intervals) {
+        clearInterval(id);
+      }
+      this._intervals.clear();
+    }
   
     /**
      * Track a DOM element for later cleanup
@@ -60,6 +77,28 @@ export class ResourceTracker {
      */
     trackDOMElement(element) {
       this._domRefs.add(element);
+    }
+
+    /**
+     * Track a Chrome extension listener for later cleanup
+     * @param {Object} api - The Chrome API object (e.g., chrome.storage.onChanged)
+     * @param {Function} listener - The listener function
+     * @param {string} method - The method to call (default: 'addListener')
+     */
+    trackChromeListener(api, listener, method = 'addListener') {
+      if (!this._eventListeners.has(api)) {
+        this._eventListeners.set(api, new Map());
+      }
+      const handlers = this._eventListeners.get(api);
+      if (!handlers.has(method)) {
+        handlers.set(method, new Set());
+      }
+      handlers.get(method).add(listener);
+      
+      // Call the Chrome API method
+      if (api[method] && typeof api[method] === 'function') {
+        api[method](listener);
+      }
     }
 
     /**
@@ -116,17 +155,25 @@ export class ResourceTracker {
      * Clean up all tracked resources
      */
     async cleanup() {
-      // Remove event listeners
+      // Remove event listeners and Chrome listeners
       for (const [target, handlers] of this._eventListeners) {
         for (const [type, typeHandlers] of handlers) {
           for (const handler of typeHandlers) {
-            target.removeEventListener(type, handler);
+            // Check if this is a Chrome API (has removeListener method)
+            if (target.removeListener && typeof target.removeListener === 'function') {
+              target.removeListener(handler);
+            } else if (target.removeEventListener && typeof target.removeEventListener === 'function') {
+              // Regular DOM element
+              target.removeEventListener(type, handler);
+            }
           }
         }
       }
       this._eventListeners.clear();
-      this._timeouts = new WeakMap();
-      this._intervals = new WeakMap();
+      
+      // Clear all timers
+      this.clearAllTimers();
+      
       this._domRefs = new WeakSet();
       this._operations.clear();
     }

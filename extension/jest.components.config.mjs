@@ -1,10 +1,11 @@
 // extension/jest.components.config.js
-const baseConfig = require('./jest.base.config.js');
+import baseConfig from './jest.base.config.mjs';
 
-module.exports = {
+export default {
   ...baseConfig,
   displayName: 'components',
   testMatch: [
     '**/tests/components/**/*.test.{js,jsx,ts,tsx}'
-  ]
+  ],
+  coverageDirectory: 'coverage/components'
 };

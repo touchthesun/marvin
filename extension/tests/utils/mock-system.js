@@ -170,6 +170,15 @@ reset() {
   })();
 }}
 
+  // Register all expected services in the container
+  Object.entries(services).forEach(([name, ServiceClass]) => {
+    container.registerService(name, ServiceClass);
+  });
+
+  // Register all expected components in the container
+  Object.entries(components).forEach(([name, ComponentClass]) => {
+    container.registerComponent(name, ComponentClass);
+  });
   // Create the complete mock system
   const mockSystem = {
     logger: mockLogger,
@@ -189,11 +198,13 @@ reset() {
         return operation();
       }),
       trackEventListener: jest.fn(),
+      trackChromeListener: jest.fn(),
       trackTimeout: jest.fn(),
       trackInterval: jest.fn(),
       trackDOMElement: jest.fn(),
       cleanup: jest.fn(),
       cleanupNonEssential: jest.fn(),
+      clearAllTimers: jest.fn(),
       getResourceCount: jest.fn().mockReturnValue({
         eventListeners: 0,
         timeouts: 0,
@@ -206,7 +217,10 @@ reset() {
     components,
     container,
     cleanupOrder, // Expose cleanup order for testing
-    reset() {
+    async reset() {
+      // Reset the container first
+      await this.container.reset();
+      
       // Reset all Jest mocks
       Object.values(this).forEach(value => {
         if (typeof value === 'object' && value !== null) {
@@ -217,6 +231,7 @@ reset() {
           });
         }
       });
+      
       // Clear cleanup order
       cleanupOrder.length = 0;
       
