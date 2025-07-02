@@ -1,5 +1,7 @@
 export class LogManager {
   constructor(options = {}) {
+    // Security-sensitive contexts
+    this.securityContexts = ['auth', 'security', 'audit'];
     // Context-aware max entries
     this.maxEntries = options.maxEntries || this._getDefaultMaxEntries(options.context);
     this.isBackgroundScript = options.isBackgroundScript || false;
@@ -25,9 +27,6 @@ export class LogManager {
       debug: 4,
       trace: 5
     };
-    
-    // Security-sensitive contexts
-    this.securityContexts = ['auth', 'security', 'audit'];
     
     this._setup();
   }

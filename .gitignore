@@ -154,6 +154,7 @@ reports
 extension/node_modules
 extension/browser-profile*
 extension/dist
+extension/coverage
 
 # test harness config files may contain credentials
 test_harness/config/*

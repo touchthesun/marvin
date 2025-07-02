@@ -94,6 +94,10 @@ export class ServiceRegistry {
             this._initializeServiceRegistry();
         }
     }
+
+    static registerAll() {
+        this.initialize();
+    }
   
     /**
      * Register a service

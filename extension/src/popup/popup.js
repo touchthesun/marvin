@@ -34,7 +34,7 @@ const Popup = {
    */
   async initPopup() {
     try {
-      // Create logger directly
+      console.log('[initPopup] Step 1: Creating logger');
       this._logger = new LogManager({
         context: 'popup',
         isBackgroundScript: false,
@@ -42,39 +42,59 @@ const Popup = {
       });
       
       this._logger.info('Initializing popup');
+      console.log('[initPopup] Step 2: Logger created');
       
       // Initialize services first
+      console.log('[initPopup] Step 3: Initializing services');
       await this.initializeServices();
+      console.log('[initPopup] Step 4: Services initialized');
       
       // Log UI element existence
+      console.log('[initPopup] Step 5: Logging UI elements');
       const elements = this.logUIElements();
+      console.log('[initPopup] Step 6: UI elements logged');
       
       // Check debug mode
+      console.log('[initPopup] Step 7: Checking debug mode');
       await this.checkDebugMode();
+      console.log('[initPopup] Step 8: Debug mode checked');
       
       // Set up all event listeners
+      console.log('[initPopup] Step 9: Setting up event listeners');
       this.setupEventListeners(elements);
+      console.log('[initPopup] Step 10: Event listeners set up');
       
       // Check online status
+      console.log('[initPopup] Step 11: Updating online status');
       this.updateOnlineStatus();
+      console.log('[initPopup] Step 12: Online status updated');
       
       // Check authentication status
+      console.log('[initPopup] Step 13: Checking auth status');
       await this.checkAuthStatus();
+      console.log('[initPopup] Step 14: Auth status checked');
       
       // Load and display active tasks
+      console.log('[initPopup] Step 15: Refreshing active tasks');
       await this.refreshActiveTasks();
+      console.log('[initPopup] Step 16: Active tasks refreshed');
       
       // Load recent activity
+      console.log('[initPopup] Step 17: Loading recent activity');
       await this.loadRecentActivity();
+      console.log('[initPopup] Step 18: Recent activity loaded');
       
       // Set up refresh timer
+      console.log('[initPopup] Step 19: Setting up refresh timer');
       const refreshInterval = setInterval(() => this.refreshActiveTasks(), 2000);
       this._intervals.push(refreshInterval);
       
       // Report network status to service worker
+      console.log('[initPopup] Step 20: Reporting network status');
       this.reportNetworkStatus();
       
       // Set up network status listeners
+      console.log('[initPopup] Step 21: Setting up network status listeners');
       const onlineHandler = () => {
         this.updateOnlineStatus();
         this.reportNetworkStatus();
@@ -91,9 +111,13 @@ const Popup = {
       
       this.initialized = true;
       this._logger.info('Popup initialized successfully');
+      console.log('[initPopup] Step 22: Initialization complete');
       return true;
     } catch (error) {
-      this._logger.error('Error in initialize function:', error);
+      console.error('[initPopup] ERROR:', error);
+      if (this._logger) {
+        this._logger.error('Error in initialize function:', error);
+      }
       return false;
     }
   },
@@ -102,37 +126,53 @@ const Popup = {
    * Initialize services using existing DI pattern
    */
   async initializeServices() {
-    if (this.initialized) return;
-    
+    if (this.initialized) {
+      this._logger.info('[initializeServices] Already initialized, skipping.');
+      return;
+    }
+  
     try {
+      this._logger.info('[initializeServices] Checking utility registration...');
       // Register utilities if not already registered
       if (!container.utils.has('LogManager')) {
+        this._logger.info('[initializeServices] Registering LogManager utility.');
         container.registerUtil('LogManager', UtilsRegistry.LogManager);
         if (UtilsRegistry.formatting) {
+          this._logger.info('[initializeServices] Registering formatting utility.');
           container.registerUtil('formatting', UtilsRegistry.formatting);
         }
         if (UtilsRegistry.timeout) {
+          this._logger.info('[initializeServices] Registering timeout utility.');
           container.registerUtil('timeout', UtilsRegistry.timeout);
         }
         if (UtilsRegistry.ui) {
+          this._logger.info('[initializeServices] Registering ui utility.');
           container.registerUtil('ui', UtilsRegistry.ui);
         }
+      } else {
+        this._logger.info('[initializeServices] Utilities already registered.');
       }
-      
+  
       // Register and initialize services if not already done
       if (container.services.size === 0) {
-        ServiceRegistry.registerAll();
-        await ServiceRegistry.initializeAll();
+        this._logger.info('[initializeServices] Registering all services via ServiceRegistry...');
+        await ServiceRegistry.registerAll();
+        this._logger.info('[initializeServices] ServiceRegistry.registerAll() complete.');
+      } else {
+        this._logger.info('[initializeServices] Services already registered in container.');
       }
-      
+  
       // Get services with fallbacks
-      this._messageService = this.getService('messageService', {
+      this._logger.info('[initializeServices] Attempting to get messageService from container...');
+      this._messageService = await this.getService('messageService', {
         sendMessage: async (message) => {
           this._logger.warn('MessageService not available, using fallback');
           return { success: false, error: 'Service not available' };
         }
       });
-      
+      this._logger.info('[initializeServices] this._messageService:', this._messageService);
+      this._logger.info('[initializeServices] typeof sendMessage:', typeof this._messageService.sendMessage);
+  
       this._logger.info('Popup services initialized');
     } catch (error) {
       this._logger.error('Error initializing services:', error);
@@ -146,11 +186,14 @@ const Popup = {
    * @param {Object} fallback - Fallback implementation if service not available
    * @returns {Object} Service instance or fallback
    */
-  getService(serviceName, fallback) {
+  async getService(serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      const service = await container.getService(serviceName);
+      this._logger.info(`[Popup.getService] Got service for ${serviceName}:`, service);
+      return service;
     } catch (error) {
       this._logger.warn(`${serviceName} not available:`, error);
+      this._logger.info(`[Popup.getService] Using fallback for ${serviceName}`);
       return fallback;
     }
   },
@@ -1050,12 +1093,14 @@ const Popup = {
   }
 };
 
-// Initialize popup when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOMContentLoaded fired')
-  Popup.initPopup();
-  Popup.checkContentScript();
-});
+// Only attach DOMContentLoaded handler if not running in test mode
+if (typeof window !== 'undefined' && !window.__MARVIN_TEST__) {
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOMContentLoaded fired');
+    Popup.initPopup();
+    Popup.checkContentScript();
+  });
+}
 
 // Export the popup component
 export { Popup };
