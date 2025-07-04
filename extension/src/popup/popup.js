@@ -249,7 +249,11 @@ const Popup = {
   updateDebugUI() {
     const debugSection = document.getElementById('debug-section');
     if (debugSection) {
-      debugSection.style.display = this._debugMode ? 'block' : 'none';
+      if (this._debugMode) {
+        debugSection.classList.remove('hidden');
+      } else {
+        debugSection.classList.add('hidden');
+      }
     }
     
     const toggleDebugBtn = document.getElementById('toggle-debug-mode');
@@ -368,8 +372,12 @@ const Popup = {
       this._logger.info('Debug toggle clicked');
       const debugSection = document.getElementById('debug-section');
       if (debugSection) {
-        const isVisible = debugSection.style.display === 'block';
-        debugSection.style.display = isVisible ? 'none' : 'block';
+        const isVisible = !debugSection.classList.contains('hidden');
+        if (isVisible) {
+          debugSection.classList.add('hidden');
+        } else {
+          debugSection.classList.remove('hidden');
+        }
         this._logger.debug(`Debug section visibility set to ${!isVisible}`);
       }
     });
@@ -428,7 +436,7 @@ const Popup = {
     }
     
     // Authentication form submission
-    const authForm = document.getElementById('login-form');
+    const authForm = document.getElementById('auth-form'); // Changed from 'login-form'
     if (authForm) {
       this._logger.debug('Setting up auth form submission handler');
       try {
@@ -585,12 +593,12 @@ const Popup = {
       }
       
       if (response.authenticated) {
-        loginForm.style.display = 'none';
-        userInfo.style.display = 'block';
+        loginForm.classList.add('hidden');
+        userInfo.classList.remove('hidden');
         this.enableFunctionality();
       } else {
-        loginForm.style.display = 'block';
-        userInfo.style.display = 'none';
+        loginForm.classList.remove('hidden');
+        userInfo.classList.add('hidden');
         this.disableFunctionality();
       }
     } catch (error) {
@@ -610,11 +618,26 @@ const Popup = {
     const queryBtn = document.getElementById('query-btn');
     const dashboardBtn = document.getElementById('open-dashboard-btn');
     
-    if (captureBtn) captureBtn.disabled = false;
-    if (analyzeBtn) analyzeBtn.disabled = false;
-    if (relatedBtn) relatedBtn.disabled = false;
-    if (queryBtn) queryBtn.disabled = false;
-    if (dashboardBtn) dashboardBtn.disabled = false;
+    if (captureBtn) {
+      captureBtn.disabled = false;
+      captureBtn.classList.remove('disabled');
+    }
+    if (analyzeBtn) {
+      analyzeBtn.disabled = false;
+      analyzeBtn.classList.remove('disabled');
+    }
+    if (relatedBtn) {
+      relatedBtn.disabled = false;
+      relatedBtn.classList.remove('disabled');
+    }
+    if (queryBtn) {
+      queryBtn.disabled = false;
+      queryBtn.classList.remove('disabled');
+    }
+    if (dashboardBtn) {
+      dashboardBtn.disabled = false;
+      dashboardBtn.classList.remove('disabled');
+    }
   },
   
   /**
@@ -628,11 +651,26 @@ const Popup = {
     const queryBtn = document.getElementById('query-btn');
     const dashboardBtn = document.getElementById('open-dashboard-btn');
     
-    if (captureBtn) captureBtn.disabled = true;
-    if (analyzeBtn) analyzeBtn.disabled = true;
-    if (relatedBtn) relatedBtn.disabled = true;
-    if (queryBtn) queryBtn.disabled = true;
-    if (dashboardBtn) dashboardBtn.disabled = true;
+    if (captureBtn) {
+      captureBtn.disabled = true;
+      captureBtn.classList.add('disabled');
+    }
+    if (analyzeBtn) {
+      analyzeBtn.disabled = true;
+      analyzeBtn.classList.add('disabled');
+    }
+    if (relatedBtn) {
+      relatedBtn.disabled = true;
+      relatedBtn.classList.add('disabled');
+    }
+    if (queryBtn) {
+      queryBtn.disabled = true;
+      queryBtn.classList.add('disabled');
+    }
+    if (dashboardBtn) {
+      dashboardBtn.disabled = true;
+      dashboardBtn.classList.add('disabled');
+    }
   },
   
   /**
