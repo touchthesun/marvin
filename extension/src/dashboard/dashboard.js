@@ -179,34 +179,49 @@ const Dashboard = {
    */
   setupFallbackNavigation() {
     this._logger.info('Setting up fallback navigation handlers');
-    
     try {
+      // Always attach fallback navigation as a backup
+      this._logger.debug('Attaching fallback navigation handlers (even if navigation component exists)');
+
+      // Optionally, only skip if navigation component explicitly handles nav
       const navigation = container.getComponent('navigation');
-      if (navigation && navigation.initialized) {
-        this._logger.debug('Navigation already initialized, skipping fallback setup');
+      if (navigation && navigation.initialized && navigation.hasOwnProperty('handlesNav')) {
+        this._logger.debug('Navigation already initialized and handles nav, skipping fallback setup');
         return;
       }
-      
+
       const navItems = document.querySelectorAll('.nav-item');
       const contentPanels = document.querySelectorAll('.content-panel');
-      
+
       this._logger.debug(`Found ${navItems.length} nav items and ${contentPanels.length} panels for fallback navigation`);
-      
+
       navItems.forEach(item => {
         const panelName = item.getAttribute('data-panel');
         if (!panelName) {
           this._logger.warn('Navigation item missing data-panel attribute');
           return;
         }
-        
+
         const clickHandler = async (event) => {
+          console.log('Clicked nav item:', panelName);
           this._logger.info(`Fallback navigation: ${panelName} clicked`);
-          
           try {
+            // Log navItems and contentPanels references
+            console.log('Handler: navItems:', navItems);
+            navItems.forEach((navItem, idx) => {
+              console.log(`Handler: navItem[${idx}]`, navItem, navItem.className);
+            });
+            console.log('Handler: item (clicked):', item, item.className);
+
+            console.log('Handler: contentPanels:', contentPanels);
+            contentPanels.forEach((panel, idx) => {
+              console.log(`Handler: panel[${idx}]`, panel, panel.id, panel.className);
+            });
+
             // Update active state
             navItems.forEach(navItem => navItem.classList.remove('active'));
             item.classList.add('active');
-            
+
             // Update panel visibility
             contentPanels.forEach(panel => {
               if (panel.id === `${panelName}-panel`) {
@@ -216,12 +231,21 @@ const Dashboard = {
                 panel.classList.remove('active');
               }
             });
-            
+
+            // Log after state
+            console.log('Handler: AFTER UPDATE');
+            navItems.forEach((navItem, idx) => {
+              console.log(`Handler: navItem[${idx}]`, navItem, navItem.className);
+            });
+            contentPanels.forEach((panel, idx) => {
+              console.log(`Handler: panel[${idx}]`, panel, panel.id, panel.className);
+            });
+
             // Initialize panel
             if (this._componentSystem && this._componentSystem.loadAndInitializePanel) {
               await this._componentSystem.loadAndInitializePanel(`${panelName}-panel`);
             }
-            
+
             // Store active panel
             try {
               await chrome.storage.local.set({ lastActivePanel: panelName });
@@ -232,7 +256,7 @@ const Dashboard = {
             this._logger.error(`Error in fallback navigation to ${panelName}:`, navError);
           }
         };
-        
+
         item.addEventListener('click', clickHandler);
         this._eventListeners.push({
           element: item,
@@ -240,7 +264,7 @@ const Dashboard = {
           listener: clickHandler
         });
       });
-      
+
       this._logger.info('Fallback navigation handlers set up successfully');
     } catch (error) {
       this._logger.error('Error setting up fallback navigation handlers:', error);

@@ -69,6 +69,7 @@ export default {
         { from: "src/manifest.json" },
         { from: "src/assets/icons", to: "icons" },
         { from: "src/dashboard/dashboard.html", to: "dashboard" },
+        { from: "src/dashboard/dashboard.css", to: "dashboard" },
         { from: "src/popup/popup.html", to: "popup" },
         { from: "src/popup/diagnostics.html", to: "popup" },
         { from: "src/options/options.html", to: "options" }
