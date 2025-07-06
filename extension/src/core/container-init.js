@@ -37,7 +37,7 @@ export class ContainerInitializer {
   async initialize(options = {}) {
     // Always reset before initialization to ensure clean state
     await this.reset();
-    this.mockSystem = options.mockSystem;
+    // this.mockSystem = options.mockSystem;
     
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -104,7 +104,7 @@ export class ContainerInitializer {
     };
     
     // Force garbage collection if available
-    if (global.gc) {
+    if (typeof global !== 'undefined' && global.gc) {
       global.gc();
     }
   }
@@ -171,7 +171,7 @@ export class ContainerInitializer {
     this.initializationProgress.details = {};
     
     // Force garbage collection if available
-    if (global.gc) {
+    if (typeof global !== 'undefined' && global.gc) {
       global.gc();
     }
   }
@@ -474,6 +474,14 @@ export class ContainerInitializer {
     status.progress = this.initializationProgress;
     status.memoryMetrics = this._memoryMetrics;
     return status;
+  }
+
+  async ensureInitialized(options = {}) {
+    if (this.initialized) {
+      return this.getStatus();
+    }
+    
+    return await this.initialize(options);
   }
 }
 

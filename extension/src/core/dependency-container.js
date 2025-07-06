@@ -92,7 +92,7 @@ export class DependencyContainer {
       await this._resourceTracker.cleanup();
       
       // Force garbage collection
-      if (global.gc) {
+      if (typeof global !== 'undefined' && global.gc) {
         global.gc();
       }
     });

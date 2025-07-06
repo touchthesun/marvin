@@ -63,28 +63,47 @@ jest.mock('../../src/core/component-registry.js', () => ({
 }));
 
 // Mock dependency container
-jest.mock('../../src/core/dependency-container.js', () => ({
-  container: {
-    getComponent: (name, options) => {
-      if (name === 'component-system') {
-        return {
-          loadAndInitializePanel: () => Promise.resolve(true)
-        };
+jest.mock('../../src/core/dependency-container.js', () => {
+    const realContainer = {
+      components: new Map(),
+      componentInstances: new Map(),
+      services: new Map(),
+      utils: new Map(),
+      
+      registerComponent: function(name, component) {
+        console.log(`Registering real component: ${name}`);
+        this.components.set(name, component);
+        return this;
+      },
+      
+      getComponent: function(name, options) {
+        console.log(`Container.getComponent called with: ${name}`);
+        
+        if (name === 'component-system') {
+          console.log('Returning component-system mock');
+          return {
+            loadAndInitializePanel: () => Promise.resolve(true)
+          };
+        }
+        
+        // For navigation, use the real component if registered
+        if (name === 'navigation' && this.components.has('navigation')) {
+          console.log('Returning real navigation component');
+          if (!this.componentInstances.has(name)) {
+            const Component = this.components.get(name);
+            const instance = new Component();
+            this.componentInstances.set(name, instance);
+          }
+          return this.componentInstances.get(name);
+        }
+        
+        console.log(`No component found for: ${name}`);
+        return null;
       }
-      if (name === 'navigation') {
-        return {
-          initNavigation: () => Promise.resolve(true),
-          initialized: true
-        };
-      }
-      return null;
-    },
-    components: new Map(),
-    componentInstances: new Map(),
-    services: new Map(),
-    utils: new Map()
-  }
-}));
+    };
+    
+    return { container: realContainer };
+  });
   
   beforeEach(() => {
     document.head.innerHTML = head;
@@ -103,6 +122,10 @@ jest.mock('../../src/core/dependency-container.js', () => ({
     
     // Reset all mocks
     jest.clearAllMocks();
+    
+    // IMPORTANT: Register the real navigation component
+    const { Navigation } = require('../../src/components/core/navigation.js');
+    container.registerComponent('navigation', Navigation);
   });
   
   afterEach(async () => {

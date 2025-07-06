@@ -21,7 +21,7 @@ global.beforeAll(() => {
 });
 
 global.afterAll(() => {
-  if (global.gc) {
+  if (typeof global !== 'undefined' && global.gc) {
     global.gc();
   }
 });

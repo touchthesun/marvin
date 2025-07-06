@@ -95,6 +95,7 @@ export class BaseComponent {
   // Resource tracking methods now delegate to ResourceTracker
   trackEventListener(element, type, handler) {
     this._resourceTracker.trackEventListener(element, type, handler);
+    element.addEventListener(type, handler);
   }
 
   trackTimeout(callback, delay) {

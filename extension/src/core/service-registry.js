@@ -205,8 +205,8 @@ export class ServiceRegistry {
           await instance._performServiceSpecificCleanup(pressureLevel);
           
           // Force garbage collection if available
-          if (global.gc) {
-              global.gc();
+          if (typeof global !== 'undefined' && global.gc) {
+            global.gc();
           }
       }
   

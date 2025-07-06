@@ -29,12 +29,14 @@ export const ComponentRegistry = {
       { name: 'tasks-panel', implementation: TasksPanel },
       { name: 'assistant-panel', implementation: AssistantPanel }
     ];
+    console.log('ComponentRegistry: Component definitions:', componentDefinitions.map(c => c.name));
 
     componentDefinitions.forEach(({ name, implementation }) => {
+      console.log(`ComponentRegistry: Registering ${name} with implementation:`, implementation);
       container.registerComponent(name, implementation);
     });
 
-    console.log(`ComponentRegistry: Registered ${componentDefinitions.length} components`);
+    console.log(`ComponentRegistry: Registration complete. Container now has:`, Array.from(container.components.keys()));
     return this;
   },
 

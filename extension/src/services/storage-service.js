@@ -157,11 +157,26 @@ export class StorageService extends BaseService {
   }
 
   /**
+   * Check if Chrome APIs are available
+   * @returns {boolean} True if Chrome APIs are available
+   * @private
+   */
+  _isChromeAvailable() {
+    return typeof chrome !== 'undefined' && chrome.storage;
+  }
+
+  /**
    * Set up listeners for storage changes using resource tracker
    * @private
    */
   _setupStorageListeners() {
     try {
+      // Check if Chrome APIs are available (extension context)
+      if (!this._isChromeAvailable()) {
+        this.logger.debug('Chrome storage APIs not available, skipping storage listeners');
+        return;
+      }
+      
       // Remove any existing listeners first to prevent duplicates
       try {
         chrome.storage.onChanged.removeListener(this._handleStorageChanges);
@@ -244,6 +259,12 @@ export class StorageService extends BaseService {
     this.logger.debug('Getting settings from storage');
     
     try {
+      // Check if Chrome APIs are available
+      if (!this._isChromeAvailable()) {
+        this.logger.debug('Chrome storage APIs not available, returning default settings');
+        return { ...this._DEFAULT_SETTINGS };
+      }
+      
       const data = await chrome.storage.local.get([
         'apiConfig',
         'captureSettings',
@@ -300,6 +321,12 @@ export class StorageService extends BaseService {
     this.logger.info('Updating settings', settings);
     
     try {
+      // Check if Chrome APIs are available
+      if (!this._isChromeAvailable()) {
+        this.logger.debug('Chrome storage APIs not available, skipping settings update');
+        return;
+      }
+      
       // Only update provided sections
       const updates = {};
       
@@ -327,10 +354,12 @@ export class StorageService extends BaseService {
       
       // Send message to background script
       try {
-        chrome.runtime.sendMessage({
-          action: 'updateSettings',
-          settings: updates
-        });
+        if (this._isChromeAvailable() && chrome.runtime) {
+          chrome.runtime.sendMessage({
+            action: 'updateSettings',
+            settings: updates
+          });
+        }
       } catch (messageError) {
         this.logger.warn('Error sending settings update to background:', messageError);
       }

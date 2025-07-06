@@ -25,6 +25,7 @@ const Dashboard = {
    * @returns {Promise<boolean>} Success status
    */
   async initDashboard() {
+    let initResult = undefined;
     try {
       // Create logger directly
       this._logger = new LogManager({
@@ -32,61 +33,79 @@ const Dashboard = {
         isBackgroundScript: false,
         maxEntries: 1000
       });
-      
+  
       this._logger.info('Starting dashboard initialization');
-      
+      console.log('[Dashboard] Starting dashboard initialization');
+  
       // Check if already initialized
       if (this.initialized) {
         this._logger.debug('Dashboard already initialized, skipping');
+        console.log('[Dashboard] Already initialized, skipping');
         return true;
       }
-      
+  
       // Ensure container is initialized
-      const initResult = await ensureContainerInitialized({
-        isBackgroundScript: false,
-        context: 'dashboard'
-      });
-
-      // Log initialization progress
-      if (initResult.progress) {
-        this._logger.debug('Container initialization progress:', {
-          phase: initResult.progress.phase,
-          progress: initResult.progress.progress
+      this._logger.info('Starting container initialization...');
+      console.log('[Dashboard] About to call ensureContainerInitialized...');
+      try {
+        initResult = await ensureContainerInitialized({
+          isBackgroundScript: false,
+          context: 'dashboard'
         });
+        console.log('[Dashboard] Container initialization result:', initResult);
+  
+        // Log initialization progress
+        if (initResult.progress) {
+          this._logger.debug('Container initialization progress:', {
+            phase: initResult.progress.phase,
+            progress: initResult.progress.progress
+          });
+          console.log('[Dashboard] Container initialization progress:', initResult.progress);
+        }
+  
+        this._logger.info('Container initialization result:', initResult);
+  
+        if (!initResult.initialized) {
+          console.error('[Dashboard] Container initialization failed:', initResult.message || 'Unknown error');
+          throw new Error(`Container initialization failed: ${initResult.message || 'Unknown error'}`);
+        }
+      } catch (error) {
+        this._logger.error('Container initialization error:', error);
+        console.error('[Dashboard] Container initialization error:', error);
+        throw error;
       }
-      
-      this._logger.debug('Container initialization result:', initResult);
-      
+  
       // Register components if needed
-      if (initResult.components.count === 0) {
+      if (initResult && initResult.components && initResult.components.count === 0) {
         this._logger.info('Registering components');
+        console.log('[Dashboard] Registering components');
         ComponentRegistry.registerAll();
       }
-      
-      // Get component system
-      this._componentSystem = container.getComponent('component-system', {
-        phase: 'core',
-        lazy: false
-      });
-      
+  
+      // Note: component-system is not registered, skipping for now
+      this._componentSystem = null;
+      console.log('[Dashboard] Component system not available, using direct component access');
+  
       // Initialize navigation component
       await this.initializeNavigationComponent();
-      
+  
       // Set up event handlers
       this.setupEventHandlers();
-      
+  
       // Add fallback navigation handlers
       this.setupFallbackNavigation();
-      
+  
       // Create debug interface
       this.createDebugInterface();
-      
+  
       this.initialized = true;
       this._logger.info('Dashboard initialization completed successfully');
+      console.log('[Dashboard] Dashboard initialization completed successfully');
       return true;
-      
+  
     } catch (error) {
       this._logger.error('Error initializing dashboard:', error);
+      console.error('[Dashboard] Error initializing dashboard:', error);
       await this.cleanup();
       return false;
     }
@@ -100,21 +119,33 @@ const Dashboard = {
     try {
       this._logger.info('Initializing navigation component');
       
+      // Log container state
+      this._logger.debug('Container components:', Array.from(container.components.keys()));
+      this._logger.debug('Container has navigation:', container.components.has('navigation'));
+      
       const navigation = container.getComponent('navigation');
+      console.log('Navigation component retrieved:', navigation);
+      console.log('Navigation type:', typeof navigation);
+      console.log('Navigation has initialize method:', navigation?.initialize);
+      console.log('Navigation initialize is function:', typeof navigation?.initialize === 'function');
+      
       if (!navigation) {
         throw new Error('Navigation component not found in container');
       }
       
-      if (navigation.initNavigation && typeof navigation.initNavigation === 'function') {
-        const success = await navigation.initNavigation();
+      if (navigation.initialize && typeof navigation.initialize === 'function') {
+        console.log('About to call navigation.initialize()...');
+        const success = await navigation.initialize();
+        console.log('navigation.initialize() result:', success);
         if (!success) {
           throw new Error('Navigation component initialization failed');
         }
         this._logger.info('Navigation component initialized successfully');
       } else {
-        throw new Error('Navigation component missing initNavigation method');
+        throw new Error('Navigation component missing initialize method');
       }
     } catch (error) {
+      console.error('Error in initializeNavigationComponent:', error);
       this._logger.error('Error initializing navigation component:', error);
       throw error;
     }
@@ -203,7 +234,12 @@ const Dashboard = {
         }
 
         const clickHandler = async (event) => {
+          console.log('=== FALLBACK NAV CLICK HANDLER START ===');
           console.log('Clicked nav item:', panelName);
+          console.log('Event target:', event.target);
+          console.log('Handler: navItems length:', navItems.length);
+          console.log('Handler: contentPanels length:', contentPanels.length);
+          
           this._logger.info(`Fallback navigation: ${panelName} clicked`);
           try {
             // Log navItems and contentPanels references
@@ -212,26 +248,37 @@ const Dashboard = {
               console.log(`Handler: navItem[${idx}]`, navItem, navItem.className);
             });
             console.log('Handler: item (clicked):', item, item.className);
-
+        
             console.log('Handler: contentPanels:', contentPanels);
             contentPanels.forEach((panel, idx) => {
               console.log(`Handler: panel[${idx}]`, panel, panel.id, panel.className);
             });
-
+        
             // Update active state
-            navItems.forEach(navItem => navItem.classList.remove('active'));
+            console.log('About to remove active from all nav items...');
+            navItems.forEach(navItem => {
+              console.log('Removing active from:', navItem, navItem.className);
+              navItem.classList.remove('active');
+            });
+            
+            console.log('About to add active to clicked item...');
+            console.log('Item before:', item, item.className);
             item.classList.add('active');
-
+            console.log('Item after:', item, item.className);
+        
             // Update panel visibility
+            console.log('About to update panels...');
             contentPanels.forEach(panel => {
               if (panel.id === `${panelName}-panel`) {
+                console.log('Activating panel:', panel.id, panel.className);
                 panel.classList.add('active');
                 this._logger.debug(`Panel ${panel.id} activated`);
               } else {
+                console.log('Deactivating panel:', panel.id, panel.className);
                 panel.classList.remove('active');
               }
             });
-
+        
             // Log after state
             console.log('Handler: AFTER UPDATE');
             navItems.forEach((navItem, idx) => {
@@ -241,10 +288,10 @@ const Dashboard = {
               console.log(`Handler: panel[${idx}]`, panel, panel.id, panel.className);
             });
 
-            // Initialize panel
-            if (this._componentSystem && this._componentSystem.loadAndInitializePanel) {
-              await this._componentSystem.loadAndInitializePanel(`${panelName}-panel`);
-            }
+            // Initialize panel (component system not available, skipping for now)
+            // if (this._componentSystem && this._componentSystem.loadAndInitializePanel) {
+            //   await this._componentSystem.loadAndInitializePanel(`${panelName}-panel`);
+            // }
 
             // Store active panel
             try {
@@ -253,8 +300,10 @@ const Dashboard = {
               this._logger.warn('Error saving last active panel:', storageError);
             }
           } catch (navError) {
+            console.error('Error in fallback navigation:', navError);
             this._logger.error(`Error in fallback navigation to ${panelName}:`, navError);
           }
+          console.log('=== FALLBACK NAV CLICK HANDLER END ===');
         };
 
         item.addEventListener('click', clickHandler);
@@ -367,9 +416,8 @@ Component System Status:
           this.initDashboard();
         },
         initPanel: async (panelName) => {
-          if (this._componentSystem && this._componentSystem.loadAndInitializePanel) {
-            return await this._componentSystem.loadAndInitializePanel(panelName);
-          }
+          // Component system not available, return false for now
+          console.log(`Panel initialization requested for ${panelName} but component system not available`);
           return false;
         },
         getContainer: () => container,
@@ -434,9 +482,21 @@ Component System Status:
   }
 };
 
+// Make Dashboard and container globally available
+if (typeof window !== 'undefined') {
+  window.Dashboard = Dashboard;
+  window.container = container;
+}
+
 // Initialize dashboard on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
-  Dashboard.initDashboard();
+  console.log('DOMContentLoaded fired, initializing dashboard...');
+  if (window.Dashboard) {
+    console.log('Dashboard object found, calling initDashboard...');
+    Dashboard.initDashboard();
+  } else {
+    console.error('Dashboard object not found in window');
+  }
 });
 
 // Export for testing

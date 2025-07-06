@@ -149,10 +149,25 @@ export class MessageService extends BaseService {
     }
 
   /**
+   * Check if Chrome APIs are available
+   * @returns {boolean} True if Chrome APIs are available
+   * @private
+   */
+  _isChromeAvailable() {
+    return typeof chrome !== 'undefined' && chrome.runtime;
+  }
+
+  /**
    * Set up message listener
    * @private
    */
   _setupMessageListener() {
+    // Check if Chrome APIs are available
+    if (!this._isChromeAvailable()) {
+      this._logger.debug('Chrome runtime APIs not available, skipping message listener setup');
+      return;
+    }
+    
     // Remove any existing listener first to prevent duplicates
     this._removeMessageListener();
     
@@ -167,6 +182,11 @@ export class MessageService extends BaseService {
    * @private
    */
   _removeMessageListener() {
+    // Check if Chrome APIs are available
+    if (!this._isChromeAvailable()) {
+      return;
+    }
+    
     // Remove with the same bound reference
     chrome.runtime.onMessage.removeListener(this._handleMessage);
   }
@@ -451,17 +471,24 @@ export class MessageService extends BaseService {
       });
       
       // Send message to background
-      chrome.runtime.sendMessage(message).catch(error => {
-        // Clear timeout and request tracking
+      if (this._isChromeAvailable()) {
+        chrome.runtime.sendMessage(message).catch(error => {
+          // Clear timeout and request tracking
+          clearTimeout(timeoutId);
+          this._pendingRequests.delete(message.requestId);
+          
+          // Log error
+          this._logger?.error('Chrome runtime error:', error);
+          
+          // Reject with error
+          reject(error);
+        });
+      } else {
+        // Chrome APIs not available, reject immediately
         clearTimeout(timeoutId);
         this._pendingRequests.delete(message.requestId);
-        
-        // Log error
-        this._logger?.error('Chrome runtime error:', error);
-        
-        // Reject with error
-        reject(error);
-      });
+        reject(new Error('Chrome runtime APIs not available'));
+      }
     });
   }
   

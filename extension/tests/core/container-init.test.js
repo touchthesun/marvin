@@ -49,7 +49,7 @@ const writeLog = (label, data) => {
 
 // Helper to measure memory usage
 const logMemoryUsage = (label) => {
-  if (global.gc) {
+  if (typeof global !== 'undefined' && global.gc) {
     global.gc();
   }
   const used = process.memoryUsage();
@@ -67,7 +67,7 @@ const logMemoryUsage = (label) => {
 
 // Helper to force garbage collection and wait
 const forceGC = async () => {
-  if (global.gc) {
+  if (typeof global !== 'undefined' && global.gc) {
     global.gc();
   }
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -115,7 +115,7 @@ describe('Container Initialization', () => {
     mockSystem.container.serviceMetadata.clear();
     
     // Force garbage collection
-    if (global.gc) {
+    if (typeof global !== 'undefined' && global.gc) {
       global.gc();
     }
     

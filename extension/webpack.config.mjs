@@ -72,7 +72,7 @@ export default {
         { from: "src/dashboard/dashboard.css", to: "dashboard" },
         { from: "src/popup/popup.html", to: "popup" },
         { from: "src/popup/diagnostics.html", to: "popup" },
-        { from: "src/options/options.html", to: "options" }
+                { from: "src/options/options.html", to: "options" }
       ]
     })
   ],

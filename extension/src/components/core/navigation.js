@@ -16,8 +16,9 @@ export class Navigation extends BaseComponent {
 
   // Keep existing _performInitialization as is, since it's working well
   async _performInitialization() {
+    console.log('Navigation _performInitialization called');
     // Find navigation elements
-    this.navElement = document.querySelector('.navigation');
+    this.navElement = document.querySelector('.sidebar .nav-links');
     this.navItems = this.navElement?.querySelectorAll('.nav-item');
     this.contentPanels = document.querySelectorAll('.content-panel');
     
@@ -31,6 +32,7 @@ export class Navigation extends BaseComponent {
     
     // Set up click handlers on nav items
     this.setupNavClickHandlers();
+    console.log('Navigation handlers attached:', this.navItems?.length);
     
     // Try to restore last active panel
     await this.restoreLastPanel();
