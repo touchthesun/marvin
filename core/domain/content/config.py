@@ -32,13 +32,13 @@ class ContentProcessorConfig:
         "facebook.com", "twitter.com", "instagram.com", 
         "gmail.com", "app.slack.com", "aws.amazon.com"
     ])
-    extractor_config: ExtractorConfig = ExtractorConfig(
+    extractor_config: ExtractorConfig = field(default_factory=lambda: ExtractorConfig(
         min_chars=3,
         max_words=4,
         min_frequency=1,
         min_keyword_score=0.25,
         score_threshold=0.5
-    )
+    ))
 
     def __post_init__(self):
         """Validate configuration parameters."""

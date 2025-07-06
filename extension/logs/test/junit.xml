@@ -1,21 +1,3 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="8" failures="0" errors="0" time="10.501">
-  <testsuite name="Container Initialization" errors="0" failures="0" skipped="0" timestamp="2025-07-02T05:38:42" time="10.088" tests="8">
-    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0.115">
-    </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0.093">
-    </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0.093">
-    </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0.097">
-    </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0.096">
-    </testcase>
-    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="4.245">
-    </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="1.154">
-    </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="1.152">
-    </testcase>
-  </testsuite>
+<testsuites name="jest tests" tests="0" failures="0" errors="0" time="0.723">
 </testsuites>

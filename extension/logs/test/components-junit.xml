@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="98" failures="0" errors="0" time="1.835">
+  <testsuite name="Dashboard Component" errors="0" failures="0" skipped="0" timestamp="2025-07-06T18:06:02" time="1.416" tests="43">
+    <testcase classname="Dashboard Component Basic Structure" name="Dashboard exists and has required methods" time="0.494">
+    </testcase>
+    <testcase classname="Dashboard Component Basic Structure" name="Dashboard starts with correct initial state" time="0.01">
+    </testcase>
+    <testcase classname="Dashboard Component DOM Structure Validation" name="finds all required navigation elements" time="0.017">
+    </testcase>
+    <testcase classname="Dashboard Component DOM Structure Validation" name="finds debug panel elements" time="0.008">
+    </testcase>
+    <testcase classname="Dashboard Component DOM Structure Validation" name="dashboard.html includes dashboard.css link" time="0.009">
+    </testcase>
+    <testcase classname="Dashboard Component Initialization" name="initDashboard starts initialization process" time="0.02">
+    </testcase>
+    <testcase classname="Dashboard Component Initialization" name="sets up logger during initialization" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Setup" name="setupEventHandlers finds debug panel elements" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Setup" name="setupEventHandlers finds test components button" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Fallback Navigation" name="setupFallbackNavigation finds navigation items" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Fallback Navigation" name="navigation items have required data attributes" time="0.014">
+    </testcase>
+    <testcase classname="Dashboard Component Debug Interface" name="createDebugInterface creates global debug object" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Cleanup" name="cleanup method exists and is callable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Cleanup" name="cleanup resets initialization state" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Error Handling" name="showInitializationError creates error display" time="0.007">
+    </testcase>
+    <testcase classname="Dashboard Component Component System Integration" name="component system is intentionally disabled for now" time="0.01">
+    </testcase>
+    <testcase classname="Dashboard Component Component System Integration" name="navigation component is initialized" time="0.01">
+    </testcase>
+    <testcase classname="Dashboard Component Panel Management" name="overview panel is active by default" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Panel Management" name="navigation items have correct active state" time="0.007">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Functionality" name="debug panel toggle works" time="0.012">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Functionality" name="test components button triggers debug output update" time="0.013">
+    </testcase>
+    <testcase classname="Dashboard Component Resource Management" name="tracks event listeners during initialization" time="0.012">
+    </testcase>
+    <testcase classname="Dashboard Component Resource Management" name="cleanup removes all tracked resources" time="0.012">
+    </testcase>
+    <testcase classname="Dashboard Component Fallback Navigation Functionality" name="fallback navigation switches panels" time="0.027">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="Reload Overview button is present and clickable" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="Refresh button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="View All button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="Explore button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Reload Capture Data button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Capture Selected button is present and clickable" time="0.004">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Select All button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Deselect All button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Knowledge Panel" name="Reload Knowledge Data button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Knowledge Panel" name="Explore button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Assistant Panel" name="Reload Assistant button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Tasks Panel" name="Reload Analysis Data button is present and clickable" time="0.004">
+    </testcase>
+    <testcase classname="Dashboard Component Settings Panel" name="Reload Settings button is present and clickable" time="0.007">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;overview&quot; is present and switches panel on click" time="0.038">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;capture&quot; is present and switches panel on click" time="0.037">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;knowledge&quot; is present and switches panel on click" time="0.042">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;assistant&quot; is present and switches panel on click" time="0.038">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;tasks&quot; is present and switches panel on click" time="0.149">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;settings&quot; is present and switches panel on click" time="0.046">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="4" timestamp="2025-07-06T18:06:04" time="0.065" tests="4">
+    <testcase classname="" name="logUIElements finds all expected elements" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="" name="initPopup completes and sets initialized to true" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="" name="options button click calls openSettings" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="" name="diagnostic: run full popup init and log progress" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="Panel Initialization Investigation" errors="0" failures="0" skipped="22" timestamp="2025-07-06T18:06:04" time="0.075" tests="22">
+    <testcase classname="Panel Initialization Investigation Component Registration" name="all panel components are registered in container" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Component Registration" name="panel components have required initialization methods" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Panel DOM Structure" name="all panel elements exist in DOM" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Panel DOM Structure" name="panel force-init buttons exist" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Overview Panel" name="overview panel component structure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Overview Panel" name="overview panel DOM elements" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Overview Panel" name="overview panel initialization attempt" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Capture Panel" name="capture panel component structure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Capture Panel" name="capture panel DOM elements" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Capture Panel" name="capture panel initialization attempt" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Knowledge Panel" name="knowledge panel component structure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Knowledge Panel" name="knowledge panel initialization attempt" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Assistant Panel" name="assistant panel component structure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Assistant Panel" name="assistant panel initialization attempt" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Tasks Panel" name="tasks panel component structure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Tasks Panel" name="tasks panel initialization attempt" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Settings Panel" name="settings panel component structure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Individual Panel Investigation Settings Panel" name="settings panel initialization attempt" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Panel Activation and Initialization" name="panel activation triggers initialization" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Panel Activation and Initialization" name="force-init buttons trigger panel initialization" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Panel Loading States" name="panels show loading indicators" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Panel Initialization Investigation Panel Loading States" name="overview and capture panels have content structure" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="Navigation Component" errors="0" failures="0" skipped="13" timestamp="2025-07-06T18:06:04" time="0.021" tests="13">
+    <testcase classname="Navigation Component" name="should initialize with correct state" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component" name="should handle panel navigation" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Cleanup" name="should cleanup resources" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Service Integration" name="should use service registry for storage operations" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Service Integration" name="should handle storage service errors" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Service Integration" name="should handle missing services gracefully" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Resource Tracking" name="should track event listeners" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Resource Tracking" name="should track DOM elements" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Memory Management" name="should handle memory pressure" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Lifecycle Methods" name="should not initialize twice" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component Lifecycle Methods" name="should not cleanup if not initialized" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component" name="should handle initialization error" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Navigation Component" name="should handle cleanup error" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="BaseComponent" errors="0" failures="0" skipped="16" timestamp="2025-07-06T18:06:04" time="0.021" tests="16">
+    <testcase classname="BaseComponent Initialization" name="should initialize with default state" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Initialization" name="should create logger with correct context" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Initialization" name="should initialize memory monitor with correct options" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Resource Tracking" name="should track event listeners" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Resource Tracking" name="should track timeouts" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Resource Tracking" name="should track intervals" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Resource Tracking" name="should track DOM elements" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Service Management" name="should get service from container" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Service Management" name="should return fallback when service not available" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Memory Management" name="should handle memory pressure - high" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Memory Management" name="should handle memory pressure - medium" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Memory Management" name="should update memory metrics" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Error Handling" name="should handle initialization error" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Error Handling" name="should handle cleanup error" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Abstract Methods" name="should throw error for unimplemented _performInitialization" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="BaseComponent Abstract Methods" name="should throw error for unimplemented _performCleanup" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>

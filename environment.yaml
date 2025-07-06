@@ -1,0 +1,50 @@
+name: marvin
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Core web framework
+  - python=3.9
+  - fastapi=0.104.1
+  - uvicorn=0.24.0
+  - pydantic=2.5.0
+  - pip
+  # Database and graph
+  - neo4j-python-driver  # conda-forge name for neo4j-driver
+  - py2neo
+  # AI and ML
+  - openai
+  - chromadb
+  - langchain
+  - langgraph
+  - tiktoken
+  # NLP and text processing
+  - spacy
+  - newspaper3k
+  - readability-lxml
+  # Data processing and visualization
+  - pandas
+  - matplotlib
+  - plotly
+  - psutil
+  # Web scraping and parsing
+  - beautifulsoup4
+  - requests
+  # Testing
+  - pytest
+  - pytest-cov
+  - pytest-asyncio
+  # Utilities
+  - python-dotenv
+  - jinja2
+  - cryptography
+  - pycountry
+  - docker-py
+  - aiohttp
+  # For packages not available on conda-forge, use pip
+  - pip:
+      - playwright
+      - tavily-python
+      - rake-nltk
+      - lxml_html_clean
+      - mkdocs-mermaid2-plugin
