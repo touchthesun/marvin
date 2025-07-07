@@ -86,6 +86,7 @@ export class BackgroundService {
     this.messageHandlers.set('contentScriptLoaded', this.handleContentScriptLoaded.bind(this));
     this.messageHandlers.set('getComponentStatus', this.handleGetComponentStatus.bind(this));
     this.messageHandlers.set('loadAndInitializePanel', this.handleLoadAndInitializePanel.bind(this));
+    this.messageHandlers.set('loadPanelData', this.handleLoadPanelData.bind(this));
     this.messageHandlers.set('login', this.handleLogin.bind(this));
     this.messageHandlers.set('logout', this.handleLogout.bind(this));
   }
@@ -515,6 +516,77 @@ export class BackgroundService {
       suggestion: 'Use the component system in your popup/dashboard context instead.',
       requestId: message.requestId
     });
+  }
+  
+  /**
+   * Handle load panel data request
+   * This provides data to panels from background services
+   */
+  async handleLoadPanelData(message, sender, sendResponse) {
+    try {
+      this.logger.debug(`Loading panel data for: ${message.panelName}`);
+      
+      let data = {};
+      
+      switch (message.panelName) {
+        case 'overview':
+          // Load overview statistics
+          const storageService = this.container.getService('storageService');
+          const stats = await storageService.getStats();
+          const captureHistory = await storageService.getCaptureHistory(5);
+          data = { stats, recentCaptures: captureHistory };
+          break;
+          
+        case 'capture':
+          // Load capture-related data
+          const tabs = await chrome.tabs.query({});
+          data = { availableTabs: tabs };
+          break;
+          
+        case 'knowledge':
+          // Load knowledge graph data
+          const apiService = this.container.getService('apiService');
+          try {
+            const graphData = await apiService.fetchAPI('/api/v1/graph/summary');
+            data = { graphData };
+          } catch (error) {
+            this.logger.warn('Error loading knowledge data:', error);
+            data = { graphData: null };
+          }
+          break;
+          
+        case 'tasks':
+          // Load task data
+          const taskService = this.container.getService('taskService');
+          const activeTasks = await taskService.getActiveTasks();
+          const completedTasks = await taskService.getCompletedTasks();
+          data = { activeTasks, completedTasks };
+          break;
+          
+        case 'settings':
+          // Load settings data
+          const settings = await this.container.getService('storageService').getSettings();
+          data = { settings };
+          break;
+          
+        default:
+          data = {};
+      }
+      
+      sendResponse({
+        success: true,
+        data: data,
+        requestId: message.requestId
+      });
+      
+    } catch (error) {
+      this.logger.error(`Error loading panel data for ${message.panelName}:`, error);
+      sendResponse({
+        success: false,
+        error: error.message,
+        requestId: message.requestId
+      });
+    }
   }
   
   /**

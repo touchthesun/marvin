@@ -33,6 +33,9 @@
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
   "options_page": "options/options.html",
+  "chrome_url_overrides": {
+    "newtab": "dashboard/dashboard.html"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -48,7 +51,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "dashboard/*",
         "popup/*",
         "options/*",
         "background/*",

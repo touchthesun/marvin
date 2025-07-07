@@ -76,6 +76,10 @@ export class MessageService extends BaseService {
       
       this._logger.info('Initializing MessageService');
       
+      // Initialize Maps
+      this._pendingRequests = new Map();
+      this._messageListeners = new Map();
+      
       // Set up message listener
       this._setupMessageListener();
       
@@ -154,7 +158,7 @@ export class MessageService extends BaseService {
    * @private
    */
   _isChromeAvailable() {
-    return typeof chrome !== 'undefined' && chrome.runtime;
+    return typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage;
   }
 
   /**

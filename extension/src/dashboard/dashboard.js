@@ -44,47 +44,22 @@ const Dashboard = {
         return true;
       }
   
-      // Ensure container is initialized
-      this._logger.info('Starting container initialization...');
-      console.log('[Dashboard] About to call ensureContainerInitialized...');
+      // Check if we're in extension context
+      if (!this._isExtensionContext()) {
+        this._logger.warn('Dashboard running outside extension context - some features may be limited');
+        console.log('[Dashboard] Running outside extension context');
+      }
+  
+      // Initialize component system for UI components
       try {
-        initResult = await ensureContainerInitialized({
-          isBackgroundScript: false,
-          context: 'dashboard'
-        });
-        console.log('[Dashboard] Container initialization result:', initResult);
-  
-        // Log initialization progress
-        if (initResult.progress) {
-          this._logger.debug('Container initialization progress:', {
-            phase: initResult.progress.phase,
-            progress: initResult.progress.progress
-          });
-          console.log('[Dashboard] Container initialization progress:', initResult.progress);
-        }
-  
-        this._logger.info('Container initialization result:', initResult);
-  
-        if (!initResult.initialized) {
-          console.error('[Dashboard] Container initialization failed:', initResult.message || 'Unknown error');
-          throw new Error(`Container initialization failed: ${initResult.message || 'Unknown error'}`);
-        }
+        const { componentSystem } = await import('../core/component-system.js');
+        await componentSystem.initialize();
+        this._componentSystem = componentSystem;
+        console.log('[Dashboard] Component system initialized successfully');
       } catch (error) {
-        this._logger.error('Container initialization error:', error);
-        console.error('[Dashboard] Container initialization error:', error);
-        throw error;
+        this._logger.warn('Component system initialization failed, using direct component access:', error);
+        this._componentSystem = null;
       }
-  
-      // Register components if needed
-      if (initResult && initResult.components && initResult.components.count === 0) {
-        this._logger.info('Registering components');
-        console.log('[Dashboard] Registering components');
-        ComponentRegistry.registerAll();
-      }
-  
-      // Note: component-system is not registered, skipping for now
-      this._componentSystem = null;
-      console.log('[Dashboard] Component system not available, using direct component access');
   
       // Initialize navigation component
       await this.initializeNavigationComponent();
@@ -109,6 +84,37 @@ const Dashboard = {
       await this.cleanup();
       return false;
     }
+  },
+  
+  /**
+   * Check if we're running in extension context
+   * @returns {boolean} True if in extension context
+   */
+  _isExtensionContext() {
+    return typeof chrome !== 'undefined' && 
+           chrome.runtime && 
+           chrome.runtime.id;
+  },
+  
+  /**
+   * Send message to background script
+   * @param {Object} message - Message to send
+   * @returns {Promise<any>} Response from background script
+   */
+  async _sendMessageToBackground(message) {
+    if (!this._isExtensionContext()) {
+      throw new Error('Not in extension context - cannot send message to background script');
+    }
+    
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(message, response => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
   },
   
   /**
@@ -288,10 +294,31 @@ const Dashboard = {
               console.log(`Handler: panel[${idx}]`, panel, panel.id, panel.className);
             });
 
-            // Initialize panel (component system not available, skipping for now)
-            // if (this._componentSystem && this._componentSystem.loadAndInitializePanel) {
-            //   await this._componentSystem.loadAndInitializePanel(`${panelName}-panel`);
-            // }
+            // Initialize panel
+            if (this._componentSystem && this._componentSystem.loadAndInitializePanel) {
+              try {
+                const fullPanelName = `${panelName}-panel`;
+                await this._componentSystem.loadAndInitializePanel(fullPanelName);
+              } catch (panelError) {
+                this._logger.warn(`Error initializing panel ${panelName}:`, panelError);
+              }
+            }
+            
+            // Load panel data from background script if in extension context
+            if (this._isExtensionContext()) {
+              try {
+                const response = await this._sendMessageToBackground({
+                  action: 'loadPanelData',
+                  panelName: panelName
+                });
+                
+                if (response && response.success) {
+                  this._logger.debug(`Panel data loaded for ${panelName}:`, response.data);
+                }
+              } catch (messageError) {
+                this._logger.warn(`Error loading panel data for ${panelName}:`, messageError);
+              }
+            }
 
             // Store active panel
             try {
