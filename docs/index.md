@@ -6,6 +6,7 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 
 ### 🏗 Architecture
 - [System Overview](architecture/overview.md)
+- [Extension Architecture](architecture/extension.md)
 - [Architectural Decisions](architecture/decisions.md)
 - [Development Roadmap](architecture/roadmap.md)
 
@@ -26,7 +27,7 @@ Welcome to the Marvin documentation. Marvin is an intelligent research assistant
 - [Auth Provider System](development/auth-provider.md)
 - [Testing Strategy](development/testing.md)
 - [Testing Harness](development/test-harness-docs.md)
-- [Browser Extension Testing](development/browser_extension.md)
+- [Browser Extension Testing](development/browser-testing.md)
 - [Security Guidelines](development/security.md)
 - [Neo4J Implementation Guide](development/neo4j-integration.md)
 

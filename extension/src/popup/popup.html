@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-container">
+        <img src="../icons/icon48.png" alt="Marvin Logo" class="logo">
+        <h1>Marvin</h1>
+      </div>
+      <div class="status-container">
+        <span id="status-indicator" class="status-online">Online</span>
+      </div>
+    </header>
+    
+    <div class="auth-section">
+      <div id="login-form" class="hidden">
+        <form id="auth-form">
+          <div class="form-group">
+            <input type="text" id="username" placeholder="Username" required>
+          </div>
+          <div class="form-group">
+            <input type="password" id="password" placeholder="Password" required>
+          </div>
+          <button type="submit" class="btn-primary">Login</button>
+        </form>
+      </div>
+      
+      <div id="user-info" class="hidden">
+        <div class="user-actions">
+          <button id="logout-btn" class="btn-text">Logout</button>
+        </div>
+      </div>
+    </div>
+    
+    <main>
+      <div class="action-buttons">
+        <button id="capture-btn" class="btn-primary disabled">Capture Page</button>
+        <button id="analyze-btn" class="btn-primary disabled">Analyze Page</button>
+      </div>
+      
+      <div class="active-tasks-section">
+        <h3>Active Analysis Tasks</h3>
+        <div id="activeTasks" class="tasks-container">
+          <div class="loading">Loading tasks...</div>
+        </div>
+      </div>
+      
+      <div class="recent-activity">
+        <h3>Recent Activity</h3>
+        <div id="activity-list" class="activity-list">
+          <div class="loading">Loading activity...</div>
+        </div>
+      </div>
+      
+      <div class="secondary-actions">
+        <button id="related-btn" class="btn-secondary disabled">Find Related</button>
+        <button id="query-btn" class="btn-secondary disabled">Ask Marvin</button>
+      </div>
+    </main>
+    
+    <footer>
+      <div id="status" class="status"></div>
+      <div class="footer-actions">
+        <button id="open-dashboard-btn" class="btn-text disabled">Open Dashboard</button>
+        <button id="options-btn" class="btn-text">Options</button>
+      </div>
+      
+      <div class="debug-toggle" id="debug-toggle">Debug Options</div>
+      <div id="debug-section" class="debug-section">
+        <h3>Debug Tools</h3>
+        <button id="toggle-debug-mode" class="btn-secondary">Enable Debug Mode</button>
+        <button id="open-diagnostic-dashboard" class="btn-secondary">Diagnostic Dashboard</button>
+        <button id="export-logs" class="btn-secondary">Export Logs</button>
+      </div>
+    </footer>
+  </div>
+  
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

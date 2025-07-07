@@ -1,522 +1,684 @@
-# Marvin Browser Extension Technical Design Document
+# Marvin Browser Extension
+
+## Technical Documentation
+
+This document provides comprehensive technical documentation for the Marvin browser extension, designed for developers and open-source contributors to the project.
 
 ## Table of Contents
 
 1. [Introduction](#introduction)
 2. [Architecture Overview](#architecture-overview)
-3. [UI Design Strategy](#ui-design-strategy)
-4. [Component Structure](#component-structure)
-5. [Manifest V3 Considerations](#manifest-v3-considerations)
-6. [Implementation Plan](#implementation-plan)
-7. [API Integration](#api-integration)
-8. [State Management](#state-management)
-9. [Testing Strategy](#testing-strategy)
-10. [Best Practices](#best-practices)
-11. [Future Extensions](#future-extensions)
+3. [Component Structure](#component-structure)
+4. [Core Components](#core-components)
+5. [UI Components](#ui-components)
+6. [Services](#services)
+7. [Utilities](#utilities)
+8. [Data Flow](#data-flow)
+9. [Manifest V3 Implementation](#manifest-v3-implementation)
+10. [Development Guidelines](#development-guidelines)
+11. [Testing](#testing)
+12. [Future Enhancements](#future-enhancements)
 
 ## Introduction
+ 
+Marvin is an intelligent research assistant that helps users organize and leverage their browsing history and research materials. Named after the character from "The Hitchhiker's Guide to the Galaxy," Marvin maintains a knowledge graph of browsing data while actively assisting users through both autonomous actions and direct queries.
 
-Marvin is an intelligent research assistant that helps users organize and leverage their browsing history and research materials. This document outlines the technical design for implementing the browser extension component of Marvin, focusing on a hybrid UI approach that balances quick access with comprehensive functionality.
+### Core Principles
 
-### Key Requirements
+- **Privacy First**: All data storage and processing can run locally
+- **Model Agnostic**: Support for both local and cloud-based LLM providers
+- **Extensible**: Core architecture supports browser integration
+- **Active Assistant**: Performs autonomous actions on user's behalf
+- **Neo4j Backend**: Knowledge graph implemented in Neo4j
 
-1. **Content Capture**: Extract and analyze web content from active tabs, bookmarks, and browsing history
-2. **Knowledge Graph Integration**: Connect with backend services for content analysis and relationship mapping
-3. **LLM Agent Interface**: Provide an interface for AI-assisted insights and queries
-4. **Browser Integration**: Sync browser state, including tabs, windows, and bookmarks
-5. **Privacy-First Design**: Support local-first architecture with opt-in cloud integration
+### Key Capabilities
+
+1. **Knowledge Organization**
+   - Automated context extraction from browsing data
+   - Relationship discovery between content
+   - Topic and concept mapping
+
+2. **Autonomous Actions**
+   - Related content discovery via web search
+   - Tab context analysis and grouping
+   - Bookmark relevance filtering
+   - Research synthesis and summarization
+
+3. **Interactive Features**
+   - Natural language queries about stored knowledge
+   - Visualization of knowledge relationships
+   - Task status monitoring
+   - Configuration of autonomous behaviors
 
 ## Architecture Overview
 
 The extension follows a layered architecture with clear separation of concerns:
 
 ### Service Worker (Background)
-- API client for backend communication
-- Authentication management
-- Browser state tracking
-- Content capture coordination
-- Task execution monitoring
+
+The service worker acts as the central coordinator for the extension, managing:
+
+- API communication
+- Authentication
+- Content capture
+- Task execution
+- State management
 
 ### Content Scripts
-- Page content extraction
-- Metadata collection
-- UI overlays and notifications
-- Network status monitoring
-- DOM event handling
+
+Content scripts run in the context of web pages to:
+
+- Extract page content and metadata
+- Handle DOM operations
+- Monitor network status
+- Provide UI overlays
 
 ### UI Components
-- Popup for quick actions
-- Full-page dashboard for complex interactions
-- Options page for configuration
-- Possible sidebar for contextual information
+
+The extension provides multiple user interfaces:
+
+1. **Popup**: Quick access to core functionality
+2. **Dashboard**: Full-featured control center
+3. **Options Page**: Configuration settings
 
 ### Communication Patterns
-- Message passing between components
-- Event-based interactions
-- Async request/response handling
 
-## UI Design Strategy
+Components communicate through:
 
-### Hybrid Approach
-
-We will implement a hybrid UI approach that combines:
-
-1. **Compact Popup**
-   - Quick capture controls
-   - Status indicators
-   - Recent activity summary
-   - Link to full dashboard
-
-2. **Full-Page Dashboard**
-   - Multi-panel layout
-   - Comprehensive feature access
-   - Knowledge visualization
-   - Chat interface for LLM agent
-   - Batch operations management
-
-3. **Options Page**
-   - Configuration settings
-   - Authentication management
-   - Data management controls
-
-### Popup Design
-
-The popup provides quick access to core functionality:
-
-- Size: ~400x600px (responsive)
-- Components:
-  - Status bar (online/offline, auth status)
-  - Capture current page button
-  - Recent captures list (scrollable)
-  - Quick tools section
-  - "Open Dashboard" button (prominent)
-
-### Dashboard Design
-
-The full-page dashboard is the central hub for advanced functionality:
-
-- Layout: 
-  - Left sidebar for navigation
-  - Main content area (context-dependent)
-  - Optional right sidebar for details/context
-
-- Main Sections:
-  - Home/Overview: Recent activity, stats, knowledge graph preview
-  - Capture: Batch capture UI for tabs, bookmarks, history
-  - Knowledge: Browse and search captured content
-  - Research Assistant: LLM chat interface with context support
-  - Settings: Advanced configuration
-
-### Options Page
-
-The options page provides detailed configuration:
-
-- Authentication settings
-- API configuration
-- Capture settings (automatic vs. manual)
-- Privacy controls
-- Data management
+- Message passing between contexts
+- Event-based architecture
+- Promise-based async operations
 
 ## Component Structure
 
-### Directory Structure
+The extension follows a modular directory structure:
 
 ```
-marvin-extension/
+extension
+├── background
+│   ├── analysis-queue.css
+│   ├── analysis-queue.js
+│   ├── api-client.js
+│   ├── auth-manager.js
+│   ├── background.js
+│   ├── capture-manager.js
+│   ├── progress-tracker.js
+│   └── state-manager.js
+├── content
+│   ├── content.js
+│   └── network-monitor.js
+├── dashboard
+│   ├── dashboard.css
+│   ├── dashboard.html
+│   ├── js
+│   │   ├── components
+│   │   │   ├── assistant-panel.js
+│   │   │   ├── bookmarks-capture.js
+│   │   │   ├── capture-panel.js
+│   │   │   ├── capture-ui.js
+│   │   │   ├── capture-utils.js
+│   │   │   ├── graph-panel.js
+│   │   │   ├── history-capture.js
+│   │   │   ├── knowledge-panel.js
+│   │   │   ├── navigation.js
+│   │   │   ├── overview-panel.js
+│   │   │   ├── settings-panel.js
+│   │   │   ├── tabs-capture.js
+│   │   │   └── tasks-panel.js
+│   │   ├── dashboard.js
+│   │   ├── services
+│   │   │   ├── api-service.js
+│   │   │   ├── notification-service.js
+│   │   │   ├── status-service.js
+│   │   │   ├── storage-service.js
+│   │   │   └── task-service.js
+│   │   └── utils
+│   │       ├── constants.js
+│   │       ├── formatting.js
+│   │       └── ui-utils.js
+│   └── services
+│       ├── api-service.js
+│       └── state-service.js
 ├── manifest.json
-├── background/
-│   ├── background.js         # Service worker entry point
-│   ├── api-client.js         # API communication
-│   ├── auth-manager.js       # Authentication handling
-│   ├── capture-manager.js    # Content capture logic
-│   └── state-manager.js      # Browser state tracking
-├── content/
-│   ├── content.js            # Content script entry point
-│   ├── extraction.js         # Content extraction logic
-│   ├── overlay.js            # UI overlay components
-│   └── network-monitor.js    # Network status monitoring
-├── popup/
-│   ├── popup.html            # Popup HTML
-│   ├── popup.js              # Popup logic
-│   └── popup.css             # Popup styles
-├── dashboard/
-│   ├── dashboard.html        # Dashboard HTML
-│   ├── dashboard.js          # Dashboard main logic
-│   ├── components/           # Dashboard UI components
-│   │   ├── navigation.js     # Nav sidebar component
-│   │   ├── capture-panel.js  # Batch capture UI
-│   │   ├── knowledge-panel.js # Knowledge browsing UI
-│   │   ├── chat-panel.js     # LLM chat interface
-│   │   └── ...
-│   ├── services/             # Dashboard services
-│   │   ├── api-service.js    # API communication
-│   │   ├── state-service.js  # State management
-│   │   └── ...
-│   └── dashboard.css         # Dashboard styles
-├── options/
-│   ├── options.html          # Options page HTML
-│   ├── options.js            # Options logic
-│   └── options.css           # Options styles
-├── shared/
-│   ├── styles/               # Shared styles
-│   ├── utils/                # Shared utilities
-│   └── components/           # Shared UI components
-└── icons/                    # Extension icons
+├── options
+│   ├── options.css
+│   ├── options.html
+│   └── options.js
+├── package-lock.json
+├── package.json
+├── popup
+│   ├── popup.css
+│   ├── popup.html
+│   └── popup.js
+├── shared
+│   ├── components
+│   ├── constants.js
+│   ├── styles
+│   └── utils
+│       ├── api.js
+│       ├── capture.js
+│       ├── log-manager.js
+│       ├── progress-tracker.js
+│       └── settings.js
+└── webpack.config.js
 ```
 
-### Key Components
+## Core Components
 
-#### Background Service Worker
+### Background Service Worker
 
-The service worker is the central coordinator for the extension:
+The background script (`background.js`) serves as the central coordinator for the extension. It initializes core services and handles message passing.
 
-- **API Client**: Manages communication with backend services
-- **Auth Manager**: Handles authentication and token management
-- **Capture Manager**: Coordinates content extraction and processing
-- **State Manager**: Tracks and syncs browser state
+#### Key Responsibilities:
 
-#### Content Scripts
+- Service initialization
+- Message routing
+- Task management
+- Browser event handling
 
-Content scripts handle page interaction:
-
-- **Content Extractor**: Extracts page content and metadata
-- **UI Overlay**: Provides status indicators and user feedback
-- **Network Monitor**: Reports network status to service worker
-
-#### Dashboard Components
-
-The dashboard consists of several specialized components:
-
-- **Navigation**: Sidebar navigation with section links
-- **Capture Panel**: UI for batch capture operations
-- **Knowledge Browser**: Interface for exploring captured content
-- **Chat Interface**: LLM agent interaction panel
-- **Visualization**: Knowledge graph visualization
-
-## Manifest V3 Considerations
-
-Manifest V3 introduces several important constraints that shape our implementation:
-
-### Service Worker Limitations
-
-- **No DOM Access**: Service workers cannot access window, document, or DOM APIs
-- **Event-Based Lifecycle**: Service workers can be terminated when inactive
-- **Limited Resources**: Memory and CPU usage is constrained
-
-### Adaptation Strategies
-
-1. **Content Script Delegation**
-   - Delegate DOM operations to content scripts
-   - Use message passing for communication
-   - Content scripts handle UI overlays and direct page interactions
-
-2. **Message-Based Architecture**
-   - Replace direct function calls with message passing
-   - Implement robust message handling patterns
-   - Use return values for async operations
-
-3. **State Persistence**
-   - Use chrome.storage for persistent state
-   - Implement recovery mechanisms for service worker restarts
-   - Cache important data for quick restoration
-
-4. **Network Status Handling**
-   - Monitor network status in content scripts
-   - Report changes to service worker via messages
-   - Implement offline queuing for operations
-
-### Code Patterns
+#### Initialization Flow:
 
 ```javascript
-// In content script (with DOM access)
-window.addEventListener('online', () => {
-  chrome.runtime.sendMessage({ 
-    action: 'networkStatusChange', 
-    isOnline: true 
-  });
-});
+// Initialization sequence
+async function initialize() {
+  try {
+    await authManager.initialize();
+    await stateManager.initialize();
+    
+    // Load configuration from storage
+    const config = await chrome.storage.local.get(['apiConfig', 'autoAnalyze', 'autoCapture']);
+    
+    // Update API base URL if configured
+    if (config.apiConfig?.baseUrl) {
+      apiClient.setBaseUrl(config.apiConfig.baseUrl);
+    }
+    
+    // Check for any active trackers
+    updateBadge();
+    
+    // Start badge update timer
+    setInterval(updateBadge, 5000);
+  } catch (error) {
+    logger.error('Initialization error:', error);
+  }
+}
+```
 
-// In service worker (no DOM access)
+#### Message Handling:
+
+The service worker uses a structured message handling approach:
+
+```javascript
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'networkStatusChange') {
-    updateNetworkStatus(message.isOnline);
+  // Return true to indicate we'll send a response asynchronously
+  const isAsync = true;
+  
+  // Handle various message types with a switch statement
+  switch (message.action) {
+    case 'captureUrl':
+      (async () => {
+        try {
+          const response = await captureUrl(/* params */);
+          sendResponse({ success: true, ...response });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error.message || 'Unknown error'
+          });
+        }
+      })();
+      return isAsync;
+      
+    // Additional message handlers...
   }
 });
 ```
 
-## Implementation Plan
+### Analysis Queue
 
-The implementation is divided into phases to enable incremental development and testing:
+The analysis queue (`analysis-queue.js`) manages asynchronous analysis tasks:
 
-### Phase 1: Foundation & Core Capture (2 weeks)
+- Task prioritization
+- Progress tracking
+- Status updates
+- Retry handling
 
-1. **Week 1: Basic Structure & Authentication**
-   - Complete extension scaffolding
-   - Implement authentication flow
-   - Set up API client structure
-   - Create basic popup UI
+It implements a producer-consumer pattern where tasks are queued and processed based on available resources.
 
-2. **Week 2: Page Capture & Content Scripts**
-   - Implement content extraction
-   - Create capture flow
-   - Add status overlays
-   - Develop offline handling
+### State Manager
 
-### Phase 2: Dashboard Development (3 weeks)
+The state manager (`state-manager.js`) tracks and synchronizes browser state:
 
-1. **Week 3: Dashboard Framework**
-   - Create dashboard shell
-   - Implement navigation
-   - Design component structure
-   - Connect to background services
+- Tab information
+- Window structure
+- Bookmark data
+- User preferences
 
-2. **Week 4: Batch Capture UI**
-   - Develop tab listing and selection
-   - Implement bookmark integration
-   - Create batch operation controls
-   - Add progress tracking
+It handles events from the browser API and maintains a consistent state model.
 
-3. **Week 5: Knowledge Browser**
-   - Create content browsing interface
-   - Implement search functionality
-   - Develop filtering controls
-   - Add relationship visualization
+### Auth Manager
 
-### Phase 3: Advanced Features (3 weeks)
+The auth manager (`auth-manager.js`) handles authentication flow:
 
-1. **Week 6: LLM Integration**
-   - Implement chat interface
-   - Create context management
-   - Add query handling
-   - Develop response rendering
+- Token management
+- Session persistence
+- Provider integration
+- Security enforcement
 
-2. **Week 7: Sidebar & Contextual Features**
-   - Design and implement optional sidebar
-   - Add contextual content recommendations
-   - Create smart capture suggestions
-   - Implement keyboard shortcuts
+## UI Components
 
-3. **Week 8: Polish & Performance**
-   - Optimize performance
-   - Enhance error handling
-   - Improve visual design
-   - Add animations and transitions
+### Dashboard Components
 
-### Testing Milestones
+The dashboard is built with a modular component architecture:
 
-- **T1**: Basic authentication and capture (end of Week 2)
-- **T2**: Dashboard functionality (end of Week 5)
-- **T3**: Complete feature set (end of Week 8)
+#### Navigation Component
 
-## API Integration
+The navigation component (`navigation.js`) manages panel navigation and tab switching:
 
-The extension will integrate with several API endpoints:
+```javascript
+async function handleNavigation(targetPanel, navItems, contentPanels, clickedItem) {
+  // Update navigation highlighting
+  navItems.forEach(navItem => navItem.classList.remove('active'));
+  clickedItem.classList.add('active');
+  
+  // Show corresponding panel
+  let panelFound = false;
+  contentPanels.forEach(panel => {
+    if (panel.id === `${targetPanel}-panel`) {
+      panel.classList.add('active');
+      panelFound = true;
+    } else {
+      panel.classList.remove('active');
+    }
+  });
+  
+  // Initialize panel if needed
+  await initializeTargetPanel(targetPanel);
+  
+  // Save last active panel to storage
+  try {
+    chrome.storage.local.set({ lastActivePanel: targetPanel });
+  } catch (storageError) {
+    logger.warn('Error saving last active panel:', storageError);
+  }
+}
+```
 
-### Core Endpoints
+#### Panel Components
 
-1. **Authentication**
-   - `/api/v1/auth/validate`: Validate authentication token
-   - `/api/v1/auth/providers`: Manage provider credentials
+The dashboard includes specialized panel components:
 
-2. **Content Capture**
-   - `/api/v1/pages/`: Submit individual pages
-   - `/api/v1/pages/batch`: Submit multiple pages
-   - `/api/v1/analysis/analyze`: Submit URLs for analysis
+1. **Overview Panel** (`overview-panel.js`)
+   - Displays summary statistics
+   - Shows recent activity
+   - Provides quick access to key features
 
-3. **Knowledge Graph**
-   - `/api/v1/graph/related/{url}`: Get related content
-   - `/api/v1/graph/search`: Search knowledge graph
+2. **Capture Panel** (`capture-panel.js`)
+   - Manages tab, bookmark, and history capture
+   - Handles batch operations
+   - Tracks capture status
 
-4. **Browser State**
-   - `/api/v1/browser/sync`: Sync browser state
+3. **Knowledge Panel** (`knowledge-panel.js`)
+   - Displays captured content
+   - Provides search and filtering
+   - Shows relationships between items
 
-5. **LLM Agent**
-   - `/api/v1/agent/query`: Submit questions to LLM agent
-   - `/api/v1/agent/status/{task_id}`: Check task status
+4. **Assistant Panel** (`assistant-panel.js`)
+   - Provides chat interface
+   - Manages context selection
+   - Handles query submission
 
-### Integration Patterns
+5. **Tasks Panel** (`tasks-panel.js`)
+   - Displays active and completed tasks
+   - Allows task management
+   - Shows progress information
 
-1. **Authentication Flow**
-   - Token-based authentication
-   - Automatic token refresh
-   - Session persistence
+6. **Settings Panel** (`settings-panel.js`)
+   - Provides configuration options
+   - Manages API settings
+   - Controls capture and analysis behavior
 
-2. **Request/Response Handling**
-   - Standard error handling
-   - Retry mechanisms
-   - Response normalization
+### Capture UI Components
 
-3. **Offline Support**
-   - Request queuing
-   - Batch synchronization
-   - Conflict resolution
+The capture functionality is split into specialized components:
 
-## State Management
+1. **Tabs Capture** (`tabs-capture.js`)
+   - Lists open tabs
+   - Handles tab selection
+   - Manages tab extraction
 
-The extension requires robust state management across components:
+2. **Bookmarks Capture** (`bookmarks-capture.js`)
+   - Lists bookmarks
+   - Provides folder-based filtering
+   - Handles bookmark selection
 
-### State Categories
+3. **History Capture** (`history-capture.js`)
+   - Lists browsing history
+   - Provides time-based filtering
+   - Handles history item selection
 
-1. **Authentication State**
-   - Current authentication status
-   - Token information
-   - Provider credentials
+### Graph Panel
 
-2. **Capture State**
-   - Capture history
-   - Pending captures
-   - Processing status
+The graph panel (`graph-panel.js`) provides visualization of the knowledge graph:
 
-3. **Browser State**
-   - Tab information
-   - Window structure
-   - Bookmark data
+- D3.js-based visualization
+- Interactive node display
+- Relationship visualization
+- Domain-based clustering
 
-4. **UI State**
-   - Current view
-   - Selected items
-   - Form values
+## Services
 
-### Storage Strategy
+### API Service
 
-1. **chrome.storage.local**
-   - Authentication tokens
-   - Capture history
-   - User preferences
-   - Offline queue
+The API service (`api-service.js`) manages communication with the backend:
 
-2. **In-Memory State**
-   - Current UI state
-   - Temporary data
-   - Session-specific information
+```javascript
+export async function fetchAPI(endpoint, options = {}) {
+  try {
+    // Get API base URL from storage
+    const data = await chrome.storage.local.get('apiConfig');
+    const baseURL = data.apiConfig?.baseURL || 'http://localhost:8000';
+    
+    // Ensure endpoint starts with /
+    const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    
+    // Set default headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...options.headers
+    };
+    
+    // Send request
+    logger.log('debug', `API Request: ${formattedEndpoint}`, { method: options.method || 'GET' });
+    
+    const response = await fetch(`${baseURL}${formattedEndpoint}`, {
+      ...options,
+      headers
+    });
+    
+    // Parse response
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    } else {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+  } catch (error) {
+    logger.log('error', `API Error: ${endpoint}`, { error: error.message });
+    throw error;
+  }
+}
+```
 
-3. **Background State**
-   - Active operations
-   - Service status
-   - Runtime configuration
+### Notification Service
 
-### State Synchronization
+The notification service (`notification-service.js`) manages UI notifications:
 
-1. **Component Communication**
-   - Message-based state updates
-   - Event listeners for changes
-   - Polling for long-running operations
+- Toast-style notifications
+- Progress indicators
+- Error messages
+- Success confirmations
 
-2. **Persistence Patterns**
-   - Debounced storage updates
-   - Atomic transactions where possible
-   - Version tracking for conflicts
+### Storage Service
 
-## Testing Strategy
+The storage service (`storage-service.js`) provides a consistent interface for data persistence:
 
-### Testing Levels
+- Settings management
+- Capture history tracking
+- Statistics collection
+- State persistence
+
+### Task Service
+
+The task service (`task-service.js`) coordinates background tasks:
+
+- Task creation
+- Status monitoring
+- Progress updates
+- Completion handling
+
+## Utilities
+
+### Capture Utilities
+
+The capture utilities (`capture.js`) provide consistent capture functionality:
+
+```javascript
+async function captureUrl(url, options = {}) {
+  // Validate URL
+  if (!url) {
+    logger.error('Capture failed: No URL provided');
+    return {
+      success: false,
+      error: 'No URL provided'
+    };
+  }
+  
+  // Extract and set default options
+  const { 
+    context = 'active_tab', 
+    tabId = null,
+    windowId = null,
+    title = null,
+    content = null,
+    metadata = null,
+    browser_contexts = null,
+    timeout = DEFAULT_TIMEOUT
+  } = options;
+  
+  try {
+    // Create consistent browser_contexts array
+    const contexts = browser_contexts || [context];
+    
+    // Always use a structured message
+    const message = {
+      action: 'captureUrl',
+      data: {
+        url,
+        context,
+        tabId,
+        windowId,
+        title,
+        content,
+        metadata,
+        browser_contexts: contexts
+      }
+    };
+    
+    // Send message to background script with timeout handling
+    const response = await Promise.race([
+      chrome.runtime.sendMessage(message),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`Request timed out after ${timeout}ms`)), timeout)
+      )
+    ]);
+    
+    // Additional processing...
+    
+    return result;
+  } catch (error) {
+    // Error handling...
+  }
+}
+```
+
+### Log Manager
+
+The log manager (`log-manager.js`) provides consistent logging:
+
+- Multiple logging levels
+- Context preservation
+- Storage persistence
+- Log export functionality
+
+### Progress Tracker
+
+The progress tracker (`progress-tracker.js`) manages operation progress:
+
+- Stage-based tracking
+- Event-based notifications
+- Persistent status
+- Error handling
+
+## Data Flow
+
+### Capture Flow
+
+1. User initiates capture (manual or automatic)
+2. Content extraction is performed
+3. Data is sent to backend API
+4. Progress is tracked and reported
+5. Results are stored and updated in UI
+
+### Analysis Flow
+
+1. Content is submitted for analysis
+2. Task is queued and managed
+3. Progress is monitored and reported
+4. Results are retrieved upon completion
+5. Knowledge graph is updated
+
+### Query Flow
+
+1. User submits a query
+2. Context is collected
+3. Query is sent to LLM service
+4. Response is streamed back
+5. Results are displayed and stored
+
+## Manifest V3 Implementation
+
+The extension is built using Manifest V3, which introduces several constraints:
+
+### Service Worker Lifecycle
+
+The service worker has a limited lifecycle:
+
+- Can be terminated when inactive
+- State must be persisted
+- Must be reinitialized on wake
+
+### Background-Content Communication
+
+Communication is handled through message passing:
+
+- Content script initiation
+- Background script responses
+- Async message handling
+
+### Resource Management
+
+Resource usage is optimized:
+
+- Efficient DOM operations
+- Careful memory management
+- Proper cleanup
+
+## Development Guidelines
+
+### Code Style
+
+The project follows consistent coding conventions:
+
+- ES6+ JavaScript features
+- Async/await for asynchronous operations
+- Clear error handling
+- Comprehensive logging
+
+### Component Structure
+
+New components should follow the established pattern:
+
+1. Import dependencies
+2. Set up logger
+3. Define state variables
+4. Implement initialization function
+5. Implement core functionality
+6. Implement utility functions
+7. Export public interface
+
+### Error Handling
+
+Error handling follows a consistent approach:
+
+```javascript
+try {
+  // Operation that might fail
+} catch (error) {
+  logger.error('Operation failed:', error);
+  // Clean up resources
+  // Notify user if appropriate
+  // Fallback behavior if possible
+}
+```
+
+### Performance Considerations
+
+- Use debounce for frequent operations
+- Batch DOM updates
+- Implement caching where appropriate
+- Clean up event listeners and resources
+
+## Testing
+
+### Testing Strategy
+
+The project implements a multi-level testing approach:
 
 1. **Unit Testing**
-   - Background service functions
-   - UI component rendering
-   - Utility functions
+   - Service functions
+   - Utility methods
+   - UI component logic
 
 2. **Integration Testing**
-   - Message passing between components
-   - API client and backend communication
-   - Authentication flow
+   - Message passing
+   - Service interactions
+   - UI component integration
 
 3. **End-to-End Testing**
-   - Complete user workflows
-   - Browser integration
-   - Extension lifecycle
+   - Complete workflows
+   - Browser interaction
+   - API integration
 
 ### Testing Tools
 
-1. **Jest**: For unit and integration tests
-2. **Puppeteer**: For browser automation and E2E tests
-3. **Mock Service Worker**: For API mocking
+Recommended testing tools:
 
-### Test Environments
+- Jest for unit testing
+- Puppeteer for browser automation
+- Mock Service Worker for API mocking
 
-1. **Development**: Local testing with mock API
-2. **Staging**: Testing against staging API environment
-3. **Production**: Verification in production environment
+## Future Enhancements
 
-## Best Practices
+Potential areas for further development:
 
-### Code Organization
-
-1. **Separation of Concerns**
-   - Clear component boundaries
-   - Single responsibility principle
-   - Interface-based design
-
-2. **Error Handling**
-   - Comprehensive error catching
-   - User-friendly error messages
-   - Automatic recovery where possible
-
-3. **Performance**
-   - Lazy loading of heavy components
-   - Efficient DOM operations
-   - Resource cleanup
-
-### Browser Extension Guidelines
-
-1. **Permission Usage**
-   - Request only necessary permissions
-   - Explain permission requirements to users
-   - Graceful degradation when permissions are denied
-
-2. **Resource Management**
-   - Efficient service worker usage
-   - Minimize memory footprint
-   - Clean up unused resources
-
-3. **Cross-Browser Compatibility**
-   - Follow WebExtensions API standards
-   - Avoid browser-specific features
-   - Test across multiple browsers
-
-### Security Considerations
-
-1. **Data Protection**
-   - Secure storage of sensitive information
-   - Proper authentication token handling
-   - Content security policy implementation
-
-2. **API Security**
-   - HTTPS for all communication
-   - Token validation
-   - Rate limiting compliance
-
-3. **User Privacy**
-   - Clear data usage policies
-   - User control over captured data
-   - Compliance with privacy regulations
-
-## Future Extensions
-
-Potential future enhancements include:
-
-1. **Advanced Visualizations**
+1. **Enhanced Visualization**
    - Interactive knowledge graph
-   - Semantic clustering
-   - Timeline views
+   - Temporal visualization
+   - Relationship mapping
 
-2. **AI Enhancements**
-   - Proactive research suggestions
-   - Personalized content organization
-   - Automated summarization
+2. **Advanced AI Integration**
+   - Proactive suggestions
+   - Content summarization
+   - Research assistance
 
 3. **Collaboration Features**
    - Shared research spaces
-   - Collaborative annotation
    - Team knowledge base
+   - Annotation sharing
 
-4. **Integration Ecosystem**
-   - Note-taking app integrations
-   - Document management connections
-   - Academic research tools
+4. **Mobile Integration**
+   - Mobile browser support
+   - Cross-device synchronization
+   - Touch-optimized interfaces
+
+5. **API Expansion**
+   - Additional data sources
+   - Enhanced analysis capabilities
+   - Integration with external tools
 
 ---
 
-This technical design document outlines the approach, architecture, and implementation plan for the Marvin browser extension. It provides a roadmap for development while highlighting important considerations related to Manifest V3 compatibility, user experience, and extension best practices.
-
-By following this hybrid UI approach and phased implementation plan, we can deliver a powerful research assistant that balances quick access with comprehensive functionality, all while maintaining compatibility with modern browser extension requirements.
+This documentation provides an overview of the Marvin browser extension architecture, components, and development guidelines. For more detailed information about specific components, refer to the inline documentation in the source code.

@@ -1,7 +1,7 @@
 from typing import Set, Optional
 import functools
 import pycountry
-import us
+# import us
 from dataclasses import dataclass, field
 from core.utils.logger import get_logger
 
@@ -82,15 +82,15 @@ class AbbreviationService:
             
         return self._country_codes
     
-    @functools.lru_cache(maxsize=1000)
-    def get_us_state_codes(self) -> Set[str]:
-        """Get US state abbreviations."""
-        if self._us_state_codes is None:
-            codes = {state.abbr for state in us.states.STATES}
-            self._us_state_codes = codes if not self.config.ignore_case else {
-                code.lower() for code in codes
-            }
-        return self._us_state_codes
+    # @functools.lru_cache(maxsize=1000)
+    # def get_us_state_codes(self) -> Set[str]:
+    #     """Get US state abbreviations."""
+    #     if self._us_state_codes is None:
+    #         codes = {state.abbr for state in us.states.STATES}
+    #         self._us_state_codes = codes if not self.config.ignore_case else {
+    #             code.lower() for code in codes
+    #         }
+    #     return self._us_state_codes
     
     @functools.lru_cache(maxsize=1000)
     def get_tech_abbreviations(self) -> Set[str]:
@@ -205,7 +205,7 @@ class AbbreviationService:
         """Get comprehensive set of all abbreviations."""
         all_abbrevs = set()
         all_abbrevs.update(self.get_country_codes())
-        all_abbrevs.update(self.get_us_state_codes())
+        # all_abbrevs.update(self.get_us_state_codes())
         all_abbrevs.update(self.get_tech_abbreviations())
         all_abbrevs.update(self.get_units_abbreviations())
         all_abbrevs.update(self.get_product_names())

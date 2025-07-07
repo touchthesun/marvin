@@ -1,6 +1,9 @@
 Project Overview:
 Marvin is a browser extension that helps users organize and leverage their browsing history and research materials through an active knowledge graph and LLM-powered interface.
 
+Code Generation:
+- Your edit tool is not working currently. Do not try to change files yourself, instead print code in chat and allow user to implement manually.
+
 Coding Standards:
 - Use Python 3.10+ features and type hints
 - Follow PEP 8 style guide with Black formatting
@@ -11,17 +14,18 @@ Coding Standards:
 - Follow separation of concerns principle
 
 Project Structure:
-- marvin/core: Backend Python code for LLM and knowledge graph
-- marvin/extension: Chrome extension code
-- marvin/utils: Development utilities
-- docs/: Project documentation
-- archive/: Archived code and experiments. Ignore in search.
+- core: Backend Python code for LLM and knowledge graph
+- extension: Chrome extension code
+- api: FastAPI server, routes, models
+- utils: Development utilities
+- docs: Project documentation
+
 
 Libraries and Tools:
 - Neo4j for knowledge graph
 - FastAPI for backend API
-- LangChain for LLM integration
-- React/TypeScript for extension UI
+- Javascript for extension UI
+
 
 Testing Requirements:
 - Write unit tests before implementation

@@ -11,6 +11,7 @@ nav:
 - Home: index.md
 - Architecture:
   - Overview: architecture/overview.md
+  - Extension: architecture/extension.md
   - Decisions: architecture/decisions.md
   - Roadmap: architecture/roadmap.md
   - Auth Provider: architecture/auth-provider.md

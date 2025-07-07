@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="43" failures="0" errors="0" time="4.33">
+  <testsuite name="Dashboard Component" errors="0" failures="0" skipped="0" timestamp="2025-07-06T09:18:30" time="3.994" tests="43">
+    <testcase classname="Dashboard Component Basic Structure" name="Dashboard exists and has required methods" time="2.967">
+    </testcase>
+    <testcase classname="Dashboard Component Basic Structure" name="Dashboard starts with correct initial state" time="0.011">
+    </testcase>
+    <testcase classname="Dashboard Component DOM Structure Validation" name="finds all required navigation elements" time="0.015">
+    </testcase>
+    <testcase classname="Dashboard Component DOM Structure Validation" name="finds debug panel elements" time="0.008">
+    </testcase>
+    <testcase classname="Dashboard Component DOM Structure Validation" name="dashboard.html includes dashboard.css link" time="0.007">
+    </testcase>
+    <testcase classname="Dashboard Component Initialization" name="initDashboard starts initialization process" time="0.02">
+    </testcase>
+    <testcase classname="Dashboard Component Initialization" name="sets up logger during initialization" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Setup" name="setupEventHandlers finds debug panel elements" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Setup" name="setupEventHandlers finds test components button" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Fallback Navigation" name="setupFallbackNavigation finds navigation items" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Fallback Navigation" name="navigation items have required data attributes" time="0.007">
+    </testcase>
+    <testcase classname="Dashboard Component Debug Interface" name="createDebugInterface creates global debug object" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Cleanup" name="cleanup method exists and is callable" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Cleanup" name="cleanup resets initialization state" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Error Handling" name="showInitializationError creates error display" time="0.007">
+    </testcase>
+    <testcase classname="Dashboard Component Component System Integration" name="initializes component system during dashboard init" time="0.01">
+    </testcase>
+    <testcase classname="Dashboard Component Component System Integration" name="navigation component is initialized" time="0.009">
+    </testcase>
+    <testcase classname="Dashboard Component Panel Management" name="overview panel is active by default" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Panel Management" name="navigation items have correct active state" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Functionality" name="debug panel toggle works" time="0.013">
+    </testcase>
+    <testcase classname="Dashboard Component Event Handler Functionality" name="test components button triggers debug output update" time="0.009">
+    </testcase>
+    <testcase classname="Dashboard Component Resource Management" name="tracks event listeners during initialization" time="0.009">
+    </testcase>
+    <testcase classname="Dashboard Component Resource Management" name="cleanup removes all tracked resources" time="0.008">
+    </testcase>
+    <testcase classname="Dashboard Component Fallback Navigation Functionality" name="fallback navigation switches panels" time="0.029">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="Reload Overview button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="Refresh button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="View All button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Overview Panel" name="Explore button is present and clickable" time="0.006">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Reload Capture Data button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Capture Selected button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Select All button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Capture Panel" name="Deselect All button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Knowledge Panel" name="Reload Knowledge Data button is present and clickable" time="0.007">
+    </testcase>
+    <testcase classname="Dashboard Component Knowledge Panel" name="Explore button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Assistant Panel" name="Reload Assistant button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Tasks Panel" name="Reload Analysis Data button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Settings Panel" name="Reload Settings button is present and clickable" time="0.005">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;overview&quot; is present and switches panel on click" time="0.04">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;capture&quot; is present and switches panel on click" time="0.04">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;knowledge&quot; is present and switches panel on click" time="0.042">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;assistant&quot; is present and switches panel on click" time="0.04">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;tasks&quot; is present and switches panel on click" time="0.041">
+    </testcase>
+    <testcase classname="Dashboard Component Sidebar Navigation" name="Nav item for &quot;settings&quot; is present and switches panel on click" time="0.042">
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marvin Extension Diagnostics</title>
+  <link rel="stylesheet" href="diagnostics.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Marvin Extension Diagnostics</h1>
+    <p>This is a diagnostic panel for troubleshooting issues with the Marvin extension.</p>
+    
+    <div id="diagnostic-tools-status" class="diagnostic-status">
+      Initializing diagnostic tools...
+    </div>
+
+    <div class="panel">
+      <h2>Extension Information</h2>
+      <div id="extension-info">Loading...</div>
+      <button id="check-extension">Check Extension Info</button>
+    </div>
+
+    <div class="panel">
+      <h2>Memory Usage</h2>
+      <div id="memory-info">Click "Check Memory" to see current usage</div>
+      <div id="memory-chart" class="progress-bar-container hidden">
+        <div id="memory-bar" class="progress-bar" style="width: 0%"></div>
+      </div>
+      <button id="check-memory">Check Memory</button>
+      <button id="start-memory-monitoring">Start Monitoring</button>
+      <button id="stop-memory-monitoring" class="hidden">Stop Monitoring</button>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Environment</h2>
+        <div id="environment-info">Loading...</div>
+        <button id="check-environment">Check Environment</button>
+      </div>
+
+      <div class="panel">
+        <h2>Storage Status</h2>
+        <div id="storage-info">Click to check storage</div>
+        <button id="check-storage">Check Storage</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Component System Test</h2>
+      <div id="component-status">Click button below to test component system directly</div>
+      <p><small><em>Note: This tests the component system in the diagnostics context, not the popup/dashboard context.</em></small></p>
+      <button id="test-component-system">Test Component System</button>
+    </div>
+
+    <div class="panel">
+      <h2>Background Connection</h2>
+      <div id="background-status">Click to test connection to background script</div>
+      <button id="ping-background">Ping Background</button>
+    </div>
+
+    <div class="panel">
+      <h2>Message Statistics</h2>
+      <div id="message-stats">Click buttons below to view message statistics</div>
+      <button id="get-message-stats">Get Statistics</button>
+      <button id="reset-message-stats">Reset Statistics</button>
+    </div>
+
+    <div id="status-container" class="status">
+      <h3>Status</h3>
+      <div id="status-message">Ready for diagnostics</div>
+    </div>
+
+    <div class="panel">
+      <h2>Results</h2>
+      <pre id="result-output"></pre>
+      <button id="clear-results">Clear Results</button>
+    </div>
+  </div>
+
+  <script type="module" src="diagnostics-dashboard.js"></script>
+</body>
+</html>

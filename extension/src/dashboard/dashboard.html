@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marvin Research Assistant</title>
+    
+    <!-- CSS styles -->
+    <link rel="stylesheet" href="./dashboard.css">
+    
+    <!-- CSP-safe bootstrapper script -->
+    <!-- <script src="./js/utils/script-loader.js"></script> -->
+  </head>
+  
+<body>
+  <div class="dashboard-container">
+    <!-- Left sidebar for navigation -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <img src="../icons/icon48.png" alt="Marvin" class="logo">
+        <h1>Marvin</h1>
+      </div>
+      
+      <ul class="nav-links navigation">
+        <li class="nav-item active" data-panel="overview">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Overview</span>
+        </li>
+        <li class="nav-item" data-panel="capture">
+          <span class="nav-icon">📥</span>
+          <span class="nav-label">Capture</span>
+        </li>
+        <li class="nav-item" data-panel="knowledge">
+          <span class="nav-icon">🧠</span>
+          <span class="nav-label">Knowledge</span>
+        </li>
+        <li class="nav-item" data-panel="assistant">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Assistant</span>
+        </li>
+        <li class="nav-item" data-panel="tasks">
+          <span class="nav-icon">🔍</span>
+          <span class="nav-label">Analysis Tasks</span>
+        </li>
+        <li class="nav-item" data-panel="settings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Settings</span>
+        </li>
+      </ul>
+      
+      <div class="sidebar-footer">
+        <div class="status-indicator">
+          <span class="status-dot online"></span>
+          <span class="status-text">Online</span>
+        </div>
+        <div class="user-info">
+          <span class="username">Test User</span>
+          <button id="logout-btn" class="btn-text">Logout</button>
+        </div>
+      </div>
+    </nav>
+    
+    <!-- Main content area -->
+    <main class="main-content">
+      <!-- Overview Panel -->
+      <section id="overview-panel" class="content-panel active" data-component="overview-panel">
+        <header class="panel-header">
+          <h2>Overview</h2>
+          <div class="panel-actions">
+            <button id="force-init-overview" class="btn-secondary">Reload Overview</button>
+            <button class="refresh-btn">Refresh</button>
+          </div>
+        </header>
+        
+        <div class="dashboard-stats">
+          <div class="stat-card">
+            <h3>Captured Pages</h3>
+            <p class="stat-value" id="captured-count">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Knowledge Relationships</h3>
+            <p class="stat-value" id="relationship-count">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Research Queries</h3>
+            <p class="stat-value" id="query-count">0</p>
+          </div>
+        </div>
+        
+        <div class="dashboard-widgets">
+          <div class="widget recent-captures">
+            <h3>Recent Captures</h3>
+            <div class="widget-content">
+              <ul class="capture-list" id="recent-captures-list">
+                <!-- Will be populated dynamically -->
+                <li class="empty-state">No recent captures</li>
+              </ul>
+            </div>
+            <div class="widget-footer">
+              <button class="btn-secondary" id="view-all-captures">View All</button>
+            </div>
+          </div>
+          
+          <div class="widget knowledge-preview">
+            <h3>Knowledge Graph</h3>
+            <div class="widget-content">
+              <div class="graph-placeholder">
+                <p>Knowledge graph visualization will appear here</p>
+              </div>
+            </div>
+            <div class="widget-footer">
+              <button class="btn-secondary" id="explore-knowledge">Explore</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Capture Panel -->
+      <section id="capture-panel" class="content-panel" data-component="capture-panel">
+        <header class="panel-header">
+          <h2>Capture</h2>
+          <div class="panel-actions">
+            <button id="force-init-capture" class="btn-secondary">Reload Capture Data</button>
+            <button class="btn-primary" id="capture-selected">Capture Selected</button>
+          </div>
+        </header>
+        
+        <div class="capture-tabs">
+          <button class="tab-btn active" data-tab="tabs">Open Tabs</button>
+          <button class="tab-btn" data-tab="bookmarks">Bookmarks</button>
+          <button class="tab-btn" data-tab="history">History</button>
+        </div>
+        
+        <div class="capture-tab-content">
+          <!-- Tabs Tab -->
+          <div id="tabs-content" class="tab-pane active">
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="tabs-search" class="search-input" placeholder="Search tabs...">
+              </div>
+              <div class="filter-container">
+                <select id="tabs-window-filter" class="filter-select">
+                  <option value="all">All Windows</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-tabs" class="btn-text">Select All</button>
+                <button id="deselect-all-tabs" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="tabs-list">
+              <!-- Will be populated dynamically -->
+              <div class="loading-indicator">Loading tabs...</div>
+            </div>
+          </div>
+          
+          <!-- Bookmarks Tab -->
+          <div id="bookmarks-content" class="tab-pane">
+            <!-- Bookmarks content -->
+            <div class="loading-indicator">Loading bookmarks...</div>
+          </div>
+          
+          <!-- History Tab -->
+          <div id="history-content" class="tab-pane">
+            <!-- History content -->
+            <div class="loading-indicator">Loading history...</div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Knowledge Panel -->
+      <section id="knowledge-panel" class="content-panel" data-component="knowledge-panel">
+        <header class="panel-header">
+          <h2>Knowledge</h2>
+          <div class="panel-actions">
+            <button id="force-init-knowledge" class="btn-secondary">Reload Knowledge Data</button>
+          </div>
+        </header>
+        <div class="loading-indicator">Loading knowledge panel...</div>
+      </section>
+      
+      <!-- Assistant Panel -->
+      <section id="assistant-panel" class="content-panel" data-component="assistant-panel">
+        <header class="panel-header">
+          <h2>Research Assistant</h2>
+          <div class="panel-actions">
+            <button id="force-init-assistant" class="btn-secondary">Reload Assistant</button>
+          </div>
+        </header>
+        <div class="loading-indicator">Loading assistant panel...</div>
+      </section>
+      
+      <!-- Tasks Panel -->
+      <section id="tasks-panel" class="content-panel" data-component="tasks-panel">
+        <header class="panel-header">
+          <h2>Analysis Tasks</h2>
+          <div class="panel-actions">
+            <button id="force-init-tasks" class="btn-secondary">Reload Analysis Data</button>
+          </div>
+        </header>
+        <div class="loading-indicator">Loading tasks panel...</div>
+      </section>
+      
+      <!-- Settings Panel -->
+      <section id="settings-panel" class="content-panel" data-component="settings-panel">        <header class="panel-header">
+          <h2>Settings</h2>
+          <div class="panel-actions">
+            <button id="force-init-settings" class="btn-secondary">Reload Settings</button>
+          </div>
+        </header>
+        <div class="loading-indicator">Loading settings panel...</div>
+      </section>
+    </main>
+  </div>
+  
+  <!-- Debug Panel -->
+  <div id="debug-panel" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #f0f0f0; border-top: 1px solid #ccc; padding: 10px; z-index: 9999;">
+    <h3>Debug Information</h3>
+    <div id="debug-output" style="max-height: 200px; overflow: auto; background: white; padding: 10px; border: 1px solid #ccc;"></div>
+    <div style="margin-top: 10px;">
+      <button id="toggle-debug-panel" class="btn-secondary">Hide Debug Panel</button>
+      <button id="clear-debug" class="btn-secondary">Clear Debug</button>
+      <button id="test-components" class="btn-secondary">Test Components</button>
+      <button id="open-diagnostics" class="btn-primary">Open Diagnostics</button>
+    </div>
+  </div>
+  
+  <!-- Fixed debug toggle button -->
+  <button id="show-debug-panel" style="position: fixed; bottom: 10px; right: 10px; z-index: 9998; padding: 5px 10px;">
+    Debug
+  </button>
+  <script src="/dashboard/dashboard.js"></script>
+</body>
+</html>
