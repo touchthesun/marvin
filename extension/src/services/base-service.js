@@ -14,9 +14,9 @@ export class BaseService {
     this._dependencies = new Map();
     
     // Task state management
-    this._activeTasks = new WeakMap();
-    this._taskTimers = new WeakMap();
-    this._taskListeners = new WeakSet();
+    this._activeTasks = new Map();
+    this._taskTimers = new Map();
+    this._taskListeners = new Set();
     
     // Memory management
     this._maxTaskAge = options.maxTaskAge || 300000; // 5 minutes
@@ -176,7 +176,7 @@ export class BaseService {
   async _cleanupTasks() {
     const now = Date.now();
     
-    // Clear old tasks
+    // Clear old tasks - Now we can iterate over the Map
     for (const [task, state] of this._activeTasks) {
       if (now - state.lastChecked > this._maxTaskAge) {
         this._activeTasks.delete(task);

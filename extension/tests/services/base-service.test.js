@@ -13,8 +13,9 @@ describe('BaseService', () => {
   });
 
   afterEach(async () => {
-    // Skip cleanup for now to avoid WeakMap iteration errors
-    // We'll fix this in the service code later
+    if (service && typeof service.cleanup === 'function') {
+      await service.cleanup();
+    }
   });
 
   describe('Basic Functionality', () => {
@@ -45,10 +46,47 @@ describe('BaseService', () => {
     });
   });
 
-  describe('Task Management - Expected Failures', () => {
-    // Mark these as expected failures since WeakMap iteration is broken
-    test.todo('should handle task tracking without WeakMap iteration errors');
-    test.todo('should handle cleanup without WeakMap iteration errors');
+  describe('Task Management', () => {
+    test('should handle task tracking without iteration errors', () => {
+      const mockTask = { id: 'test-task' };
+      const initialState = { status: 'pending' };
+      
+      // This should work now that we're using Map instead of WeakMap
+      expect(() => {
+        service._trackTask(mockTask, initialState);
+      }).not.toThrow();
+      
+      // Verify task was tracked
+      expect(service._activeTasks.has(mockTask)).toBe(true);
+    });
+
+    test('should handle cleanup without iteration errors', async () => {
+      // Add a task first
+      const mockTask = { id: 'test-task' };
+      service._trackTask(mockTask, { status: 'pending' });
+      
+      // This should work now that we're using Map instead of WeakMap
+      expect(() => {
+        service._cleanupTasks();
+      }).not.toThrow();
+    });
+
+    test('should handle maximum task limit', () => {
+      // Set a low limit for testing
+      service._maxActiveTasks = 2;
+      
+      const task1 = { id: 'task1' };
+      const task2 = { id: 'task2' };
+      const task3 = { id: 'task3' };
+      
+      service._trackTask(task1, { status: 'pending' });
+      service._trackTask(task2, { status: 'pending' });
+      
+      // Third task should trigger cleanup attempt and then throw
+      expect(() => {
+        service._trackTask(task3, { status: 'pending' });
+      }).toThrow('Maximum number of active tasks reached');
+    });
   });
 
   describe('Circuit Breaker', () => {
