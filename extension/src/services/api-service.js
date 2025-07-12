@@ -24,9 +24,9 @@ export class ApiService extends BaseService {
     // State initialization
     this._baseURL = 'http://localhost:8000'; // Default base URL
     this._apiKey = null;
-    this._activeRequests = new WeakMap(); // Track active requests for cleanup
-    this._abortControllers = new WeakMap(); // For cancelling in-flight requests
-    this._messagePorts = new WeakSet(); // Track message ports
+    this._activeRequests = new Map(); // Changed from WeakMap to Map
+    this._abortControllers = new Map(); // Changed from WeakMap to Map
+    this._messagePorts = new Set(); // Track message ports
     
     // Request statistics with size limits
     this._stats = {
@@ -126,13 +126,13 @@ export class ApiService extends BaseService {
       // Load API endpoint configuration
       if (data.apiConfig?.baseURL) {
         this._baseURL = data.apiConfig.baseURL;
-        this._logger.debug(`API base URL set to: ${this._baseURL}`);
+        this._logger?.debug(`API base URL set to: ${this._baseURL}`);
       }
       
       // Set API key if available
       if (data.apiConfig?.apiKey) {
         this._apiKey = data.apiConfig.apiKey;
-        this._logger.debug('API key configured');
+        this._logger?.debug('API key configured');
       }
       
       // Load service configuration
@@ -141,10 +141,11 @@ export class ApiService extends BaseService {
           ...this._config,
           ...data.apiServiceConfig
         };
-        this._logger.debug('API service configuration loaded', this._config);
+        this._logger?.debug('API service configuration loaded', this._config);
       }
     } catch (error) {
-      this._logger.warn('Failed to load configuration, using defaults:', error);
+      // Use optional chaining to avoid undefined logger errors
+      this._logger?.warn('Failed to load configuration, using defaults:', error);
     }
   }
 
@@ -181,8 +182,8 @@ export class ApiService extends BaseService {
       }
     }
     
-    this._abortControllers = new WeakMap();
-    this._activeRequests = new WeakMap();
+    this._abortControllers.clear();
+    this._activeRequests.clear();
   }
 
   /**
@@ -213,10 +214,10 @@ export class ApiService extends BaseService {
       failedRequests: 0,
       requestsByEndpoint: {},
       averageResponseTime: 0,
-      totalResponseTime: 0
+      totalResponseTime: 0,
+      maxEndpointStats: 1000,
+      maxRequestAge: 3600000
     };
-    
-    this._logger?.debug('API statistics reset');
   }
   
   /**
@@ -365,7 +366,11 @@ export class ApiService extends BaseService {
         this._stats.failedRequests++;
       }
       
-      return result;
+      return {
+        ...result,
+        requestId,
+        responseTime
+      };
     } catch (error) {
       // Update timing stats
       const responseTime = Date.now() - startTime;
@@ -380,7 +385,9 @@ export class ApiService extends BaseService {
       
       return {
         success: false,
-        error: error.message || 'Unknown error'
+        error: error.message || 'Unknown error',
+        requestId,
+        responseTime
       };
     } finally {
       // Clean up request tracking
@@ -400,6 +407,8 @@ export class ApiService extends BaseService {
    */
   async _fetchWithRetry(endpoint, options = {}, requestId, retryCount = 0) {
     try {
+      console.log(`🔍 _fetchWithRetry called with endpoint: ${endpoint}, timeout: ${options.timeout}`);
+      
       // Ensure endpoint starts with /
       const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       
@@ -422,15 +431,26 @@ export class ApiService extends BaseService {
       
       // Create abort controller for timeout
       const controller = new AbortController();
-      const timeoutId = this._resourceTracker.trackTimeout(() => {
-        controller.abort();
-      }, options.timeout || this._config.timeoutMs);
+      let timeoutId;
+      
+      // Use the passed timeout or default
+      const timeoutMs = options.timeout || this._config.timeoutMs;
+      console.log(`⏰ Setting up timeout for ${timeoutMs}ms`);
+      
+      if (timeoutMs) {
+        timeoutId = setTimeout(() => {
+          console.log(`⏰ Timeout triggered after ${timeoutMs}ms, aborting request`);
+          controller.abort();
+        }, timeoutMs);
+        console.log(`⏰ Timeout ID set: ${timeoutId}`);
+      }
       
       // Store abort controller for potential cleanup
       this._abortControllers.set(requestId, controller);
+      console.log(`📦 Stored abort controller for request: ${requestId}`);
       
       // Log request
-      this._logger.debug(`API Request: ${formattedEndpoint}`, { 
+      this._logger?.debug(`API Request: ${formattedEndpoint}`, { 
         method: options.method || 'GET',
         baseURL: this._baseURL,
         requestId
@@ -444,6 +464,8 @@ export class ApiService extends BaseService {
         isEssential: options.isEssential || false
       });
       
+      console.log(`🌐 Making fetch request to: ${this._baseURL}${formattedEndpoint}`);
+      
       // Send request
       const response = await fetch(`${this._baseURL}${formattedEndpoint}`, {
         ...options,
@@ -451,108 +473,46 @@ export class ApiService extends BaseService {
         signal: controller.signal
       });
       
-      // Clear timeout
-      clearTimeout(timeoutId);
+      console.log(`📥 Fetch completed, clearing timeout`);
       
-      // Parse response
+      // Clear timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        console.log(`⏰ Timeout cleared: ${timeoutId}`);
+      }
+      
+      // Handle response
       if (response.ok) {
-        // Check content type for JSON parsing
-        const contentType = response.headers.get('content-type');
-        let data;
-        
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json();
-        } else {
-          // Handle non-JSON responses
-          const textData = await response.text();
-          data = {
-            success: true,
-            text: textData,
-            contentType
-          };
-        }
-        
-        this._logger.debug(`API Response: ${formattedEndpoint}`, { 
-          status: response.status,
-          requestId
-        });
-        
-        return {
-          success: true,
-          ...data
-        };
+        const data = await response.json();
+        return { success: true, data };
       } else {
-        // Try to parse error response
-        let errorData;
+        // Handle HTTP errors
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        error.status = response.status;
         
-        try {
-          // Check content type for JSON parsing
-          const contentType = response.headers.get('content-type');
-          
-          if (contentType && contentType.includes('application/json')) {
-            errorData = await response.json();
-          } else {
-            const errorText = await response.text();
-            errorData = { error: errorText };
-          }
-        } catch (parseError) {
-          // If parsing fails, use status text
-          errorData = { error: response.statusText };
-        }
-        
-        const errorMessage = errorData.error || `API error (${response.status})`;
-        
-        this._logger.warn(`API Error Response: ${formattedEndpoint}`, {
-          status: response.status,
-          error: errorMessage,
-          requestId
-        });
-        
-        // Check if we should retry
+        // Retry logic
         if (retryCount < this._config.retryCount && this._shouldRetry(response.status)) {
-          // Calculate delay with exponential backoff
           const delay = this._config.retryDelay * Math.pow(2, retryCount);
-          
-          this._logger.debug(`Retrying request (${retryCount + 1}/${this._config.retryCount}) after ${delay}ms`);
-          
-          // Wait before retry
           await new Promise(resolve => setTimeout(resolve, delay));
-          
-          // Retry the request
           return this._fetchWithRetry(endpoint, options, requestId, retryCount + 1);
         }
         
-        // No more retries, return error
-        return {
-          success: false,
-          status: response.status,
-          error: errorMessage,
-          ...errorData
-        };
+        throw error;
       }
     } catch (error) {
-      // Handle abort (timeout)
+      console.log(`❌ Error in _fetchWithRetry: ${error.name} - ${error.message}`);
+      
+      // Handle network errors
       if (error.name === 'AbortError') {
-        this._logger.warn(`API request timeout: ${endpoint}`, { requestId });
-        return {
-          success: false,
-          error: 'Request timed out',
-          timeout: true
-        };
+        console.log(`⏰ AbortError caught, throwing timeout error`);
+        throw new Error('Request timed out');
       }
       
-      // Check if we should retry network errors
-      if (retryCount < this._config.retryCount && 
-          (error.name === 'TypeError' || error.name === 'NetworkError')) {
-        // Calculate delay with exponential backoff
+      // Retry logic for network errors
+      if (retryCount < this._config.retryCount && this._shouldRetry(0)) {
         const delay = this._config.retryDelay * Math.pow(2, retryCount);
-        
-        this._logger.debug(`Retrying request after network error (${retryCount + 1}/${this._config.retryCount}) after ${delay}ms`);
-        
-        // Wait before retry
         await new Promise(resolve => setTimeout(resolve, delay));
-        
-        // Retry the request
         return this._fetchWithRetry(endpoint, options, requestId, retryCount + 1);
       }
       
@@ -567,33 +527,30 @@ export class ApiService extends BaseService {
    * @private
    */
   _shouldRetry(statusCode) {
-    // Retry server errors and specific client errors
-    return (
-      statusCode >= 500 || // Server errors
-      statusCode === 408 || // Request Timeout
-      statusCode === 429    // Too Many Requests
-    );
+    // Retry on 5xx errors, rate limits, and network errors (status 0)
+    return statusCode >= 500 || statusCode === 429 || statusCode === 0;
   }
-  
+
   /**
    * Update endpoint statistics
    * @param {string} endpoint - API endpoint
    * @private
    */
   _updateEndpointStats(endpoint) {
-    // Normalize endpoint by removing query parameters
-    const normalizedEndpoint = endpoint.split('?')[0];
-    
-    if (!this._stats.requestsByEndpoint[normalizedEndpoint]) {
-      this._stats.requestsByEndpoint[normalizedEndpoint] = 0;
+    if (!this._stats.requestsByEndpoint[endpoint]) {
+      this._stats.requestsByEndpoint[endpoint] = {
+        count: 0,
+        successCount: 0,
+        errorCount: 0,
+        averageResponseTime: 0
+      };
     }
-    
-    this._stats.requestsByEndpoint[normalizedEndpoint]++;
+    this._stats.requestsByEndpoint[endpoint].count++;
   }
-  
+
   /**
-   * Update response timing statistics
-   * @param {number} responseTime - Response time in ms
+   * Update timing statistics
+   * @param {number} responseTime - Response time in milliseconds
    * @private
    */
   _updateTimingStats(responseTime) {
@@ -805,20 +762,9 @@ export class ApiService extends BaseService {
     // Cancel all in-flight requests
     await this._cancelAllRequests();
     
-    // Close all message ports
-    for (const port of this._messagePorts) {
-      try {
-        port.disconnect();
-      } catch (error) {
-        this._logger?.warn('Error disconnecting message port:', error);
-      }
-    }
-    this._messagePorts = new WeakSet();
-    
-    // Clear and nullify Maps
-    this._activeRequests = new WeakMap();
-    this._abortControllers = new WeakMap();
-    this._errorCounts.clear();
+    // Clear Maps
+    this._activeRequests.clear();
+    this._abortControllers.clear();
     
     // Reset statistics
     this._resetStatistics();
