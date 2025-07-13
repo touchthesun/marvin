@@ -59,19 +59,22 @@ export class ApiService extends BaseService {
    */
   async _performInitialization() {
     try {
-      // Create logger
+      // Create logger for background script context
       this._logger = new LogManager({
         context: 'api-service',
-        isBackgroundScript: false,
+        isBackgroundScript: true,
         maxEntries: 1000
       });
       
-      this._logger.info('Initializing API service');
+      this._logger.info('Initializing API service in background script context');
       
       // Load configuration from storage
       await this._loadConfiguration();
       
-      this._logger.info('API service initialized successfully');
+      // Initialize message handlers for background script communication
+      await this._initializeMessageHandlers();
+      
+      this._logger.info('API service initialized successfully in background script');
       return true;
     } catch (error) {
       this._logger?.error('Error initializing API service:', error);
@@ -83,14 +86,19 @@ export class ApiService extends BaseService {
    * Clean up resources
    */
   async _performCleanup() {
-    this._logger?.info('Cleaning up API service');
+    this._logger?.info('Cleaning up API service in background script');
+    
+    // Remove message listeners
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.onMessage.removeListener(this._handleApiRequest);
+    }
     
     // Cancel all in-flight requests
     await this._cancelAllRequests();
     
-    // Clear and nullify Maps
-    this._activeRequests = new WeakMap();
-    this._abortControllers = new WeakMap();
+    // Clear Maps
+    this._activeRequests.clear();
+    this._abortControllers.clear();
     
     // Reset statistics
     this._resetStatistics();
@@ -407,7 +415,7 @@ export class ApiService extends BaseService {
    */
   async _fetchWithRetry(endpoint, options = {}, requestId, retryCount = 0) {
     try {
-      console.log(`🔍 _fetchWithRetry called with endpoint: ${endpoint}, timeout: ${options.timeout}`);
+      // console.log(`🔍 _fetchWithRetry called with endpoint: ${endpoint}, timeout: ${options.timeout}`);
       
       // Ensure endpoint starts with /
       const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -435,19 +443,19 @@ export class ApiService extends BaseService {
       
       // Use the passed timeout or default
       const timeoutMs = options.timeout || this._config.timeoutMs;
-      console.log(`⏰ Setting up timeout for ${timeoutMs}ms`);
+      // console.log(`⏰ Setting up timeout for ${timeoutMs}ms`);
       
       if (timeoutMs) {
         timeoutId = setTimeout(() => {
-          console.log(`⏰ Timeout triggered after ${timeoutMs}ms, aborting request`);
+          // console.log(`⏰ Timeout triggered after ${timeoutMs}ms, aborting request`);
           controller.abort();
         }, timeoutMs);
-        console.log(`⏰ Timeout ID set: ${timeoutId}`);
+        // console.log(`⏰ Timeout ID set: ${timeoutId}`);
       }
       
       // Store abort controller for potential cleanup
       this._abortControllers.set(requestId, controller);
-      console.log(`📦 Stored abort controller for request: ${requestId}`);
+      // console.log(`📦 Stored abort controller for request: ${requestId}`);
       
       // Log request
       this._logger?.debug(`API Request: ${formattedEndpoint}`, { 
@@ -464,7 +472,7 @@ export class ApiService extends BaseService {
         isEssential: options.isEssential || false
       });
       
-      console.log(`🌐 Making fetch request to: ${this._baseURL}${formattedEndpoint}`);
+      // console.log(`🌐 Making fetch request to: ${this._baseURL}${formattedEndpoint}`);
       
       // Send request
       const response = await fetch(`${this._baseURL}${formattedEndpoint}`, {
@@ -473,12 +481,12 @@ export class ApiService extends BaseService {
         signal: controller.signal
       });
       
-      console.log(`📥 Fetch completed, clearing timeout`);
+      // console.log(`📥 Fetch completed, clearing timeout`);
       
       // Clear timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
-        console.log(`⏰ Timeout cleared: ${timeoutId}`);
+        // console.log(`⏰ Timeout cleared: ${timeoutId}`);
       }
       
       // Handle response
@@ -501,11 +509,11 @@ export class ApiService extends BaseService {
         throw error;
       }
     } catch (error) {
-      console.log(`❌ Error in _fetchWithRetry: ${error.name} - ${error.message}`);
+      // console.log(`❌ Error in _fetchWithRetry: ${error.name} - ${error.message}`);
       
       // Handle network errors
       if (error.name === 'AbortError') {
-        console.log(`⏰ AbortError caught, throwing timeout error`);
+        // console.log(`⏰ AbortError caught, throwing timeout error`);
         throw new Error('Request timed out');
       }
       
@@ -752,6 +760,338 @@ export class ApiService extends BaseService {
 
     return Array.from(this._errorCounts.values()).some(count => count >= this._circuitBreakerThreshold);
   }
+  // extension/src/services/api-service.js
+// Add message passing interface for background script
+
+/**
+ * Initialize message handlers for background script communication
+ * @private
+ */
+async _initializeMessageHandlers() {
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    // Listen for API requests from UI components
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      this._logger?.debug('Received message in API service:', message);
+      
+      if (message.action === 'apiRequest') {
+        this._handleApiRequest(message, sendResponse);
+        return true; // Keep message channel open for async response
+      }
+      
+      if (message.action === 'getApiStatus') {
+        this._handleStatusRequest(sendResponse);
+        return true;
+      }
+      
+      if (message.action === 'updateApiConfig') {
+        this._handleConfigUpdate(message, sendResponse);
+        return true;
+      }
+      
+      return false; // Message not handled
+    });
+    
+    this._logger?.info('Message handlers initialized for API service');
+  }
+}
+
+/**
+ * Handle API requests from UI components
+ * @param {object} message - The message containing the API request
+ * @param {function} sendResponse - Function to send response back
+ * @private
+ */
+async _handleApiRequest(message, sendResponse) {
+  const startTime = Date.now();
+  const { endpoint, options = {}, requestId } = message;
+  
+  try {
+    this._logger?.debug(`Processing API request: ${endpoint}`, { 
+      requestId,
+      method: options.method || 'GET',
+      hasBody: !!options.body
+    });
+    
+    // Validate request
+    if (!endpoint) {
+      throw new Error('Endpoint is required');
+    }
+    
+    // Add request tracking
+    this._activeRequests.set(requestId, {
+      endpoint,
+      startTime,
+      options,
+      isEssential: options.isEssential || false
+    });
+    
+    // Make the API request
+    const result = await this.fetchAPI(endpoint, options);
+    
+    // Calculate response time
+    const responseTime = Date.now() - startTime;
+    
+    // Send structured response back to UI
+    sendResponse({
+      success: true,
+      data: result,
+      requestId,
+      responseTime,
+      timestamp: new Date().toISOString()
+    });
+    
+    this._logger?.debug(`API request completed: ${endpoint}`, { 
+      success: result.success,
+      requestId,
+      responseTime
+    });
+    
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    
+    this._logger?.error('Error handling API request:', error);
+    
+    // Send structured error response
+    sendResponse({
+      success: false,
+      error: {
+        type: this._classifyError(error),
+        message: error.message,
+        diagnostic: {
+          endpoint,
+          requestId,
+          responseTime,
+          timestamp: new Date().toISOString(),
+          retryCount: 0 // Could be enhanced to track actual retries
+        }
+      },
+      requestId,
+      responseTime,
+      timestamp: new Date().toISOString()
+    });
+  } finally {
+    // Clean up request tracking
+    this._activeRequests.delete(requestId);
+  }
+}
+
+/**
+ * Classify error for structured error responses
+ * @param {Error} error - The error to classify
+ * @returns {string} Error type
+ * @private
+ */
+_classifyError(error) {
+  if (error.name === 'TypeError' && error.message.includes('fetch')) {
+    return 'NETWORK_ERROR';
+  }
+  
+  if (error.name === 'AbortError') {
+    return 'TIMEOUT_ERROR';
+  }
+  
+  if (error.status >= 400 && error.status < 500) {
+    return 'CLIENT_ERROR';
+  }
+  
+  if (error.status >= 500) {
+    return 'SERVER_ERROR';
+  }
+  
+  if (error.message.includes('timed out')) {
+    return 'TIMEOUT_ERROR';
+  }
+  
+  return 'API_ERROR';
+}
+
+/**
+ * Handle status requests from UI components
+ * @param {function} sendResponse - Function to send response back
+ * @private
+ */
+async _handleStatusRequest(sendResponse) {
+  try {
+    const status = this.getStatus();
+    const stats = this.getStatistics();
+    
+    sendResponse({
+      success: true,
+      data: {
+        status,
+        statistics: stats
+      }
+    });
+  } catch (error) {
+    this._logger?.error('Error handling status request:', error);
+    
+    sendResponse({
+      success: false,
+      error: {
+        type: 'STATUS_ERROR',
+        message: error.message
+      }
+    });
+  }
+}
+
+/**
+ * Handle configuration update requests
+ * @param {object} message - The message containing config updates
+ * @param {function} sendResponse - Function to send response back
+ * @private
+ */
+async _handleConfigUpdate(message, sendResponse) {
+  try {
+    const { config } = message;
+    
+    this._logger?.debug('Updating API configuration:', config);
+    
+    // Update configuration
+    const success = await this.updateConfiguration(config);
+    
+    if (success) {
+      sendResponse({
+        success: true,
+        message: 'Configuration updated successfully'
+      });
+    } else {
+      sendResponse({
+        success: false,
+        error: {
+          type: 'CONFIG_ERROR',
+          message: 'Failed to update configuration'
+        }
+      });
+    }
+  } catch (error) {
+    this._logger?.error('Error handling config update:', error);
+    
+    sendResponse({
+      success: false,
+      error: {
+        type: 'CONFIG_ERROR',
+        message: error.message
+      }
+    });
+  }
+}
+
+  /**
+ * Send API request from UI component (for backward compatibility)
+ * @param {string} endpoint - API endpoint
+ * @param {object} options - Request options
+ * @returns {Promise<object>} Response data
+ */
+async sendApiRequest(endpoint, options = {}) {
+  if (!this._initialized) {
+    try {
+      await this.initialize();
+    } catch (error) {
+      throw new Error(`Service initialization failed: ${error.message}`);
+    }
+  }
+  
+  // Generate request ID
+  const requestId = `ui-req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  
+  // Create message for internal routing
+  const message = {
+    action: 'apiRequest',
+    endpoint,
+    options,
+    requestId
+  };
+  
+  // Use internal handler directly
+  return new Promise((resolve, reject) => {
+    this._handleApiRequest(message, (response) => {
+      if (response.success) {
+        resolve(response.data);
+      } else {
+        reject(new Error(response.error.message));
+      }
+    });
+  });
+}
+
+/**
+ * Get service status from UI component
+ * @returns {Promise<object>} Service status
+ */
+async getServiceStatus() {
+  if (!this._initialized) {
+    try {
+      await this.initialize();
+    } catch (error) {
+      throw new Error(`Service initialization failed: ${error.message}`);
+    }
+  }
+  
+  return new Promise((resolve, reject) => {
+    this._handleStatusRequest((response) => {
+      if (response.success) {
+        resolve(response.data);
+      } else {
+        reject(new Error(response.error.message));
+      }
+    });
+  });
+  }
+
+  /**
+   * Enhanced health checking with BackendHealthMonitor integration
+   * @returns {Promise<boolean>} Connection status
+   */
+  async checkConnection() {
+    if (!this._initialized) {
+      try {
+        await this.initialize();
+      } catch (error) {
+        this._logger?.error('Failed to initialize service during checkConnection:', error);
+        return false;
+      }
+    }
+    
+    try {
+      // Try to connect to health endpoint
+      const response = await this.fetchAPI('/api/v1/health', {
+        method: 'GET',
+        timeout: 5000
+      });
+      
+      const isHealthy = response && response.success && response.data?.status === 'ok';
+      
+      // Update health monitor if available
+      if (this._healthMonitor) {
+        this._healthMonitor._updateBackendStatus(
+          isHealthy ? 'healthy' : 'unhealthy',
+          isHealthy ? 'API health check successful' : 'API health check failed'
+        );
+      }
+      
+      return isHealthy;
+    } catch (error) {
+      this._logger.warn('API connection check failed:', error);
+      
+      // Update health monitor if available
+      if (this._healthMonitor) {
+        this._healthMonitor._updateBackendStatus('unhealthy', `API connection error: ${error.message}`);
+      }
+      
+      return false;
+    }
+  }
+
+  /**
+   * Set the health monitor reference
+   * @param {BackendHealthMonitor} healthMonitor - Health monitor instance
+   */
+  setHealthMonitor(healthMonitor) {
+    this._healthMonitor = healthMonitor;
+    this._logger?.debug('Health monitor reference set');
+  }
+
 
   /**
    * Clean up resources
@@ -775,3 +1115,4 @@ export class ApiService extends BaseService {
     this._apiKey = null;
   }
 }
+

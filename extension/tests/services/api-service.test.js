@@ -268,4 +268,68 @@ describe('ApiService', () => {
       expect(apiService._activeRequests.size).toBe(0);
     });
   });
+
+  describe('ApiService Background Script Integration', () => {
+    let apiService;
+  
+    beforeEach(() => {
+      // Mock Chrome runtime for background script context
+      global.chrome = {
+        storage: {
+          local: {
+            get: jest.fn().mockResolvedValue({}),
+            set: jest.fn().mockResolvedValue()
+          }
+        },
+        runtime: {
+          onMessage: {
+            addListener: jest.fn(),
+            removeListener: jest.fn()
+          }
+        }
+      };
+  
+      // Create API service instance
+      apiService = new (require('../../src/services/api-service.js').ApiService)();
+    });
+  
+    afterEach(async () => {
+      if (apiService && apiService.initialized) {
+        await apiService.cleanup();
+      }
+      jest.clearAllMocks();
+    });
+  
+    test('should initialize in background script context', async () => {
+      await apiService.initialize();
+      
+      expect(apiService._logger).toBeDefined();
+      expect(chrome.runtime.onMessage.addListener).toHaveBeenCalled();
+    });
+  
+    test('should handle API requests via message passing', async () => {
+      await apiService.initialize();
+      
+      const mockResponse = { data: 'test response' };
+      global.fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue(mockResponse)
+      });
+  
+      const result = await apiService.sendApiRequest('/test');
+      
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
+    });
+  
+    test('should get service status via message passing', async () => {
+      await apiService.initialize();
+      
+      const status = await apiService.getServiceStatus();
+      
+      expect(status.status).toBeDefined();
+      expect(status.statistics).toBeDefined();
+    });
+  });
 });

@@ -1,11 +1,13 @@
-// src/services/message-service.js
+// extension/src/services/message-service.js
+// Update for background script context and routing capabilities
+
 import { BaseService } from '../services/base-service.js'
 import { LogManager } from '../utils/log-manager.js';
 
 /**
  * MessageService - Centralized messaging service for Chrome extension
- * Provides a consistent interface for sending messages to the background script
- * and listening for messages from other contexts
+ * Provides bidirectional communication between extension contexts
+ * Adapted for background script context with enhanced routing
  */
 export class MessageService extends BaseService {
   /**
@@ -19,7 +21,9 @@ export class MessageService extends BaseService {
     retryDelay: 1000,
     maxRetryDelay: 30000,
     circuitBreakerThreshold: 5,
-    circuitBreakerTimeout: 60000
+    circuitBreakerTimeout: 60000,
+    maxTaskAge: 300000, // 5 minutes
+    maxActiveTasks: 50
   };
 
   /**
@@ -29,8 +33,8 @@ export class MessageService extends BaseService {
   constructor(options = {}) {
     super({
       ...options,
-      maxTaskAge: 300000, // 5 minutes
-      maxActiveTasks: 50,
+      maxTaskAge: options.maxTaskAge || MessageService._DEFAULT_CONFIG.maxTaskAge,
+      maxActiveTasks: options.maxActiveTasks || MessageService._DEFAULT_CONFIG.maxActiveTasks,
       maxRetryAttempts: options.maxRetries || MessageService._DEFAULT_CONFIG.maxRetries,
       retryBackoffBase: options.retryDelay || MessageService._DEFAULT_CONFIG.retryDelay,
       retryBackoffMax: options.maxRetryDelay || MessageService._DEFAULT_CONFIG.maxRetryDelay,
@@ -38,9 +42,16 @@ export class MessageService extends BaseService {
       circuitBreakerTimeout: options.circuitBreakerTimeout || MessageService._DEFAULT_CONFIG.circuitBreakerTimeout
     });
 
+    // Context detection
+    this._detectContext();
+    
     // State initialization
     this._defaultTimeout = options.defaultTimeout || MessageService._DEFAULT_CONFIG.defaultTimeout;
     this._maxPendingRequests = options.maxPendingRequests || MessageService._DEFAULT_CONFIG.maxPendingRequests;
+    
+    // Enhanced message routing
+    this._serviceHandlers = new Map();  // service → handler
+    this._contextHandlers = new Map();  // context → handler
     
     // Statistics tracking
     this._stats = {
@@ -51,7 +62,9 @@ export class MessageService extends BaseService {
       averageResponseTime: 0,
       totalResponseTime: 0,
       receivedMessages: 0,
-      handledMessages: 0
+      handledMessages: 0,
+      routedMessages: 0,
+      crossContextMessages: 0
     };
     
     // Generate unique instance ID for this service instance
@@ -60,6 +73,37 @@ export class MessageService extends BaseService {
     // Bind handlers
     this._handleMessage = this._handleMessage.bind(this);
   }
+
+  /**
+   * Detect the current context (background script vs extension page)
+   * @private
+   */
+  _detectContext() {
+    // Check if we're in a background script context
+    this._isBackgroundScript = typeof chrome !== 'undefined' && 
+      chrome.runtime && 
+      typeof chrome.runtime.getBackgroundPage === 'undefined';
+    
+    // Check if we're in a service worker context - IMPROVED DETECTION
+    this._isServiceWorker = (
+      // Method 1: Standard instanceof check
+      (typeof ServiceWorkerGlobalScope !== 'undefined' && 
+       self instanceof ServiceWorkerGlobalScope) ||
+      // Method 2: Constructor name check
+      (typeof self !== 'undefined' && 
+       self.constructor && 
+       self.constructor.name === 'ServiceWorkerGlobalScope') ||
+      // Method 3: Global scope check
+      (typeof globalThis !== 'undefined' && 
+       globalThis.ServiceWorkerGlobalScope && 
+       globalThis instanceof globalThis.ServiceWorkerGlobalScope) ||
+      // Method 4: Direct property check for test environment
+      (typeof self !== 'undefined' && 
+       self._isServiceWorkerTest === true)
+    );
+    
+    this._context = this._isBackgroundScript ? 'background' : 'extension-page';
+  }
   
   /**
    * Initialize the service
@@ -67,14 +111,14 @@ export class MessageService extends BaseService {
    */
   async _performInitialization() {
     try {
-      // Create logger
+      // Create logger with context-aware configuration
       this._logger = new LogManager({
         context: 'message-service',
-        isBackgroundScript: false,
+        isBackgroundScript: this._isBackgroundScript,
         maxEntries: 1000
       });
       
-      this._logger.info('Initializing MessageService');
+      this._logger.info(`Initializing MessageService in ${this._context} context`);
       
       // Initialize Maps
       this._pendingRequests = new Map();
@@ -82,6 +126,11 @@ export class MessageService extends BaseService {
       
       // Set up message listener
       this._setupMessageListener();
+      
+      // Restore state if in service worker context
+      if (this._isServiceWorker) {
+        await this._restorePendingRequests();
+      }
       
       this._logger.info('MessageService initialized successfully');
       return true;
@@ -103,9 +152,16 @@ export class MessageService extends BaseService {
     // Cancel all pending requests
     await this._cancelAllRequests();
     
+    // Store critical state if in service worker context
+    if (this._isServiceWorker) {
+      await this._storeCriticalState();
+    }
+    
     // Clear and nullify Maps
     this._messageListeners = null;
     this._pendingRequests = null;
+    this._serviceHandlers = null;
+    this._contextHandlers = null;
     
     // Reset and nullify statistics
     this._resetStatistics();
@@ -162,7 +218,7 @@ export class MessageService extends BaseService {
   }
 
   /**
-   * Set up message listener
+   * Set up message listener based on context
    * @private
    */
   _setupMessageListener() {
@@ -178,7 +234,7 @@ export class MessageService extends BaseService {
     // Add message listener
     chrome.runtime.onMessage.addListener(this._handleMessage);
     
-    this._logger.debug('Message listener set up');
+    this._logger.debug(`Message listener set up in ${this._context} context`);
   }
   
   /**
@@ -196,7 +252,7 @@ export class MessageService extends BaseService {
   }
 
   /**
-   * Handle incoming messages
+   * Enhanced message handler with routing capabilities
    * @param {object} message - Incoming message
    * @param {object} sender - Message sender
    * @param {function} sendResponse - Function to send response
@@ -226,7 +282,35 @@ export class MessageService extends BaseService {
       return false; // Don't keep channel open
     }
     
-    // If it's not a response, check if we have a listener for this action
+    // Enhanced routing: Check for service-specific handlers
+    if (message.service && this._serviceHandlers.has(message.service)) {
+      this._stats.routedMessages++;
+      const handler = this._serviceHandlers.get(message.service);
+      
+      try {
+        const result = Promise.resolve(handler(message, sender));
+        result.then(response => {
+          sendResponse({ success: true, data: response });
+        }).catch(error => {
+          this._logger?.error(`Error in service handler for "${message.service}":`, error);
+          sendResponse({ 
+            success: false, 
+            error: this._classifyError(error, message) 
+          });
+        });
+        
+        return true; // Keep channel open for async response
+      } catch (error) {
+        this._logger?.error(`Error in service handler for "${message.service}":`, error);
+        sendResponse({ 
+          success: false, 
+          error: this._classifyError(error, message) 
+        });
+        return false;
+      }
+    }
+    
+    // Legacy routing: Check if we have a listener for this action
     if (message.action && this._messageListeners.has(message.action)) {
       const handlers = this._messageListeners.get(message.action);
       
@@ -270,7 +354,8 @@ export class MessageService extends BaseService {
       }
     }
     
-    // No handler found for this action
+    // No handler found for this message
+    this._logger?.warn(`No handler found for message:`, message);
     return false;
   }
   
@@ -304,6 +389,13 @@ export class MessageService extends BaseService {
     
     // Add handler
     handlers.push(handler);
+    
+    // CRITICAL FIX: Track the event listener with resource tracker
+    this._resourceTracker.trackEventListener(
+      this, // The service itself as the element
+      'message', // Event type
+      handler // The handler function
+    );
     
     this._logger?.debug(`Added message listener for action "${action}"`);
     
@@ -354,10 +446,53 @@ export class MessageService extends BaseService {
   }
   
   /**
-   * Send message to background script with timeout and error handling
+   * Add a service handler for routing messages to specific services
+   * @param {string} service - Service name (e.g., 'api', 'storage', 'task')
+   * @param {function} handler - Handler function
+   * @returns {function} Function to remove the handler
+   */
+  addServiceHandler(service, handler) {
+    if (!this._initialized) {
+      try {
+        this.initialize();
+      } catch (error) {
+        this._logger?.error('Failed to initialize service during addServiceHandler:', error);
+        return () => {};
+      }
+    }
+    
+    if (!service || typeof handler !== 'function') {
+      this._logger?.warn('Invalid service handler parameters');
+      return () => {};
+    }
+    
+    this._serviceHandlers.set(service, handler);
+    
+    this._logger?.debug(`Added service handler for "${service}"`);
+    
+    // Return function to remove this specific handler
+    return () => {
+      this._removeServiceHandler(service);
+    };
+  }
+  
+  /**
+   * Remove a service handler
+   * @param {string} service - Service name to remove handler for
+   * @private
+   */
+  _removeServiceHandler(service) {
+    if (this._serviceHandlers.has(service)) {
+      this._serviceHandlers.delete(service);
+      this._logger?.debug(`Removed service handler for "${service}"`);
+    }
+  }
+
+  /**
+   * Send message with enhanced routing
    * @param {Object} message - Message to send
    * @param {number} timeout - Timeout in milliseconds
-   * @returns {Promise<any>} Response from background script
+   * @returns {Promise<any>} Response from receiver
    */
   async sendMessage(message, timeout = this._defaultTimeout) {
     if (!this._initialized) {
@@ -395,11 +530,13 @@ export class MessageService extends BaseService {
     // Generate unique request ID for tracking
     const requestId = `${this._instanceId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // Add request ID to message for tracking
+    // Enhanced message structure with routing metadata
     const messageWithId = { 
       ...message, 
       requestId,
-      source: 'message-service' 
+      source: 'message-service',
+      context: this._context,
+      timestamp: Date.now()
     };
     
     try {
@@ -436,124 +573,245 @@ export class MessageService extends BaseService {
       };
     }
   }
-  
-  /**
-   * Internal promise-based message sending
-   * @param {object} message - Message to send
-   * @param {number} timeout - Timeout in milliseconds
-   * @returns {Promise<object>} Response from receiver
-   * @private
-   */
-  _sendMessageWithPromise(message, timeout) {
-    return new Promise((resolve, reject) => {
-      // Check pending requests limit
-      if (this._pendingRequests.size >= this._maxPendingRequests) {
-        reject(new Error('Too many pending requests'));
-        return;
-      }
 
-      // Set up timeout
-      const timeoutId = this._resourceTracker.trackTimeout(() => {
-        if (this._pendingRequests.has(message.requestId)) {
-          this._pendingRequests.delete(message.requestId);
-          reject(new Error(`Message timeout after ${timeout}ms`));
-        }
-      }, timeout);
-      
-      // Store resolver and timeout ID
-      this._pendingRequests.set(message.requestId, {
-        resolve,
-        timeoutId,
-        sentAt: Date.now(),
-        message
-      });
-      
-      // Log outgoing message
-      this._logger?.debug('Sending message:', {
-        action: message.action,
-        requestId: message.requestId
-      });
-      
-      // Send message to background
-      if (this._isChromeAvailable()) {
-        chrome.runtime.sendMessage(message).catch(error => {
-          // Clear timeout and request tracking
-          clearTimeout(timeoutId);
-          this._pendingRequests.delete(message.requestId);
-          
-          // Log error
-          this._logger?.error('Chrome runtime error:', error);
-          
-          // Reject with error
-          reject(error);
-        });
-      } else {
-        // Chrome APIs not available, reject immediately
-        clearTimeout(timeoutId);
-        this._pendingRequests.delete(message.requestId);
-        reject(new Error('Chrome runtime APIs not available'));
-      }
-    });
-  }
-  
   /**
-   * Send message with retry logic
-   * @param {Object} message - Message to send
-   * @param {Object} options - Options for retry
-   * @param {number} options.maxRetries - Maximum number of retries
-   * @param {number} options.retryDelay - Delay between retries in ms
-   * @param {number} options.timeout - Timeout for each attempt
-   * @returns {Promise<any>} Response from background script
+   * Send message to specific service
+   * @param {string} service - Service name
+   * @param {Object} data - Service-specific data
+   * @param {Object} options - Options for the message
+   * @returns {Promise<any>} Response from service
    */
-  async sendMessageWithRetry(message, options = {}) {
-    const maxRetries = options.maxRetries || this._maxRetryAttempts;
-    const retryDelay = options.retryDelay || this._retryBackoffBase;
-    const timeout = options.timeout || this._defaultTimeout;
-    
-    let lastError;
-    let attempt = 0;
-    
-    while (attempt <= maxRetries) {
+  async sendToService(service, data, options = {}) {
+    if (!this._initialized) {
       try {
-        const response = await this.sendMessage(message, timeout);
-        
-        // Check if response indicates success
-        if (response && response.success) {
-          return response;
-        }
-        
-        // If response indicates error but not timeout, might be worth retrying
-        lastError = new Error(response.error || 'Unknown error');
-        
-        // Don't retry specific error types
-        if (this._shouldNotRetry(response)) {
-          throw lastError;
-        }
+        await this.initialize();
       } catch (error) {
-        lastError = error;
-        
-        // Don't retry specific error types
-        if (error.message && !error.message.includes('timeout') && !error.message.includes('network')) {
-          throw error;
-        }
+        return {
+          success: false,
+          error: `Service initialization failed: ${error.message}`
+        };
       }
-      
-      // Only delay and retry if not on last attempt
-      if (attempt < maxRetries) {
-        const delay = this._calculateRetryDelay(attempt, retryDelay);
-        this._logger?.warn(`Message attempt ${attempt + 1} failed, retrying in ${delay}ms:`, lastError);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-      
-      attempt++;
     }
     
-    // If we got here, all retries failed
-    return {
-      success: false,
-      error: lastError?.message || 'All retry attempts failed',
-      retriesExhausted: true
+    // Check if we have a local service handler
+    if (this._serviceHandlers.has(service)) {
+      const message = {
+        service,
+        data,
+        ...options
+      };
+      
+      return this._handleLocalMessage(message);
+    }
+    
+    // Fall back to sending via message system
+    const message = {
+      service,
+      data,
+      ...options
     };
+    
+    return this.sendMessage(message, options.timeout);
+  }
+
+  /**
+   * Send message to background script (from extension page)
+   * @param {Object} message - Message to send
+   * @param {number} timeout - Timeout in milliseconds
+   * @returns {Promise<any>} Response from background script
+   */
+  async sendToBackground(message, timeout = this._defaultTimeout) {
+    if (this._isBackgroundScript) {
+      // We're already in background, handle locally
+      return this._handleLocalMessage(message);
+    } else {
+      // Send to background script
+      return this.sendMessage(message, timeout);
+    }
+  }
+
+  /**
+   * Send message to extension pages (from background script)
+   * @param {Object} message - Message to send
+   * @param {Object} options - Options for sending
+   * @returns {Promise<Array>} Responses from extension pages
+   */
+  async sendToExtensionPages(message, options = {}) {
+    if (!this._isBackgroundScript) {
+      throw new Error('sendToExtensionPages can only be called from background script');
+    }
+    
+    try {
+      const tabs = await chrome.tabs.query({});
+      const responses = await Promise.allSettled(
+        tabs.map(tab => 
+          chrome.tabs.sendMessage(tab.id, message).catch(() => null)
+        )
+      );
+      
+      return responses
+        .filter(result => result.status === 'fulfilled' && result.value)
+        .map(result => result.value);
+    } catch (error) {
+      this._logger?.error('Error sending to extension pages:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Handle message locally (when sender and receiver are in same context)
+   * @param {Object} message - Message to handle
+   * @returns {Promise<any>} Response
+   * @private
+   */
+  async _handleLocalMessage(message) {
+    // Check for service handlers first
+    if (message.service && this._serviceHandlers.has(message.service)) {
+      this._stats.routedMessages++;
+      const handler = this._serviceHandlers.get(message.service);
+      
+      try {
+        const result = await Promise.resolve(handler(message, null));
+        return result;
+      } catch (error) {
+        this._logger?.error(`Error in service handler for "${message.service}":`, error);
+        return { 
+          success: false, 
+          error: this._classifyError(error, message) 
+        };
+      }
+    }
+    
+    // Check for message listeners
+    if (message.action && this._messageListeners.has(message.action)) {
+      const handlers = this._messageListeners.get(message.action);
+      
+      // Execute all handlers
+      const promises = handlers.map(handler => {
+        try {
+          return Promise.resolve(handler(message, null));
+        } catch (error) {
+          this._logger?.error(`Error in message handler for action "${message.action}":`, error);
+          return Promise.resolve({ success: false, error: error.message });
+        }
+      });
+      
+      if (handlers.length > 0) {
+        this._stats.handledMessages++;
+        
+        // Execute all handlers and return the first successful result
+        const results = await Promise.all(promises);
+        const successResult = results.find(r => r && r.success);
+        if (successResult) {
+          return successResult;
+        } else {
+          // Combine error messages
+          const errors = results
+            .filter(r => r && r.error)
+            .map(r => r.error)
+            .join('; ');
+            
+          return { success: false, error: errors || 'Unknown error' };
+        }
+      }
+    }
+    
+    // No handler found
+    this._logger?.warn(`No handler found for message:`, message);
+    return { success: false, error: 'No handler found for message' };
+  }
+
+  /**
+   * Classify error for enhanced error handling
+   * @param {Error} error - Error to classify
+   * @param {Object} message - Original message
+   * @returns {Object} Classified error information
+   * @private
+   */
+  _classifyError(error, message) {
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      return { 
+        type: 'NETWORK_ERROR', 
+        message: 'Network unavailable', 
+        retryable: true 
+      };
+    }
+    
+    if (error.name === 'AbortError') {
+      return { 
+        type: 'TIMEOUT_ERROR', 
+        message: 'Request timed out', 
+        retryable: true 
+      };
+    }
+    
+    if (error.message && error.message.includes('Chrome runtime APIs not available')) {
+      return { 
+        type: 'CONTEXT_ERROR', 
+        message: 'Chrome APIs not available in this context', 
+        retryable: false 
+      };
+    }
+    
+    return { 
+      type: 'SYSTEM_ERROR', 
+      message: error.message, 
+      retryable: false 
+    };
+  }
+
+  /**
+   * Store critical state for service worker persistence
+   * @private
+   */
+  async _storeCriticalState() {
+    if (!this._isChromeAvailable() || !this._isServiceWorker) {
+      return;
+    }
+    
+    try {
+      const pendingRequests = {};
+      this._pendingRequests.forEach((data, requestId) => {
+        pendingRequests[requestId] = {
+          ...data,
+          storedAt: Date.now()
+        };
+      });
+      
+      await chrome.storage.local.set({ 
+        messageServicePendingRequests: pendingRequests 
+      });
+      
+      this._logger?.debug('Stored critical state');
+    } catch (error) {
+      this._logger?.error('Error storing critical state:', error);
+    }
+  }
+
+  /**
+   * Restore pending requests from storage (for service worker restart)
+   * @private
+   */
+  async _restorePendingRequests() {
+    if (!this._isChromeAvailable() || !this._isServiceWorker) {
+      return;
+    }
+    
+    try {
+      const { messageServicePendingRequests } = await chrome.storage.local.get(['messageServicePendingRequests']) || {};
+      const now = Date.now();
+      
+      for (const [requestId, data] of Object.entries(messageServicePendingRequests || {})) {
+        // Only restore recent requests
+        if (now - data.storedAt < this._maxTaskAge) {
+          this._pendingRequests.set(requestId, data);
+        }
+      }
+      
+      this._logger?.debug(`Restored ${this._pendingRequests.size} pending requests`);
+    } catch (error) {
+      this._logger?.error('Error restoring pending requests:', error);
+    }
   }
   
   /**
@@ -701,7 +959,9 @@ export class MessageService extends BaseService {
       averageResponseTime: 0,
       totalResponseTime: 0,
       receivedMessages: 0,
-      handledMessages: 0
+      handledMessages: 0,
+      routedMessages: 0,
+      crossContextMessages: 0
     };
     
     this._logger?.debug('Statistics reset');
@@ -721,4 +981,39 @@ export class MessageService extends BaseService {
       stats: this.getStatistics(),
       circuitBreakerOpen: this._isCircuitBreakerOpen()
     };
-  }}
+  }
+
+  /**
+   * Send message with promise-based timeout tracking
+   * @param {Object} message - Message to send
+   * @param {number} timeout - Timeout in milliseconds
+   * @returns {Promise<any>} Response from receiver
+   * @private
+   */
+  _sendMessageWithPromise(message, timeout) {
+    return new Promise((resolve, reject) => {
+      // CRITICAL FIX: Track the timeout with resource tracker
+      const timeoutId = this._resourceTracker.trackTimeout(() => {
+        if (this._pendingRequests.has(message.requestId)) {
+          this._pendingRequests.delete(message.requestId);
+          reject(new Error(`Message timeout after ${timeout}ms`));
+        }
+      }, timeout);
+      
+      // Store resolver and timeout ID
+      this._pendingRequests.set(message.requestId, {
+        resolve,
+        timeoutId,
+        sentAt: Date.now(),
+        message
+      });
+      
+      // Send message to background
+      chrome.runtime.sendMessage(message).catch(error => {
+        clearTimeout(timeoutId);
+        this._pendingRequests.delete(message.requestId);
+        reject(error);
+      });
+    });
+  }
+}
