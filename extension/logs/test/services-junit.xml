@@ -1,202 +1,203 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="65" failures="0" errors="0" time="1.291">
-  <testsuite name="MessageService" errors="0" failures="0" skipped="26" timestamp="2025-07-13T20:03:22" time="0.741" tests="30">
-    <testcase classname="MessageService Initialization" name="should initialize successfully" time="0">
-      <skipped/>
+<testsuites name="jest tests" tests="65" failures="7" errors="0" time="22.428">
+  <testsuite name="ApiService" errors="0" failures="0" skipped="0" timestamp="2025-07-14T00:12:48" time="21.523" tests="18">
+    <testcase classname="ApiService Initialization" name="should create API service instance" time="0.019">
     </testcase>
-    <testcase classname="MessageService Initialization" name="should handle initialization error" time="0">
-      <skipped/>
+    <testcase classname="ApiService Initialization" name="should start uninitialized" time="0.002">
     </testcase>
-    <testcase classname="MessageService Resource Tracking" name="should track message listeners" time="0">
-      <skipped/>
+    <testcase classname="ApiService Initialization" name="should have API service specific properties" time="0.002">
     </testcase>
-    <testcase classname="MessageService Resource Tracking" name="should track timeouts" time="0">
-      <skipped/>
+    <testcase classname="ApiService Service Properties" name="should have required API service properties" time="0.002">
     </testcase>
-    <testcase classname="MessageService Context Detection" name="should detect background script context" time="0">
-      <skipped/>
+    <testcase classname="ApiService API Requests" name="should handle successful API requests" time="0.033">
     </testcase>
-    <testcase classname="MessageService Context Detection" name="should detect extension page context" time="0">
-      <skipped/>
+    <testcase classname="ApiService API Requests" name="should handle API errors (4xx/5xx)" time="7.008">
     </testcase>
-    <testcase classname="MessageService Context Detection" name="should detect service worker context" time="0">
-      <skipped/>
+    <testcase classname="ApiService API Requests" name="should handle network errors" time="7.012">
     </testcase>
-    <testcase classname="MessageService Context Detection" name="should handle missing Chrome APIs gracefully" time="0">
-      <skipped/>
+    <testcase classname="ApiService API Requests" name="should handle timeout errors" time="7.01">
     </testcase>
-    <testcase classname="MessageService Service Routing" name="should add and remove service handlers" time="0.269">
+    <testcase classname="ApiService API Requests" name="should generate unique request IDs" time="0.004">
     </testcase>
-    <testcase classname="MessageService Service Routing" name="should route messages to service handlers" time="0.005">
+    <testcase classname="ApiService API Requests" name="should track request statistics" time="0.003">
     </testcase>
-    <testcase classname="MessageService Service Routing" name="should handle service handler errors" time="0.005">
+    <testcase classname="ApiService Configuration Management" name="should load configuration from storage" time="0.003">
     </testcase>
-    <testcase classname="MessageService Service Routing" name="should send messages to specific services" time="0.004">
+    <testcase classname="ApiService Configuration Management" name="should use default configuration when storage is empty" time="0.001">
     </testcase>
-    <testcase classname="MessageService Bidirectional Messaging" name="should send to background from extension page" time="0">
-      <skipped/>
+    <testcase classname="ApiService Error Handling" name="should implement circuit breaker pattern" time="0.003">
     </testcase>
-    <testcase classname="MessageService Bidirectional Messaging" name="should handle local messages in background context" time="0">
-      <skipped/>
+    <testcase classname="ApiService Error Handling" name="should reset circuit breaker after timeout" time="0.003">
     </testcase>
-    <testcase classname="MessageService Bidirectional Messaging" name="should send to extension pages from background" time="0">
-      <skipped/>
+    <testcase classname="ApiService Cleanup" name="should cleanup active requests" time="0.002">
     </testcase>
-    <testcase classname="MessageService Bidirectional Messaging" name="should throw error when sendToExtensionPages called from extension page" time="0">
-      <skipped/>
+    <testcase classname="ApiService ApiService Background Script Integration" name="should initialize in background script context" time="0.002">
     </testcase>
-    <testcase classname="MessageService Error Handling" name="should classify network errors" time="0">
-      <skipped/>
+    <testcase classname="ApiService ApiService Background Script Integration" name="should handle API requests via message passing" time="0.003">
     </testcase>
-    <testcase classname="MessageService Error Handling" name="should classify timeout errors" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Error Handling" name="should classify context errors" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Error Handling" name="should classify system errors" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Error Handling" name="should handle cleanup on errors" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Service Worker Adaptation" name="should store critical state" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Service Worker Adaptation" name="should restore pending requests" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Service Worker Adaptation" name="should handle storage errors gracefully" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Lifecycle Methods" name="should handle memory pressure" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Lifecycle Methods" name="should cleanup resources properly" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Statistics and Monitoring" name="should provide enhanced statistics" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Statistics and Monitoring" name="should track message statistics" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Integration Tests" name="should handle complete message flow" time="0">
-      <skipped/>
-    </testcase>
-    <testcase classname="MessageService Integration Tests" name="should handle service worker lifecycle" time="0">
-      <skipped/>
+    <testcase classname="ApiService ApiService Background Script Integration" name="should get service status via message passing" time="0.002">
     </testcase>
   </testsuite>
-  <testsuite name="ApiService" errors="0" failures="0" skipped="18" timestamp="2025-07-13T20:03:23" time="0.047" tests="18">
-    <testcase classname="ApiService Initialization" name="should create API service instance" time="0">
-      <skipped/>
+  <testsuite name="MessageService" errors="0" failures="7" skipped="0" timestamp="2025-07-14T00:13:10" time="0.379" tests="30">
+    <testcase classname="MessageService Initialization" name="should initialize successfully" time="0.033">
     </testcase>
-    <testcase classname="ApiService Initialization" name="should start uninitialized" time="0">
-      <skipped/>
+    <testcase classname="MessageService Initialization" name="should handle initialization error" time="0.015">
     </testcase>
-    <testcase classname="ApiService Initialization" name="should have API service specific properties" time="0">
-      <skipped/>
+    <testcase classname="MessageService Resource Tracking" name="should track message listeners" time="0.007">
     </testcase>
-    <testcase classname="ApiService Service Properties" name="should have required API service properties" time="0">
-      <skipped/>
+    <testcase classname="MessageService Resource Tracking" name="should track timeouts" time="0.006">
     </testcase>
-    <testcase classname="ApiService API Requests" name="should handle successful API requests" time="0">
-      <skipped/>
+    <testcase classname="MessageService Context Detection" name="should detect background script context" time="0.004">
     </testcase>
-    <testcase classname="ApiService API Requests" name="should handle API errors (4xx/5xx)" time="0">
-      <skipped/>
+    <testcase classname="MessageService Context Detection" name="should detect extension page context" time="0.003">
     </testcase>
-    <testcase classname="ApiService API Requests" name="should handle network errors" time="0">
-      <skipped/>
+    <testcase classname="MessageService Context Detection" name="should detect service worker context" time="0.014">
     </testcase>
-    <testcase classname="ApiService API Requests" name="should handle timeout errors" time="0">
-      <skipped/>
+    <testcase classname="MessageService Context Detection" name="should handle missing Chrome APIs gracefully" time="0.003">
     </testcase>
-    <testcase classname="ApiService API Requests" name="should generate unique request IDs" time="0">
-      <skipped/>
+    <testcase classname="MessageService Service Routing" name="should add and remove service handlers" time="0.004">
     </testcase>
-    <testcase classname="ApiService API Requests" name="should track request statistics" time="0">
-      <skipped/>
+    <testcase classname="MessageService Service Routing" name="should route messages to service handlers" time="0.004">
     </testcase>
-    <testcase classname="ApiService Configuration Management" name="should load configuration from storage" time="0">
-      <skipped/>
+    <testcase classname="MessageService Service Routing" name="should handle service handler errors" time="0.003">
     </testcase>
-    <testcase classname="ApiService Configuration Management" name="should use default configuration when storage is empty" time="0">
-      <skipped/>
+    <testcase classname="MessageService Service Routing" name="should send messages to specific services" time="0.01">
     </testcase>
-    <testcase classname="ApiService Error Handling" name="should implement circuit breaker pattern" time="0">
-      <skipped/>
+    <testcase classname="MessageService Bidirectional Messaging" name="should send to background from extension page" time="0.027">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:507:46)</failure>
     </testcase>
-    <testcase classname="ApiService Error Handling" name="should reset circuit breaker after timeout" time="0">
-      <skipped/>
+    <testcase classname="MessageService Bidirectional Messaging" name="should handle local messages in background context" time="0.004">
     </testcase>
-    <testcase classname="ApiService Cleanup" name="should cleanup active requests" time="0">
-      <skipped/>
+    <testcase classname="MessageService Bidirectional Messaging" name="should send to extension pages from background" time="0.025">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:552:37)</failure>
     </testcase>
-    <testcase classname="ApiService ApiService Background Script Integration" name="should initialize in background script context" time="0">
-      <skipped/>
+    <testcase classname="MessageService Bidirectional Messaging" name="should throw error when sendToExtensionPages called from extension page" time="0.025">
     </testcase>
-    <testcase classname="ApiService ApiService Background Script Integration" name="should handle API requests via message passing" time="0">
-      <skipped/>
+    <testcase classname="MessageService Error Handling" name="should classify network errors" time="0.004">
     </testcase>
-    <testcase classname="ApiService ApiService Background Script Integration" name="should get service status via message passing" time="0">
-      <skipped/>
+    <testcase classname="MessageService Error Handling" name="should classify timeout errors" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should classify context errors" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should classify system errors" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should handle cleanup on errors" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Service Worker Adaptation" name="should store critical state" time="0.005">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:652:51)
+    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="MessageService Service Worker Adaptation" name="should restore pending requests" time="0.004">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:677:51)
+    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="MessageService Service Worker Adaptation" name="should handle storage errors gracefully" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Lifecycle Methods" name="should handle memory pressure" time="0.009">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: &quot;Memory pressure detected, cleaning up non-essential resources&quot;
+
+Number of calls: 0
+    at Object.toHaveBeenCalledWith (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:730:43)</failure>
+    </testcase>
+    <testcase classname="MessageService Lifecycle Methods" name="should cleanup resources properly" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Statistics and Monitoring" name="should provide enhanced statistics" time="0.005">
+    </testcase>
+    <testcase classname="MessageService Statistics and Monitoring" name="should track message statistics" time="0.025">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 1
+Received: 0
+    at Object.toBe (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:789:56)</failure>
+    </testcase>
+    <testcase classname="MessageService Integration Tests" name="should handle complete message flow" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Integration Tests" name="should handle service worker lifecycle" time="0.003">
+      <failure>Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false
+    at Object.toBe (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:836:51)</failure>
     </testcase>
   </testsuite>
-  <testsuite name="BaseService" errors="0" failures="0" skipped="11" timestamp="2025-07-13T20:03:23" time="0.043" tests="11">
-    <testcase classname="BaseService Basic Functionality" name="should create service instance" time="0">
-      <skipped/>
+  <testsuite name="BaseService" errors="0" failures="0" skipped="0" timestamp="2025-07-14T00:13:10" time="0.074" tests="11">
+    <testcase classname="BaseService Basic Functionality" name="should create service instance" time="0.007">
     </testcase>
-    <testcase classname="BaseService Basic Functionality" name="should start uninitialized" time="0">
-      <skipped/>
+    <testcase classname="BaseService Basic Functionality" name="should start uninitialized" time="0.001">
     </testcase>
-    <testcase classname="BaseService Basic Functionality" name="should have resource tracker" time="0">
-      <skipped/>
+    <testcase classname="BaseService Basic Functionality" name="should have resource tracker" time="0.001">
     </testcase>
-    <testcase classname="BaseService Basic Functionality" name="should have memory monitor" time="0">
-      <skipped/>
+    <testcase classname="BaseService Basic Functionality" name="should have memory monitor" time="0.001">
     </testcase>
-    <testcase classname="BaseService Basic Functionality" name="should provide metrics" time="0">
-      <skipped/>
+    <testcase classname="BaseService Basic Functionality" name="should provide metrics" time="0.001">
     </testcase>
-    <testcase classname="BaseService Task Management" name="should handle task tracking without iteration errors" time="0">
-      <skipped/>
+    <testcase classname="BaseService Task Management" name="should handle task tracking without iteration errors" time="0.001">
     </testcase>
-    <testcase classname="BaseService Task Management" name="should handle cleanup without iteration errors" time="0">
-      <skipped/>
+    <testcase classname="BaseService Task Management" name="should handle cleanup without iteration errors" time="0.001">
     </testcase>
-    <testcase classname="BaseService Task Management" name="should handle maximum task limit" time="0">
-      <skipped/>
+    <testcase classname="BaseService Task Management" name="should handle maximum task limit" time="0.012">
     </testcase>
-    <testcase classname="BaseService Circuit Breaker" name="should start with closed circuit breaker" time="0">
-      <skipped/>
+    <testcase classname="BaseService Circuit Breaker" name="should start with closed circuit breaker" time="0.001">
     </testcase>
     <testcase classname="BaseService Circuit Breaker" name="should record failures" time="0">
-      <skipped/>
     </testcase>
-    <testcase classname="BaseService Service Properties" name="should have required properties" time="0">
-      <skipped/>
+    <testcase classname="BaseService Service Properties" name="should have required properties" time="0.001">
     </testcase>
   </testsuite>
-  <testsuite name="Simple Service Test" errors="0" failures="0" skipped="6" timestamp="2025-07-13T20:03:23" time="0.049" tests="6">
-    <testcase classname="Simple Service Test" name="should run basic test" time="0">
-      <skipped/>
+  <testsuite name="Simple Service Test" errors="0" failures="0" skipped="0" timestamp="2025-07-14T00:13:10" time="0.05" tests="6">
+    <testcase classname="Simple Service Test" name="should run basic test" time="0.001">
     </testcase>
-    <testcase classname="Simple Service Test" name="should handle basic math" time="0">
-      <skipped/>
+    <testcase classname="Simple Service Test" name="should handle basic math" time="0.001">
     </testcase>
     <testcase classname="Simple Service Test" name="should handle async operations" time="0">
-      <skipped/>
     </testcase>
-    <testcase classname="Simple Service Test" name="should import BaseService without errors" time="0">
-      <skipped/>
+    <testcase classname="Simple Service Test" name="should import BaseService without errors" time="0.001">
     </testcase>
-    <testcase classname="Simple Service Test" name="should create BaseService instance without errors" time="0">
-      <skipped/>
+    <testcase classname="Simple Service Test" name="should create BaseService instance without errors" time="0.001">
     </testcase>
-    <testcase classname="Simple Service Test" name="should handle service property access" time="0">
-      <skipped/>
+    <testcase classname="Simple Service Test" name="should handle service property access" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

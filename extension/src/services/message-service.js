@@ -86,8 +86,9 @@ export class MessageService extends BaseService {
     
     // Check if we're in a service worker context - IMPROVED DETECTION
     this._isServiceWorker = (
-      // Method 1: Standard instanceof check
+      // Method 1: Standard instanceof check (with safety checks)
       (typeof ServiceWorkerGlobalScope !== 'undefined' && 
+       typeof self !== 'undefined' && 
        self instanceof ServiceWorkerGlobalScope) ||
       // Method 2: Constructor name check
       (typeof self !== 'undefined' && 
@@ -1008,12 +1009,29 @@ export class MessageService extends BaseService {
         message
       });
       
-      // Send message to background
-      chrome.runtime.sendMessage(message).catch(error => {
+      // Send message to background using Chrome API callback pattern
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          // Clear timeout since we got a response
+          clearTimeout(timeoutId);
+          
+          // Check if we still have this request (might have been cleaned up)
+          if (this._pendingRequests.has(message.requestId)) {
+            this._pendingRequests.delete(message.requestId);
+            
+            // Check for Chrome runtime error
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        });
+      } catch (error) {
         clearTimeout(timeoutId);
         this._pendingRequests.delete(message.requestId);
         reject(error);
-      });
+      }
     });
   }
 }
