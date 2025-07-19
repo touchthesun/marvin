@@ -515,3 +515,44 @@ npm run test:watch
 This refactoring plan prioritizes backend integration as the central concern while establishing a proper Manifest V3 architecture. The incremental approach ensures system stability throughout the migration process while maintaining the critical FastAPI backend communication that powers the entire application.
 
 The success of this refactoring depends on thorough testing, clear communication between components, and robust error handling for backend connectivity issues. By following this plan, we'll achieve a maintainable, scalable extension architecture that properly leverages Chrome's extension capabilities while maintaining the critical backend integration.
+
+## Lessons Learned: MessageService Refactor & Testing Patterns
+
+### 1. TDD for a Broken System: Philosophy in Practice
+- **Tests as Specification:** When refactoring legacy or broken code, treat tests as the source of truth for desired behavior. If a test fails, assume the code is wrong, not the test, unless proven otherwise.
+- **Incremental Progress:** Fix one failing test at a time. Each green test is a step closer to a working, demo-ready product.
+- **Red-Green-Refactor:** Write/expand tests for the correct behavior, expect them to fail (red), then refactor code until they pass (green). Clean up as you go.
+
+### 2. Mocks vs. Real Code: When and How to Use
+- **Mocking Hides Real Integration Issues:** Over-mocking (e.g., ResourceTracker, BaseService) can mask real problems. Use mocks for external dependencies (e.g., Chrome APIs, logging), but prefer real code for core service logic.
+- **Patch After Construction:** If you must mock internal methods (e.g., resource tracking), patch them on the real service instance after construction, not at the module level.
+- **Remove Unnecessary Mocks:** As the codebase stabilizes, remove mocks for internal logic to surface real integration issues.
+
+### 3. Service vs. Component Patterns
+- **Service Classes Are Not DOM Elements:** Avoid treating services like UI components. Do not use DOM-centric resource tracking (e.g., addEventListener) on service classes unless you implement a custom event system.
+- **Track Only What Matters:** For services, track message handlers and pending requests in plain Maps/arrays. Only use resource tracking for actual resources (timers, intervals, etc.).
+
+### 4. Test Isolation and Setup
+- **Reset All Mocks in beforeEach/afterEach:** Prevents state leakage between tests.
+- **Patch Chrome APIs and Globals Early:** Set up global.chrome and any other globals before constructing services.
+- **Patch ResourceTracker Methods as Needed:** Only mock methods you need to observe (e.g., trackTimeout), and only if you assert on their calls.
+
+### 5. Debugging and Logging
+- **Verbose Logging:** Use console logs and temporary log files to trace test execution and variable state, especially for persistent or unclear failures.
+- **Check Stack Traces:** Always trace errors to their source in the codebase. This often reveals incorrect assumptions about what is being called.
+- **Remove Obsolete Tests:** If a test no longer matches the code's intent (e.g., tracking message listeners as event listeners), remove or update it.
+
+### 6. Patterns for MessageService
+- **Context Detection:** Use robust checks for background, extension page, and service worker contexts. Mock global.self and related globals in tests as needed.
+- **Timeout Tracking:** Use ResourceTracker for timers, but only assert on mocks if you patch them in the test setup.
+- **Message Routing:** Keep service and action handlers separate. Use Maps for handler registration and removal.
+- **Pending Requests:** Track pending requests in a Map with requestId as the key. Clean up old requests on memory pressure or service worker restart.
+
+### 7. General Advice for Future Developers
+- **Favor Simplicity:** Remove unnecessary abstractions and tracking. Only add complexity when justified by real requirements.
+- **Document as You Go:** Update this guide and related docs with every major lesson or pattern discovered.
+- **Celebrate Progress:** Each passing test is a win. The process is slow but builds a solid, maintainable foundation.
+
+---
+
+These lessons and patterns are distilled from the real-world process of refactoring MessageService and its test suite. Future contributors should review this section before making changes to the messaging infrastructure or its tests.

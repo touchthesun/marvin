@@ -215,7 +215,9 @@ export class MessageService extends BaseService {
    * @private
    */
   _isChromeAvailable() {
-    return typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage;
+    return typeof chrome !== 'undefined' && 
+           chrome.runtime && 
+           typeof chrome.runtime.sendMessage === 'function';
   }
 
   /**
@@ -390,13 +392,6 @@ export class MessageService extends BaseService {
     
     // Add handler
     handlers.push(handler);
-    
-    // CRITICAL FIX: Track the event listener with resource tracker
-    this._resourceTracker.trackEventListener(
-      this, // The service itself as the element
-      'message', // Event type
-      handler // The handler function
-    );
     
     this._logger?.debug(`Added message listener for action "${action}"`);
     
