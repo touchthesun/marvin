@@ -1,7 +1,6 @@
 // extension/tests/services/message-service.test.js
 import { jest } from '@jest/globals';
 import { MessageService } from '../../src/services/message-service.js';
-import { createMockSystem } from '../utils/mock-system.js';
 
 // Mock Chrome APIs at module level
 const mockChrome = {
