@@ -633,3 +633,61 @@ These additional lessons complement the MessageService lessons and provide guida
 ---
 
 These additional lessons complement the previous lessons and provide guidance for future service refactoring efforts, particularly around browser API integration, error handling precision, and systematic debugging approaches.
+
+---
+
+These additional lessons complement the previous lessons and provide guidance for future service refactoring efforts, particularly around storage operations, cache management, and real API integration testing.
+
+## Lessons Learned: StorageService Refactor & Real API Integration
+
+### 21. Real API Integration Testing with Proper Mocking
+- **Problem:** Testing with over-mocked APIs can hide real integration issues and provide false confidence.
+- **Solution:** Use real Chrome storage APIs in tests with proper mocking of external dependencies only.
+- **Pattern:** Mock Chrome APIs at the global level, but test actual storage operations and business logic.
+- **Result:** Confidence that storage operations actually work correctly in the real extension environment.
+
+### 22. Property Name Consistency Across Large Codebases
+- **Problem:** Inconsistent property references (`_DEFAULT_SETTINGS` vs `DEFAULT_SETTINGS`) cause undefined property errors.
+- **Solution:** Establish and enforce consistent naming conventions early in refactoring.
+- **Pattern:** Use systematic search/replace to standardize all property references before running tests.
+- **Result:** Eliminated runtime errors and improved code maintainability.
+
+### 23. Cache Lifecycle Management in Service Workers
+- **Problem:** Cache not properly nullified during cleanup, causing memory leaks and state persistence issues.
+- **Solution:** Implement proper cache nullification and recreation logic with null checks.
+- **Pattern:** Set cache to `null` during cleanup, add null checks before access, recreate when needed.
+- **Result:** Proper memory management and cache lifecycle, especially important for service worker context.
+
+### 24. Chrome Storage API Parameter Format Precision
+- **Problem:** Chrome storage API calls used incorrect parameter format, causing silent failures.
+- **Solution:** Use proper array format for storage keys: `chrome.storage.local.get(['key'])` instead of `chrome.storage.local.get('key')`.
+- **Pattern:** Always use array format for Chrome storage API calls, even for single keys.
+- **Result:** Reliable storage operations with proper error handling.
+
+### 25. Error Handling with Graceful Fallbacks
+- **Problem:** Chrome API unavailability not properly handled, causing crashes or undefined behavior.
+- **Solution:** Implement comprehensive error handling with meaningful fallbacks to defaults.
+- **Pattern:** Check API availability with `_isChromeAvailable()`, return sensible defaults on failure.
+- **Result:** Robust error handling that gracefully degrades when APIs are unavailable.
+
+### 26. Service Initialization Return Value Consistency
+- **Problem:** Service initialization methods returned `undefined` instead of boolean success indicators.
+- **Solution:** Ensure all initialization methods return proper boolean values indicating success/failure.
+- **Pattern:** BaseService should capture and return the result of `_performInitialization()`.
+- **Result:** Proper initialization success/failure reporting for better error handling.
+
+### 27. Resource Cleanup and Parent Service Integration
+- **Problem:** Service cleanup methods didn't properly call parent cleanup, leading to incomplete resource management.
+- **Solution:** Always call `await super.cleanup()` in service cleanup methods and properly nullify references.
+- **Pattern:** Clear service-specific resources first, then call parent cleanup, finally nullify all references.
+- **Result:** Complete resource cleanup and proper service lifecycle management.
+
+### 28. TDD Success Metrics for Complex Services
+- **Problem:** It's difficult to measure progress when refactoring complex services with multiple failure modes.
+- **Solution:** Track test pass rates as progress indicators and celebrate each test that turns green.
+- **Pattern:** Start with 0% pass rate, fix one test at a time, aim for 100% pass rate.
+- **Result:** Clear progress tracking and motivation during complex refactoring efforts.
+
+---
+
+These additional lessons complement the previous lessons and provide guidance for future service refactoring efforts, particularly around storage operations, cache management, and real API integration testing.

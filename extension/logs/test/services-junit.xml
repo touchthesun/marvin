@@ -1,17 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="6" failures="0" errors="0" time="0.625">
-  <testsuite name="StatusService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T00:06:59" time="0.392" tests="6">
-    <testcase classname="StatusService Status Monitoring Network Status Detection" name="should detect initial network status correctly" time="0.035">
+<testsuites name="jest tests" tests="33" failures="0" errors="0" time="0.904">
+  <testsuite name="StorageService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T00:31:27" time="0.523" tests="33">
+    <testcase classname="StorageService Initialization" name="should initialize successfully with default settings" time="0.022">
     </testcase>
-    <testcase classname="StatusService Status Monitoring Network Status Detection" name="should handle network status changes" time="0.003">
+    <testcase classname="StorageService Initialization" name="should merge existing settings with defaults" time="0.001">
     </testcase>
-    <testcase classname="StatusService Status Monitoring Network Status Detection" name="should track network status changes in history" time="0.004">
+    <testcase classname="StorageService Initialization" name="should handle initialization errors gracefully" time="0.002">
     </testcase>
-    <testcase classname="StatusService Status Monitoring API Health Checks" name="should perform successful API health check" time="0.004">
+    <testcase classname="StorageService Settings Management" name="should get settings with defaults" time="0.001">
     </testcase>
-    <testcase classname="StatusService Status Monitoring API Health Checks" name="should handle API timeout scenarios" time="0.003">
+    <testcase classname="StorageService Settings Management" name="should update settings and notify background" time="0.001">
     </testcase>
-    <testcase classname="StatusService Status Monitoring API Health Checks" name="should implement circuit breaker for repeated failures" time="0.005">
+    <testcase classname="StorageService Settings Management" name="should reset settings to defaults" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Settings Management" name="should handle storage errors during settings update" time="0.008">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should get empty capture history initially" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should get existing capture history" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should update capture history with new entries" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should deduplicate capture history by URL" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should limit capture history to specified max entries" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should get default stats" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should update stats" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should increment stats counter" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should handle invalid counter increment" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Data Export/Import" name="should export data with redacted sensitive information" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Data Export/Import" name="should import data with merge option" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Data Export/Import" name="should handle invalid import data" time="0.02">
+    </testcase>
+    <testcase classname="StorageService Active State Management" name="should save active state" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Active State Management" name="should get active state" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Active State Management" name="should return null for no active state" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Data Cleanup" name="should clear local data while keeping settings" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Data Cleanup" name="should clear all data including settings" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Data Cleanup" name="should handle cleanup errors" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Cache Management" name="should use cache for repeated settings requests" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Cache Management" name="should invalidate cache on storage changes" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Cache Management" name="should clear cache on memory pressure" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Error Handling" name="should handle Chrome API unavailability" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Error Handling" name="should handle storage operation failures" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Error Handling" name="should handle notification service unavailability" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Resource Management" name="should clean up resources on service cleanup" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Resource Management" name="should handle cleanup when not initialized" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

@@ -63,9 +63,10 @@ export class BaseService {
   /**
    * Initialize the service
    * @throws {Error} If initialization fails
+   * @returns {Promise<boolean>} True if initialization succeeded
    */
   async initialize() {
-    if (this._initialized) return;
+    if (this._initialized) return true;
     
     try {
       this._memoryMonitor.start();
@@ -74,8 +75,9 @@ export class BaseService {
       // Set up error boundaries
       this._setupErrorBoundaries();
       
-      await this._performInitialization();
+      const result = await this._performInitialization();
       this._initialized = true;
+      return result !== false; // Return true unless explicitly false
     } catch (error) {
       await this.cleanup();
       throw error;
