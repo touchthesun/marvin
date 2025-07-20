@@ -62,8 +62,9 @@ export class NotificationService extends BaseService {
     };
     
     // Detect if we're in a service worker context
-    this._isServiceWorkerContext = typeof self !== 'undefined' && 
-                                 typeof document === 'undefined';
+    const selfExists = typeof self !== 'undefined';
+    const documentUndefined = typeof document === 'undefined';
+    this._isServiceWorkerContext = selfExists && documentUndefined;
   }
 
   /**
@@ -316,6 +317,7 @@ export class NotificationService extends BaseService {
       return this._createStandardNotification(message, type, config);
     } catch (error) {
       this._logger.error('Error showing notification:', error);
+      this._recordFailure('notification-creation');
       return null;
     }
   }
@@ -425,6 +427,7 @@ export class NotificationService extends BaseService {
       return notification;
     } catch (error) {
       this._logger.error('Error creating progress notification:', error);
+      this._recordFailure('progress-notification-creation');
       return null;
     }
   }
@@ -503,6 +506,7 @@ export class NotificationService extends BaseService {
       return notification;
     } catch (error) {
       this._logger.error('Error creating standard notification:', error);
+      this._recordFailure('standard-notification-creation');
       return null;
     }
   }
@@ -847,12 +851,13 @@ export class NotificationService extends BaseService {
    * @returns {object} Service status
    */
   getStatus() {
+    const resourceCount = this._resourceTracker.getResourceCount();
     return {
       initialized: this._initialized,
       hasLogger: !!this._logger,
       isServiceWorkerContext: this._isServiceWorkerContext,
-      activeElements: this._resourceTracker.getDOMElementCount(),
-      activeEventHandlers: this._resourceTracker.getEventListenerCount(),
+      activeElements: resourceCount.domRefs,
+      activeEventHandlers: resourceCount.eventListeners,
       activeNotifications: {
         standard: this._activeNotifications.standard.length,
         progress: this._activeNotifications.progress ? 1 : 0,
@@ -920,7 +925,7 @@ export class NotificationService extends BaseService {
     this._logger?.info('Cleaning up notification service');
     
     // Dismiss all notifications
-    await this._dismissAllNotifications(true);
+    await this.dismissAllNotifications(true);
     
     // Clear and nullify active notifications
     this._activeNotifications.standard = [];
