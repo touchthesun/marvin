@@ -1,13 +1,51 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="27" failures="0" errors="0" time="21.289">
-  <testsuite name="GraphService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T02:37:02" time="20.828" tests="27">
+<testsuites name="jest tests" tests="244" failures="1" errors="0" time="43.96">
+  <testsuite name="ApiService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:12" time="21.539" tests="18">
+    <testcase classname="ApiService Initialization" name="should create API service instance" time="0.02">
+    </testcase>
+    <testcase classname="ApiService Initialization" name="should start uninitialized" time="0.001">
+    </testcase>
+    <testcase classname="ApiService Initialization" name="should have API service specific properties" time="0.001">
+    </testcase>
+    <testcase classname="ApiService Service Properties" name="should have required API service properties" time="0.002">
+    </testcase>
+    <testcase classname="ApiService API Requests" name="should handle successful API requests" time="0.032">
+    </testcase>
+    <testcase classname="ApiService API Requests" name="should handle API errors (4xx/5xx)" time="7.007">
+    </testcase>
+    <testcase classname="ApiService API Requests" name="should handle network errors" time="7.014">
+    </testcase>
+    <testcase classname="ApiService API Requests" name="should handle timeout errors" time="7.012">
+    </testcase>
+    <testcase classname="ApiService API Requests" name="should generate unique request IDs" time="0.006">
+    </testcase>
+    <testcase classname="ApiService API Requests" name="should track request statistics" time="0.004">
+    </testcase>
+    <testcase classname="ApiService Configuration Management" name="should load configuration from storage" time="0.003">
+    </testcase>
+    <testcase classname="ApiService Configuration Management" name="should use default configuration when storage is empty" time="0.002">
+    </testcase>
+    <testcase classname="ApiService Error Handling" name="should implement circuit breaker pattern" time="0.003">
+    </testcase>
+    <testcase classname="ApiService Error Handling" name="should reset circuit breaker after timeout" time="0.004">
+    </testcase>
+    <testcase classname="ApiService Cleanup" name="should cleanup active requests" time="0.002">
+    </testcase>
+    <testcase classname="ApiService ApiService Background Script Integration" name="should initialize in background script context" time="0.003">
+    </testcase>
+    <testcase classname="ApiService ApiService Background Script Integration" name="should handle API requests via message passing" time="0.005">
+    </testcase>
+    <testcase classname="ApiService ApiService Background Script Integration" name="should get service status via message passing" time="0.002">
+    </testcase>
+  </testsuite>
+  <testsuite name="GraphService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:34" time="20.251" tests="27">
     <testcase classname="GraphService Initialization" name="should initialize successfully with valid configuration" time="0.018">
     </testcase>
-    <testcase classname="GraphService Initialization" name="should require ApiService in constructor" time="0.022">
+    <testcase classname="GraphService Initialization" name="should require ApiService in constructor" time="0.019">
     </testcase>
     <testcase classname="GraphService Initialization" name="should validate cache configuration" time="0.002">
     </testcase>
-    <testcase classname="GraphService Initialization" name="should load configuration from Chrome storage" time="0.002">
+    <testcase classname="GraphService Initialization" name="should load configuration from Chrome storage" time="0.001">
     </testcase>
     <testcase classname="GraphService Initialization" name="should handle configuration loading errors gracefully" time="0.001">
     </testcase>
@@ -15,13 +53,13 @@
     </testcase>
     <testcase classname="GraphService Graph Operations" name="should search graph successfully" time="0.002">
     </testcase>
-    <testcase classname="GraphService Graph Operations" name="should get node by ID successfully" time="0.002">
+    <testcase classname="GraphService Graph Operations" name="should get node by ID successfully" time="0.003">
     </testcase>
-    <testcase classname="GraphService Graph Operations" name="should handle API errors gracefully" time="0.002">
+    <testcase classname="GraphService Graph Operations" name="should handle API errors gracefully" time="0.005">
     </testcase>
-    <testcase classname="GraphService Graph Operations" name="should handle network errors gracefully" time="0.002">
+    <testcase classname="GraphService Graph Operations" name="should handle network errors gracefully" time="0.001">
     </testcase>
-    <testcase classname="GraphService Graph Operations" name="should validate required parameters" time="0.001">
+    <testcase classname="GraphService Graph Operations" name="should validate required parameters" time="0.002">
     </testcase>
     <testcase classname="GraphService Caching" name="should cache successful results" time="0.002">
     </testcase>
@@ -29,31 +67,453 @@
     </testcase>
     <testcase classname="GraphService Caching" name="should bypass cache when requested" time="0.001">
     </testcase>
-    <testcase classname="GraphService Caching" name="should handle cache operation timeouts" time="5.007">
+    <testcase classname="GraphService Caching" name="should handle cache operation timeouts" time="5.005">
     </testcase>
-    <testcase classname="GraphService Caching" name="should prune cache when size exceeds limit" time="5.01">
+    <testcase classname="GraphService Caching" name="should prune cache when size exceeds limit" time="5.006">
     </testcase>
-    <testcase classname="GraphService Configuration Management" name="should update configuration successfully" time="0.007">
+    <testcase classname="GraphService Configuration Management" name="should update configuration successfully" time="0.004">
     </testcase>
-    <testcase classname="GraphService Configuration Management" name="should clear cache when disabled" time="0.003">
+    <testcase classname="GraphService Configuration Management" name="should clear cache when disabled" time="0.001">
     </testcase>
-    <testcase classname="GraphService Configuration Management" name="should handle configuration save errors" time="0.004">
+    <testcase classname="GraphService Configuration Management" name="should handle configuration save errors" time="0.003">
     </testcase>
-    <testcase classname="GraphService Statistics and Status" name="should provide cache statistics" time="0.006">
+    <testcase classname="GraphService Statistics and Status" name="should provide cache statistics" time="0.003">
     </testcase>
-    <testcase classname="GraphService Statistics and Status" name="should provide service status" time="0.003">
+    <testcase classname="GraphService Statistics and Status" name="should provide service status" time="0.001">
     </testcase>
     <testcase classname="GraphService Error Handling" name="should handle initialization failures gracefully" time="0.003">
     </testcase>
-    <testcase classname="GraphService Error Handling" name="should handle cache errors gracefully" time="5.006">
+    <testcase classname="GraphService Error Handling" name="should handle cache errors gracefully" time="5.005">
     </testcase>
-    <testcase classname="GraphService Resource Management" name="should cleanup resources on shutdown" time="0.004">
+    <testcase classname="GraphService Resource Management" name="should cleanup resources on shutdown" time="0.006">
     </testcase>
-    <testcase classname="GraphService Resource Management" name="should handle memory pressure" time="0.005">
+    <testcase classname="GraphService Resource Management" name="should handle memory pressure" time="0.006">
     </testcase>
-    <testcase classname="GraphService Service Worker Context" name="should work in service worker context" time="0.002">
+    <testcase classname="GraphService Service Worker Context" name="should work in service worker context" time="0.003">
     </testcase>
     <testcase classname="GraphService Service Worker Context" name="should handle cache operations in service worker context" time="5.007">
+    </testcase>
+  </testsuite>
+  <testsuite name="BaseService Inheritance Test" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:54" time="0.536" tests="35">
+    <testcase classname="BaseService Inheritance Test" name="should properly inherit from BaseService" time="0.028">
+    </testcase>
+    <testcase classname="Basic Class Test" name="should be able to import and instantiate VisualizationService" time="0.015">
+    </testcase>
+    <testcase classname="VisualizationService Initialization" name="should initialize successfully with default configuration" time="0.018">
+    </testcase>
+    <testcase classname="VisualizationService Initialization" name="should start D3 check interval on initialization" time="0.011">
+    </testcase>
+    <testcase classname="VisualizationService Initialization" name="should start cleanup interval on initialization" time="0.011">
+    </testcase>
+    <testcase classname="VisualizationService Initialization" name="should handle initialization errors gracefully" time="0.011">
+    </testcase>
+    <testcase classname="VisualizationService D3 Availability" name="should check D3 availability" time="0.01">
+    </testcase>
+    <testcase classname="VisualizationService D3 Availability" name="should handle D3 availability check errors" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService D3 Availability" name="should detect D3 from window object" time="0.008">
+    </testcase>
+    <testcase classname="VisualizationService Bar Chart Creation" name="should create bar chart successfully with valid data" time="0.016">
+    </testcase>
+    <testcase classname="VisualizationService Bar Chart Creation" name="should handle missing container ID" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Bar Chart Creation" name="should handle missing container element" time="0.012">
+    </testcase>
+    <testcase classname="VisualizationService Bar Chart Creation" name="should handle invalid data" time="0.008">
+    </testcase>
+    <testcase classname="VisualizationService Bar Chart Creation" name="should handle empty data array" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Bar Chart Creation" name="should create chart with custom options" time="0.008">
+    </testcase>
+    <testcase classname="VisualizationService Bar Chart Creation" name="should track DOM elements for cleanup" time="0.012">
+    </testcase>
+    <testcase classname="VisualizationService Knowledge Graph Creation" name="should create knowledge graph successfully with valid data" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Knowledge Graph Creation" name="should handle missing container ID" time="0.008">
+    </testcase>
+    <testcase classname="VisualizationService Knowledge Graph Creation" name="should handle missing container element" time="0.012">
+    </testcase>
+    <testcase classname="VisualizationService Knowledge Graph Creation" name="should handle empty nodes array" time="0.017">
+    </testcase>
+    <testcase classname="VisualizationService Knowledge Graph Creation" name="should add event listeners to graph nodes" time="0.01">
+    </testcase>
+    <testcase classname="VisualizationService Knowledge Graph Creation" name="should add reset button to graph" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Node Click Handling" name="should handle node click events" time="0.008">
+    </testcase>
+    <testcase classname="VisualizationService Node Click Handling" name="should handle node click with missing data" time="0.008">
+    </testcase>
+    <testcase classname="VisualizationService Reset View Handling" name="should reset node highlighting" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Resource Management" name="should cleanup resources on shutdown" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Resource Management" name="should handle memory pressure" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Resource Management" name="should cleanup old visualizations" time="0.014">
+    </testcase>
+    <testcase classname="VisualizationService Resource Management" name="should cleanup all visualizations" time="0.007">
+    </testcase>
+    <testcase classname="VisualizationService Error Handling" name="should handle chart creation errors gracefully" time="0.015">
+    </testcase>
+    <testcase classname="VisualizationService Error Handling" name="should handle graph creation errors gracefully" time="0.007">
+    </testcase>
+    <testcase classname="VisualizationService Error Handling" name="should handle cleanup errors gracefully" time="0.009">
+    </testcase>
+    <testcase classname="VisualizationService Service Worker Context" name="should work in service worker context" time="0.014">
+    </testcase>
+    <testcase classname="VisualizationService Service Worker Context" name="should handle DOM operations in service worker context" time="0.016">
+    </testcase>
+    <testcase classname="VisualizationService" name="should have proper class structure" time="0.006">
+    </testcase>
+  </testsuite>
+  <testsuite name="NotificationService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:54" time="0.292" tests="31">
+    <testcase classname="NotificationService Initialization" name="should initialize successfully in browser context" time="0.005">
+    </testcase>
+    <testcase classname="NotificationService Notification Creation" name="should create standard notification successfully" time="0.018">
+    </testcase>
+    <testcase classname="NotificationService Notification Creation" name="should create progress notification successfully" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Notification Creation" name="should handle invalid notification types" time="0.005">
+    </testcase>
+    <testcase classname="NotificationService Notification Creation" name="should handle empty messages" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Notification Creation" name="should validate progress values" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Notification Creation" name="should return null in service worker context" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Progress Notification Updates" name="should update existing progress notification" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Progress Notification Updates" name="should create new notification if none exists" time="0.005">
+    </testcase>
+    <testcase classname="NotificationService Progress Notification Updates" name="should validate progress values in updates" time="0.003">
+    </testcase>
+    <testcase classname="NotificationService Notification Dismissal" name="should dismiss all notifications" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Notification Dismissal" name="should handle dismissal of non-existent notification" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Notification Dismissal" name="should handle dismissal with empty ID" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Notification Limits and Management" name="should manage notification lifecycle properly" time="0.152">
+    </testcase>
+    <testcase classname="NotificationService Configuration Management" name="should update notification configuration" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Configuration Management" name="should update container position when configuration changes" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Statistics and Status" name="should track notification statistics" time="0.003">
+    </testcase>
+    <testcase classname="NotificationService Statistics and Status" name="should provide service status" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Service Worker Context" name="should initialize successfully in service worker context" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Service Worker Context" name="should log notifications in service worker context" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Service Worker Context" name="should return null for UI operations in service worker context" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Error Handling" name="should handle DOM creation errors gracefully" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Error Handling" name="should handle container not found errors" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Error Handling" name="should handle notification removal errors gracefully" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Resource Management" name="should track DOM elements properly" time="0.002">
+    </testcase>
+    <testcase classname="NotificationService Resource Management" name="should track event listeners properly" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Resource Management" name="should handle memory pressure" time="0.003">
+    </testcase>
+    <testcase classname="NotificationService Resource Management" name="should cleanup resources on service shutdown" time="0.003">
+    </testcase>
+    <testcase classname="NotificationService Circuit Breaker" name="should open circuit breaker after repeated failures" time="0.009">
+    </testcase>
+    <testcase classname="NotificationService Circuit Breaker" name="should suppress notifications when circuit breaker is open" time="0.001">
+    </testcase>
+    <testcase classname="NotificationService Integration with BaseService" name="should inherit BaseService functionality" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="StorageService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:55" time="0.12" tests="33">
+    <testcase classname="StorageService Initialization" name="should initialize successfully with default settings" time="0.004">
+    </testcase>
+    <testcase classname="StorageService Initialization" name="should merge existing settings with defaults" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Initialization" name="should handle initialization errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Settings Management" name="should get settings with defaults" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Settings Management" name="should update settings and notify background" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Settings Management" name="should reset settings to defaults" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Settings Management" name="should handle storage errors during settings update" time="0.007">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should get empty capture history initially" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should get existing capture history" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should update capture history with new entries" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should deduplicate capture history by URL" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Capture History Management" name="should limit capture history to specified max entries" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should get default stats" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should update stats" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should increment stats counter" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Statistics Management" name="should handle invalid counter increment" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Data Export/Import" name="should export data with redacted sensitive information" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Data Export/Import" name="should import data with merge option" time="0.002">
+    </testcase>
+    <testcase classname="StorageService Data Export/Import" name="should handle invalid import data" time="0.016">
+    </testcase>
+    <testcase classname="StorageService Active State Management" name="should save active state" time="0.004">
+    </testcase>
+    <testcase classname="StorageService Active State Management" name="should get active state" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Active State Management" name="should return null for no active state" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Data Cleanup" name="should clear local data while keeping settings" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Data Cleanup" name="should clear all data including settings" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Data Cleanup" name="should handle cleanup errors" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Cache Management" name="should use cache for repeated settings requests" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Cache Management" name="should invalidate cache on storage changes" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Cache Management" name="should clear cache on memory pressure" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Error Handling" name="should handle Chrome API unavailability" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Error Handling" name="should handle storage operation failures" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Error Handling" name="should handle notification service unavailability" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Resource Management" name="should clean up resources on service cleanup" time="0.001">
+    </testcase>
+    <testcase classname="StorageService Resource Management" name="should handle cleanup when not initialized" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="AnalysisService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:55" time="0.128" tests="38">
+    <testcase classname="AnalysisService BaseService Inheritance Test" name="should properly inherit from BaseService" time="0.002">
+    </testcase>
+    <testcase classname="AnalysisService Basic Class Test" name="should be able to import and instantiate AnalysisService" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService" name="should have proper class structure" time="0.005">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Initialization" name="should initialize successfully with valid dependencies" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Initialization" name="should fail initialization without API service" time="0.023">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Initialization" name="should set up event listeners during initialization" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Initialization" name="should handle initialization errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Cleanup" name="should cleanup resources on shutdown" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Cleanup" name="should handle cleanup errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Memory Pressure Handling" name="should handle memory pressure" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Monitoring" name="should start monitoring a new analysis task" time="0.004">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Monitoring" name="should not monitor task with empty task ID" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Monitoring" name="should not monitor task with null task ID" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Monitoring" name="should not duplicate monitoring for same task" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Status Checking" name="should check task status successfully" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Status Checking" name="should handle completed task status" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Status Checking" name="should handle error task status" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Status Checking" name="should handle API service unavailability" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Status Checking" name="should handle circuit breaker open" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Status Checking" name="should handle API errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Event Handling" name="should handle task creation events" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Event Handling" name="should handle task update events" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Event Handling" name="should handle events without task ID" time="0.002">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Event Handling" name="should handle beforeunload event" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Completion Handling" name="should handle analysis completion successfully" time="0.002">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Completion Handling" name="should handle analysis completion without notification service" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Completion Handling" name="should handle analysis completion without document" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Error Handling" name="should handle analysis errors successfully" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Error Handling" name="should handle analysis errors without notification service" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Error Handling" name="should handle analysis errors with unknown error" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Listener Notification" name="should notify task listeners of status changes" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Task Listener Notification" name="should handle listener errors gracefully" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Service Status" name="should return service status information" time="0.003">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Service Status" name="should return status without dependencies" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Error Handling" name="should handle initialization errors gracefully" time="0.002">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Error Handling" name="should handle cleanup errors gracefully" time="0.002">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Service Worker Context" name="should work in service worker context" time="0.001">
+    </testcase>
+    <testcase classname="AnalysisService AnalysisService Service Worker Context" name="should handle DOM operations in service worker context" time="0.004">
+    </testcase>
+  </testsuite>
+  <testsuite name="MessageService" errors="0" failures="1" skipped="0" timestamp="2025-07-20T04:59:55" time="0.297" tests="28">
+    <testcase classname="MessageService Initialization" name="should initialize successfully" time="0.007">
+    </testcase>
+    <testcase classname="MessageService Initialization" name="should handle initialization error" time="0.015">
+    </testcase>
+    <testcase classname="MessageService Context Detection" name="should detect background script context" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Context Detection" name="should detect extension page context" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Context Detection" name="should detect service worker context" time="0.005">
+    </testcase>
+    <testcase classname="MessageService Context Detection" name="should handle missing Chrome APIs gracefully" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Service Routing" name="should add and remove service handlers" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Service Routing" name="should route messages to service handlers" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Service Routing" name="should handle service handler errors" time="0.005">
+    </testcase>
+    <testcase classname="MessageService Service Routing" name="should send messages to specific services" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Bidirectional Messaging" name="should send to background from extension page" time="0.056">
+    </testcase>
+    <testcase classname="MessageService Bidirectional Messaging" name="should handle local messages in background context" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Bidirectional Messaging" name="should send to extension pages from background" time="0.025">
+    </testcase>
+    <testcase classname="MessageService Bidirectional Messaging" name="should throw error when sendToExtensionPages called from extension page" time="0.016">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should classify network errors" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should classify timeout errors" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should classify context errors" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should classify system errors" time="0.002">
+    </testcase>
+    <testcase classname="MessageService Error Handling" name="should handle cleanup on errors" time="0.004">
+      <failure>Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: undefined
+    at expect (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/expect/build/index.js:113:15)
+    at Object.expect (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/services/message-service.test.js:507:13)</failure>
+    </testcase>
+    <testcase classname="MessageService Service Worker Adaptation" name="should store critical state" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Service Worker Adaptation" name="should restore pending requests" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Service Worker Adaptation" name="should handle storage errors gracefully" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Lifecycle Methods" name="should handle memory pressure" time="0.007">
+    </testcase>
+    <testcase classname="MessageService Lifecycle Methods" name="should cleanup resources properly" time="0.004">
+    </testcase>
+    <testcase classname="MessageService Statistics and Monitoring" name="should provide enhanced statistics" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Statistics and Monitoring" name="should track message statistics" time="0.034">
+    </testcase>
+    <testcase classname="MessageService Integration Tests" name="should handle complete message flow" time="0.003">
+    </testcase>
+    <testcase classname="MessageService Integration Tests" name="should handle service worker lifecycle" time="0.004">
+    </testcase>
+  </testsuite>
+  <testsuite name="StatusService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:55" time="0.075" tests="6">
+    <testcase classname="StatusService Status Monitoring Network Status Detection" name="should detect initial network status correctly" time="0.013">
+    </testcase>
+    <testcase classname="StatusService Status Monitoring Network Status Detection" name="should handle network status changes" time="0.004">
+    </testcase>
+    <testcase classname="StatusService Status Monitoring Network Status Detection" name="should track network status changes in history" time="0.003">
+    </testcase>
+    <testcase classname="StatusService Status Monitoring API Health Checks" name="should perform successful API health check" time="0.002">
+    </testcase>
+    <testcase classname="StatusService Status Monitoring API Health Checks" name="should handle API timeout scenarios" time="0.002">
+    </testcase>
+    <testcase classname="StatusService Status Monitoring API Health Checks" name="should implement circuit breaker for repeated failures" time="0.005">
+    </testcase>
+  </testsuite>
+  <testsuite name="TaskService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:55" time="0.111" tests="11">
+    <testcase classname="TaskService Task Lifecycle" name="should create a new task and add to active tasks" time="0.02">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should fallback to API when background page unavailable" time="0.002">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should cancel a task and remove from active tasks" time="0.002">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should retry a failed task and update state" time="0.001">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should retrieve task by ID from active tasks" time="0.002">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should retrieve task by ID from completed tasks" time="0.002">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should return all active tasks" time="0.001">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should return all completed tasks" time="0.001">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should handle invalid task ID" time="0.027">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should handle missing task data" time="0.001">
+    </testcase>
+    <testcase classname="TaskService Task Lifecycle" name="should handle task creation failure" time="0.002">
+    </testcase>
+  </testsuite>
+  <testsuite name="BaseService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:56" time="0.057" tests="11">
+    <testcase classname="BaseService Basic Functionality" name="should create service instance" time="0.002">
+    </testcase>
+    <testcase classname="BaseService Basic Functionality" name="should start uninitialized" time="0.001">
+    </testcase>
+    <testcase classname="BaseService Basic Functionality" name="should have resource tracker" time="0.001">
+    </testcase>
+    <testcase classname="BaseService Basic Functionality" name="should have memory monitor" time="0">
+    </testcase>
+    <testcase classname="BaseService Basic Functionality" name="should provide metrics" time="0.001">
+    </testcase>
+    <testcase classname="BaseService Task Management" name="should handle task tracking without iteration errors" time="0.001">
+    </testcase>
+    <testcase classname="BaseService Task Management" name="should handle cleanup without iteration errors" time="0">
+    </testcase>
+    <testcase classname="BaseService Task Management" name="should handle maximum task limit" time="0.01">
+    </testcase>
+    <testcase classname="BaseService Circuit Breaker" name="should start with closed circuit breaker" time="0">
+    </testcase>
+    <testcase classname="BaseService Circuit Breaker" name="should record failures" time="0">
+    </testcase>
+    <testcase classname="BaseService Service Properties" name="should have required properties" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="Simple Service Test" errors="0" failures="0" skipped="0" timestamp="2025-07-20T04:59:56" time="0.048" tests="6">
+    <testcase classname="Simple Service Test" name="should run basic test" time="0.001">
+    </testcase>
+    <testcase classname="Simple Service Test" name="should handle basic math" time="0">
+    </testcase>
+    <testcase classname="Simple Service Test" name="should handle async operations" time="0.007">
+    </testcase>
+    <testcase classname="Simple Service Test" name="should import BaseService without errors" time="0.002">
+    </testcase>
+    <testcase classname="Simple Service Test" name="should create BaseService instance without errors" time="0.001">
+    </testcase>
+    <testcase classname="Simple Service Test" name="should handle service property access" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

@@ -156,10 +156,9 @@ export class AnalysisService extends BaseService {
       return;
     }
     
-    // Create task state object if not already monitoring
-    const task = { id: taskId };
-    if (!this._activeTasks.has(task)) {
-      const state = this._trackTask(task, {
+    // Use taskId string as the key for reliable Map operations
+    if (!this._activeTasks.has(taskId)) {
+      const state = this._trackTask(taskId, {
         id: taskId,
         status: 'pending',
         progress: 0,
@@ -167,7 +166,7 @@ export class AnalysisService extends BaseService {
       });
       
       // Start checking status with a small initial delay
-      this._scheduleTaskRetry(task, () => this._checkTaskStatus(taskId));
+      this._scheduleTaskRetry(taskId, () => this._checkTaskStatus(taskId));
       
       this._logger.debug(`Started monitoring task: ${taskId}`);
     } else {
@@ -181,8 +180,7 @@ export class AnalysisService extends BaseService {
    * @private
    */
   async _checkTaskStatus(taskId) {
-    const task = { id: taskId };
-    const state = this._activeTasks.get(task);
+    const state = this._activeTasks.get(taskId);
     if (!state) return; // No longer monitoring this task
     
     try {
@@ -224,7 +222,7 @@ export class AnalysisService extends BaseService {
         
         // If task is still running, schedule next check
         if (response.status === 'enqueued' || response.status === 'processing') {
-          this._scheduleTaskRetry(task, () => this._checkTaskStatus(taskId));
+          this._scheduleTaskRetry(taskId, () => this._checkTaskStatus(taskId));
         }
       } else {
         throw new Error(response.error || 'Failed to check task status');
@@ -232,7 +230,7 @@ export class AnalysisService extends BaseService {
     } catch (error) {
       this._logger.error(`Error checking status for task ${taskId}:`, error);
       this._recordFailure();
-      this._scheduleTaskRetry(task, () => this._checkTaskStatus(taskId));
+      this._scheduleTaskRetry(taskId, () => this._checkTaskStatus(taskId));
     }
   }
 
@@ -279,10 +277,15 @@ export class AnalysisService extends BaseService {
       }
       
       if (typeof document !== 'undefined') {
-        const event = new CustomEvent('analysisCompleted', {
-          detail: { taskId, result: response }
-        });
-        document.dispatchEvent(event);
+        try {
+          const event = new CustomEvent('analysisCompleted', {
+            detail: { taskId, result: response }
+          });
+          document.dispatchEvent(event);
+        } catch (error) {
+          // Handle cases where CustomEvent or dispatchEvent is not available (e.g., test environments)
+          this._logger.debug('Could not dispatch analysis completion event:', error.message);
+        }
       }
       
       this._logger.info(`Analysis task ${taskId} completion handled successfully`);
@@ -308,10 +311,15 @@ export class AnalysisService extends BaseService {
       }
       
       if (typeof document !== 'undefined') {
-        const event = new CustomEvent('analysisError', {
-          detail: { taskId, error: response.error }
-        });
-        document.dispatchEvent(event);
+        try {
+          const event = new CustomEvent('analysisError', {
+            detail: { taskId, error: response.error }
+          });
+          document.dispatchEvent(event);
+        } catch (error) {
+          // Handle cases where CustomEvent or dispatchEvent is not available (e.g., test environments)
+          this._logger.debug('Could not dispatch analysis error event:', error.message);
+        }
       }
       
       this._logger.info(`Analysis task ${taskId} error handled`);

@@ -103,6 +103,9 @@ export class BaseService {
       await this._resourceTracker.cleanup();
       await this._cleanupTasks();
       await this._performCleanup();
+    } catch (error) {
+      this._logger?.error('Error during cleanup:', error);
+      // Continue with cleanup even if there are errors
     } finally {
       this._initialized = false;
       this._resetCircuitBreaker();
