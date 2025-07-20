@@ -1,67 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="31" failures="0" errors="0" time="1.163">
-  <testsuite name="NotificationService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T01:43:39" time="0.784" tests="31">
-    <testcase classname="NotificationService Initialization" name="should initialize successfully in browser context" time="0.012">
+<testsuites name="jest tests" tests="27" failures="0" errors="0" time="21.289">
+  <testsuite name="GraphService" errors="0" failures="0" skipped="0" timestamp="2025-07-20T02:37:02" time="20.828" tests="27">
+    <testcase classname="GraphService Initialization" name="should initialize successfully with valid configuration" time="0.018">
     </testcase>
-    <testcase classname="NotificationService Notification Creation" name="should create standard notification successfully" time="0.016">
+    <testcase classname="GraphService Initialization" name="should require ApiService in constructor" time="0.022">
     </testcase>
-    <testcase classname="NotificationService Notification Creation" name="should create progress notification successfully" time="0.004">
+    <testcase classname="GraphService Initialization" name="should validate cache configuration" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Notification Creation" name="should handle invalid notification types" time="0.002">
+    <testcase classname="GraphService Initialization" name="should load configuration from Chrome storage" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Notification Creation" name="should handle empty messages" time="0.005">
+    <testcase classname="GraphService Initialization" name="should handle configuration loading errors gracefully" time="0.001">
     </testcase>
-    <testcase classname="NotificationService Notification Creation" name="should validate progress values" time="0.002">
+    <testcase classname="GraphService Graph Operations" name="should get related pages successfully" time="0.003">
     </testcase>
-    <testcase classname="NotificationService Notification Creation" name="should return null in service worker context" time="0.003">
+    <testcase classname="GraphService Graph Operations" name="should search graph successfully" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Progress Notification Updates" name="should update existing progress notification" time="0.003">
+    <testcase classname="GraphService Graph Operations" name="should get node by ID successfully" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Progress Notification Updates" name="should create new notification if none exists" time="0.002">
+    <testcase classname="GraphService Graph Operations" name="should handle API errors gracefully" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Progress Notification Updates" name="should validate progress values in updates" time="0.003">
+    <testcase classname="GraphService Graph Operations" name="should handle network errors gracefully" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Notification Dismissal" name="should dismiss all notifications" time="0.004">
+    <testcase classname="GraphService Graph Operations" name="should validate required parameters" time="0.001">
     </testcase>
-    <testcase classname="NotificationService Notification Dismissal" name="should handle dismissal of non-existent notification" time="0.001">
+    <testcase classname="GraphService Caching" name="should cache successful results" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Notification Dismissal" name="should handle dismissal with empty ID" time="0.002">
+    <testcase classname="GraphService Caching" name="should return cached results when available" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Notification Limits and Management" name="should manage notification lifecycle properly" time="0.152">
+    <testcase classname="GraphService Caching" name="should bypass cache when requested" time="0.001">
     </testcase>
-    <testcase classname="NotificationService Configuration Management" name="should update notification configuration" time="0.002">
+    <testcase classname="GraphService Caching" name="should handle cache operation timeouts" time="5.007">
     </testcase>
-    <testcase classname="NotificationService Configuration Management" name="should update container position when configuration changes" time="0.002">
+    <testcase classname="GraphService Caching" name="should prune cache when size exceeds limit" time="5.01">
     </testcase>
-    <testcase classname="NotificationService Statistics and Status" name="should track notification statistics" time="0.003">
+    <testcase classname="GraphService Configuration Management" name="should update configuration successfully" time="0.007">
     </testcase>
-    <testcase classname="NotificationService Statistics and Status" name="should provide service status" time="0.002">
+    <testcase classname="GraphService Configuration Management" name="should clear cache when disabled" time="0.003">
     </testcase>
-    <testcase classname="NotificationService Service Worker Context" name="should initialize successfully in service worker context" time="0.001">
+    <testcase classname="GraphService Configuration Management" name="should handle configuration save errors" time="0.004">
     </testcase>
-    <testcase classname="NotificationService Service Worker Context" name="should log notifications in service worker context" time="0.001">
+    <testcase classname="GraphService Statistics and Status" name="should provide cache statistics" time="0.006">
     </testcase>
-    <testcase classname="NotificationService Service Worker Context" name="should return null for UI operations in service worker context" time="0.001">
+    <testcase classname="GraphService Statistics and Status" name="should provide service status" time="0.003">
     </testcase>
-    <testcase classname="NotificationService Error Handling" name="should handle DOM creation errors gracefully" time="0.001">
+    <testcase classname="GraphService Error Handling" name="should handle initialization failures gracefully" time="0.003">
     </testcase>
-    <testcase classname="NotificationService Error Handling" name="should handle container not found errors" time="0.002">
+    <testcase classname="GraphService Error Handling" name="should handle cache errors gracefully" time="5.006">
     </testcase>
-    <testcase classname="NotificationService Error Handling" name="should handle notification removal errors gracefully" time="0.002">
+    <testcase classname="GraphService Resource Management" name="should cleanup resources on shutdown" time="0.004">
     </testcase>
-    <testcase classname="NotificationService Resource Management" name="should track DOM elements properly" time="0.001">
+    <testcase classname="GraphService Resource Management" name="should handle memory pressure" time="0.005">
     </testcase>
-    <testcase classname="NotificationService Resource Management" name="should track event listeners properly" time="0.002">
+    <testcase classname="GraphService Service Worker Context" name="should work in service worker context" time="0.002">
     </testcase>
-    <testcase classname="NotificationService Resource Management" name="should handle memory pressure" time="0.003">
-    </testcase>
-    <testcase classname="NotificationService Resource Management" name="should cleanup resources on service shutdown" time="0.002">
-    </testcase>
-    <testcase classname="NotificationService Circuit Breaker" name="should open circuit breaker after repeated failures" time="0.003">
-    </testcase>
-    <testcase classname="NotificationService Circuit Breaker" name="should suppress notifications when circuit breaker is open" time="0.002">
-    </testcase>
-    <testcase classname="NotificationService Integration with BaseService" name="should inherit BaseService functionality" time="0.001">
+    <testcase classname="GraphService Service Worker Context" name="should handle cache operations in service worker context" time="5.007">
     </testcase>
   </testsuite>
 </testsuites>

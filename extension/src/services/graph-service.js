@@ -92,7 +92,25 @@ export class GraphService extends BaseService {
     }
   
   /**
-   * Initialize the graph service
+   * Initialize the graph service with graceful error handling
+   * @returns {Promise<boolean>} Success state
+   */
+  async initialize() {
+    if (this._initialized) {
+      return true;
+    }
+    
+    try {
+      return await super.initialize();
+    } catch (error) {
+      this._logger?.error('Graph service initialization failed:', error);
+      this._initialized = false;
+      return false;
+    }
+  }
+
+  /**
+   * Service-specific initialization
    * @returns {Promise<boolean>} Success state
    */
   async _performInitialization() {
@@ -234,8 +252,14 @@ export class GraphService extends BaseService {
         await this._clearCache();
       }
       
-      // Save configuration
-      await this._saveConfiguration();
+      // Save configuration and check result
+      const saveSuccess = await this._saveConfiguration();
+      if (!saveSuccess) {
+        return {
+          success: false,
+          error: 'Failed to update configuration: Could not save to storage'
+        };
+      }
       
       return {
         success: true,
@@ -344,7 +368,7 @@ export class GraphService extends BaseService {
    * @returns {Promise<object>} Search results as nodes
    */
   async searchGraph(query, options = {}) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -356,7 +380,7 @@ export class GraphService extends BaseService {
     }
     
     if (!query) {
-      this.logger.warn('Attempted to search graph with no query provided');
+      this._logger.warn('Attempted to search graph with no query provided');
       return {
         success: false,
         error: 'Query is required'
@@ -364,14 +388,14 @@ export class GraphService extends BaseService {
     }
     
     try {
-      this.logger.debug(`Searching graph with query: ${query}`);
+      this._logger.debug(`Searching graph with query: ${query}`);
       
       // Create cache key based on parameters
-      const cacheKey = this.createCacheKey('search', query, options);
+      const cacheKey = this._createCacheKey('search', query, options);
       
       // Check cache if enabled and not bypassed
-      if (this.cacheEnabled && !options.bypassCache) {
-        const cachedResult = this.getCachedResult(cacheKey);
+      if (this._cacheConfig.enabled && !options.bypassCache) {
+        const cachedResult = await this._getCachedResult(cacheKey);
         if (cachedResult) {
           return cachedResult;
         }
@@ -388,7 +412,7 @@ export class GraphService extends BaseService {
       
       const endpoint = `/api/v1/graph/search?${queryParams.toString()}`;
       
-      const response = await this.apiService.fetchAPI(endpoint);
+      const response = await this._apiService.fetchAPI(endpoint);
       
       if (response && response.success) {
         const result = {
@@ -399,8 +423,8 @@ export class GraphService extends BaseService {
         };
         
         // Cache successful result
-        if (this.cacheEnabled) {
-          this.cacheResult(cacheKey, result);
+        if (this._cacheConfig.enabled) {
+          await this._cacheResult(cacheKey, result);
         }
         
         return result;
@@ -411,7 +435,7 @@ export class GraphService extends BaseService {
         };
       }
     } catch (error) {
-      this.logger.error(`Error searching graph with query "${query}":`, error);
+      this._logger.error(`Error searching graph with query "${query}":`, error);
       return {
         success: false,
         error: error.message || 'An unknown error occurred'
@@ -428,7 +452,7 @@ export class GraphService extends BaseService {
    * @returns {Promise<object>} Node and optional relationships
    */
   async getNode(nodeId, options = {}) {
-    if (!this.initialized) {
+    if (!this._initialized) {
       try {
         await this.initialize();
       } catch (error) {
@@ -440,7 +464,7 @@ export class GraphService extends BaseService {
     }
     
     if (!nodeId) {
-      this.logger.warn('Attempted to get node with no ID provided');
+      this._logger.warn('Attempted to get node with no ID provided');
       return {
         success: false,
         error: 'Node ID is required'
@@ -448,14 +472,14 @@ export class GraphService extends BaseService {
     }
     
     try {
-      this.logger.debug(`Getting node with ID: ${nodeId}`);
+      this._logger.debug(`Getting node with ID: ${nodeId}`);
       
       // Create cache key based on parameters
-      const cacheKey = this.createCacheKey('node', nodeId, options);
+      const cacheKey = this._createCacheKey('node', nodeId, options);
       
       // Check cache if enabled and not bypassed
-      if (this.cacheEnabled && !options.bypassCache) {
-        const cachedResult = this.getCachedResult(cacheKey);
+      if (this._cacheConfig.enabled && !options.bypassCache) {
+        const cachedResult = await this._getCachedResult(cacheKey);
         if (cachedResult) {
           return cachedResult;
         }
@@ -471,7 +495,7 @@ export class GraphService extends BaseService {
       const queryString = queryParams.toString();
       const endpoint = `/api/v1/graph/node/${encodeURIComponent(nodeId)}${queryString ? `?${queryString}` : ''}`;
       
-      const response = await this.apiService.fetchAPI(endpoint);
+      const response = await this._apiService.fetchAPI(endpoint);
       
       if (response && response.success) {
         const result = {
@@ -482,8 +506,8 @@ export class GraphService extends BaseService {
         };
         
         // Cache successful result
-        if (this.cacheEnabled) {
-          this.cacheResult(cacheKey, result);
+        if (this._cacheConfig.enabled) {
+          await this._cacheResult(cacheKey, result);
         }
         
         return result;
@@ -494,7 +518,7 @@ export class GraphService extends BaseService {
         };
       }
     } catch (error) {
-      this.logger.error(`Error getting node with ID ${nodeId}:`, error);
+      this._logger.error(`Error getting node with ID ${nodeId}:`, error);
       return {
         success: false,
         error: error.message || 'An unknown error occurred'
@@ -510,150 +534,10 @@ export class GraphService extends BaseService {
    * @returns {string} Cache key
    * @private
    */
-  createCacheKey(type, primaryKey, options) {
+  _createCacheKey(type, primaryKey, options) {
     return `${type}:${primaryKey}:${JSON.stringify(options)}`;
   }
   
-  /**
-   * Get a result from cache if valid
-   * @param {string} cacheKey - Cache key
-   * @returns {object|null} Cached result or null if not found/expired
-   * @private
-   */
-  getCachedResult(cacheKey) {
-    if (!this.queryCache.has(cacheKey)) {
-      this.cacheMisses++;
-      return null;
-    }
-    
-    const cachedItem = this.queryCache.get(cacheKey);
-    const now = Date.now();
-    
-    // Check if cache has expired
-    if (now - cachedItem.timestamp > this.cacheTimeoutMs) {
-      this.queryCache.delete(cacheKey);
-      this.cacheMisses++;
-      return null;
-    }
-    
-    this.cacheHits++;
-    this.logger.debug(`Cache hit for key: ${cacheKey}`);
-    
-    return cachedItem;
-  }
-  
-  /**
-   * Cache a result
-   * @param {string} cacheKey - Cache key
-   * @param {object} result - Result to cache
-   * @private
-   */
-  cacheResult(cacheKey, result) {
-    this.queryCache.set(cacheKey, result);
-    this.logger.debug(`Cached result for key: ${cacheKey}`);
-    
-    // Prune cache if it gets too large (over 100 items)
-    if (this.queryCache.size > 100) {
-      this.pruneCache();
-    }
-  }
-  
-  /**
-   * Prune old items from cache
-   * @private
-   */
-  pruneCache() {
-    const now = Date.now();
-    let pruneCount = 0;
-    
-    // Remove expired items
-    this.queryCache.forEach((value, key) => {
-      if (now - value.timestamp > this.cacheTimeoutMs) {
-        this.queryCache.delete(key);
-        pruneCount++;
-      }
-    });
-    
-    // If still too large, remove oldest items
-    if (this.queryCache.size > 100) {
-      // Convert to array and sort by timestamp
-      const cacheItems = Array.from(this.queryCache.entries())
-        .sort((a, b) => a[1].timestamp - b[1].timestamp);
-      
-      // Remove oldest 20% of items
-      const removeCount = Math.ceil(this.queryCache.size * 0.2);
-      for (let i = 0; i < removeCount; i++) {
-        if (cacheItems[i]) {
-          this.queryCache.delete(cacheItems[i][0]);
-          pruneCount++;
-        }
-      }
-    }
-    
-    if (pruneCount > 0) {
-      this.logger.debug(`Pruned ${pruneCount} items from cache`);
-    }
-  }
-  
-  /**
-   * Clear the entire cache
-   */
-  clearCache() {
-    const cacheSize = this.queryCache.size;
-    this.queryCache.clear();
-    this.logger.debug(`Cleared ${cacheSize} items from cache`);
-    
-    return {
-      success: true,
-      message: `Cleared ${cacheSize} items from cache`
-    };
-  }
-  
-  /**
-   * Get cache statistics
-   * @returns {object} Cache statistics
-   */
-  getCacheStats() {
-    return {
-      enabled: this.cacheEnabled,
-      size: this.queryCache.size,
-      timeoutMs: this.cacheTimeoutMs,
-      hits: this.cacheHits,
-      misses: this.cacheMisses,
-      hitRate: this.cacheHits + this.cacheMisses > 0
-        ? Math.round((this.cacheHits / (this.cacheHits + this.cacheMisses)) * 100) + '%'
-        : '0%'
-    };
-  }
-  
-  /**
-   * Get service status
-   * @returns {object} Service status
-   */
-  getStatus() {
-    return {
-      initialized: this.initialized,
-      hasLogger: !!this.logger,
-      hasDependencies: !!this.apiService,
-      cacheEnabled: this.cacheEnabled,
-      cacheSize: this.queryCache.size,
-      cacheStats: this.getCacheStats()
-    };
-  }
-  
-
-    /**
-   * Create a cache key from request parameters
-   * @param {string} type - Request type
-   * @param {string} primaryKey - Primary key (URL, query, or node ID)
-   * @param {object} options - Request options
-   * @returns {string} Cache key
-   * @private
-   */
-    _createCacheKey(type, primaryKey, options) {
-      return `${type}:${primaryKey}:${JSON.stringify(options)}`;
-    }
-    
   /**
    * Get a result from cache if valid
    * @param {string} cacheKey - Cache key
@@ -692,7 +576,7 @@ export class GraphService extends BaseService {
       
       return cachedItem;
     } catch (error) {
-      this._logger.error(`Error getting cached result for key ${cacheKey}:`, error);
+      this._logger.error('Error getting cached result for key', cacheKey, error);
       return null;
     }
   }
@@ -714,7 +598,7 @@ export class GraphService extends BaseService {
         await this._pruneCache();
       }
     } catch (error) {
-      this._logger.error(`Error caching result for key ${cacheKey}:`, error);
+      this._logger.error('Error caching result for key', cacheKey, error);
     }
   }
   
@@ -730,7 +614,7 @@ export class GraphService extends BaseService {
       // Get all cache items
       const cacheItems = await this._resourceTracker.getAllCachedItems();
       
-      // Remove expired items
+      // Remove expired items first
       for (const [key, value] of cacheItems) {
         if (now - value.timestamp > this._cacheConfig.timeoutMs) {
           await this._resourceTracker.removeCachedItem(key);
@@ -739,13 +623,17 @@ export class GraphService extends BaseService {
       }
       
       // If still too large, remove oldest items
-      if (cacheItems.size > this._cacheConfig.maxSize) {
+      const currentSize = await this._resourceTracker.getCacheSize();
+      if (currentSize > this._cacheConfig.maxSize) {
+        // Get updated cache items after removing expired ones
+        const remainingItems = await this._resourceTracker.getAllCachedItems();
+        
         // Sort by timestamp
-        const sortedItems = Array.from(cacheItems.entries())
+        const sortedItems = Array.from(remainingItems.entries())
           .sort((a, b) => a[1].timestamp - b[1].timestamp);
         
         // Remove oldest items
-        const removeCount = Math.ceil(cacheItems.size * this._cacheConfig.pruneThreshold);
+        const removeCount = Math.ceil(remainingItems.size * this._cacheConfig.pruneThreshold);
         for (let i = 0; i < removeCount; i++) {
           if (sortedItems[i]) {
             await this._resourceTracker.removeCachedItem(sortedItems[i][0]);
