@@ -556,3 +556,80 @@ The success of this refactoring depends on thorough testing, clear communication
 ---
 
 These lessons and patterns are distilled from the real-world process of refactoring MessageService and its test suite. Future contributors should review this section before making changes to the messaging infrastructure or its tests.
+
+## Lessons Learned: TaskService Refactor & Data Structure Integration
+
+### 8. Data Structure Conflicts in Inheritance
+- **Problem:** Child classes overriding parent class properties can cause iteration errors in parent cleanup methods.
+- **Solution:** Use distinct property names for child-specific data structures (e.g., `_taskServiceActiveTasks` vs `_activeTasks`).
+- **Pattern:** When extending BaseService, prefix child properties to avoid conflicts with parent cleanup logic.
+
+### 9. Property Name Consistency Across Large Codebases
+- **Problem:** Inconsistent property references (`this.logger` vs `this._logger`) cause undefined property errors.
+- **Solution:** Establish and enforce consistent naming conventions early in refactoring.
+- **Pattern:** Use systematic search/replace to standardize all property references before running tests.
+
+### 10. Method Name Validation in Refactoring
+- **Problem:** Calling non-existent methods (e.g., `this._notifyTaskListeners`) causes runtime errors.
+- **Solution:** Verify method existence and correct naming before implementing calls.
+- **Pattern:** Use IDE refactoring tools or grep searches to ensure method names match their definitions.
+
+### 11. Error Message Preservation in Wrapper Classes
+- **Problem:** Generic error wrappers lose descriptive original error messages.
+- **Solution:** Preserve original error messages when they provide useful context.
+- **Pattern:** Check if original error message is descriptive before wrapping in generic error.
+
+### 12. Systematic Debugging with Temporary Logging
+- **Problem:** Complex integration issues are difficult to trace without detailed execution flow.
+- **Solution:** Add temporary console.log statements to trace execution and variable state.
+- **Pattern:** Use distinctive prefixes (e.g., "🧪 Debug:") for easy identification and removal.
+
+### 13. Input Validation in Public Methods
+- **Problem:** Public methods don't validate inputs, leading to unexpected behavior.
+- **Solution:** Add input validation at the start of public methods.
+- **Pattern:** Validate inputs early and throw descriptive errors for invalid data.
+
+### 14. Test-Driven Refactoring Success Metrics
+- **Problem:** It's difficult to measure progress when refactoring broken systems.
+- **Solution:** Track test pass/fail ratios as progress indicators.
+- **Pattern:** Start with 0% pass rate, celebrate each test that turns green, aim for 100%.
+
+---
+
+These additional lessons complement the MessageService lessons and provide guidance for future service refactoring efforts, particularly around data structure integration and systematic debugging approaches.
+
+## Lessons Learned: StatusService Refactor & Browser API Integration
+
+### 15. Browser API Mocking in Node/Jest Environment
+- **Problem:** Browser APIs like `navigator.onLine` are read-only in Node/Jest and cannot be set directly.
+- **Solution:** Use `Object.defineProperty(global.navigator, 'onLine', { value: true, configurable: true })` to mock read-only properties.
+- **Pattern:** Set browser API state before creating service instances to ensure proper initialization.
+
+### 16. Service Initialization and Multiple API Calls
+- **Problem:** Service initialization often triggers API calls, but tests may trigger additional calls, leading to mock exhaustion.
+- **Solution:** Use `mockResolvedValue`/`mockRejectedValue` instead of `*Once` variants to handle multiple calls.
+- **Pattern:** Plan for both initialization calls and test-triggered calls when setting up mocks.
+
+### 17. Error Type Precision for Status Classification
+- **Problem:** Generic Error objects don't have the correct `name` property for error type checking (e.g., `fetchError.name === 'AbortError'`).
+- **Solution:** Create proper error objects with correct `name` property: `abortError.name = 'AbortError'`.
+- **Pattern:** Ensure mock errors match the exact error types expected by error handling logic.
+
+### 18. Force Parameters for Bypassing Internal Logic
+- **Problem:** Public methods like `forceApiStatusCheck()` may not actually bypass internal throttling or validation logic.
+- **Solution:** Add explicit `force` parameters to internal methods and respect them in conditional logic.
+- **Pattern:** Use `if (!force && condition)` to allow forced operations to bypass normal restrictions.
+
+### 19. Systematic Debugging with Temporary Logging
+- **Problem:** Complex service interactions make it difficult to trace execution flow and identify failure points.
+- **Solution:** Add temporary `console.log` statements with distinctive prefixes (e.g., "🔍") for easy identification and removal.
+- **Pattern:** Log method entry points, parameter values, and decision points to trace execution flow.
+
+### 20. TDD Success Metrics for Legacy Services
+- **Problem:** It's difficult to measure progress when refactoring complex legacy services with multiple failure modes.
+- **Solution:** Track test pass rates as progress indicators and celebrate each test that turns green.
+- **Pattern:** Start with 0% pass rate, fix one test at a time, aim for 100% pass rate.
+
+---
+
+These additional lessons complement the previous lessons and provide guidance for future service refactoring efforts, particularly around browser API integration, error handling precision, and systematic debugging approaches.

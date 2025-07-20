@@ -262,7 +262,7 @@ export class StatusService extends BaseService {
     this._updateNetworkStatus();
     
     // Check API status when coming back online
-    this._checkApiStatus().catch(error => {
+    this._checkApiStatus(false).catch(error => {
       this._logger.error('Error checking API status after coming online:', error);
     });
     
@@ -424,7 +424,7 @@ export class StatusService extends BaseService {
   async _setupApiStatusCheck() {
     try {
       // Initial check
-      await this._checkApiStatus();
+      await this._checkApiStatus(false);
       
       // Clear any existing interval
       if (this._checkIntervalId) {
@@ -447,10 +447,14 @@ export class StatusService extends BaseService {
   
   /**
    * Check API server status
+   * @param {boolean} force - Force check even if throttled
    * @returns {Promise<string>} API status
    * @private
    */
-  async _checkApiStatus() {
+  async _checkApiStatus(force = false) {
+    // Debug: Log the force parameter and current state
+    this._logger?.debug(`_checkApiStatus called with force=${force}, navigator.onLine=${navigator.onLine}, _lastApiCheck=${this._lastApiCheck}`);
+    
     // Skip check if offline
     if (!navigator.onLine) {
       this._apiStatus = 'offline';
@@ -466,13 +470,17 @@ export class StatusService extends BaseService {
       return this._apiStatus;
     }
     
-    // Throttle checks
+    // Throttle checks (unless forced)
     const now = Date.now();
-    if (now - this._lastApiCheck < 10000) { // No more than once per 10 seconds
+    const timeSinceLastCheck = now - this._lastApiCheck;
+    this._logger?.debug(`Throttle check: force=${force}, timeSinceLastCheck=${timeSinceLastCheck}ms, threshold=10000ms`);
+    
+    if (!force && timeSinceLastCheck < 10000) { // No more than once per 10 seconds
       this._logger.debug('Skipping API check due to throttling');
       return this._apiStatus;
     }
     
+    this._logger?.debug('Proceeding with API check');
     this._lastApiCheck = now;
     this._stats.apiChecks++;
     
@@ -590,7 +598,7 @@ export class StatusService extends BaseService {
    */
   async _handleApiCheckInterval() {
     try {
-      await this._checkApiStatus();
+      await this._checkApiStatus(false);
     } catch (error) {
       this._logger.error('Error in API check interval:', error);
     }
@@ -696,9 +704,11 @@ export class StatusService extends BaseService {
       }
     }
     
-    // Reset last check time to force a check
+    // Reset last check time to force a check and bypass throttling
     this._lastApiCheck = 0;
-    return this._checkApiStatus();
+    
+    // Call _checkApiStatus with force flag to bypass throttling
+    return this._checkApiStatus(true);
   }
   
   /**
