@@ -10,8 +10,8 @@ export class Navigation extends BaseComponent {
     this.navItems = null;
     this.contentPanels = null;
     
-    // Add service registry
-    this._serviceRegistry = new ServiceRegistry();
+    // ServiceRegistry is a static class, no need to instantiate
+    this._serviceRegistry = ServiceRegistry;
   }
 
   // Keep existing _performInitialization as is, since it's working well
@@ -88,7 +88,7 @@ export class Navigation extends BaseComponent {
       this.logger.debug(`Saved active panel: ${panelName}`);
     } catch (error) {
       this.logger.error('Error saving active panel:', error);
-      throw error;
+      // Don't throw error, just log it - storage might not be available
     }
   }
 
@@ -121,6 +121,15 @@ export class Navigation extends BaseComponent {
       return false;
     } catch (error) {
       this.logger.error('Error restoring last panel:', error);
+      // Fall back to first nav item if storage is not available
+      const firstNavItem = this.navElement?.querySelector('.nav-item');
+      if (firstNavItem) {
+        const panelName = firstNavItem.getAttribute('data-panel');
+        if (panelName) {
+          await this.activatePanel(panelName, firstNavItem);
+          return true;
+        }
+      }
       return false;
     }
   }
@@ -133,7 +142,6 @@ export class Navigation extends BaseComponent {
     this.navItems = null;
     this.contentPanels = null;
 
-    // Add service registry cleanup
-    await this._serviceRegistry.cleanup();
+    // ServiceRegistry is static, no cleanup needed
   }
 }

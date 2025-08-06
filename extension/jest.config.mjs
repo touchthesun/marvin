@@ -5,7 +5,7 @@ export default {
   displayName: 'extension',
   testEnvironment: 'jsdom',
   transform: {
-    '^.+\\.js$': ['babel-jest', { configFile: './babel.test.config.js' }]
+    '^.+\\.js$': ['babel-jest', { configFile: './babel.test.config.cjs' }]
   },
   moduleFileExtensions: ['js', 'json'],
   testMatch: ['**/tests/**/*.test.js'],

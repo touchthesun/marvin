@@ -68,6 +68,222 @@ const HistoryCapture = {
       return fallback;
     }
   },
+
+  /**
+   * Clean up existing event listeners for history components
+   * @param {LogManager} logger - Logger instance
+   */
+  _cleanupExistingListeners(logger) {
+    logger.debug('Cleaning up existing history event listeners');
+    
+    // Remove existing time filter listener
+    const timeFilterElement = document.getElementById('history-time-filter');
+    if (timeFilterElement) {
+      this._eventListeners.forEach(({element, type, listener}) => {
+        if (element === timeFilterElement && type === 'change') {
+          try {
+            element.removeEventListener(type, listener);
+          } catch (error) {
+            logger.warn('Error removing existing time filter listener:', error);
+          }
+        }
+      });
+    }
+    
+    // Remove existing search listener
+    const searchInput = document.getElementById('history-search');
+    if (searchInput) {
+      this._eventListeners.forEach(({element, type, listener}) => {
+        if (element === searchInput && type === 'input') {
+          try {
+            element.removeEventListener(type, listener);
+          } catch (error) {
+            logger.warn('Error removing existing search listener:', error);
+          }
+        }
+      });
+    }
+    
+    // Remove existing selection control listeners
+    const selectAllBtn = document.getElementById('select-all-history');
+    const deselectAllBtn = document.getElementById('deselect-all-history');
+    
+    if (selectAllBtn || deselectAllBtn) {
+      this._eventListeners.forEach(({element, type, listener}) => {
+        if ((element === selectAllBtn || element === deselectAllBtn) && type === 'click') {
+          try {
+            element.removeEventListener(type, listener);
+          } catch (error) {
+            logger.warn('Error removing existing selection control listener:', error);
+          }
+        }
+      });
+    }
+  },
+
+  /**
+   * Validate input parameters
+   * @param {string} methodName - Name of the calling method
+   * @param {Object} params - Parameters to validate
+   * @param {LogManager} logger - Logger instance
+   * @returns {boolean} True if valid, false otherwise
+   */
+  _validateInputs(methodName, params, logger) {
+    const validations = {
+      initHistoryCapture: () => true, // No params to validate
+      loadHistory: () => true, // Only logger param
+      getStartTimeFromFilter: (timeFilter) => {
+        if (timeFilter !== undefined && typeof timeFilter !== 'string') {
+          logger.warn(`Invalid timeFilter parameter in ${methodName}: expected string, got ${typeof timeFilter}`);
+          return false;
+        }
+        return true;
+      },
+      filterHistory: (searchTerm) => {
+        if (searchTerm !== undefined && typeof searchTerm !== 'string') {
+          logger.warn(`Invalid searchTerm parameter in ${methodName}: expected string, got ${typeof searchTerm}`);
+          return false;
+        }
+        return true;
+      },
+      displayHistoryItems: (itemsToDisplay) => {
+        if (itemsToDisplay !== null && itemsToDisplay !== undefined && !Array.isArray(itemsToDisplay)) {
+          logger.warn(`Invalid itemsToDisplay parameter in ${methodName}: expected array, got ${typeof itemsToDisplay}`);
+          return false;
+        }
+        return true;
+      },
+      formatDate: (date) => {
+        if (date !== undefined && !(date instanceof Date)) {
+          logger.warn(`Invalid date parameter in ${methodName}: expected Date object, got ${typeof date}`);
+          return false;
+        }
+        return true;
+      },
+      getSelectedHistoryItems: () => true, // No params to validate
+      updateDisplayWithData: (newHistoryItems) => {
+        if (newHistoryItems !== undefined && !Array.isArray(newHistoryItems)) {
+          return false;
+        }
+        return true;
+      },
+      cleanup: () => true // No params to validate
+    };
+    
+    const validator = validations[methodName];
+    if (!validator) {
+      logger.warn(`No validation defined for method: ${methodName}`);
+      return true;
+    }
+    
+    return validator(...Object.values(params));
+  },
+
+  /**
+   * Safely execute DOM operations with error boundaries
+   * @param {Function} operation - DOM operation to execute
+   * @param {LogManager} logger - Logger instance
+   * @param {string} operationName - Name of the operation for logging
+   * @returns {boolean} True if successful, false otherwise
+   */
+  _safeDOMOperation(operation, logger, operationName) {
+    try {
+      return operation();
+    } catch (error) {
+      logger.error(`DOM operation failed: ${operationName}`, error);
+      return false;
+    }
+  },
+
+  // Then update DOM operations to use this helper:
+  displayHistoryItems(logger, itemsToDisplay = null) {
+    const items = itemsToDisplay || this._historyItems;
+    logger.debug(`Displaying ${items.length} history items`);
+    
+    const success = this._safeDOMOperation(() => {
+      const historyList = document.getElementById('history-list');
+      
+      if (!historyList) {
+        logger.error('history-list element not found');
+        return false;
+      }
+      
+      historyList.innerHTML = '';
+      
+      // Sort by last visit time (most recent first)
+      const sortedItems = [...items].sort((a, b) => b.lastVisitTime - a.lastVisitTime);
+      
+      sortedItems.forEach(item => {
+        const historyItem = document.createElement('div');
+        historyItem.className = 'list-item history-item';
+        historyItem.setAttribute('data-id', item.id);
+        historyItem.setAttribute('data-url', item.url);
+        
+        // ... rest of the item creation logic ...
+        
+        historyList.appendChild(historyItem);
+      });
+      
+      return true;
+    }, logger, 'displayHistoryItems');
+    
+    if (!success) {
+      logger.error('Failed to display history items');
+    }
+  },
+
+  setupSelectionControls(logger) {
+    logger.debug('Setting up history selection controls');
+    
+    const success = this._safeDOMOperation(() => {
+      const selectAllBtn = document.getElementById('select-all-history');
+      const deselectAllBtn = document.getElementById('deselect-all-history');
+      
+      if (!selectAllBtn || !deselectAllBtn) {
+        logger.error('Selection control buttons not found');
+        return false;
+      }
+      
+      const selectAllHandler = () => {
+        const checkboxes = document.querySelectorAll('#history-list .item-checkbox');
+        checkboxes.forEach(checkbox => {
+          checkbox.checked = true;
+        });
+        logger.debug(`Selected all ${checkboxes.length} history items`);
+      };
+      
+      const deselectAllHandler = () => {
+        const checkboxes = document.querySelectorAll('#history-list .item-checkbox');
+        checkboxes.forEach(checkbox => {
+          checkbox.checked = false;
+        });
+        logger.debug('Deselected all history items');
+      };
+      
+      selectAllBtn.addEventListener('click', selectAllHandler);
+      deselectAllBtn.addEventListener('click', deselectAllHandler);
+      
+      // Track these listeners for cleanup
+      this._eventListeners.push(
+        {
+          element: selectAllBtn,
+          type: 'click',
+          listener: selectAllHandler
+        },
+        {
+          element: deselectAllBtn,
+          type: 'click',
+          listener: deselectAllHandler
+        }
+      );
+      
+      return true;
+    }, logger, 'setupSelectionControls');
+    
+    if (!success) {
+      logger.error('Failed to set up selection controls');
+    }
+  },
   
   /**
    * Load browser history into the UI
@@ -83,6 +299,9 @@ const HistoryCapture = {
       logger.error('history-list element not found');
       return;
     }
+    
+    // Clean up existing listeners before adding new ones
+    this._cleanupExistingListeners(logger);
     
     historyList.innerHTML = '<div class="loading-indicator">Loading history...</div>';
     
@@ -191,36 +410,83 @@ const HistoryCapture = {
    * @returns {number} Start time in milliseconds
    */
   getStartTimeFromFilter(timeFilter) {
+    const logger = new LogManager({
+      context: 'history-capture',
+      isBackgroundScript: false
+    });
+    
+    if (!this._validateInputs('getStartTimeFromFilter', { timeFilter }, logger)) {
+      timeFilter = '7days';
+    }
+    
     const now = Date.now();
     
     switch (timeFilter) {
       case 'today':
-        // Start of today
         return new Date().setHours(0, 0, 0, 0);
       case 'yesterday':
-        // Start of yesterday
         return new Date().setHours(0, 0, 0, 0) - 86400000;
       case '7days':
-        // 7 days ago
         return now - (7 * 86400000);
       case '30days':
-        // 30 days ago
         return now - (30 * 86400000);
       case 'all':
-        // All time (1 year ago as a practical limit)
         return now - (365 * 86400000);
       default:
-        // Default to 7 days
         return now - (7 * 86400000);
     }
+  },
+
+  /**
+   * Filter history items based on search term
+   * @param {LogManager} logger - Logger instance
+   * @param {string} searchTerm - Search term to filter by
+   */
+  filterHistory(logger, searchTerm) {
+    if (!this._validateInputs('filterHistory', { searchTerm }, logger)) {
+      searchTerm = '';
+    }
+    logger.debug(`Filtering history with search: "${searchTerm}"`);
+    
+    const historyList = document.getElementById('history-list');
+    
+    if (!historyList) {
+      logger.error('history-list element not found');
+      return;
+    }
+    
+    if (!searchTerm) {
+      // If no search term, show all items
+      this.displayHistoryItems(logger);
+      return;
+    }
+    
+    // Filter items by search term
+    const filteredItems = this._historyItems.filter(item => 
+      item.title?.toLowerCase().includes(searchTerm) || 
+      item.url.toLowerCase().includes(searchTerm)
+    );
+    
+    if (filteredItems.length === 0) {
+      historyList.innerHTML = '<div class="empty-state">No matching history items found</div>';
+      return;
+    }
+    
+    // Display only the filtered items
+    this.displayHistoryItems(logger, filteredItems);
+    logger.debug(`Filtered to ${filteredItems.length} history items`);
   },
   
   /**
    * Display history items in the list
    * @param {LogManager} logger - Logger instance
    */
-  displayHistoryItems(logger) {
-    logger.debug(`Displaying ${this._historyItems.length} history items`);
+  displayHistoryItems(logger, itemsToDisplay = null) {
+    if (!this._validateInputs('displayHistoryItems', { itemsToDisplay }, logger)) {
+      itemsToDisplay = null;
+    }
+    const items = itemsToDisplay || this._historyItems;
+    logger.debug(`Displaying ${items.length} history items`);
     
     const historyList = document.getElementById('history-list');
     
@@ -232,9 +498,9 @@ const HistoryCapture = {
     historyList.innerHTML = '';
     
     // Sort by last visit time (most recent first)
-    this._historyItems.sort((a, b) => b.lastVisitTime - a.lastVisitTime);
+    const sortedItems = [...items].sort((a, b) => b.lastVisitTime - a.lastVisitTime);
     
-    this._historyItems.forEach(item => {
+    sortedItems.forEach(item => {
       const historyItem = document.createElement('div');
       historyItem.className = 'list-item history-item';
       historyItem.setAttribute('data-id', item.id);
@@ -288,6 +554,41 @@ const HistoryCapture = {
       historyList.appendChild(historyItem);
     });
   },
+
+  /**
+   * Refresh the display without reloading data
+   * @param {LogManager} logger - Logger instance
+   * @param {string} searchTerm - Optional search term to apply
+   */
+  refreshDisplay(logger, searchTerm = '') {
+    logger.debug('Refreshing history display');
+    
+    if (searchTerm) {
+      this.filterHistory(logger, searchTerm);
+    } else {
+      this.displayHistoryItems(logger);
+    }
+  },
+
+  /**
+   * Update the display with new data without full reload
+   * @param {LogManager} logger - Logger instance
+   * @param {Array} newHistoryItems - New history items to display
+   */
+  updateDisplayWithData(logger, newHistoryItems) {
+    if (!this._validateInputs('updateDisplayWithData', { newHistoryItems }, logger)) {
+      logger.error('Invalid newHistoryItems parameter: expected array');
+      return;
+    }
+    
+    logger.debug(`Updating display with ${newHistoryItems.length} new items`);
+    
+    // Update internal data
+    this._historyItems = newHistoryItems;
+    
+    // Refresh display
+    this.displayHistoryItems(logger);
+  },
   
   /**
    * Format date for display
@@ -296,7 +597,9 @@ const HistoryCapture = {
    * @returns {string} Formatted date string
    */
   formatDate(logger, date) {
-    if (!date) return 'Unknown';
+    if (!this._validateInputs('formatDate', { date }, logger)) {
+      return 'Unknown';
+    }
     
     try {
       const now = new Date();

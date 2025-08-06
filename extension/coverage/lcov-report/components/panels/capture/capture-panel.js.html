@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">3.41% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/293</span>
+                <span class='fraction'>10/293</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">0.9% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/110</span>
+                <span class='fraction'>1/110</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">2.85% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/35</span>
+                <span class='fraction'>1/35</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">3.49% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/286</span>
+                <span class='fraction'>10/286</span>
             </div>
         
             
@@ -789,7 +789,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -808,7 +808,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -816,19 +816,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -836,7 +825,18 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -853,8 +853,8 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1496,7 +1496,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// src/components/panels/capture/capture-panel.js
 import { LogManager } from '../../../utils/log-manager.js'; 
 import { container } from '../../../core/dependency-container.js';
-import { TabsCapture } from './tabs-capture.js';
+import * as TabsCapture from './tabs-capture.js';
 import { BookmarksCapture } from './bookmarks-capture.js';
 import { HistoryCapture } from './history-capture.js';
 &nbsp;
@@ -1504,7 +1504,7 @@ import { HistoryCapture } from './history-capture.js';
  * Capture Panel Component
  * Manages the capture of browser tabs, bookmarks, and history items
  */
-const CapturePanel = <span class="cstat-no" title="statement not covered" >{</span>
+const CapturePanel = {
   // Track resources for proper cleanup
   _eventListeners: [],
   _timeouts: [],
@@ -1521,9 +1521,9 @@ const CapturePanel = <span class="cstat-no" title="statement not covered" >{</sp
    * Initialize the capture panel
    * @returns {Promise&lt;boolean&gt;} Success state
    */
-<span class="fstat-no" title="function not covered" >  as</span>ync initCapturePanel() {
+  async initCapturePanel() {
     // Create logger directly 
-    const logger = <span class="cstat-no" title="statement not covered" >new LogManager({</span>
+    const logger = new LogManager({
       context: 'capture-panel',
       isBackgroundScript: false,
       maxEntries: 1000
@@ -1531,8 +1531,8 @@ const CapturePanel = <span class="cstat-no" title="statement not covered" >{</sp
     
     // Get notificationService with error handling
     let notificationService;
-<span class="cstat-no" title="statement not covered" >    try {</span>
-<span class="cstat-no" title="statement not covered" >      notificationService = container.getService('notificationService');</span>
+    try {
+      notificationService = container.getService('notificationService');
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >      logger.warn('NotificationService not available:', error);</span>
 <span class="cstat-no" title="statement not covered" >      notificationService = {</span>
@@ -1541,17 +1541,17 @@ const CapturePanel = <span class="cstat-no" title="statement not covered" >{</sp
       };
     }
     
-<span class="cstat-no" title="statement not covered" >    logger.info('Initializing capture panel');</span>
+    logger.info('Initializing capture panel');
     
-<span class="cstat-no" title="statement not covered" >    try {</span>
+    try {
       // Only initialize if not already initialized
-<span class="cstat-no" title="statement not covered" >      if (this.initialized) {</span>
+      <span class="missing-if-branch" title="if path not taken" >I</span>if (this.initialized) {
 <span class="cstat-no" title="statement not covered" >        logger.debug('Capture panel already initialized');</span>
 <span class="cstat-no" title="statement not covered" >        return true;</span>
       }
       
       // Initialize capture components
-<span class="cstat-no" title="statement not covered" >      this._tabsCapture = TabsCapture;</span>
+      this._tabsCapture.initTabsCapture();
 <span class="cstat-no" title="statement not covered" >      this._bookmarksCapture = BookmarksCapture;</span>
 <span class="cstat-no" title="statement not covered" >      this._historyCapture = HistoryCapture;</span>
       
@@ -1568,8 +1568,8 @@ const CapturePanel = <span class="cstat-no" title="statement not covered" >{</sp
 <span class="cstat-no" title="statement not covered" >      logger.info('Capture panel initialized successfully');</span>
 <span class="cstat-no" title="statement not covered" >      return true;</span>
     } catch (error) {
-<span class="cstat-no" title="statement not covered" >      logger.error('Error initializing capture panel:', error);</span>
-<span class="cstat-no" title="statement not covered" >      notificationService.showNotification('Error initializing capture panel: ' + error.message, 'error');</span>
+      logger.error('Error initializing capture panel:', error);
+      notificationService.showNotification('Error initializing capture panel: ' + error.message, 'error');
 <span class="cstat-no" title="statement not covered" >      return false;</span>
     }
   },
@@ -1589,7 +1589,7 @@ const CapturePanel = <span class="cstat-no" title="statement not covered" >{</sp
 <span class="cstat-no" title="statement not covered" >      if (tabsTabBtn) {</span>
         const tabsClickHandler = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >          logger.debug('Tabs tab button clicked');</span>
-<span class="cstat-no" title="statement not covered" >          this._tabsCapture.initTabsCapture();</span>
+<span class="cstat-no" title="statement not covered" >          TabsCapture.initTabsCapture();</span>
         };
         
 <span class="cstat-no" title="statement not covered" >        tabsTabBtn.addEventListener('click', tabsClickHandler);</span>
@@ -2215,7 +2215,7 @@ export { CapturePanel };</pre></td></tr></table></pre>
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-06-26T00:16:51.892Z
+                at 2025-07-27T00:01:57.665Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

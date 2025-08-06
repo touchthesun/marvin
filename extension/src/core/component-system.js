@@ -41,7 +41,7 @@ export class ComponentSystem {
       this.logger.debug('Container status:', containerStatus);
 
       // Register components if not already done
-      if (containerStatus.components.count === 0) {
+      if (!containerStatus.initialized || containerStatus.components?.count === 0) {
         this.logger.info('Registering components');
         ComponentRegistry.registerAll();
       }
@@ -128,7 +128,8 @@ export class ComponentSystem {
       serviceCount: containerStatus.services?.count || 0,
       utilityCount: containerStatus.utilities?.count || 0,
       componentInstanceCount: containerStatus.components?.instanceCount || 0,
-      containerInitialized: containerStatus.initialized
+      containerInitialized: containerStatus.initialized,
+      containerStatus: containerStatus
     };
   }
 }

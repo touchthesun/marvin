@@ -1,4 +1,4 @@
-// src/components/panels/capture/capture-panel.js
+// Update the imports in capture-panel.js
 import { LogManager } from '../../../utils/log-manager.js'; 
 import { container } from '../../../core/dependency-container.js';
 import { TabsCapture } from './tabs-capture.js';
@@ -57,7 +57,7 @@ const CapturePanel = {
       
       // Initialize capture components
       this._tabsCapture = TabsCapture;
-      this._bookmarksCapture = BookmarksCapture;
+      this._bookmarksCapture = BookmarksCapture;  
       this._historyCapture = HistoryCapture;
       
       // Set up tab loading
@@ -94,7 +94,7 @@ const CapturePanel = {
       if (tabsTabBtn) {
         const tabsClickHandler = () => {
           logger.debug('Tabs tab button clicked');
-          this._tabsCapture.initTabsCapture();
+          TabsCapture.initTabsCapture();
         };
         
         tabsTabBtn.addEventListener('click', tabsClickHandler);

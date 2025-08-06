@@ -5,7 +5,7 @@ import { ResourceTracker } from '../utils/resource-tracker.js';
 import { UtilsRegistry } from './utils-registry.js';
 
 export class DependencyContainer {
-  constructor() {
+  constructor(options = {}) {
     // Initialize logger
     this.logger = new LogManager({
       context: 'dependency-container',
@@ -36,7 +36,21 @@ export class DependencyContainer {
       cleanupCount: 0
     };
 
+    this.testMode = options.testMode || false;
+
     this.logger.debug('DependencyContainer initialized');
+  }
+
+  // Method to enable test mode
+  enableTestMode() {
+    this.testMode = true;
+    this.logger.debug('Test mode enabled');
+  }
+
+  // Method to disable test mode
+  disableTestMode() {
+    this.testMode = false;
+    this.logger.debug('Test mode disabled');
   }
 
   // Reset all container state
@@ -140,17 +154,28 @@ export class DependencyContainer {
     return this;
   }
 
-  async getService(name) {
+  async getService(name, options = {}) {
     this.logger.debug(`Getting service: ${name}`);
 
     if (!this.services.has(name)) {
       this.logger.error(`Service not found: ${name}`);
-      throw new Error(`Service not found: ${name}`);
+      if (options.throwOnMissing !== false) {
+        throw new Error(`Service not found: ${name}`);
+      }
+      return null; // Allow fallback handling
     }
     
     // Return existing instance if available
     if (this.serviceInstances.has(name)) {
       return this.serviceInstances.get(name);
+    }
+    
+    // In test mode, don't initialize automatically
+    if (options.testMode) {
+      const ServiceClass = this.services.get(name);
+      const instance = new ServiceClass({ container: this });
+      this.serviceInstances.set(name, instance);
+      return instance;
     }
     
     // Prevent circular initialization
@@ -268,6 +293,21 @@ export class DependencyContainer {
   clearAllComponentInstances() {
     this.componentInstances.clear();
     return this;
+  }
+
+  // Add a test-friendly method
+  getServiceSync(name) {
+    if (!this.services.has(name)) {
+      return null;
+    }
+    
+    if (!this.serviceInstances.has(name)) {
+      const ServiceClass = this.services.get(name);
+      const instance = new ServiceClass({ container: this });
+      this.serviceInstances.set(name, instance);
+    }
+    
+    return this.serviceInstances.get(name);
   }
 }
 

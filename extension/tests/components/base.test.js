@@ -16,9 +16,11 @@ jest.mock('../../src/utils/resource-tracker.js', () => ({
   ResourceTracker: jest.fn()
 }));
 
-jest.mock('../../src/core/dependency-container', () => ({
+// Simple mock for dependency container
+jest.mock('../../src/core/dependency-container.js', () => ({
   container: {
-    getService: jest.fn()
+    getService: jest.fn(),
+    getServiceSync: jest.fn()
   }
 }));
 
@@ -29,12 +31,15 @@ const mockSystem = createMockSystem();
 import { LogManager } from '../../src/utils/log-manager.js';
 import { MemoryMonitor } from '../../src/utils/memory-monitor.js';
 import { ResourceTracker } from '../../src/utils/resource-tracker.js';
-import { container } from '../../src/core/dependency-container';
+import { container } from '../../src/core/dependency-container.js';
 
 LogManager.mockImplementation(() => mockSystem.logger);
 MemoryMonitor.mockImplementation(() => mockSystem.memoryMonitor);
 ResourceTracker.mockImplementation(() => mockSystem.resourceTracker);
+
+// Replace the container with our mock
 container.getService = mockSystem.container.getService;
+container.getServiceSync = mockSystem.container.getServiceSync;
 
 describe('BaseComponent', () => {
   let component;
@@ -127,24 +132,24 @@ describe('BaseComponent', () => {
   describe('Service Management', () => {
     test('should get service from container', () => {
       const mockService = { test: true };
-      mockSystem.container.getService.mockReturnValue(mockService);
+      mockSystem.container.getServiceSync.mockReturnValue(mockService);
       
-      const result = component.getService('testService');
+      const result = component.getService('apiService');
       
-      expect(mockSystem.container.getService).toHaveBeenCalledWith('testService');
+      expect(mockSystem.container.getServiceSync).toHaveBeenCalledWith('apiService');
       expect(result).toBe(mockService);
     });
 
     test('should return fallback when service not available', () => {
       const fallback = { fallback: true };
-      mockSystem.container.getService.mockImplementation(() => {
-        throw new Error('Service not found');
-      });
+      mockSystem.container.getServiceSync.mockReturnValue(null);
       
-      const result = component.getService('testService', fallback);
+      const result = component.getService('nonexistentService', fallback);
       
       expect(result).toBe(fallback);
-      expect(mockSystem.logger.warn).toHaveBeenCalled();
+      expect(mockSystem.logger.warn).toHaveBeenCalledWith(
+        'Service not found: nonexistentService'
+      );
     });
   });
 

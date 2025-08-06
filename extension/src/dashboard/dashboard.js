@@ -109,7 +109,14 @@ const Dashboard = {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(message, response => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          // Check if this is the expected "Receiving end does not exist" error
+          if (chrome.runtime.lastError.message === 'Could not establish connection. Receiving end does not exist.') {
+            // This is expected in dashboard context, resolve with null instead of rejecting
+            this._logger.debug('Background script not available in dashboard context (expected)');
+            resolve(null);
+          } else {
+            reject(new Error(chrome.runtime.lastError.message));
+          }
         } else {
           resolve(response);
         }
@@ -314,6 +321,9 @@ const Dashboard = {
                 
                 if (response && response.success) {
                   this._logger.debug(`Panel data loaded for ${panelName}:`, response.data);
+                } else if (response === null) {
+                  // Background script not available, this is expected in dashboard context
+                  this._logger.debug(`Background script not available for ${panelName} (dashboard context)`);
                 }
               } catch (messageError) {
                 this._logger.warn(`Error loading panel data for ${panelName}:`, messageError);

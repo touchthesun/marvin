@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/101</span>
+                <span class='fraction'>0/103</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/97</span>
+                <span class='fraction'>0/99</span>
             </div>
         
             
@@ -396,7 +396,15 @@
 <a name='L331'></a><a href='#L331'>331</a>
 <a name='L332'></a><a href='#L332'>332</a>
 <a name='L333'></a><a href='#L333'>333</a>
-<a name='L334'></a><a href='#L334'>334</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L334'></a><a href='#L334'>334</a>
+<a name='L335'></a><a href='#L335'>335</a>
+<a name='L336'></a><a href='#L336'>336</a>
+<a name='L337'></a><a href='#L337'>337</a>
+<a name='L338'></a><a href='#L338'>338</a>
+<a name='L339'></a><a href='#L339'>339</a>
+<a name='L340'></a><a href='#L340'>340</a>
+<a name='L341'></a><a href='#L341'>341</a>
+<a name='L342'></a><a href='#L342'>342</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -557,7 +565,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -581,7 +588,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -676,13 +682,18 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -705,11 +716,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -887,10 +903,9 @@ export class AnalysisService extends BaseService {
 <span class="cstat-no" title="statement not covered" >      return;</span>
     }
     
-    // Create task state object if not already monitoring
-    const task = <span class="cstat-no" title="statement not covered" >{ id: taskId };</span>
-<span class="cstat-no" title="statement not covered" >    if (!this._activeTasks.has(task)) {</span>
-      const state = <span class="cstat-no" title="statement not covered" >this._trackTask(task, {</span>
+    // Use taskId string as the key for reliable Map operations
+<span class="cstat-no" title="statement not covered" >    if (!this._activeTasks.has(taskId)) {</span>
+      const state = <span class="cstat-no" title="statement not covered" >this._trackTask(taskId, {</span>
         id: taskId,
         status: 'pending',
         progress: 0,
@@ -898,7 +913,7 @@ export class AnalysisService extends BaseService {
       });
       
       // Start checking status with a small initial delay
-<span class="cstat-no" title="statement not covered" >      this._scheduleTaskRetry(task, <span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >this._checkTaskStatus(taskId))</span>;</span>
+<span class="cstat-no" title="statement not covered" >      this._scheduleTaskRetry(taskId, <span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >this._checkTaskStatus(taskId))</span>;</span>
       
 <span class="cstat-no" title="statement not covered" >      this._logger.debug(`Started monitoring task: ${taskId}`);</span>
     } else {
@@ -912,8 +927,7 @@ export class AnalysisService extends BaseService {
    * @private
    */
 <span class="fstat-no" title="function not covered" >  as</span>ync _checkTaskStatus(taskId) {
-    const task = <span class="cstat-no" title="statement not covered" >{ id: taskId };</span>
-    const state = <span class="cstat-no" title="statement not covered" >this._activeTasks.get(task);</span>
+    const state = <span class="cstat-no" title="statement not covered" >this._activeTasks.get(taskId);</span>
 <span class="cstat-no" title="statement not covered" >    if (!state) <span class="cstat-no" title="statement not covered" >return; </span></span>// No longer monitoring this task
     
 <span class="cstat-no" title="statement not covered" >    try {</span>
@@ -955,7 +969,7 @@ export class AnalysisService extends BaseService {
         
         // If task is still running, schedule next check
 <span class="cstat-no" title="statement not covered" >        if (response.status === 'enqueued' || response.status === 'processing') {</span>
-<span class="cstat-no" title="statement not covered" >          this._scheduleTaskRetry(task, <span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >this._checkTaskStatus(taskId))</span>;</span>
+<span class="cstat-no" title="statement not covered" >          this._scheduleTaskRetry(taskId, <span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >this._checkTaskStatus(taskId))</span>;</span>
         }
       } else {
 <span class="cstat-no" title="statement not covered" >        throw new Error(response.error || 'Failed to check task status');</span>
@@ -963,7 +977,7 @@ export class AnalysisService extends BaseService {
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >      this._logger.error(`Error checking status for task ${taskId}:`, error);</span>
 <span class="cstat-no" title="statement not covered" >      this._recordFailure();</span>
-<span class="cstat-no" title="statement not covered" >      this._scheduleTaskRetry(task, <span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >this._checkTaskStatus(taskId))</span>;</span>
+<span class="cstat-no" title="statement not covered" >      this._scheduleTaskRetry(taskId, <span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >this._checkTaskStatus(taskId))</span>;</span>
     }
   }
 &nbsp;
@@ -1010,10 +1024,15 @@ export class AnalysisService extends BaseService {
       }
       
 <span class="cstat-no" title="statement not covered" >      if (typeof document !== 'undefined') {</span>
-        const event = <span class="cstat-no" title="statement not covered" >new CustomEvent('analysisCompleted', {</span>
-          detail: { taskId, result: response }
-        });
-<span class="cstat-no" title="statement not covered" >        document.dispatchEvent(event);</span>
+<span class="cstat-no" title="statement not covered" >        try {</span>
+          const event = <span class="cstat-no" title="statement not covered" >new CustomEvent('analysisCompleted', {</span>
+            detail: { taskId, result: response }
+          });
+<span class="cstat-no" title="statement not covered" >          document.dispatchEvent(event);</span>
+        } catch (error) {
+          // Handle cases where CustomEvent or dispatchEvent is not available (e.g., test environments)
+<span class="cstat-no" title="statement not covered" >          this._logger.debug('Could not dispatch analysis completion event:', error.message);</span>
+        }
       }
       
 <span class="cstat-no" title="statement not covered" >      this._logger.info(`Analysis task ${taskId} completion handled successfully`);</span>
@@ -1039,10 +1058,15 @@ export class AnalysisService extends BaseService {
       }
       
 <span class="cstat-no" title="statement not covered" >      if (typeof document !== 'undefined') {</span>
-        const event = <span class="cstat-no" title="statement not covered" >new CustomEvent('analysisError', {</span>
-          detail: { taskId, error: response.error }
-        });
-<span class="cstat-no" title="statement not covered" >        document.dispatchEvent(event);</span>
+<span class="cstat-no" title="statement not covered" >        try {</span>
+          const event = <span class="cstat-no" title="statement not covered" >new CustomEvent('analysisError', {</span>
+            detail: { taskId, error: response.error }
+          });
+<span class="cstat-no" title="statement not covered" >          document.dispatchEvent(event);</span>
+        } catch (error) {
+          // Handle cases where CustomEvent or dispatchEvent is not available (e.g., test environments)
+<span class="cstat-no" title="statement not covered" >          this._logger.debug('Could not dispatch analysis error event:', error.message);</span>
+        }
       }
       
 <span class="cstat-no" title="statement not covered" >      this._logger.info(`Analysis task ${taskId} error handled`);</span>
@@ -1069,7 +1093,7 @@ export class AnalysisService extends BaseService {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-06-26T00:16:51.892Z
+                at 2025-07-27T00:01:57.665Z
             </div>
         <script src="../prettify.js"></script>
         <script>

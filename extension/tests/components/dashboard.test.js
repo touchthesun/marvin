@@ -4,10 +4,10 @@ if (typeof window !== 'undefined') {
   }
 import fs from 'fs';
 import path from 'path';
-  import { Dashboard } from '../../src/dashboard/dashboard.js';
-  import { jest } from '@jest/globals';
-  import { LogManager } from '../../src/utils/log-manager.js';
-  import { container } from '../../src/core/dependency-container.js';
+import { Dashboard } from '../../src/dashboard/dashboard.js';
+import { jest } from '@jest/globals';
+import { LogManager } from '../../src/utils/log-manager.js';
+import { container } from '../../src/core/dependency-container.js';
 import { createMockSystem } from '../utils/mock-system.js';
 
 // Read dashboard.html and extract the <body> contents

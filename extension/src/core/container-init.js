@@ -264,6 +264,9 @@ export class ContainerInitializer {
   }
 
   async _registerCoreServices() {
+    // Initialize ServiceRegistry first
+    ServiceRegistry.initialize();
+    
     // Register core services from ServiceRegistry
     const coreServices = ServiceRegistry.getCoreServices();
     for (const service of coreServices) {
@@ -273,13 +276,8 @@ export class ContainerInitializer {
 
   async _registerComponents() {
     this.logger?.debug('Registering components');
-    const components = await ComponentRegistry.registerAll();
-    
-    // Register each component in the container
-    for (const [name, component] of Object.entries(components)) {
-      container.registerComponent(name, component);
-    }
-    
+    // ComponentRegistry.registerAll() handles registration internally
+    ComponentRegistry.registerAll();
     this.logger?.debug('Components registered');
   }
 
