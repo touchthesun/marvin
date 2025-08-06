@@ -1,53 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="3" failures="3" errors="0" time="1.003">
-  <testsuite name="undefined" errors="0" failures="3" skipped="0" timestamp="2025-07-27T00:01:56" time="0.603" tests="3">
-    <testcase classname="" name="Capture panel lists open tabs" time="0.027">
-      <failure>TypeError: notificationService.showNotification is not a function
-    at Object.showNotification (/Users/nathanparker/Documents/workspace/personal/marvin/extension/src/components/panels/capture/capture-panel.js:77:27)
-    at Object.initCapturePanel (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/components/capture-panel.test.js:57:22)
-    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
-    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
-    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+<testsuites name="jest tests" tests="11" failures="0" errors="0" time="2.117">
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-08-06T07:20:40" time="1.59" tests="11">
+    <testcase classname="" name="Capture panel initializes successfully" time="0.045">
     </testcase>
-    <testcase classname="" name="Select All and Deselect All buttons work" time="0.006">
-      <failure>TypeError: notificationService.showNotification is not a function
-    at Object.showNotification (/Users/nathanparker/Documents/workspace/personal/marvin/extension/src/components/panels/capture/capture-panel.js:77:27)
-    at Object.initCapturePanel (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/components/capture-panel.test.js:69:22)
-    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
-    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
-    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    <testcase classname="" name="Tabs capture component loads tabs correctly" time="0.116">
     </testcase>
-    <testcase classname="" name="Capture Selected triggers capture for checked tabs" time="0.004">
-      <failure>TypeError: notificationService.showNotification is not a function
-    at Object.showNotification (/Users/nathanparker/Documents/workspace/personal/marvin/extension/src/components/panels/capture/capture-panel.js:77:27)
-    at Object.initCapturePanel (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/components/capture-panel.test.js:87:22)
-    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
-    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
-    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    <testcase classname="" name="Bookmarks capture component loads bookmarks correctly" time="0.164">
+    </testcase>
+    <testcase classname="" name="History capture component loads history correctly" time="0.113">
+    </testcase>
+    <testcase classname="" name="Select All and Deselect All buttons work for bookmarks" time="0.108">
+    </testcase>
+    <testcase classname="" name="Select All and Deselect All buttons work for history" time="0.106">
+    </testcase>
+    <testcase classname="" name="Capture Selected triggers capture for checked items" time="0.106">
+    </testcase>
+    <testcase classname="" name="Component cleanup works correctly" time="0.005">
+    </testcase>
+    <testcase classname="" name="Error handling works for missing DOM elements" time="0.005">
+    </testcase>
+    <testcase classname="" name="Input validation works correctly" time="0.005">
+    </testcase>
+    <testcase classname="" name="Debug component methods directly" time="0.01">
     </testcase>
   </testsuite>
 </testsuites>

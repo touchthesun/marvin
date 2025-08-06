@@ -410,13 +410,13 @@ const BookmarksCapture = {
         // Get truncate function from formatting utilities
         let truncatedUrl = bookmark.url;
         try {
-          const formatting = this.getService(logger, 'formatting', {
-            truncateText: (text, maxLength) => {
-              return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-            }
-          });
-          
-          truncatedUrl = formatting.truncateText(bookmark.url, 50);
+          const formatting = container.utils.get('formatting');
+          if (formatting && formatting.truncateText) {
+            truncatedUrl = formatting.truncateText(bookmark.url, 50);
+          } else {
+            // Fallback if formatting utility not available
+            truncatedUrl = bookmark.url.length > 50 ? bookmark.url.substring(0, 50) + '...' : bookmark.url;
+          }
         } catch (error) {
           logger.warn('Error truncating URL:', error);
           truncatedUrl = bookmark.url.length > 50 ? bookmark.url.substring(0, 50) + '...' : bookmark.url;

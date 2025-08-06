@@ -1,0 +1,186 @@
+[TEST-LOG] === Test session started ===
+[TEST-LOG] === Starting initialization test ===
+[TEST-LOG] Got capture panel component: true
+[TEST-LOG] Initialization result: true
+[TEST-LOG] Tabs capture component: true
+[TEST-LOG] Bookmarks capture component: true
+[TEST-LOG] History capture component: true
+[TEST-LOG] === Starting tabs test ===
+[TEST-LOG] Got capture panel component: true
+[TEST-LOG] Initialized capture panel
+[TEST-LOG] switchToTab method exists: true
+[TEST-LOG] Found tabs tab button: true
+[TEST-LOG] Calling switchToTab directly...
+[TEST-LOG] switchToTab completed successfully
+[TEST-LOG] Clicked tabs tab button
+[TEST-LOG] Waited for tabs to load
+[TEST-LOG] Found tab items: 2
+[TEST-LOG] Tab items HTML: <div class="tabs-hierarchy"><div class="window-group" data-window-id="1"><div class="window-header"><input type="checkbox" class="window-checkbox" id="window-1"><div class="window-title">Window 1 (2 tabs)</div><button class="btn-icon toggle-window">▼</button></div><div class="window-tabs"><div class="tab-item" data-id="1" data-url="https://one.com" data-window-id="1"><input type="checkbox" id="tab-1" class="item-checkbox"><img src="https://one.com/favicon.ico" alt="" class="tab-icon"><div class="tab-content"><div class="tab-title">Tab One</div><div class="tab-url">https://one.com</div></div></div><div class="tab-item" data-id="2" data-url="https://two.com" data-window-id="1"><input type="checkbox" id="tab-2" class="item-checkbox"><img src="https://two.com/favicon.ico" alt="" class="tab-icon"><div class="tab-content"><div class="tab-title">Tab Two</div><div class="tab-url">https://two.com</div></div></div></div></div></div>
+[TEST-LOG] Found window groups: 1
+[TEST-LOG] Tabs capture component methods: _eventListeners,_timeouts,_intervals,_domElements,initialized,_tabs,_windows,initTabsCapture,getService,_cleanupExistingListeners,_validateInputs,_safeDOMOperation,loadOpenTabs,shouldShowTab,createTabListItem,updateWindowFilter,setupTabsFilter,setupAdvancedFilters,toggleAdvancedFilters,applyFilters,resetFilters,setupSearchAndFilter,getSelectedTabs,extractTabContent,refreshDisplay,cleanup
+[TEST-LOG] Tabs capture initialized state: true
+[TEST-LOG] All tab panes: 3
+[TEST-LOG] Active tab pane: tabs-pane
+[TEST-LOG] Tabs list element: true
+[TEST-LOG] === Starting bookmarks test ===
+[TEST-LOG] Got capture panel component: true
+[TEST-LOG] Initialized capture panel
+[TEST-LOG] switchToTab method exists: true
+[TEST-LOG] Found bookmarks tab button: true
+[TEST-LOG] Calling switchToTab for bookmarks directly...
+[TEST-LOG] switchToTab for bookmarks completed successfully
+[TEST-LOG] Clicked bookmarks tab button
+[TEST-LOG] Waited for bookmarks to load
+[TEST-LOG] Found bookmark items: 3
+[TEST-LOG] Bookmark items HTML: <div class="list-item bookmark-item" data-id="10" data-url="https://bookmark1.com">
+          <div class="item-selector">
+            <input type="checkbox" id="bookmark-10" class="item-checkbox">
+          </div>
+          <div class="item-icon">
+            <img src="https://www.google.com/s2/favicons?domain=bookmark1.com" alt="" class="favicon">
+          </div>
+          <div class="item-content">
+            <div class="item-title">Bookmark One</div>
+            <div class="item-url">https://bookmark1.com</div>
+          </div>
+          <div class="item-meta">
+            <span class="item-folder">Root</span>
+            <span class="item-date">8/6/2025</span>
+          </div>
+        </div><div class="list-item bookmark-item" data-id="11" data-url="https://bookmark2.com">
+          <div class="item-selector">
+            <input type="checkbox" id="bookmark-11" class="item-checkbox">
+          </div>
+          <div class="item-icon">
+            <img src="https://www.google.com/s2/favicons?domain=bookmark2.com" alt="" class="favicon">
+          </div>
+          <div class="item-content">
+            <div class="item-title">Bookmark Two</div>
+            <div class="item-url">https://bookmark2.com</div>
+          </div>
+          <div class="item-meta">
+            <span class="item-folder">Root</span>
+            <span class="item-date">8/6/2025</span>
+          </div>
+        </div><div class="list-item bookmark-item" data-id="20" data-url="https://bookmark3.com">
+          <div class="item-selector">
+            <input type="checkbox" id="bookmark-20" class="item-checkbox">
+          </div>
+          <div class="item-icon">
+            <img src="https://www.google.com/s2/favicons?domain=bookmark3.com" alt="" class="favicon">
+          </div>
+          <div class="item-content">
+            <div class="item-title">Bookmark Three</div>
+            <div class="item-url">https://bookmark3.com</div>
+          </div>
+          <div class="item-meta">
+            <span class="item-folder">Root</span>
+            <span class="item-date">8/6/2025</span>
+          </div>
+        </div>
+[TEST-LOG] Bookmarks capture component methods: _eventListeners,_timeouts,_intervals,_domElements,initialized,_bookmarks,initBookmarksCapture,getService,_cleanupExistingListeners,_validateInputs,_safeDOMOperation,loadBookmarks,flattenBookmarks,populateBookmarkFolders,displayBookmarks,formatDate,filterBookmarks,setupSelectionControls,getSelectedBookmarks,refreshDisplay,updateDisplayWithData,cleanup
+[TEST-LOG] Bookmarks capture initialized state: true
+[TEST-LOG] === Starting history test ===
+[TEST-LOG] Got capture panel component: true
+[TEST-LOG] Initialized capture panel
+[TEST-LOG] switchToTab method exists: true
+[TEST-LOG] Found history tab button: true
+[TEST-LOG] Calling switchToTab for history directly...
+[TEST-LOG] switchToTab for history completed successfully
+[TEST-LOG] Clicked history tab button
+[TEST-LOG] Waited for history to load
+[TEST-LOG] Found history items: 2
+[TEST-LOG] History items HTML: <div class="list-item history-item" data-id="1" data-url="https://history1.com">
+        <div class="item-selector">
+          <input type="checkbox" id="history-1" class="item-checkbox">
+        </div>
+        <div class="item-icon">
+          <img src="https://www.google.com/s2/favicons?domain=history1.com" alt="" class="favicon">
+        </div>
+        <div class="item-content">
+          <div class="item-title">History Item One</div>
+          <div class="item-url">https://history1.com</div>
+        </div>
+        <div class="item-meta">
+          <span class="item-date">Last visit: Today at 12:20 AM</span>
+          <span class="item-visits">5 visits</span>
+        </div>
+      </div><div class="list-item history-item" data-id="2" data-url="https://history2.com">
+        <div class="item-selector">
+          <input type="checkbox" id="history-2" class="item-checkbox">
+        </div>
+        <div class="item-icon">
+          <img src="https://www.google.com/s2/favicons?domain=history2.com" alt="" class="favicon">
+        </div>
+        <div class="item-content">
+          <div class="item-title">History Item Two</div>
+          <div class="item-url">https://history2.com</div>
+        </div>
+        <div class="item-meta">
+          <span class="item-date">Last visit: Yesterday at 12:20 AM</span>
+          <span class="item-visits">3 visits</span>
+        </div>
+      </div>
+[TEST-LOG] History capture component methods: _eventListeners,_timeouts,_intervals,_domElements,initialized,_historyItems,initHistoryCapture,getService,_cleanupExistingListeners,_validateInputs,_safeDOMOperation,displayHistoryItems,setupSelectionControls,loadHistory,getStartTimeFromFilter,filterHistory,refreshDisplay,updateDisplayWithData,formatDate,getSelectedHistoryItems,cleanup
+[TEST-LOG] History capture initialized state: true
+[TEST-LOG] === Starting component debug test ===
+[TEST-LOG] === Debugging TabsCapture ===
+[TEST-LOG] TabsCapture methods: _eventListeners,_timeouts,_intervals,_domElements,initialized,_tabs,_windows,initTabsCapture,getService,_cleanupExistingListeners,_validateInputs,_safeDOMOperation,loadOpenTabs,shouldShowTab,createTabListItem,updateWindowFilter,setupTabsFilter,setupAdvancedFilters,toggleAdvancedFilters,applyFilters,resetFilters,setupSearchAndFilter,getSelectedTabs,extractTabContent,refreshDisplay,cleanup
+[TEST-LOG] TabsCapture initialized: false
+[TEST-LOG] Calling initTabsCapture directly...
+[TEST-LOG] initTabsCapture result: true
+[TEST-LOG] === Debugging BookmarksCapture ===
+[TEST-LOG] BookmarksCapture methods: _eventListeners,_timeouts,_intervals,_domElements,initialized,_bookmarks,initBookmarksCapture,getService,_cleanupExistingListeners,_validateInputs,_safeDOMOperation,loadBookmarks,flattenBookmarks,populateBookmarkFolders,displayBookmarks,formatDate,filterBookmarks,setupSelectionControls,getSelectedBookmarks,refreshDisplay,updateDisplayWithData,cleanup
+[TEST-LOG] BookmarksCapture initialized: false
+[TEST-LOG] Calling initBookmarksCapture directly...
+[TEST-LOG] initBookmarksCapture result: true
+[TEST-LOG] === DOM state after method calls ===
+[TEST-LOG] Tabs list HTML: <div class="tabs-hierarchy"><div class="window-group" data-window-id="1"><div class="window-header"><input type="checkbox" class="window-checkbox" id="window-1"><div class="window-title">Window 1 (2 tabs)</div><button class="btn-icon toggle-window">▼</button></div><div class="window-tabs"><div class="tab-item" data-id="1" data-url="https://one.com" data-window-id="1"><input type="checkbox" id="tab-1" class="item-checkbox"><img src="https://one.com/favicon.ico" alt="" class="tab-icon"><div class="tab-content"><div class="tab-title">Tab One</div><div class="tab-url">https://one.com</div></div></div><div class="tab-item" data-id="2" data-url="https://two.com" data-window-id="1"><input type="checkbox" id="tab-2" class="item-checkbox"><img src="https://two.com/favicon.ico" alt="" class="tab-icon"><div class="tab-content"><div class="tab-title">Tab Two</div><div class="tab-url">https://two.com</div></div></div></div></div></div>
+[TEST-LOG] Bookmarks list HTML: <div class="list-item bookmark-item" data-id="10" data-url="https://bookmark1.com">
+          <div class="item-selector">
+            <input type="checkbox" id="bookmark-10" class="item-checkbox">
+          </div>
+          <div class="item-icon">
+            <img src="https://www.google.com/s2/favicons?domain=bookmark1.com" alt="" class="favicon">
+          </div>
+          <div class="item-content">
+            <div class="item-title">Bookmark One</div>
+            <div class="item-url">https://bookmark1.com</div>
+          </div>
+          <div class="item-meta">
+            <span class="item-folder">Root</span>
+            <span class="item-date">8/6/2025</span>
+          </div>
+        </div><div class="list-item bookmark-item" data-id="11" data-url="https://bookmark2.com">
+          <div class="item-selector">
+            <input type="checkbox" id="bookmark-11" class="item-checkbox">
+          </div>
+          <div class="item-icon">
+            <img src="https://www.google.com/s2/favicons?domain=bookmark2.com" alt="" class="favicon">
+          </div>
+          <div class="item-content">
+            <div class="item-title">Bookmark Two</div>
+            <div class="item-url">https://bookmark2.com</div>
+          </div>
+          <div class="item-meta">
+            <span class="item-folder">Root</span>
+            <span class="item-date">8/6/2025</span>
+          </div>
+        </div><div class="list-item bookmark-item" data-id="20" data-url="https://bookmark3.com">
+          <div class="item-selector">
+            <input type="checkbox" id="bookmark-20" class="item-checkbox">
+          </div>
+          <div class="item-icon">
+            <img src="https://www.google.com/s2/favicons?domain=bookmark3.com" alt="" class="favicon">
+          </div>
+          <div class="item-content">
+            <div class="item-title">Bookmark Three</div>
+            <div class="item-url">https://bookmark3.com</div>
+          </div>
+          <div class="item-meta">
+            <span class="item-folder">Root</span>
+            <span class="item-date">8/6/2025</span>
+          </div>
+        </div>
+[TEST-LOG] History list HTML: 
+[TEST-LOG] === Test session ended ===

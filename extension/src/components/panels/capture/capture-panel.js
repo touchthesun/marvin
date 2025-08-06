@@ -92,9 +92,9 @@ const CapturePanel = {
       const historyTabBtn = document.querySelector('[data-tab="history"]');
       
       if (tabsTabBtn) {
-        const tabsClickHandler = () => {
+        const tabsClickHandler = async () => {
           logger.debug('Tabs tab button clicked');
-          TabsCapture.initTabsCapture();
+          await this.switchToTab(logger, 'tabs');
         };
         
         tabsTabBtn.addEventListener('click', tabsClickHandler);
@@ -110,9 +110,9 @@ const CapturePanel = {
       }
       
       if (bookmarksTabBtn) {
-        const bookmarksClickHandler = () => {
+        const bookmarksClickHandler = async () => {
           logger.debug('Bookmarks tab button clicked');
-          this._bookmarksCapture.initBookmarksCapture();
+          await this.switchToTab(logger, 'bookmarks');
         };
         
         bookmarksTabBtn.addEventListener('click', bookmarksClickHandler);
@@ -128,9 +128,9 @@ const CapturePanel = {
       }
       
       if (historyTabBtn) {
-        const historyClickHandler = () => {
+        const historyClickHandler = async () => {
           logger.debug('History tab button clicked');
-          this._historyCapture.initHistoryCapture();
+          await this.switchToTab(logger, 'history');
         };
         
         historyTabBtn.addEventListener('click', historyClickHandler);
@@ -476,6 +476,50 @@ async processCaptureItems(logger, selectedItems, type) {
     notificationService.showNotification(`Error capturing items: ${error.message}`, 'error');
   }
 },
+
+  /**
+   * Switch to a specific tab and initialize its component
+   * @param {LogManager} logger - Logger instance
+   * @param {string} tabType - Type of tab to switch to (tabs, bookmarks, history)
+   */
+  async switchToTab(logger, tabType) {
+    logger.debug(`Switching to ${tabType} tab`);
+    
+    try {
+      // Remove active class from all tab panes
+      document.querySelectorAll('.capture-tab-content .tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+      });
+      
+      // Add active class to target tab pane
+      const targetPane = document.getElementById(`${tabType}-pane`);
+      if (targetPane) {
+        targetPane.classList.add('active');
+        
+        // Force re-initialization by resetting the component state
+        switch (tabType) {
+          case 'tabs':
+            this._tabsCapture.initialized = false;
+            await this._tabsCapture.initTabsCapture();
+            break;
+          case 'bookmarks':
+            this._bookmarksCapture.initialized = false;
+            await this._bookmarksCapture.initBookmarksCapture();
+            break;
+          case 'history':
+            this._historyCapture.initialized = false;
+            await this._historyCapture.initHistoryCapture();
+            break;
+          default:
+            logger.warn(`Unknown tab type: ${tabType}`);
+        }
+      } else {
+        logger.error(`Tab pane not found for type: ${tabType}`);
+      }
+    } catch (error) {
+      logger.error(`Error switching to ${tabType} tab:`, error);
+    }
+  },
   
   /**
    * Improved background communication pattern with better error handling

@@ -7,6 +7,7 @@ import { TaskService } from '../services/task-service.js';
 import { VisualizationService } from '../services/visualization-service.js';
 import { MessageService } from '../services/message-service.js';
 import { ApiService } from '../services/api-service.js';
+import { CaptureService } from '../services/capture-service.js';
 import { ResourceTracker } from '../utils/resource-tracker.js';
 import { MemoryMonitor } from '../utils/memory-monitor.js';
 
@@ -87,6 +88,13 @@ export class ServiceRegistry {
             phase: 'optional',
             maxMemoryUsage: 150 * 1024 * 1024 // 150MB limit
         });
+
+        this.registerService('capture', CaptureService, {
+            dependencies: [],
+            phase: 'core',
+            maxMemoryUsage: 10 * 1024 * 1024 // 10MB limit
+        });
+
     }
 
     static initialize() {
