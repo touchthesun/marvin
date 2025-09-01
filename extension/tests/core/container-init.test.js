@@ -359,6 +359,95 @@ describe('Container Initialization', () => {
         throw new Error(`Missing optional components: ${missingComponents.join(', ')}`);
       }
     });
+
+    // CRITICAL: This test will fail and force us to fix component instantiation
+    test('instantiates components after registration', () => {
+      if (!initResult?.initialized) {
+        throw new Error('Container initialization failed');
+      }
+      
+      // Check that components are not just registered, but also instantiated
+      const coreComponents = ['navigation', 'overview-panel', 'capture-panel'];
+      const missingInstances = coreComponents.filter(component => {
+        // Component should be registered
+        const isRegistered = mockSystem.container.components.has(component);
+        // Component should also be instantiated
+        const isInstantiated = mockSystem.container.componentInstances.has(component);
+        
+        if (!isRegistered) {
+          console.error(`Component ${component} is not registered`);
+          return true;
+        }
+        
+        if (!isInstantiated) {
+          console.error(`Component ${component} is registered but not instantiated`);
+          return true;
+        }
+        
+        return false;
+      });
+      
+      if (missingInstances.length > 0) {
+        throw new Error(`Components not instantiated: ${missingInstances.join(', ')}`);
+      }
+      
+      // Verify that instantiated components have the expected structure
+      coreComponents.forEach(componentName => {
+        const instance = mockSystem.container.componentInstances.get(componentName);
+        expect(instance).toBeDefined();
+        expect(typeof instance).toBe('object');
+        
+        // Check for initialization method (either 'initialize' or component-specific)
+        const hasInitializeMethod = typeof instance.initialize === 'function' || 
+                                   typeof instance[`init${componentName.charAt(0).toUpperCase() + componentName.slice(1).replace('-', '')}Panel`] === 'function' ||
+                                   typeof instance[`init${componentName.charAt(0).toUpperCase() + componentName.slice(1)}`] === 'function';
+        
+        expect(hasInitializeMethod).toBe(true);
+        console.log(`✅ Component ${componentName} is properly instantiated with initialization method`);
+      });
+    });
+
+    // CRITICAL: This test will fail and force us to fix service instantiation
+    test('instantiates core services after registration', () => {
+      if (!initResult?.initialized) {
+        throw new Error('Container initialization failed');
+      }
+      
+      const coreServices = ['apiService', 'storageService', 'messageService'];
+      const missingServiceInstances = coreServices.filter(service => {
+        // Service should be registered
+        const isRegistered = mockSystem.container.services.has(service);
+        // Service should also be instantiated
+        const isInstantiated = mockSystem.container.serviceInstances.has(service);
+        
+        if (!isRegistered) {
+          console.error(`Service ${service} is not registered`);
+          return true;
+        }
+        
+        if (!isInstantiated) {
+          console.error(`Service ${service} is registered but not instantiated`);
+          return true;
+        }
+        
+        return false;
+      });
+      
+      if (missingServiceInstances.length > 0) {
+        throw new Error(`Services not instantiated: ${missingServiceInstances.join(', ')}`);
+      }
+      
+      // Verify that instantiated services have the expected structure
+      coreServices.forEach(serviceName => {
+        const instance = mockSystem.container.serviceInstances.get(serviceName);
+        expect(instance).toBeDefined();
+        expect(typeof instance).toBe('object');
+        
+        // Check for initialization method
+        expect(typeof instance.initialize).toBe('function');
+        console.log(`✅ Service ${serviceName} is properly instantiated with initialize method`);
+      });
+    });
   });
 
 

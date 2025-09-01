@@ -174,6 +174,11 @@ export class LogManager {
   // Safe send to background with immediate error handling
   _safeSendToBackground(entry) {
     try {
+      // Check if we're in extension context
+      if (typeof chrome === 'undefined' || !chrome.runtime) {
+        return; // Not in extension context
+      }
+      
       // Make a copy of the entry with limited message size to ensure it's not too large
       const safeEntry = {
         timestamp: entry.timestamp,
@@ -188,12 +193,17 @@ export class LogManager {
           entry: safeEntry
         },
         () => {
-          // Just access lastError to prevent unhandled errors
-          const lastError = chrome.runtime.lastError;
+          // Check for connection errors and handle gracefully
+          if (chrome.runtime.lastError) {
+            // Don't log connection errors to avoid spam
+            if (chrome.runtime.lastError.message !== 'Could not establish connection. Receiving end does not exist.') {
+              console.warn('Log manager background communication error:', chrome.runtime.lastError.message);
+            }
+          }
         }
       );
     } catch (e) {
-      // Silent fail
+      // Silent fail for any other errors
     }
   }
   

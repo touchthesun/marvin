@@ -45,7 +45,7 @@
           </div>
           <div class="item-meta">
             <span class="item-folder">Root</span>
-            <span class="item-date">8/6/2025</span>
+            <span class="item-date">9/1/2025</span>
           </div>
         </div><div class="list-item bookmark-item" data-id="11" data-url="https://bookmark2.com">
           <div class="item-selector">
@@ -60,7 +60,7 @@
           </div>
           <div class="item-meta">
             <span class="item-folder">Root</span>
-            <span class="item-date">8/6/2025</span>
+            <span class="item-date">9/1/2025</span>
           </div>
         </div><div class="list-item bookmark-item" data-id="20" data-url="https://bookmark3.com">
           <div class="item-selector">
@@ -75,7 +75,7 @@
           </div>
           <div class="item-meta">
             <span class="item-folder">Root</span>
-            <span class="item-date">8/6/2025</span>
+            <span class="item-date">9/1/2025</span>
           </div>
         </div>
 [TEST-LOG] Bookmarks capture component methods: _eventListeners,_timeouts,_intervals,_domElements,initialized,_bookmarks,initBookmarksCapture,getService,_cleanupExistingListeners,_validateInputs,_safeDOMOperation,loadBookmarks,flattenBookmarks,populateBookmarkFolders,displayBookmarks,formatDate,filterBookmarks,setupSelectionControls,getSelectedBookmarks,refreshDisplay,updateDisplayWithData,cleanup
@@ -102,7 +102,7 @@
           <div class="item-url">https://history1.com</div>
         </div>
         <div class="item-meta">
-          <span class="item-date">Last visit: Today at 12:20 AM</span>
+          <span class="item-date">Last visit: Today at 10:03 AM</span>
           <span class="item-visits">5 visits</span>
         </div>
       </div><div class="list-item history-item" data-id="2" data-url="https://history2.com">
@@ -117,7 +117,7 @@
           <div class="item-url">https://history2.com</div>
         </div>
         <div class="item-meta">
-          <span class="item-date">Last visit: Yesterday at 12:20 AM</span>
+          <span class="item-date">Last visit: Yesterday at 10:03 AM</span>
           <span class="item-visits">3 visits</span>
         </div>
       </div>
@@ -149,7 +149,7 @@
           </div>
           <div class="item-meta">
             <span class="item-folder">Root</span>
-            <span class="item-date">8/6/2025</span>
+            <span class="item-date">9/1/2025</span>
           </div>
         </div><div class="list-item bookmark-item" data-id="11" data-url="https://bookmark2.com">
           <div class="item-selector">
@@ -164,7 +164,7 @@
           </div>
           <div class="item-meta">
             <span class="item-folder">Root</span>
-            <span class="item-date">8/6/2025</span>
+            <span class="item-date">9/1/2025</span>
           </div>
         </div><div class="list-item bookmark-item" data-id="20" data-url="https://bookmark3.com">
           <div class="item-selector">
@@ -179,7 +179,7 @@
           </div>
           <div class="item-meta">
             <span class="item-folder">Root</span>
-            <span class="item-date">8/6/2025</span>
+            <span class="item-date">9/1/2025</span>
           </div>
         </div>
 [TEST-LOG] History list HTML: 

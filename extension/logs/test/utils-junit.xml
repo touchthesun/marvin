@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="7" failures="2" errors="0" time="0.93">
+  <testsuite name="Log Manager" errors="0" failures="2" skipped="0" timestamp="2025-08-09T03:59:24" time="0.549" tests="7">
+    <testcase classname="Log Manager Early Message Handling" name="should handle background script not available gracefully" time="0.003">
+    </testcase>
+    <testcase classname="Log Manager Early Message Handling" name="should not send messages when not in extension context" time="0.001">
+    </testcase>
+    <testcase classname="Log Manager Early Message Handling" name="should handle missing chrome.runtime gracefully" time="0.002">
+    </testcase>
+    <testcase classname="Log Manager Early Message Handling" name="should handle successful background communication" time="0.002">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: ObjectContaining {&quot;action&quot;: &quot;marvin_log_entry&quot;, &quot;entry&quot;: ObjectContaining {&quot;context&quot;: &quot;test&quot;, &quot;level&quot;: &quot;info&quot;}}, Any&lt;Function&gt;
+
+Number of calls: 0
+    at Object.toHaveBeenCalledWith (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/utils/log-manager.test.js:120:46)
+    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Log Manager Early Message Handling" name="should limit message size for background communication" time="0.001">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: ObjectContaining {&quot;entry&quot;: ObjectContaining {&quot;message&quot;: StringMatching /^A{500}\.\.\. \[truncated, \d+ more characters\]$/}}, Any&lt;Function&gt;
+
+Number of calls: 0
+    at Object.toHaveBeenCalledWith (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/utils/log-manager.test.js:140:46)
+    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
+    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
+    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
+    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
+    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
+    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
+    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
+    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    </testcase>
+    <testcase classname="Log Manager Error Handling" name="should handle runtime errors without crashing" time="0.002">
+    </testcase>
+    <testcase classname="Log Manager Error Handling" name="should handle different error types gracefully" time="0.001">
+    </testcase>
+  </testsuite>
+</testsuites>

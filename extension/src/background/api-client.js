@@ -1,298 +1,378 @@
 /**
- * Client for interacting with the Marvin API
+ * API Client for Chrome Extension Background Worker
+ * 
+ * Handles communication with the FastAPI server at 127.0.0.1:61697
+ * Includes caching, authentication, and error handling.
  */
-class MarvinAPIClient {
-  /**
-   * Create a new API client
-   * @param {string} baseURL - API base URL
-   * @param {object} authManager - Authentication manager
-   */
-  constructor(baseURL, authManager) {
-    this.baseURL = baseURL;
-    this.authManager = authManager;
-    this.pendingRequests = [];
-    this.isOnline = true; // Default to online in service worker
-    this.requestTimeout = 30000; // 30 seconds timeout
+
+class APIClient {
+  constructor() {
+    this.baseURL = 'http://127.0.0.1:8000/api/v1'; // Default port
+    this.cache = new Map();
+    this.cacheTTL = 5 * 60 * 1000; // 5 minutes
+    this.authCredentials = null;
+    this.isServerAvailable = false; // Start as false to trigger port discovery
+    this.discoveredPort = null;
+    this.portDiscoveryAttempted = false;
   }
-  
+
   /**
-   * Set the API base URL
-   * @param {string} baseUrl - New base URL
+   * Set authentication credentials
+   * @param {string} username 
+   * @param {string} password 
    */
-  setBaseUrl(baseUrl) {
-    this.baseURL = baseUrl;
+  setAuthCredentials(username, password) {
+    this.authCredentials = { username, password };
   }
-  
+
   /**
-   * Make an API request
-   * @param {string} method - HTTP method
-   * @param {string} endpoint - API endpoint
-   * @param {object} data - Request data
-   * @param {object} options - Additional options
-   * @returns {Promise<object>} Response data
+   * Make authenticated request to FastAPI server
+   * @param {string} endpoint - API endpoint (e.g., '/api/tasks/active')
+   * @param {Object} options - Fetch options
+   * @returns {Promise<Object>} Response data
    */
-  async request(method, endpoint, data = null, options = {}) {
-    const url = this._buildUrl(endpoint);
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...options.headers
-    };
-    
-    // Add authentication if available
-    const token = await this.authManager.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+  async makeRequest(endpoint, options = {}) {
+    // Try port discovery if we haven't found the server yet
+    if (!this.isServerAvailable && !this.portDiscoveryAttempted) {
+      await this.discoverPort();
     }
-    
-    const requestOptions = {
-      method: method.toUpperCase(),
-      headers,
-      mode: 'cors',
-      cache: 'no-cache',
-      redirect: 'follow',
-      ...options
-    };
-    
-    // Add body for methods that support it
-    if (data !== null && ['POST', 'PUT', 'PATCH'].includes(requestOptions.method)) {
-      requestOptions.body = JSON.stringify(data);
+
+    const url = `${this.baseURL}${endpoint}`;
+    const cacheKey = `${options.method || 'GET'}:${url}`;
+
+    // Check cache first
+    const cached = this.getCachedResponse(cacheKey);
+    if (cached) {
+      console.log(`Serving cached response for ${endpoint}`);
+      return cached;
     }
-    
-    // Handle offline mode
-    if (!this.isOnline && options.queueOffline !== false) {
-      return this.queueRequest(method, endpoint, data, options);
-    }
-    
+
     try {
-      // Create abort controller for timeout
-      const controller = new AbortController();
-      requestOptions.signal = controller.signal;
-      
-      // Set timeout
-      const timeoutId = setTimeout(() => controller.abort(), this.requestTimeout);
-      
-      const response = await fetch(url, requestOptions);
-      
-      // Clear timeout
-      clearTimeout(timeoutId);
-      
-      // Handle authentication errors
-      if (response.status === 401) {
-        const refreshed = await this.authManager.refreshToken();
-        if (refreshed) {
-          // Retry with new token
-          return this.request(method, endpoint, data, options);
-        } else {
-          throw new Error('Authentication failed');
-        }
-      }
-      
-      // Handle 404 errors gracefully
-      if (response.status === 404) {
-        console.warn(`Endpoint not found: ${endpoint}`);
-        return {
-          success: false,
-          error: {
-            error_code: "NOT_FOUND",
-            message: `Endpoint ${endpoint} not available`
-          }
-        };
-      }
-      
-      // Parse response
-      let responseData;
-      
-      try {
-        responseData = await response.json();
-      } catch (e) {
-        // Not JSON, return text content
-        if (response.ok) {
-          return {
-            success: true,
-            data: await response.text()
-          };
-        }
-        
-        throw new Error(`Invalid response: ${await response.text()}`);
-      }
-      
-      // Return structured response
-      if (response.ok) {
-        // If API returns success flag, respect it
-        if (typeof responseData.success === 'boolean') {
-          return responseData;
-        }
-        
-        // Otherwise build our own success response
-        return {
-          success: true,
-          data: responseData
-        };
-      }
-      
-      // Error response
-      return {
-        success: false,
-        error: {
-          status: response.status,
-          message: responseData.error?.message || responseData.message || 'Unknown error',
-          details: responseData.error?.details || responseData.error || responseData
-        }
+      // Prepare headers
+      const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
       };
+
+      // Add authentication if available
+      if (this.authCredentials) {
+        headers['Authorization'] = `Basic ${btoa(`${this.authCredentials.username}:${this.authCredentials.password}`)}`;
+      }
+
+      // Make request
+      const response = await fetch(url, {
+        ...options,
+        headers
+      });
+
+      // Check if response exists (fetch succeeded)
+      if (!response) {
+        throw new Error('No response received from server');
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Cache successful responses
+      this.cacheResponse(cacheKey, data);
+      
+      // Mark server as available
+      this.isServerAvailable = true;
+      
+      return data;
+
     } catch (error) {
-      console.error('API request error:', error);
+      console.error(`API request failed for ${endpoint}:`, error);
       
-      // Handle fetch errors
-      if (error.name === 'AbortError') {
-        return {
-          success: false,
-          error: {
-            message: 'Request timed out',
-            details: { timeout: this.requestTimeout }
-          }
-        };
+      // Mark server as unavailable
+      this.isServerAvailable = false;
+      
+      // Return cached data if available (stale data is better than no data)
+      const cached = this.getCachedResponse(cacheKey, true); // Allow stale data
+      if (cached) {
+        console.log(`Serving stale cached response for ${endpoint}`);
+        return { ...cached, _stale: true };
       }
       
-      if (!this.isOnline) {
-        return this.queueRequest(method, endpoint, data, options);
-      }
-      
-      // Other errors
-      return {
-        success: false,
-        error: {
-          message: error.message,
-          details: { type: error.name }
-        }
-      };
+      throw error;
     }
   }
-  
+
   /**
-   * Make a GET request
-   * @param {string} endpoint - API endpoint
-   * @param {object} options - Additional options
-   * @returns {Promise<object>} Response data
+   * Get cached response
+   * @param {string} key - Cache key
+   * @param {boolean} allowStale - Whether to return stale data
+   * @returns {Object|null} Cached response or null
    */
-  async get(endpoint, options = {}) {
-    return this.request('GET', endpoint, null, options);
-  }
-  
-  /**
-   * Make a POST request
-   * @param {string} endpoint - API endpoint
-   * @param {object} data - Request data
-   * @param {object} options - Additional options
-   * @returns {Promise<object>} Response data
-   */
-  async post(endpoint, data = null, options = {}) {
-    return this.request('POST', endpoint, data, options);
-  }
-  
-  /**
-   * Make a PUT request
-   * @param {string} endpoint - API endpoint
-   * @param {object} data - Request data
-   * @param {object} options - Additional options
-   * @returns {Promise<object>} Response data
-   */
-  async put(endpoint, data = null, options = {}) {
-    return this.request('PUT', endpoint, data, options);
-  }
-  
-  /**
-   * Make a DELETE request
-   * @param {string} endpoint - API endpoint
-   * @param {object} options - Additional options
-   * @returns {Promise<object>} Response data
-   */
-  async delete(endpoint, options = {}) {
-    return this.request('DELETE', endpoint, null, options);
-  }
-  
-  /**
-   * Build full URL from endpoint
-   * @private
-   * @param {string} endpoint - API endpoint
-   * @returns {string} Full URL
-   */
-  _buildUrl(endpoint) {
-    // Handle absolute URLs
-    if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
-      return endpoint;
+  getCachedResponse(key, allowStale = false) {
+    const cached = this.cache.get(key);
+    if (!cached) return null;
+
+    const now = Date.now();
+    const isExpired = (now - cached.timestamp) > this.cacheTTL;
+
+    if (isExpired && !allowStale) {
+      this.cache.delete(key);
+      return null;
     }
-    
-    // Ensure endpoint starts with slash
-    if (!endpoint.startsWith('/')) {
-      endpoint = '/' + endpoint;
-    }
-    
-    // Remove trailing slash from base URL if present
-    let baseUrl = this.baseURL;
-    if (baseUrl.endsWith('/')) {
-      baseUrl = baseUrl.slice(0, -1);
-    }
-    
-    return `${baseUrl}${endpoint}`;
+
+    return cached.data;
   }
-  
-  // Handle offline queuing
-  queueRequest(method, endpoint, data, options) {
-    const queuedRequest = { method, endpoint, data, options, timestamp: Date.now() };
-    this.pendingRequests.push(queuedRequest);
-    this.savePendingRequests();
-    
-    return {
-      success: false,
-      queued: true,
-      message: 'Request queued for offline processing'
-    };
+
+  /**
+   * Cache response
+   * @param {string} key - Cache key
+   * @param {Object} data - Response data
+   */
+  cacheResponse(key, data) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
   }
-  
-  // Process queued requests when back online
-  async processQueue() {
-    if (!this.isOnline || this.pendingRequests.length === 0) return;
+
+  /**
+   * Clear cache
+   */
+  clearCache() {
+    this.cache.clear();
+  }
+
+  /**
+   * Discover the correct port for the FastAPI server
+   * @returns {Promise<number|null>} The discovered port or null if not found
+   */
+  async discoverPort() {
+    if (this.portDiscoveryAttempted) {
+      return this.discoveredPort;
+    }
+
+    this.portDiscoveryAttempted = true;
+    // Try common ports, with 8000 as the primary (fixed) port
+    const commonPorts = [8000, 8080, 3000, 5000, 8001, 8002];
     
-    console.log(`Processing ${this.pendingRequests.length} queued requests`);
+    console.log('🔍 Discovering FastAPI server port...');
     
-    const requests = [...this.pendingRequests];
-    this.pendingRequests = [];
-    this.savePendingRequests();
-    
-    for (const req of requests) {
+    for (const port of commonPorts) {
       try {
-        await this.request(req.method, req.endpoint, req.data, {
-          ...req.options,
-          queueOffline: false
+        const testURL = `http://127.0.0.1:${port}/api/v1/health`;
+        console.log(`  Trying port ${port}...`);
+        
+        const response = await fetch(testURL, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'healthy') {
+            console.log(`✅ Found server on port ${port}`);
+            this.discoveredPort = port;
+            this.baseURL = `http://127.0.0.1:${port}/api/v1`;
+            this.isServerAvailable = true;
+            return port;
+          }
+        }
       } catch (error) {
-        // Re-queue failed requests
-        this.pendingRequests.push(req);
+        // Continue to next port
+        console.log(`  Port ${port} failed: ${error.message}`);
       }
     }
     
-    this.savePendingRequests();
+    console.log('❌ No server found on any common ports');
+    this.isServerAvailable = false;
+    return null;
   }
-  
-  handleNetworkChange(isOnline) {
-    console.log(`Network status changed: ${isOnline ? 'online' : 'offline'}`);
-    this.isOnline = isOnline;
-    if (this.isOnline) {
-      this.processQueue();
+
+  /**
+   * Check if server is available
+   * @returns {boolean}
+   */
+  isAvailable() {
+    return this.isServerAvailable;
+  }
+
+  // API Methods
+
+  /**
+   * Get all tasks
+   * @returns {Promise<Object>} All tasks
+   */
+  async getActiveTasks() {
+    return this.makeRequest('/tasks');
+  }
+
+  /**
+   * Get task by ID
+   * @param {string} taskId - Task ID
+   * @returns {Promise<Object>} Task details
+   */
+  async getTask(taskId) {
+    return this.makeRequest(`/tasks/${taskId}`);
+  }
+
+  /**
+   * Cancel a task
+   * @param {string} taskId - Task ID
+   * @returns {Promise<Object>} Result
+   */
+  async cancelTask(taskId) {
+    return this.makeRequest(`/tasks/${taskId}/cancel`, {
+      method: 'POST'
+    });
+  }
+
+  /**
+   * Retry a task
+   * @param {string} taskId - Task ID
+   * @returns {Promise<Object>} Result
+   */
+  async retryTask(taskId) {
+    return this.makeRequest(`/tasks/${taskId}/retry`, {
+      method: 'POST'
+    });
+  }
+
+  /**
+   * Capture URL (create page)
+   * @param {string} url - URL to capture
+   * @param {Object} options - Capture options
+   * @returns {Promise<Object>} Capture result
+   */
+  async captureUrl(url, options = {}) {
+    return this.makeRequest('/pages', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        url, 
+        context: options.context || 'manual',
+        tab_id: options.tab_id,
+        window_id: options.window_id,
+        bookmark_id: options.bookmark_id
+      })
+    });
+  }
+
+  /**
+   * Capture batch of URLs
+   * @param {Array<string>} urls - URLs to capture
+   * @param {Object} options - Capture options
+   * @returns {Promise<Object>} Batch capture result
+   */
+  async captureBatch(urls, options = {}) {
+    return this.makeRequest('/pages/batch', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        urls,
+        context: options.context || 'batch',
+        tab_id: options.tab_id,
+        window_id: options.window_id
+      })
+    });
+  }
+
+  /**
+   * Analyze URL
+   * @param {string} url - URL to analyze
+   * @param {Object} options - Analysis options
+   * @returns {Promise<Object>} Analysis result
+   */
+  async analyzeUrl(url, options = {}) {
+    return this.makeRequest('/api/analysis/url', {
+      method: 'POST',
+      body: JSON.stringify({ url, ...options })
+    });
+  }
+
+  /**
+   * Get knowledge graph data
+   * @param {string} panelName - Panel name
+   * @param {Object} options - Query options
+   * @returns {Promise<Object>} Knowledge graph data
+   */
+  async getKnowledgeData(panelName, options = {}) {
+    // Map panel names to actual API endpoints
+    switch (panelName) {
+      case 'overview':
+        return this.makeRequest('/graph/overview');
+      case 'capture':
+        return this.makeRequest('/pages', {
+          method: 'GET',
+          params: { limit: 10 }
+        });
+      case 'knowledge':
+        return this.makeRequest('/graph/overview', {
+          method: 'GET',
+          params: { limit: 20 }
+        });
+      default:
+        return this.makeRequest('/graph/overview');
     }
   }
-  
-  // Persistence for request queue
-  async savePendingRequests() {
-    await chrome.storage.local.set({ pendingRequests: this.pendingRequests });
+
+  /**
+   * Get overview data
+   * @returns {Promise<Object>} Overview data
+   */
+  async getOverviewData() {
+    return this.makeRequest('/graph/overview');
   }
-  
-  async loadPendingRequests() {
-    const data = await chrome.storage.local.get('pendingRequests');
-    this.pendingRequests = data.pendingRequests || [];
-    return this.pendingRequests;
+
+  /**
+   * Get settings
+   * @returns {Promise<Object>} Settings
+   */
+  async getSettings() {
+    return this.makeRequest('/api/settings');
+  }
+
+  /**
+   * Update settings
+   * @param {Object} settings - Settings to update
+   * @returns {Promise<Object>} Result
+   */
+  async updateSettings(settings) {
+    return this.makeRequest('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings)
+    });
+  }
+
+  /**
+   * Check authentication status
+   * @returns {Promise<Object>} Auth status
+   */
+  async checkAuthStatus() {
+    return this.makeRequest('/api/auth/status');
+  }
+
+  /**
+   * Login
+   * @param {string} username - Username
+   * @param {string} password - Password
+   * @returns {Promise<Object>} Login result
+   */
+  async login(username, password) {
+    return this.makeRequest('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+  }
+
+  /**
+   * Logout
+   * @returns {Promise<Object>} Logout result
+   */
+  async logout() {
+    return this.makeRequest('/api/auth/logout', {
+      method: 'POST'
+    });
   }
 }
 
-export default MarvinAPIClient;
+// Export singleton instance
+export const apiClient = new APIClient();

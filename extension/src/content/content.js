@@ -18,7 +18,15 @@ document.body.dataset.context = 'content';
 // Helper function to safely send messages to the extension
 function safeSendMessage(message) {
   try {
-    chrome.runtime.sendMessage(message);
+    chrome.runtime.sendMessage(message, (response) => {
+      // Check for connection errors and handle gracefully
+      if (chrome.runtime.lastError) {
+        // Don't log connection errors to avoid spam
+        if (chrome.runtime.lastError.message !== 'Could not establish connection. Receiving end does not exist.') {
+          logger.log('error', 'Failed to send message to extension:', chrome.runtime.lastError.message);
+        }
+      }
+    });
     return true;
   } catch (error) {
     logger.log('error', 'Failed to send message to extension, context may be invalidated', error);

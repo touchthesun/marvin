@@ -61,11 +61,18 @@ const TasksPanel = {
       logger.error('Failed to initialize tasks panel:', error);
       
       // Get notification service with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
-        showNotification: (message, type) => console.error(`[${type}] ${message}`)
-      });
-      
-      notificationService.showNotification('Failed to initialize tasks panel', 'error');
+      let notificationService;
+      try {
+        notificationService = container.getService('notificationService');
+        if (notificationService && typeof notificationService.showNotification === 'function') {
+          notificationService.showNotification('Failed to initialize tasks panel', 'error');
+        } else {
+          console.error('Failed to initialize tasks panel');
+        }
+      } catch (serviceError) {
+        logger.warn('NotificationService not available:', serviceError);
+        console.error('Failed to initialize tasks panel');
+      }
       return false;
     }
   },

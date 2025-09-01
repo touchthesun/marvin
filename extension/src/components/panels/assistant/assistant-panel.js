@@ -36,10 +36,10 @@ const AssistantPanel = {
       }
       
       // Get required elements
-      const chatInput = document.getElementById('chat-input');
-      const sendButton = document.getElementById('send-message');
-      const contextButton = document.getElementById('context-selector-btn');
-      const contextDropdown = document.getElementById('context-dropdown');
+      let chatInput = document.getElementById('chat-input');
+      let sendButton = document.getElementById('send-message');
+      let contextButton = document.getElementById('context-selector-btn');
+      let contextDropdown = document.getElementById('context-dropdown');
       const messagesContainer = document.getElementById('chat-messages');
       
       // Create elements if they don't exist

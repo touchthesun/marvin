@@ -40,7 +40,7 @@ const SettingsPanel = {
         showNotification: (message, type) => console.error(`[${type}] ${message}`)
       });
       
-      const ui = this.getService(logger, 'ui', {
+      const ui = container.utils.get('ui') || {
         showSaveConfirmation: (form) => {
           const originalText = form.querySelector('button[type="submit"]')?.textContent;
           const button = form.querySelector('button[type="submit"]');
@@ -51,7 +51,7 @@ const SettingsPanel = {
             }, 2000);
           }
         }
-      });
+      };
       
       // Load current settings
       await this.loadCurrentSettings(logger);
@@ -72,11 +72,16 @@ const SettingsPanel = {
       logger.error('Error initializing settings panel:', error);
       
       // Get notification service with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
-        showNotification: (message, type) => console.error(`[${type}] ${message}`)
-      });
-      
-      notificationService.showNotification('Failed to initialize settings panel', 'error');
+      try {
+        const notificationService = container.getService('notificationService');
+        if (notificationService && typeof notificationService.showNotification === 'function') {
+          notificationService.showNotification('Failed to initialize settings panel', 'error');
+        } else {
+          console.error('[ERROR] Failed to initialize settings panel');
+        }
+      } catch (error) {
+        console.error('[ERROR] Failed to initialize settings panel');
+      }
       
       // Show error in the settings container
       const settingsContainer = document.querySelector('.settings-container');
