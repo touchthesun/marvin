@@ -1,9 +1,9 @@
  // extension/tests/__mocks__/chrome-api.js
-import { runtime } from './chrome-api/runtime.js';
+import { mockRuntime } from './chrome-api/runtime.js';
 
 export function createChromeMock() {
   return {
-    runtime,
+    runtime: mockRuntime(),
     // Add other Chrome API mocks as needed
     storage: {
       local: {
@@ -17,6 +17,11 @@ export function createChromeMock() {
         set: jest.fn(),
         remove: jest.fn(),
         clear: jest.fn()
+      },
+      onChanged: {
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        hasListener: jest.fn()
       }
     },
     tabs: {

@@ -15,6 +15,7 @@ export default {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],
   setupFilesAfterEnv: [
+    '<rootDir>/tests/helpers/chrome-api-setup.js',
     '<rootDir>/tests/helpers/msw-setup.js'
   ],
   testTimeout: 30000,

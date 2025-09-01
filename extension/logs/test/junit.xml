@@ -1,81 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="10" failures="4" errors="0" time="9.227">
-  <testsuite name="Container Initialization" errors="0" failures="4" skipped="0" timestamp="2025-09-01T17:08:13" time="8.811" tests="10">
-    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0.042">
-      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
-
-Expected number of calls: &gt;= 1
-Received number of calls:    0
-    at Object.toHaveBeenCalled (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:285:38)
-    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
-    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
-    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+<testsuites name="jest tests" tests="10" failures="0" errors="0" time="3.356">
+  <testsuite name="Container Initialization" errors="0" failures="0" skipped="9" timestamp="2025-09-01T21:06:57" time="2.868" tests="10">
+    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0.018">
+    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0.023">
+    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0.02">
+    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0.007">
+    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="instantiates components after registration" time="0.009">
-      <failure>Error: Components not instantiated: navigation, overview-panel, capture-panel
-    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:391:15)
-    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
-    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
-    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    <testcase classname="Container Initialization Component Registration" name="instantiates components after registration" time="0.083">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="instantiates core services after registration" time="0.007">
-      <failure>Error: Services not instantiated: apiService, storageService, messageService
-    at Object.&lt;anonymous&gt; (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:437:15)
-    at Promise.then.completed (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/utils.js:231:10)
-    at _callCircusTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:316:40)
-    at _runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:252:3)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:126:9)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
-    at _runTestsForDescribeBlock (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:121:9)
-    at run (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/run.js:71:3)
-    at runAndTransformResultsToJestFormat (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)
-    at jestAdapter (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)
-    at runTestInternal (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:367:16)
-    at runTest (/Users/nathanparker/Documents/workspace/personal/marvin/extension/node_modules/jest-runner/build/runTest.js:444:34)</failure>
+    <testcase classname="Container Initialization Component Registration" name="instantiates core services after registration" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="4.02">
+    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="1.02">
+    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="1.01">
-      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
-
-Expected number of calls: &gt;= 1
-Received number of calls:    0
-    at Object.toHaveBeenCalled (/Users/nathanparker/Documents/workspace/personal/marvin/extension/tests/core/container-init.test.js:525:39)
-    at runNextTicks (node:internal/process/task_queues:65:5)
-    at listOnTimeout (node:internal/timers:569:9)
-    at processTimers (node:internal/timers:543:7)</failure>
+    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="0">
+      <skipped/>
     </testcase>
   </testsuite>
 </testsuites>

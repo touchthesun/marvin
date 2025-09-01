@@ -1,19 +1,8 @@
 // extension/tests/utils/mock-system.js
 import { jest } from '@jest/globals';
 
-// Create a mock logger that will be used by LogManager
-const createMockLogger = () => ({
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  cleanup: jest.fn().mockResolvedValue(true)
-});
-
-// Mock LogManager at module level
-jest.mock('../../src/utils/log-manager.js', () => ({
-  LogManager: jest.fn().mockImplementation(() => createMockLogger())
-}));
+// REMOVED: Mock LogManager - we want to use the real LogManager
+// This will expose real issues that need fixing
 
 export const createMockSystem = () => {
   // Track cleanup order for services
@@ -167,11 +156,9 @@ export const createMockSystem = () => {
     container.registerComponent(name, ComponentClass);
   });
 
-  const mockLogger = createMockLogger();
-
   // Create the complete mock system
   const mockSystem = {
-    logger: mockLogger,
+    // REMOVED: mockLogger - we're using real LogManager now
     memoryMonitor: {
       start: jest.fn(),
       stop: jest.fn(),
