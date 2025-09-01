@@ -379,14 +379,9 @@ describe('Container Initialization', () => {
         // Component should also be instantiated
         const isInstantiated = mockSystem.container.componentInstances.has(component);
         
-        // CRITICAL FIX: Also check the real container that our initialization code uses
         const realContainerRegistered = container.components.has(component);
         const realContainerInstantiated = container.componentInstances.has(component);
         
-        console.log(`🔍 DEBUG: Component ${component} - mockSystem.container: registered=${isRegistered}, instantiated=${isInstantiated}`);
-        console.log(`🔍 DEBUG: Component ${component} - real container: registered=${realContainerRegistered}, instantiated=${realContainerInstantiated}`);
-        
-        // CRITICAL FIX: Use the real container for the actual check since that's what our initialization code uses
         if (!realContainerRegistered) {
           console.error(`Component ${component} is not registered in real container`);
           return true;
@@ -404,14 +399,11 @@ describe('Container Initialization', () => {
         throw new Error(`Components not instantiated: ${missingInstances.join(', ')}`);
       }
       
-      // CRITICAL FIX: Use the real container for verification since that's what our initialization code uses
       coreComponents.forEach(componentName => {
         const instance = container.componentInstances.get(componentName);
         expect(instance).toBeDefined();
         expect(typeof instance).toBe('object');
         
-        // Check for initialization method (either 'initialize' or component-specific)
-        // CRITICAL FIX: Handle component names with hyphens correctly
         const cleanComponentName = componentName.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
         const panelMethodName = `init${cleanComponentName.charAt(0).toUpperCase() + cleanComponentName.slice(1)}Panel`;
         const genericMethodName = `init${cleanComponentName.charAt(0).toUpperCase() + cleanComponentName.slice(1)}`;
@@ -420,19 +412,17 @@ describe('Container Initialization', () => {
                                    typeof instance[panelMethodName] === 'function' ||
                                    typeof instance[genericMethodName] === 'function';
         
-        // DEBUG: Let's see what methods this component actually has
-        console.log(`🔍 DEBUG: Component ${componentName} methods:`, Object.getOwnPropertyNames(instance));
-        console.log(`🔍 DEBUG: Component ${componentName} has initialize:`, typeof instance.initialize === 'function');
-        console.log(`🔍 DEBUG: Component ${componentName} has ${panelMethodName}:`, typeof instance[panelMethodName] === 'function');
-        console.log(`🔍 DEBUG: Component ${componentName} has ${genericMethodName}:`, typeof instance[genericMethodName] === 'function');
-        console.log(`🔍 DEBUG: Component ${componentName} hasInitializeMethod:`, hasInitializeMethod);
+                                   console.log(`🔍 DEBUG: Component ${componentName} methods:`, Object.getOwnPropertyNames(instance));
+                                   console.log(`🔍 DEBUG: Component ${componentName} has initialize:`, typeof instance.initialize === 'function');
+                                   console.log(`🔍 DEBUG: Component ${componentName} has ${panelMethodName}:`, typeof instance[panelMethodName] === 'function');
+                                   console.log(`🔍 DEBUG: Component ${componentName} has ${genericMethodName}:`, typeof instance[genericMethodName] === 'function');
+                                   console.log(`🔍 DEBUG: Component ${componentName} hasInitializeMethod:`, hasInitializeMethod);
         
         expect(hasInitializeMethod).toBe(true);
         console.log(`✅ Component ${componentName} is properly instantiated with initialization method`);
       });
     });
 
-    // CRITICAL: This test will fail and force us to fix service instantiation
     test('instantiates core services after registration', () => {
       if (!initResult?.initialized) {
         throw new Error('Container initialization failed');
@@ -440,18 +430,17 @@ describe('Container Initialization', () => {
       
       const coreServices = ['apiService', 'storageService', 'messageService'];
       const missingServiceInstances = coreServices.filter(service => {
-        // Service should be registered
-        const isRegistered = mockSystem.container.services.has(service);
-        // Service should also be instantiated
-        const isInstantiated = mockSystem.container.serviceInstances.has(service);
+        // CRITICAL FIX: Use the real container that our initialization code uses
+        const isRegistered = container.services.has(service);
+        const isInstantiated = container.serviceInstances.has(service);
         
         if (!isRegistered) {
-          console.error(`Service ${service} is not registered`);
+          console.error(`Service ${service} is not registered in real container`);
           return true;
         }
         
         if (!isInstantiated) {
-          console.error(`Service ${service} is registered but not instantiated`);
+          console.error(`Service ${service} is registered but not instantiated in real container`);
           return true;
         }
         
@@ -462,9 +451,9 @@ describe('Container Initialization', () => {
         throw new Error(`Services not instantiated: ${missingServiceInstances.join(', ')}`);
       }
       
-      // Verify that instantiated services have the expected structure
+      // CRITICAL FIX: Use the real container for verification since that's what our initialization code uses
       coreServices.forEach(serviceName => {
-        const instance = mockSystem.container.serviceInstances.get(serviceName);
+        const instance = container.serviceInstances.get(serviceName);
         expect(instance).toBeDefined();
         expect(typeof instance).toBe('object');
         

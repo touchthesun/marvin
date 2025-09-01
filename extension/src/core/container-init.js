@@ -278,86 +278,66 @@ export class ContainerInitializer {
     }
   }
 
-  async _registerComponents() {
+    async _registerComponents() {
     try {
-      console.log('🔍 DEBUG: _registerComponents() METHOD CALLED');
       this.logger?.debug('=== _registerComponents() METHOD CALLED ===');
       this.logger?.debug('Registering components');
       // ComponentRegistry.registerAll() handles registration internally
       ComponentRegistry.registerAll();
       this.logger?.debug('Components registered');
-    
-    // CRITICAL FIX: Instantiate components after registration
-    console.log('🔍 DEBUG: Starting component instantiation');
-    this.logger?.debug('=== STARTING COMPONENT INSTANTIATION ===');
-    this.logger?.debug('Instantiating components');
-    const componentNames = Array.from(container.components.keys());
-    console.log('🔍 DEBUG: Found components to instantiate:', componentNames);
-    this.logger?.debug(`Found ${componentNames.length} components to instantiate:`, componentNames);
-    
-    console.log('🔍 DEBUG: Starting component instantiation loop');
-    for (const componentName of componentNames) {
-      try {
-        console.log(`🔍 DEBUG: Processing component: ${componentName}`);
-        console.log(`🔍 DEBUG: About to get component definition for ${componentName}`);
-        this.logger?.debug(`=== INSTANTIATING COMPONENT: ${componentName} ===`);
-        
-        // Log component details before instantiation
-        console.log(`🔍 DEBUG: Calling container.components.get(${componentName})`);
-        const componentDefinition = container.components.get(componentName);
-        console.log(`🔍 DEBUG: Got component definition for ${componentName}:`, componentDefinition);
-        this.logger?.debug(`Component definition type:`, typeof componentDefinition);
-        this.logger?.debug(`Component definition:`, componentDefinition);
-        
-        // Check if component has initialize method
-        console.log(`🔍 DEBUG: About to check component type for ${componentName}`);
-        if (typeof componentDefinition === 'function') {
-          console.log(`🔍 DEBUG: Component ${componentName} is a function/class`);
-          const tempInstance = new componentDefinition();
-          console.log(`🔍 DEBUG: Temp instance created for ${componentName}:`, !!tempInstance);
-          this.logger?.debug(`Temp instance created:`, !!tempInstance);
-          this.logger?.debug(`Has initialize method:`, typeof tempInstance.initialize === 'function');
-          this.logger?.debug(`Has component-specific init method:`, typeof tempInstance[`init${componentName.charAt(0).toUpperCase() + componentName.slice(1).replace('-', '')}Panel`] === 'function');
-        } else {
-          console.log(`🔍 DEBUG: Component ${componentName} is NOT a function/class, it's:`, typeof componentDefinition);
+      
+      // CRITICAL FIX: Instantiate components after registration
+      this.logger?.debug('=== STARTING COMPONENT INSTANTIATION ===');
+      this.logger?.debug('Instantiating components');
+      const componentNames = Array.from(container.components.keys());
+      this.logger?.debug(`Found ${componentNames.length} components to instantiate:`, componentNames);
+      
+      for (const componentName of componentNames) {
+        try {
+          this.logger?.debug(`=== INSTANTIATING COMPONENT: ${componentName} ===`);
+          
+          // Log component details before instantiation
+          const componentDefinition = container.components.get(componentName);
+          this.logger?.debug(`Component definition type:`, typeof componentDefinition);
+          this.logger?.debug(`Component definition:`, componentDefinition);
+          
+          // Check if component has initialize method
+          if (typeof componentDefinition === 'function') {
+            const tempInstance = new componentDefinition();
+            this.logger?.debug(`Temp instance created:`, !!tempInstance);
+            this.logger?.debug(`Has initialize method:`, typeof tempInstance.initialize === 'function');
+            this.logger?.debug(`Has component-specific init method:`, typeof tempInstance[`init${componentName.charAt(0).toUpperCase() + componentName.slice(1).replace('-', '')}Panel`] === 'function');
+          }
+          
+          // Try to get component instance (this should put it in componentInstances)
+          this.logger?.debug(`Calling container.getComponent(${componentName})`);
+          const instance = container.getComponent(componentName);
+          this.logger?.debug(`Component instance created:`, !!instance);
+          this.logger?.debug(`Instance type:`, typeof instance);
+          this.logger?.debug(`Instance methods:`, Object.getOwnPropertyNames(instance));
+          
+          // Verify it's in componentInstances
+          const isInInstances = container.componentInstances.has(componentName);
+          this.logger?.debug(`Component ${componentName} in componentInstances:`, isInInstances);
+          
+          this.logger?.debug(`=== COMPONENT ${componentName} INSTANTIATION COMPLETE ===`);
+          
+        } catch (error) {
+          console.error(`🔍 ERROR: Failed to instantiate component ${componentName}:`, error);
+          this.logger?.error(`=== FAILED TO INSTANTIATE COMPONENT ${componentName} ===`);
+          this.logger?.error(`Error details:`, error);
+          this.logger?.error(`Error stack:`, error.stack);
+          throw error;
         }
-        
-        // Try to get component instance (this should put it in componentInstances)
-        console.log(`🔍 DEBUG: About to call container.getComponent(${componentName})`);
-        this.logger?.debug(`Calling container.getComponent(${componentName})`);
-        const instance = container.getComponent(componentName);
-        console.log(`🔍 DEBUG: Component instance created for ${componentName}:`, !!instance);
-        this.logger?.debug(`Component instance created:`, !!instance);
-        this.logger?.debug(`Instance type:`, typeof instance);
-        this.logger?.debug(`Instance methods:`, Object.getOwnPropertyNames(instance));
-        
-        // Verify it's in componentInstances
-        console.log(`🔍 DEBUG: About to check if ${componentName} is in componentInstances`);
-        const isInInstances = container.componentInstances.has(componentName);
-        console.log(`🔍 DEBUG: Component ${componentName} in componentInstances:`, isInInstances);
-        this.logger?.debug(`Component ${componentName} in componentInstances:`, isInInstances);
-        
-        // Let's also see what's actually in the map
-        console.log(`🔍 DEBUG: componentInstances map contents:`, Array.from(container.componentInstances.keys()));
-        
-        this.logger?.debug(`=== COMPONENT ${componentName} INSTANTIATION COMPLETE ===`);
-        
-      } catch (error) {
-        console.error(`🔍 ERROR: Failed to instantiate component ${componentName}:`, error);
-        this.logger?.error(`=== FAILED TO INSTANTIATE COMPONENT ${componentName} ===`);
-        this.logger?.error(`Error details:`, error);
-        this.logger?.error(`Error stack:`, error.stack);
-        throw error;
       }
-    }
-    
-    // Log final state
-    this.logger?.debug(`=== COMPONENT INSTANTIATION SUMMARY ===`);
-    this.logger?.debug(`Components registered:`, Array.from(container.components.keys()));
-    this.logger?.debug(`Components instantiated:`, Array.from(container.componentInstances.keys()));
-    this.logger?.debug(`Component count mismatch:`, container.components.size - container.componentInstances.size);
-    
-    this.logger?.debug('All components processed');
+      
+      // Log final state
+      this.logger?.debug(`=== COMPONENT INSTANTIATION SUMMARY ===`);
+      this.logger?.debug(`Components registered:`, Array.from(container.components.keys()));
+      this.logger?.debug(`Components instantiated:`, Array.from(container.componentInstances.keys()));
+      this.logger?.debug(`Component count mismatch:`, container.components.size - container.componentInstances.size);
+      
+      this.logger?.debug('All components processed');
     } catch (error) {
       console.error('🔍 ERROR: _registerComponents() failed:', error);
       this.logger?.error('_registerComponents() failed:', error);
@@ -380,62 +360,139 @@ export class ContainerInitializer {
   }
 
   async _initializeCoreServices() {
+    console.log('�� DEBUG: _initializeCoreServices() METHOD CALLED');
     this.logger.debug('Initializing core services');
     
     const coreServices = container.getServicesByPhase('core');
+    console.log('�� DEBUG: getServicesByPhase("core") returned:', coreServices);
+    console.log('🔍 DEBUG: container.services.keys():', Array.from(container.services.keys()));
+    
     for (const serviceName of coreServices) {
       try {
+        console.log(`🔍 DEBUG: Processing core service: ${serviceName}`);
         this.logger.debug(`Initializing service: ${serviceName}`);
         await container.initializeService(serviceName);
       } catch (error) {
+        console.error(`🔍 ERROR: Failed to initialize service ${serviceName}:`, error);
         this.logger.error(`Failed to initialize service ${serviceName}:`, error);
         throw error;
       }
     }
     
     // CRITICAL FIX: Ensure services are instantiated in serviceInstances map
+    console.log('🔍 DEBUG: === ENSURING SERVICES ARE INSTANTIATED ===');
     this.logger.debug('=== ENSURING SERVICES ARE INSTANTIATED ===');
+    console.log(`🔍 DEBUG: Found ${coreServices.length} core services to check:`, coreServices);
     this.logger.debug(`Found ${coreServices.length} core services to check:`, coreServices);
     
     for (const serviceName of coreServices) {
       try {
+        console.log(`🔍 DEBUG: === CHECKING SERVICE: ${serviceName} ===`);
         this.logger.debug(`=== CHECKING SERVICE: ${serviceName} ===`);
         
         // Log service details before instantiation
         const serviceMetadata = container.serviceMetadata.get(serviceName);
+        console.log(`🔍 DEBUG: Service metadata for ${serviceName}:`, serviceMetadata);
         this.logger.debug(`Service metadata:`, serviceMetadata);
+        console.log(`🔍 DEBUG: Service ${serviceName} already in serviceInstances:`, container.serviceInstances.has(serviceName));
         this.logger.debug(`Service already in serviceInstances:`, container.serviceInstances.has(serviceName));
         
         if (!container.serviceInstances.has(serviceName)) {
+          console.log(`🔍 DEBUG: Creating service instance for: ${serviceName}`);
           this.logger.debug(`Creating service instance for: ${serviceName}`);
           const serviceInstance = await container.getService(serviceName);
+          console.log(`🔍 DEBUG: Service instance created for ${serviceName}:`, !!serviceInstance);
           this.logger.debug(`Service instance created:`, !!serviceInstance);
+          console.log(`🔍 DEBUG: Instance type for ${serviceName}:`, typeof serviceInstance);
           this.logger.debug(`Instance type:`, typeof serviceInstance);
+          console.log(`🔍 DEBUG: Instance methods for ${serviceName}:`, Object.getOwnPropertyNames(serviceInstance));
           this.logger.debug(`Instance methods:`, Object.getOwnPropertyNames(serviceInstance));
           
           // Verify it's in serviceInstances
           const isInInstances = container.serviceInstances.has(serviceName);
+          console.log(`🔍 DEBUG: Service ${serviceName} in serviceInstances:`, isInInstances);
           this.logger.debug(`Service ${serviceName} in serviceInstances:`, isInInstances);
         } else {
+          console.log(`🔍 DEBUG: Service ${serviceName} already instantiated`);
           this.logger.debug(`Service ${serviceName} already instantiated`);
         }
         
+        console.log(`�� DEBUG: === SERVICE ${serviceName} CHECK COMPLETE ===`);
         this.logger.debug(`=== SERVICE ${serviceName} CHECK COMPLETE ===`);
         
       } catch (error) {
+        console.error(`🔍 ERROR: === FAILED TO CHECK SERVICE ${serviceName} ===`);
         this.logger.error(`=== FAILED TO CHECK SERVICE ${serviceName} ===`);
+        console.error(`🔍 ERROR: Error details:`, error);
         this.logger.error(`Error details:`, error);
+        console.error(`�� ERROR: Error stack:`, error.stack);
+        this.logger.error(`Error stack:`, error.stack);
+        throw error;
+      }
+    }
+    
+    // CRITICAL FIX: Instantiate services after checking
+    console.log('🔍 DEBUG: === STARTING SERVICE INSTANTIATION ===');
+    this.logger.debug('=== STARTING SERVICE INSTANTIATION ===');
+    console.log('🔍 DEBUG: Instantiating services');
+    this.logger.debug('Instantiating services');
+    const serviceNames = Array.from(container.services.keys());
+    console.log(`🔍 DEBUG: Found ${serviceNames.length} services to instantiate:`, serviceNames);
+    this.logger.debug(`Found ${serviceNames.length} services to instantiate:`, serviceNames);
+    
+    for (const serviceName of serviceNames) {
+      try {
+        console.log(`�� DEBUG: === INSTANTIATING SERVICE: ${serviceName} ===`);
+        this.logger.debug(`=== INSTANTIATING SERVICE: ${serviceName} ===`);
+        
+        // Log service details before instantiation
+        const serviceDefinition = container.services.get(serviceName);
+        console.log(`🔍 DEBUG: Service definition type for ${serviceName}:`, typeof serviceDefinition);
+        this.logger.debug(`Service definition type:`, typeof serviceDefinition);
+        console.log(`🔍 DEBUG: Service definition for ${serviceName}:`, serviceDefinition);
+        this.logger.debug(`Service definition:`, serviceDefinition);
+        
+        // Try to get service instance (this should put it in serviceInstances)
+        console.log(`🔍 DEBUG: Calling container.getService(${serviceName})`);
+        this.logger.debug(`Calling container.getService(${serviceName})`);
+        const instance = await container.getService(serviceName);
+        console.log(`🔍 DEBUG: Service instance created for ${serviceName}:`, !!instance);
+        this.logger.debug(`Service instance created:`, !!instance);
+        console.log(`🔍 DEBUG: Instance type for ${serviceName}:`, typeof instance);
+        this.logger.debug(`Instance type:`, typeof instance);
+        console.log(`🔍 DEBUG: Instance methods for ${serviceName}:`, Object.getOwnPropertyNames(instance));
+        this.logger.debug(`Instance methods:`, Object.getOwnPropertyNames(instance));
+        
+        // Verify it's in serviceInstances
+        const isInInstances = container.serviceInstances.has(serviceName);
+        console.log(`🔍 DEBUG: Service ${serviceName} in serviceInstances:`, isInInstances);
+        this.logger.debug(`Service ${serviceName} in serviceInstances:`, isInInstances);
+        
+        console.log(`�� DEBUG: === SERVICE ${serviceName} INSTANTIATION COMPLETE ===`);
+        this.logger.debug(`=== SERVICE ${serviceName} INSTANTIATION COMPLETE ===`);
+        
+      } catch (error) {
+        console.error(`🔍 ERROR: === FAILED TO INSTANTIATE SERVICE ${serviceName} ===`);
+        this.logger.error(`=== FAILED TO INSTANTIATE SERVICE ${serviceName} ===`);
+        console.error(`🔍 ERROR: Error details:`, error);
+        this.logger.error(`Error details:`, error);
+        console.error(`�� ERROR: Error stack:`, error.stack);
         this.logger.error(`Error stack:`, error.stack);
         throw error;
       }
     }
     
     // Log final state
+    console.log('�� DEBUG: === SERVICE INSTANTIATION SUMMARY ===');
     this.logger.debug(`=== SERVICE INSTANTIATION SUMMARY ===`);
+    console.log('🔍 DEBUG: Services registered:', Array.from(container.services.keys()));
     this.logger.debug(`Services registered:`, Array.from(container.services.keys()));
+    console.log('🔍 DEBUG: Services instantiated:', Array.from(container.serviceInstances.keys()));
     this.logger.debug(`Services instantiated:`, Array.from(container.serviceInstances.keys()));
+    console.log('🔍 DEBUG: Service count mismatch:', container.services.size - container.serviceInstances.size);
     this.logger.debug(`Service count mismatch:`, container.services.size - container.serviceInstances.size);
     
+    console.log('🔍 DEBUG: All core services processed');
     this.logger.debug('All core services processed');
   }
 

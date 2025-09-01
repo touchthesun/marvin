@@ -449,7 +449,7 @@ export class BackgroundService {
         requestId: message.requestId
       });
     }
-  },
+  }
   
   /**
    * Handle get component status request
@@ -500,7 +500,7 @@ export class BackgroundService {
         requestId: message.requestId
       });
     }
-  },
+  }
   
   /**
    * Handle load and initialize panel request
@@ -516,7 +516,7 @@ export class BackgroundService {
       suggestion: 'Use the component system in your popup/dashboard context instead.',
       requestId: message.requestId
     });
-  },
+  }
   
   /**
    * Handle load panel data request
@@ -587,7 +587,7 @@ export class BackgroundService {
         requestId: message.requestId
       });
     }
-  },
+  }
   
   /**
    * Handle login request

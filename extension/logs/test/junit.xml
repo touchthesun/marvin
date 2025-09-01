@@ -1,34 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="10" failures="0" errors="0" time="3.356">
-  <testsuite name="Container Initialization" errors="0" failures="0" skipped="9" timestamp="2025-09-01T21:06:57" time="2.868" tests="10">
-    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0">
-      <skipped/>
+<testsuites name="jest tests" tests="10" failures="0" errors="0" time="9.515">
+  <testsuite name="Container Initialization" errors="0" failures="0" skipped="0" timestamp="2025-09-01T22:53:59" time="8.866" tests="10">
+    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0.039">
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0.016">
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0.019">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0.015">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0.015">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="instantiates components after registration" time="0.083">
+    <testcase classname="Container Initialization Component Registration" name="instantiates components after registration" time="0.03">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="instantiates core services after registration" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Component Registration" name="instantiates core services after registration" time="0.014">
     </testcase>
-    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="4.036">
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="1.018">
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="0">
-      <skipped/>
+    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="1.016">
     </testcase>
   </testsuite>
 </testsuites>
