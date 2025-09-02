@@ -166,6 +166,11 @@ export class StorageService extends BaseService {
       // Check if Chrome APIs are available (extension context)
       if (!this._isChromeAvailable()) {
         this.logger.debug('Chrome storage APIs not available, skipping storage listeners');
+        return; // ✅ This should work
+      }
+      
+      if (!chrome.storage.onChanged) {
+        this.logger.debug('Chrome storage onChanged API not available, skipping storage listeners');
         return;
       }
       
@@ -185,7 +190,7 @@ export class StorageService extends BaseService {
       this.logger.debug('Storage change listener set up');
     } catch (error) {
       this.logger.error('Error setting up storage listeners:', error);
-      throw error;
+      this.logger.warn('Storage listeners not available, continuing without them');
     }
   }
 

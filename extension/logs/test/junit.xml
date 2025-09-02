@@ -1,25 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="10" failures="0" errors="0" time="9.515">
-  <testsuite name="Container Initialization" errors="0" failures="0" skipped="0" timestamp="2025-09-01T22:53:59" time="8.866" tests="10">
-    <testcase classname="Container Initialization Essential Utilities" name="initializes LogManager first" time="0.039">
+<testsuites name="jest tests" tests="16" failures="0" errors="0" time="1.517">
+  <testsuite name="Component Loading Diagnostic" errors="0" failures="0" skipped="0" timestamp="2025-09-01T23:00:58" time="1.038" tests="16">
+    <testcase classname="Component Loading Diagnostic Container State Analysis" name="Container should be accessible" time="0.02">
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers core services" time="0.016">
+    <testcase classname="Component Loading Diagnostic Container State Analysis" name="ComponentRegistry should register components" time="0.015">
     </testcase>
-    <testcase classname="Container Initialization Service Registration" name="registers optional services" time="0.019">
+    <testcase classname="Component Loading Diagnostic Container State Analysis" name="Components should be retrievable from container" time="0.011">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers core components" time="0.015">
+    <testcase classname="Component Loading Diagnostic DOM Element Analysis" name="All panel elements should exist in DOM" time="0.008">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="registers optional components" time="0.015">
+    <testcase classname="Component Loading Diagnostic DOM Element Analysis" name="All force-init buttons should exist" time="0.011">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="instantiates components after registration" time="0.03">
+    <testcase classname="Component Loading Diagnostic DOM Element Analysis" name="Navigation items should exist and have correct attributes" time="0.012">
     </testcase>
-    <testcase classname="Container Initialization Component Registration" name="instantiates core services after registration" time="0.014">
+    <testcase classname="Component Loading Diagnostic Component Initialization Analysis" name="Overview panel should have initialization method" time="0.012">
     </testcase>
-    <testcase classname="Container Initialization Memory Management" name="does not leak memory between initializations" time="4.036">
+    <testcase classname="Component Loading Diagnostic Component Initialization Analysis" name="Capture panel should have initialization method" time="0.005">
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="cleans up services in correct order" time="1.018">
+    <testcase classname="Component Loading Diagnostic Component Initialization Analysis" name="Navigation component should have initialization method" time="0.006">
     </testcase>
-    <testcase classname="Container Initialization Cleanup Management" name="handles cleanup errors gracefully" time="1.016">
+    <testcase classname="Component Loading Diagnostic Dashboard Initialization Analysis" name="Dashboard should initialize without throwing" time="0.061">
+    </testcase>
+    <testcase classname="Component Loading Diagnostic Dashboard Initialization Analysis" name="Dashboard should set up logger" time="0.005">
+    </testcase>
+    <testcase classname="Component Loading Diagnostic Event Handler Analysis" name="Force-init buttons should be clickable" time="0.006">
+    </testcase>
+    <testcase classname="Component Loading Diagnostic Event Handler Analysis" name="Navigation items should be clickable" time="0.015">
+    </testcase>
+    <testcase classname="Component Loading Diagnostic Service Dependency Analysis" name="Container should have service registration capability" time="0.005">
+    </testcase>
+    <testcase classname="Component Loading Diagnostic Service Dependency Analysis" name="Components should be able to get services" time="0.005">
+    </testcase>
+    <testcase classname="Component Loading Diagnostic Error State Analysis" name="Components should handle missing dependencies gracefully" time="0.005">
     </testcase>
   </testsuite>
 </testsuites>

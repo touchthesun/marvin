@@ -129,30 +129,33 @@ export class ApiService extends BaseService {
    */
   async _loadConfiguration() {
     try {
-      const data = await chrome.storage.local.get(['apiConfig', 'apiServiceConfig']);
-      
-      // Load API endpoint configuration
-      if (data.apiConfig?.baseURL) {
-        this._baseURL = data.apiConfig.baseURL;
-        this._logger?.debug(`API base URL set to: ${this._baseURL}`);
-      }
-      
-      // Set API key if available
-      if (data.apiConfig?.apiKey) {
-        this._apiKey = data.apiConfig.apiKey;
-        this._logger?.debug('API key configured');
-      }
-      
-      // Load service configuration
-      if (data.apiServiceConfig) {
-        this._config = {
-          ...this._config,
-          ...data.apiServiceConfig
-        };
-        this._logger?.debug('API service configuration loaded', this._config);
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const data = await chrome.storage.local.get(['apiConfig', 'apiServiceConfig']);
+        
+        // Load API endpoint configuration
+        if (data.apiConfig?.baseURL) {
+          this._baseURL = data.apiConfig.baseURL;
+          this._logger?.debug(`API base URL set to: ${this._baseURL}`);
+        }
+        
+        // Set API key if available
+        if (data.apiConfig?.apiKey) {
+          this._apiKey = data.apiConfig.apiKey;
+          this._logger?.debug('API key configured');
+        }
+        
+        // Load service configuration
+        if (data.apiServiceConfig) {
+          this._config = {
+            ...this._config,
+            ...data.apiServiceConfig
+          };
+          this._logger?.debug('API service configuration loaded', this._config);
+        }
+      } else {
+        this._logger?.warn('Chrome storage APIs not available, using defaults');
       }
     } catch (error) {
-      // Use optional chaining to avoid undefined logger errors
       this._logger?.warn('Failed to load configuration, using defaults:', error);
     }
   }
@@ -566,33 +569,55 @@ export class ApiService extends BaseService {
     this._stats.averageResponseTime = this._stats.totalResponseTime / this._stats.totalRequests;
   }
   
-  /**
-   * Send a message to background script
-   * @param {object} message - Message to send
-   * @returns {Promise<object>} Response from background script
-   */
-  async sendMessageToBackground(message) {
-    if (!this._initialized) {
-      try {
-        await this.initialize();
-      } catch (error) {
-        throw new Error(`Service initialization failed: ${error.message}`);
-      }
+/**
+ * Send a message to background script
+ * @param {object} message - Message to send
+ * @returns {Promise<object>} Response from background script
+ */
+async sendMessageToBackground(message) {
+  if (!this._initialized) {
+    try {
+      await this.initialize();
+    } catch (error) {
+      throw new Error(`Service initialization failed: ${error.message}`);
     }
-    
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          if (this._logger) {
-            this._logger.error('Background message error:', chrome.runtime.lastError);
-          }
-          reject(new Error(chrome.runtime.lastError.message));
-        } else {
-          resolve(response);
-        }
-      });
-    });
   }
+
+  if (this._isCircuitBreakerOpen()) {
+    throw new Error('Circuit breaker is open, message sending blocked');
+  }
+  
+  return new Promise((resolve, reject) => {
+    // ✅ SAFETY CHECK: Verify Chrome runtime APIs are available
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.connect) {
+      try {
+        const port = chrome.runtime.connect({ name: 'api-service' });
+        this._messagePorts.add(port);
+        
+        this._resourceTracker.trackEventListener(port, 'message', (response) => {
+          if (chrome.runtime.lastError) {
+            this._recordFailure('message');
+            if (this._logger) {
+              this._logger.error('Background message error:', chrome.runtime.lastError);
+            }
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+
+        port.postMessage(message);
+      } catch (error) {
+        this._logger?.error('Error creating runtime connection:', error);
+        reject(new Error(`Runtime connection failed: ${error.message}`));
+      }
+    } else {
+      // ✅ GRACEFUL DEGRADATION: Chrome APIs not available
+      this._logger?.warn('Chrome runtime connection APIs not available');
+      reject(new Error('Chrome runtime connection APIs not available'));
+    }
+  });
+}
   
   /**
    * Check API connection status
@@ -768,30 +793,40 @@ export class ApiService extends BaseService {
  * @private
  */
 async _initializeMessageHandlers() {
-  if (typeof chrome !== 'undefined' && chrome.runtime) {
-    // Listen for API requests from UI components
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this._logger?.debug('Received message in API service:', message);
+  try {
+    // Check if Chrome runtime APIs are available
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      // Listen for API requests from UI components
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        this._logger?.debug('Received message in API service:', message);
+        
+        if (message.action === 'apiRequest') {
+          this._handleApiRequest(message, sendResponse);
+          return true; // Keep message channel open for async response
+        }
+        
+        if (message.action === 'getApiStatus') {
+          this._handleStatusRequest(sendResponse);
+          return true;
+        }
+        
+        if (message.action === 'updateApiConfig') {
+          this._handleConfigUpdate(message, sendResponse);
+          return true;
+        }
+        
+        return false; // Message not handled
+      });
       
-      if (message.action === 'apiRequest') {
-        this._handleApiRequest(message, sendResponse);
-        return true; // Keep message channel open for async response
-      }
-      
-      if (message.action === 'getApiStatus') {
-        this._handleStatusRequest(sendResponse);
-        return true;
-      }
-      
-      if (message.action === 'updateApiConfig') {
-        this._handleConfigUpdate(message, sendResponse);
-        return true;
-      }
-      
-      return false; // Message not handled
-    });
-    
-    this._logger?.info('Message handlers initialized for API service');
+      this._logger?.info('Message handlers initialized for API service');
+    } else {
+      // ✅ GRACEFUL DEGRADATION: Log and continue without message handlers
+      this._logger?.warn('Chrome runtime message APIs not available, continuing without message handlers');
+    }
+  } catch (error) {
+    // ✅ ERROR HANDLING: Don't crash, just log and continue
+    this._logger?.error('Error setting up message handlers:', error);
+    this._logger?.warn('Message handlers not available, continuing without them');
   }
 }
 
@@ -1098,6 +1133,15 @@ async getServiceStatus() {
    */
   async _performCleanup() {
     this._logger?.info('Cleaning up API service');
+
+    // Remove message listeners - with null check
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      try {
+        chrome.runtime.onMessage.removeListener(this._handleApiRequest);
+      } catch (error) {
+        this._logger?.warn('Error removing message listener:', error);
+      }
+    }
     
     // Cancel all in-flight requests
     await this._cancelAllRequests();
