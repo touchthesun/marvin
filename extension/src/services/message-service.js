@@ -250,8 +250,10 @@ export class MessageService extends BaseService {
       return;
     }
     
-    // Remove with the same bound reference
-    chrome.runtime.onMessage.removeListener(this._handleMessage);
+    // Remove with the same bound reference (only if chrome.runtime.onMessage exists)
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.removeListener(this._handleMessage);
+    }
   }
 
   /**

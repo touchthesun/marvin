@@ -25,7 +25,7 @@ const KnowledgePanel = {
    * Initialize the knowledge panel
    * @returns {Promise<boolean>} Success state
    */
-  async initKnowledgePanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'knowledge-panel',

@@ -21,7 +21,7 @@ const BookmarksCapture = {
    * Initialize bookmarks capture functionality
    * @returns {Promise<boolean>} Success state
    */
-  async initBookmarksCapture() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'bookmarks-capture',
@@ -29,7 +29,7 @@ const BookmarksCapture = {
       maxEntries: 1000
     });
     
-    logger.debug('initBookmarksCapture called');
+    logger.debug('initialize called');
     
     if (this.initialized) {
       logger.debug('Bookmarks capture already initialized, skipping');

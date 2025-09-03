@@ -18,7 +18,7 @@ const AssistantPanel = {
    * Initialize the assistant panel
    * @returns {Promise<boolean>} Success state
    */
-  async initAssistantPanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'assistant-panel',

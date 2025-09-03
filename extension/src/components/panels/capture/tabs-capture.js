@@ -22,7 +22,7 @@ const TabsCapture = {
    * Initialize tabs capture functionality
    * @returns {Promise<boolean>} Success state
    */
-  async initTabsCapture() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'tabs-capture',
@@ -30,7 +30,12 @@ const TabsCapture = {
       maxEntries: 1000
     });
     
-    logger.debug('initTabsCapture called');
+    if (!logger || typeof logger.info !== 'function') {
+      console.error('Failed to create logger for tabs-capture');
+      return false;
+    }
+    
+    logger.debug('initialize called');
     
     if (this.initialized) {
       logger.debug('Tabs capture already initialized, skipping');
@@ -55,6 +60,36 @@ const TabsCapture = {
   },
   
   /**
+   * Fallback method to get tabs through background script
+   * @param {LogManager} logger - Logger instance
+   * @returns {Promise<Array>} Array of windows with tabs
+   */
+  async getTabsThroughBackground(logger) {
+    logger.debug('Attempting to get tabs through background script');
+    
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Background script communication timed out'));
+      }, 5000);
+      
+      chrome.runtime.sendMessage({ action: 'getTabs' }, (response) => {
+        clearTimeout(timeoutId);
+        
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        
+        if (response && response.success) {
+          resolve(response.windows || []);
+        } else {
+          reject(new Error(response?.error || 'Failed to get tabs from background'));
+        }
+      });
+    });
+  },
+  
+  /**
    * Get service with error handling and fallback
    * @param {LogManager} logger - Logger instance
    * @param {string} serviceName - Name of the service to get
@@ -63,7 +98,17 @@ const TabsCapture = {
    */
   getService(logger, serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      const service = container.getService(serviceName);
+      
+      // Special handling for notificationService - check if methods exist
+      if (serviceName === 'notificationService' && service) {
+        if (typeof service.showNotification !== 'function') {
+          logger.warn('NotificationService missing showNotification method, using fallback');
+          return fallback;
+        }
+      }
+      
+      return service;
     } catch (error) {
       logger.warn(`${serviceName} not available:`, error);
       return fallback;
@@ -218,10 +263,33 @@ const TabsCapture = {
     tabsList.innerHTML = '<div class="loading-indicator">Loading tabs...</div>';
     
     try {
-      // Get all windows with tabs
+      // Check if Chrome APIs are available
+      if (typeof chrome === 'undefined' || !chrome.windows) {
+        throw new Error('Chrome windows API not available in this context');
+      }
+      
+      // Get all windows with tabs with proper error handling
       logger.debug('Calling chrome.windows.getAll');
-      const windows = await new Promise((resolve) => {
-        chrome.windows.getAll({ populate: true }, resolve);
+      const windows = await new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Chrome API call timed out after 10 seconds'));
+        }, 10000);
+        
+        chrome.windows.getAll({ populate: true }, (result) => {
+          clearTimeout(timeoutId);
+          
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          
+          if (!result) {
+            reject(new Error('No result returned from chrome.windows.getAll'));
+            return;
+          }
+          
+          resolve(result);
+        });
       });
       
       logger.debug(`Got ${windows.length} windows`);
@@ -237,6 +305,10 @@ const TabsCapture = {
       // Create hierarchical structure
       tabsList.innerHTML = '<div class="tabs-hierarchy"></div>';
       const tabsHierarchy = tabsList.querySelector('.tabs-hierarchy');
+      
+      if (!tabsHierarchy) {
+        throw new Error('Failed to create tabs hierarchy element');
+      }
       
       // Group tabs by windows
       for (const window of windows) {
@@ -328,6 +400,64 @@ const TabsCapture = {
       logger.info('Tabs loaded successfully');
     } catch (error) {
       logger.error('Error loading tabs:', error);
+      
+      // Try fallback method through background script
+      try {
+        logger.debug('Trying fallback method through background script');
+        const windows = await this.getTabsThroughBackground(logger);
+        
+        if (windows && windows.length > 0) {
+          logger.debug(`Got ${windows.length} windows through background fallback`);
+          
+          // Store windows data
+          this._windows = windows;
+          
+          // Create hierarchical structure
+          tabsList.innerHTML = '<div class="tabs-hierarchy"></div>';
+          const tabsHierarchy = tabsList.querySelector('.tabs-hierarchy');
+          
+          if (!tabsHierarchy) {
+            throw new Error('Failed to create tabs hierarchy element');
+          }
+          
+          // Process windows and tabs (simplified version)
+          for (const window of windows) {
+            if (window.tabs && window.tabs.length > 0) {
+              const windowGroup = document.createElement('div');
+              windowGroup.className = 'window-group';
+              windowGroup.innerHTML = `
+                <div class="window-header">
+                  <div class="window-title">Window ${window.id} (${window.tabs.length} tabs)</div>
+                </div>
+                <div class="window-tabs">
+                  ${window.tabs.map(tab => `
+                    <div class="tab-item" data-id="${tab.id}" data-url="${tab.url}">
+                      <input type="checkbox" class="item-checkbox" id="tab-${tab.id}">
+                      <img src="${tab.favIconUrl || '../icons/icon16.png'}" class="tab-icon" alt="">
+                      <div class="tab-content">
+                        <div class="tab-title">${tab.title || 'Untitled'}</div>
+                        <div class="tab-url">${tab.url}</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+              tabsHierarchy.appendChild(windowGroup);
+            }
+          }
+          
+          logger.info('Tabs loaded successfully through background fallback');
+          return;
+        }
+      } catch (fallbackError) {
+        logger.error('Fallback method also failed:', fallbackError);
+      }
+      
+      // Clear loading indicator and show error
+      if (tabsList) {
+        tabsList.innerHTML = '<div class="empty-state error-state">Error loading tabs: ' + error.message + '<br><small>Try refreshing the page or check if the extension has proper permissions.</small></div>';
+      }
+      
       const notificationService = this.getService(logger, 'notificationService', {
         showNotification: (message, type) => console.error(`[${type}] ${message}`)
       });

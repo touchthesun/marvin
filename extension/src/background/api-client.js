@@ -71,7 +71,16 @@ class APIClient {
       }
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // Get error details for 422 responses
+        let errorDetails = response.statusText;
+        try {
+          const errorData = await response.json();
+          errorDetails = JSON.stringify(errorData);
+          console.log('🚨 API Error Details:', errorData);
+        } catch (e) {
+          // Ignore JSON parse errors
+        }
+        throw new Error(`HTTP ${response.status}: ${errorDetails}`);
       }
 
       const data = await response.json();
@@ -245,15 +254,21 @@ class APIClient {
    * @returns {Promise<Object>} Capture result
    */
   async captureUrl(url, options = {}) {
+    const payload = { 
+      url: url,
+      context: options.context || 'active_tab'  // Use valid BrowserContext enum value
+    };
+    
+    // Only include defined values
+    if (options.tab_id !== undefined) payload.tab_id = options.tab_id;
+    if (options.window_id !== undefined) payload.window_id = options.window_id;
+    if (options.bookmark_id !== undefined) payload.bookmark_id = options.bookmark_id;
+    
+    console.log('🔍 API Client: Sending capture request:', payload);
+    
     return this.makeRequest('/pages', {
       method: 'POST',
-      body: JSON.stringify({ 
-        url, 
-        context: options.context || 'manual',
-        tab_id: options.tab_id,
-        window_id: options.window_id,
-        bookmark_id: options.bookmark_id
-      })
+      body: JSON.stringify(payload)
     });
   }
 
@@ -273,6 +288,14 @@ class APIClient {
         window_id: options.window_id
       })
     });
+  }
+
+  /**
+   * Get system statistics
+   * @returns {Promise<Object>} Stats data
+   */
+  async getStats() {
+    return this.makeRequest('/stats');
   }
 
   /**

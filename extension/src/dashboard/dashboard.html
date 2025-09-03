@@ -157,14 +157,49 @@
           
           <!-- Bookmarks Tab -->
           <div id="bookmarks-content" class="tab-pane">
-            <!-- Bookmarks content -->
-            <div class="loading-indicator">Loading bookmarks...</div>
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="bookmarks-search" class="search-input" placeholder="Search bookmarks...">
+              </div>
+              <div class="filter-container">
+                <select id="bookmarks-folder-filter" class="filter-select">
+                  <option value="all">All Folders</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-bookmarks" class="btn-text">Select All</button>
+                <button id="deselect-all-bookmarks" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="bookmarks-list">
+              <div class="loading-indicator">Loading bookmarks...</div>
+            </div>
           </div>
           
           <!-- History Tab -->
           <div id="history-content" class="tab-pane">
-            <!-- History content -->
-            <div class="loading-indicator">Loading history...</div>
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="history-search" class="search-input" placeholder="Search history...">
+              </div>
+              <div class="filter-container">
+                <select id="history-time-filter" class="filter-select">
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="all">All Time</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-history" class="btn-text">Select All</button>
+                <button id="deselect-all-history" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="history-list">
+              <div class="loading-indicator">Loading history...</div>
+            </div>
           </div>
         </div>
       </section>
@@ -196,10 +231,15 @@
         <header class="panel-header">
           <h2>Analysis Tasks</h2>
           <div class="panel-actions">
-            <button id="force-init-tasks" class="btn-secondary">Reload Analysis Data</button>
+            <button id="refreshBtn" class="btn-secondary">Refresh</button>
+            <button id="cancelAllBtn" class="btn-secondary">Cancel All</button>
           </div>
         </header>
-        <div class="loading-indicator">Loading tasks panel...</div>
+        <div class="tasks-content">
+          <div class="tasks-list" id="tasks-list">
+            <div class="loading-indicator">Loading tasks...</div>
+          </div>
+        </div>
       </section>
       
       <!-- Settings Panel -->

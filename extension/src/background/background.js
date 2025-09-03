@@ -6,6 +6,35 @@
  */
 
 import { apiClient } from './api-client.js';
+import { containerInitializer } from '../core/container-init.js';
+import AuthManager from './auth-manager.js';
+
+// Initialize container system when background script loads
+let containerInitialized = false;
+const authManager = new AuthManager();
+
+async function initializeBackgroundContainer() {
+  if (containerInitialized) return;
+  
+  try {
+    console.log('Background: Initializing container system');
+    await containerInitializer.initialize({
+      context: 'background',
+      isBackgroundScript: true
+    });
+    containerInitialized = true;
+    console.log('Background: Container system initialized successfully');
+    
+    // Initialize auth manager
+    await authManager.initialize();
+    console.log('Background: Auth manager initialized');
+  } catch (error) {
+    console.error('Background: Failed to initialize container system:', error);
+  }
+}
+
+// Initialize container on script load
+initializeBackgroundContainer();
 
 // Service worker lifecycle events
 self.addEventListener('install', (event) => {
@@ -72,6 +101,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         
       case 'captureTabs':
         handleCaptureTabs(message, sendResponse);
+        break;
+        
+      case 'getTabs':
+        handleGetTabs(message, sendResponse);
         break;
         
       case 'getBatchStatus':
@@ -239,7 +272,7 @@ async function handleCaptureUrl(message, sendResponse) {
   
   try {
     const result = await apiClient.captureUrl(message.url, message.options || {});
-    sendResponse({ success: true, result });
+    sendResponse({ success: true, data: result });
   } catch (error) {
     console.error('Failed to capture URL:', error);
     sendResponse({ 
@@ -281,6 +314,27 @@ async function handleCaptureTabs(message, sendResponse) {
       success: false, 
       error: error.message,
       serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+async function handleGetTabs(message, sendResponse) {
+  console.log('Get tabs requested');
+  
+  try {
+    // Get all windows with tabs
+    const windows = await chrome.windows.getAll({ populate: true });
+    console.log(`Background: Got ${windows.length} windows with tabs`);
+    
+    sendResponse({ 
+      success: true, 
+      windows: windows
+    });
+  } catch (error) {
+    console.error('Failed to get tabs:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message
     });
   }
 }
@@ -385,22 +439,38 @@ function handleUpdateAnalysisSettings(message, sendResponse) {
 }
 
 // Auth handlers
-function handleLogin(message, sendResponse) {
+async function handleLogin(message, sendResponse) {
   console.log('Login requested:', message.username);
-  // TODO: Implement login logic
-  sendResponse({ success: true, authenticated: true, message: 'Login handler - not yet implemented' });
+  try {
+    const success = await authManager.login(message.username, message.password);
+    sendResponse({ success, authenticated: success });
+  } catch (error) {
+    console.error('Login error:', error);
+    sendResponse({ success: false, authenticated: false, error: error.message });
+  }
 }
 
-function handleLogout(message, sendResponse) {
+async function handleLogout(message, sendResponse) {
   console.log('Logout requested');
-  // TODO: Implement logout logic
-  sendResponse({ success: true, authenticated: false, message: 'Logout handler - not yet implemented' });
+  try {
+    await authManager.clearToken();
+    sendResponse({ success: true, authenticated: false });
+  } catch (error) {
+    console.error('Logout error:', error);
+    sendResponse({ success: false, error: error.message });
+  }
 }
 
-function handleCheckAuthStatus(message, sendResponse) {
+async function handleCheckAuthStatus(message, sendResponse) {
   console.log('Check auth status requested');
-  // TODO: Implement auth status check logic
-  sendResponse({ success: true, authenticated: false, message: 'Check auth status handler - not yet implemented' });
+  try {
+    const token = await authManager.getToken();
+    const authenticated = !!token;
+    sendResponse({ success: true, authenticated });
+  } catch (error) {
+    console.error('Auth status check error:', error);
+    sendResponse({ success: false, authenticated: false, error: error.message });
+  }
 }
 
 // Panel handlers

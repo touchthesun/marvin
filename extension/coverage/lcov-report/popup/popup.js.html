@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">0.6% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/492</span>
+                <span class='fraction'>3/495</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">1.71% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/175</span>
+                <span class='fraction'>3/175</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">0.62% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/480</span>
+                <span class='fraction'>3/483</span>
             </div>
         
             
@@ -1206,7 +1206,16 @@
 <a name='L1141'></a><a href='#L1141'>1141</a>
 <a name='L1142'></a><a href='#L1142'>1142</a>
 <a name='L1143'></a><a href='#L1143'>1143</a>
-<a name='L1144'></a><a href='#L1144'>1144</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L1144'></a><a href='#L1144'>1144</a>
+<a name='L1145'></a><a href='#L1145'>1145</a>
+<a name='L1146'></a><a href='#L1146'>1146</a>
+<a name='L1147'></a><a href='#L1147'>1147</a>
+<a name='L1148'></a><a href='#L1148'>1148</a>
+<a name='L1149'></a><a href='#L1149'>1149</a>
+<a name='L1150'></a><a href='#L1150'>1150</a>
+<a name='L1151'></a><a href='#L1151'>1151</a>
+<a name='L1152'></a><a href='#L1152'>1152</a>
+<a name='L1153'></a><a href='#L1153'>1153</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1222,7 +1231,12 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1237,11 +1251,15 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2340,8 +2358,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2360,12 +2378,13 @@ import { container } from '../core/dependency-container.js';
 import { ServiceRegistry } from '../core/service-registry.js';
 import { UtilsRegistry } from '../core/utils-registry.js';
 import { captureCurrentTab, setupCaptureButton } from '../components/shared/capture.js';
+import { containerInitializer } from '../core/container-init.js';
 &nbsp;
 /**
  * Popup Component
  * Manages the browser extension popup interface
  */
-const Popup = <span class="cstat-no" title="statement not covered" >{</span>
+const Popup = {
   // Track resources for proper cleanup
   _eventListeners: [],
   _timeouts: [],
@@ -2385,7 +2404,15 @@ const Popup = <span class="cstat-no" title="statement not covered" >{</span>
    */
 <span class="fstat-no" title="function not covered" >  as</span>ync initPopup() {
 <span class="cstat-no" title="statement not covered" >    try {</span>
-<span class="cstat-no" title="statement not covered" >      console.log('[initPopup] Step 1: Creating logger');</span>
+<span class="cstat-no" title="statement not covered" >      console.log('[initPopup] Step 1: Initializing container system');</span>
+      // CRITICAL FIX: Initialize container system first
+<span class="cstat-no" title="statement not covered" >      await containerInitializer.initialize({</span>
+        context: 'popup',
+        isBackgroundScript: false
+      });
+<span class="cstat-no" title="statement not covered" >      console.log('[initPopup] Step 2: Container system initialized');</span>
+      
+<span class="cstat-no" title="statement not covered" >      console.log('[initPopup] Step 3: Creating logger');</span>
 <span class="cstat-no" title="statement not covered" >      this._logger = new LogManager({</span>
         context: 'popup',
         isBackgroundScript: false,
@@ -3483,8 +3510,8 @@ const Popup = <span class="cstat-no" title="statement not covered" >{</span>
 };
 &nbsp;
 // Only attach DOMContentLoaded handler if not running in test mode
-<span class="cstat-no" title="statement not covered" >if (typeof window !== 'undefined' &amp;&amp; !window.__MARVIN_TEST__) {</span>
-<span class="cstat-no" title="statement not covered" >  document.addEventListener('DOMContentLoaded', <span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
+<span class="missing-if-branch" title="else path not taken" >E</span>if (typeof window !== 'undefined' &amp;&amp; !window.__MARVIN_TEST__) {
+  document.addEventListener('DOMContentLoaded', <span class="fstat-no" title="function not covered" >()</span> =&gt; {
 <span class="cstat-no" title="statement not covered" >    console.log('DOMContentLoaded fired');</span>
 <span class="cstat-no" title="statement not covered" >    Popup.initPopup();</span>
 <span class="cstat-no" title="statement not covered" >    Popup.checkContentScript();</span>
@@ -3499,7 +3526,7 @@ export { Popup };</pre></td></tr></table></pre>
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-01T23:01:00.112Z
+                at 2025-09-02T07:37:45.369Z
             </div>
         <script src="../prettify.js"></script>
         <script>

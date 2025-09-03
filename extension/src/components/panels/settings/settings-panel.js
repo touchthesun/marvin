@@ -18,7 +18,7 @@ const SettingsPanel = {
    * Initialize settings panel
    * @returns {Promise<boolean>} Success state
    */
-  async initSettingsPanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'settings-panel',
@@ -101,7 +101,7 @@ const SettingsPanel = {
         const retryBtn = document.getElementById('retry-settings-btn');
         if (retryBtn) {
           const retryHandler = () => {
-            this.initSettingsPanel();
+            this.initialize();
           };
           
           retryBtn.addEventListener('click', retryHandler);

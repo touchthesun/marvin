@@ -3,6 +3,7 @@ import { LogManager } from '../utils/log-manager.js';
 import { ensureContainerInitialized } from '../core/container-init.js';
 import { container } from '../core/dependency-container.js';
 import { ComponentRegistry } from '../core/component-registry.js';
+import { containerInitializer } from '../core/container-init.js';
 
 /**
  * Dashboard Component
@@ -27,6 +28,16 @@ const Dashboard = {
   async initDashboard() {
     let initResult = undefined;
     try {
+      console.log('[Dashboard] Starting dashboard initialization');
+      
+      // CRITICAL FIX: Initialize container system first
+      console.log('[Dashboard] Step 1: Initializing container system');
+      await containerInitializer.initialize({
+        context: 'dashboard',
+        isBackgroundScript: false
+      });
+      console.log('[Dashboard] Step 2: Container system initialized');
+
       // Create logger directly
       this._logger = new LogManager({
         context: 'dashboard',
@@ -63,6 +74,9 @@ const Dashboard = {
   
             // Initialize navigation component
       await this.initializeNavigationComponent();
+
+      // Initialize all panel components
+      await this.initializePanelComponents();
 
       // Set up event handlers
       this.setupEventHandlers();
@@ -158,6 +172,43 @@ const Dashboard = {
       console.error('Error in initializeNavigationComponent:', error);
       this._logger.error('Error initializing navigation component:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Initialize all panel components
+   * @returns {Promise<void>}
+   */
+  async initializePanelComponents() {
+    const panelComponents = [
+      'capture-panel',
+      'overview-panel', 
+      'knowledge-panel',
+      'settings-panel',
+      'tasks-panel',
+      'assistant-panel'
+    ];
+
+    for (const componentName of panelComponents) {
+      try {
+        this._logger.info(`Initializing ${componentName} component`);
+        
+        const component = container.getComponent(componentName);
+        if (!component) {
+          this._logger.warn(`${componentName} component not found in container`);
+          continue;
+        }
+        
+        if (component.initialize && typeof component.initialize === 'function') {
+          await component.initialize();
+          this._logger.info(`${componentName} component initialized successfully`);
+        } else {
+          this._logger.warn(`${componentName} component missing initialize method`);
+        }
+      } catch (error) {
+        this._logger.error(`Error initializing ${componentName} component:`, error);
+        // Continue with other components even if one fails
+      }
     }
   },
   

@@ -26,7 +26,7 @@ const OverviewPanel = {
    * Initialize the overview panel
    * @returns {Promise<boolean>} Success state
    */
-  async initOverviewPanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'overview-panel',
@@ -116,31 +116,43 @@ const OverviewPanel = {
   },
   
   /**
-   * Load overview data from storage
+   * Load overview data from API
    * @param {LogManager} logger - Logger instance
    * @returns {Promise<void>}
    */
   async loadOverviewData(logger) {
-    logger.debug('Loading overview data');
+    logger.debug('Loading overview data from API');
     
     try {
-      // Get stats from storage
-      const data = await chrome.storage.local.get(['stats', 'captureHistory']);
+      // Get API service
+      const apiService = this.getService(logger, 'apiService', null);
       
-      // Update stats data
-      this.statsData = {
-        capturedCount: data.stats?.capturedCount || 0,
-        relationshipCount: data.stats?.relationshipCount || 0,
-        queryCount: data.stats?.queryCount || 0
-      };
+      if (apiService) {
+        // Call stats API endpoint
+        const response = await apiService.getStats();
+        
+        if (response && response.data) {
+          // Map API response to expected format
+          this.statsData = {
+            capturedCount: response.data.captures || 0,
+            relationshipCount: response.data.relationships || 0,
+            queryCount: response.data.queries || 0
+          };
+          
+          logger.debug('Overview data loaded from API successfully', { 
+            statsData: this.statsData
+          });
+        } else {
+          throw new Error('Invalid API response format');
+        }
+      } else {
+        throw new Error('API service not available');
+      }
       
-      // Get recent captures
+      // Get recent captures from storage as fallback
+      const data = await chrome.storage.local.get(['captureHistory']);
       this.recentCaptures = (data.captureHistory || []).slice(0, 5);
       
-      logger.debug('Overview data loaded successfully', { 
-        statsData: this.statsData, 
-        recentCapturesCount: this.recentCaptures.length 
-      });
     } catch (error) {
       logger.error('Error loading overview data:', error);
       

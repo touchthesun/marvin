@@ -26,7 +26,7 @@ const CapturePanel = {
    * Initialize the capture panel
    * @returns {Promise<boolean>} Success state
    */
-  async initCapturePanel() {
+  async initialize() {
     // Create logger directly 
     const logger = new LogManager({
       context: 'capture-panel',
@@ -38,6 +38,15 @@ const CapturePanel = {
     let notificationService;
     try {
       notificationService = container.getService('notificationService');
+      
+      // Ensure the service is properly initialized and has the method
+      if (!notificationService || typeof notificationService.showNotification !== 'function') {
+        logger.warn('NotificationService missing showNotification method, using fallback');
+        notificationService = {
+          showNotification: (message, type) => console.log(`[Notification ${type}]:`, message),
+          updateNotificationProgress: () => {}
+        };
+      }
     } catch (error) {
       logger.warn('NotificationService not available:', error);
       notificationService = {
@@ -67,7 +76,7 @@ const CapturePanel = {
       this.setupCaptureSelectedButton(logger);
       
       // Load initial data based on active tab
-      this.loadInitialData(logger);
+      await this.loadInitialData(logger);
       
       this.initialized = true;
       logger.info('Capture panel initialized successfully');
@@ -200,7 +209,7 @@ const CapturePanel = {
    * Load initial data based on active tab
    * @param {LogManager} logger - Logger instance
    */
-  loadInitialData(logger) {
+  async loadInitialData(logger) {
     logger.debug('Loading initial data');
     
     try {
@@ -211,11 +220,11 @@ const CapturePanel = {
         logger.debug(`Active tab detected: ${tabType}`);
         
         if (tabType === 'tabs') {
-          this._tabsCapture.initTabsCapture();
+          await this._tabsCapture.initialize();
         } else if (tabType === 'bookmarks') {
-          this._bookmarksCapture.initBookmarksCapture();
+          await this._bookmarksCapture.initialize();
         } else if (tabType === 'history') {
-          this._historyCapture.initHistoryCapture();
+          await this._historyCapture.initialize();
         }
       } else {
         // Default to tabs tab if no active tab
@@ -244,7 +253,13 @@ const CapturePanel = {
    */
   getService(logger, serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      const service = container.getService(serviceName);
+      if (service && typeof service.showNotification === 'function') {
+        return service;
+      } else {
+        logger.warn(`${serviceName} not available or missing methods`);
+        return fallback;
+      }
     } catch (error) {
       logger.warn(`${serviceName} not available:`, error);
       return fallback;
@@ -492,7 +507,7 @@ async processCaptureItems(logger, selectedItems, type) {
       });
       
       // Add active class to target tab pane
-      const targetPane = document.getElementById(`${tabType}-pane`);
+      const targetPane = document.getElementById(`${tabType}-content`);
       if (targetPane) {
         targetPane.classList.add('active');
         
@@ -500,15 +515,15 @@ async processCaptureItems(logger, selectedItems, type) {
         switch (tabType) {
           case 'tabs':
             this._tabsCapture.initialized = false;
-            await this._tabsCapture.initTabsCapture();
+            await this._tabsCapture.initialize();
             break;
           case 'bookmarks':
             this._bookmarksCapture.initialized = false;
-            await this._bookmarksCapture.initBookmarksCapture();
+            await this._bookmarksCapture.initialize();
             break;
           case 'history':
             this._historyCapture.initialized = false;
-            await this._historyCapture.initHistoryCapture();
+            await this._historyCapture.initialize();
             break;
           default:
             logger.warn(`Unknown tab type: ${tabType}`);
@@ -602,13 +617,13 @@ async processCaptureItems(logger, selectedItems, type) {
   getContextForType(type) {
     switch (type) {
       case 'tabs':
-        return 'browser_tab';
+        return 'active_tab';
       case 'bookmarks':
-        return 'bookmark';
+        return 'bookmarked';
       case 'history':
         return 'history';
       default:
-        return 'unknown';
+        return 'background';
     }
   },
   

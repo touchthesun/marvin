@@ -22,7 +22,7 @@ const TasksPanel = {
    * Initialize the tasks panel
    * @returns {Promise<boolean>} Success state
    */
-  async initTasksPanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'tasks-panel',
@@ -86,7 +86,13 @@ const TasksPanel = {
    */
   getService(logger, serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      const service = container.getService(serviceName);
+      if (service && typeof service.showNotification === 'function') {
+        return service;
+      } else {
+        logger.warn(`${serviceName} not available or missing methods`);
+        return fallback;
+      }
     } catch (error) {
       logger.warn(`${serviceName} not available:`, error);
       return fallback;

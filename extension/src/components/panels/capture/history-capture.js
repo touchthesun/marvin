@@ -21,7 +21,7 @@ const HistoryCapture = {
    * Initialize history capture functionality
    * @returns {Promise<boolean>} Success state
    */
-  async initHistoryCapture() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'history-capture',
@@ -29,7 +29,7 @@ const HistoryCapture = {
       maxEntries: 1000
     });
     
-    logger.debug('initHistoryCapture called');
+    logger.debug('initialize called');
     
     if (this.initialized) {
       logger.debug('History capture already initialized, skipping');

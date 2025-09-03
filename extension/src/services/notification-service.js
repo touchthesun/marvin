@@ -74,6 +74,8 @@ export class NotificationService extends BaseService {
    */
   async _performInitialization() {
     try {
+      console.log('🔔 NotificationService: Starting initialization');
+      
       // Create logger
       this._logger = new LogManager({
         context: 'notification-service',
@@ -82,17 +84,22 @@ export class NotificationService extends BaseService {
       });
       
       this._logger.info('Initializing notification service');
+      console.log('🔔 NotificationService: Logger created');
       
       // Create notification container if in browser context
       if (!this._isServiceWorkerContext) {
+        console.log('🔔 NotificationService: Creating notification container');
         await this._ensureNotificationContainer();
       } else {
         this._logger.info('Running in service worker context - UI notifications disabled');
+        console.log('🔔 NotificationService: Service worker context detected');
       }
       
       this._logger.info('Notification service initialized successfully');
+      console.log('🔔 NotificationService: Initialization complete');
       return true;
     } catch (error) {
+      console.error('🔔 NotificationService: Initialization failed:', error);
       this._logger?.error('Error initializing notification service:', error);
       throw error;
     }

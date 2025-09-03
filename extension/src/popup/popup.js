@@ -9,6 +9,7 @@ import { container } from '../core/dependency-container.js';
 import { ServiceRegistry } from '../core/service-registry.js';
 import { UtilsRegistry } from '../core/utils-registry.js';
 import { captureCurrentTab, setupCaptureButton } from '../components/shared/capture.js';
+import { containerInitializer } from '../core/container-init.js';
 
 /**
  * Popup Component
@@ -34,7 +35,15 @@ const Popup = {
    */
   async initPopup() {
     try {
-      console.log('[initPopup] Step 1: Creating logger');
+      console.log('[initPopup] Step 1: Initializing container system');
+      // CRITICAL FIX: Initialize container system first
+      await containerInitializer.initialize({
+        context: 'popup',
+        isBackgroundScript: false
+      });
+      console.log('[initPopup] Step 2: Container system initialized');
+      
+      console.log('[initPopup] Step 3: Creating logger');
       this._logger = new LogManager({
         context: 'popup',
         isBackgroundScript: false,

@@ -589,12 +589,9 @@ async sendMessageToBackground(message) {
   
   return new Promise((resolve, reject) => {
     // ✅ SAFETY CHECK: Verify Chrome runtime APIs are available
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.connect) {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
       try {
-        const port = chrome.runtime.connect({ name: 'api-service' });
-        this._messagePorts.add(port);
-        
-        this._resourceTracker.trackEventListener(port, 'message', (response) => {
+        chrome.runtime.sendMessage(message).then(response => {
           if (chrome.runtime.lastError) {
             this._recordFailure('message');
             if (this._logger) {
@@ -604,17 +601,18 @@ async sendMessageToBackground(message) {
           } else {
             resolve(response);
           }
+        }).catch(error => {
+          this._logger?.debug('Background message failed:', error);
+          reject(error);
         });
-
-        port.postMessage(message);
       } catch (error) {
-        this._logger?.error('Error creating runtime connection:', error);
-        reject(new Error(`Runtime connection failed: ${error.message}`));
+        this._logger?.error('Error sending runtime message:', error);
+        reject(new Error(`Runtime message failed: ${error.message}`));
       }
     } else {
       // ✅ GRACEFUL DEGRADATION: Chrome APIs not available
-      this._logger?.warn('Chrome runtime connection APIs not available');
-      reject(new Error('Chrome runtime connection APIs not available'));
+      this._logger?.warn('Chrome runtime message APIs not available');
+      reject(new Error('Chrome runtime message APIs not available'));
     }
   });
 }
@@ -700,21 +698,24 @@ async sendMessageToBackground(message) {
     }
     
     return new Promise((resolve, reject) => {
-      const port = chrome.runtime.connect({ name: 'api-service' });
-      this._messagePorts.add(port);
-      this._resourceTracker.trackEventListener(port, 'message', (response) => {
-        if (chrome.runtime.lastError) {
-          this._recordFailure('message');
-          if (this._logger) {
-            this._logger.error('Background message error:', chrome.runtime.lastError);
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage(message).then(response => {
+          if (chrome.runtime.lastError) {
+            this._recordFailure('message');
+            if (this._logger) {
+              this._logger.error('Background message error:', chrome.runtime.lastError);
+            }
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
           }
-          reject(new Error(chrome.runtime.lastError.message));
-        } else {
-          resolve(response);
-        }
-      });
-
-      port.postMessage(message);
+        }).catch(error => {
+          this._logger?.debug('Background message failed:', error);
+          reject(error);
+        });
+      } else {
+        reject(new Error('Chrome runtime not available'));
+      }
     });
   }
 
