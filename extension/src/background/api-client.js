@@ -291,6 +291,28 @@ class APIClient {
   }
 
   /**
+   * Get all tasks
+   * @returns {Promise<Object>} Tasks data
+   */
+  async getTasks() {
+    return this.makeRequest('/tasks');
+  }
+
+  /**
+   * Get graph overview data
+   * @param {Object} options - Query options
+   * @returns {Promise<Object>} Graph data
+   */
+  async getGraphOverview(options = {}) {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit);
+    if (options.include_empty) params.append('include_empty', options.include_empty);
+    
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.makeRequest(`/graph/overview${query}`);
+  }
+
+  /**
    * Get system statistics
    * @returns {Promise<Object>} Stats data
    */

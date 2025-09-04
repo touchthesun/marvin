@@ -40,7 +40,7 @@ const TasksPanel = {
       }
       
       // Get dependencies with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
+      const notificationService = await this.getService(logger, 'notificationService', {
         showNotification: (message, type) => console.error(`[${type}] ${message}`)
       });
       
@@ -52,7 +52,13 @@ const TasksPanel = {
       this.setupTaskEventListeners(logger);
       
       // Initial load of tasks
-      await this.refreshAllTasks(logger);
+      try {
+        await this.refreshAllTasks(logger);
+      } catch (refreshError) {
+        logger.error('Error during initial task refresh:', refreshError);
+        // Don't fail initialization if task refresh fails
+        console.warn('Tasks panel initialized but initial data load failed:', refreshError.message);
+      }
       
       this.initialized = true;
       logger.info('Tasks panel initialized successfully');
@@ -84,13 +90,14 @@ const TasksPanel = {
    * @param {Object} fallback - Fallback implementation if service not available
    * @returns {Object} Service instance or fallback
    */
-  getService(logger, serviceName, fallback) {
+  async getService(logger, serviceName, fallback) {
     try {
-      const service = container.getService(serviceName);
-      if (service && typeof service.showNotification === 'function') {
+      const service = await container.getService(serviceName);
+      if (service) {
+        logger.debug(`Successfully got ${serviceName}`);
         return service;
       } else {
-        logger.warn(`${serviceName} not available or missing methods`);
+        logger.warn(`${serviceName} not available, using fallback`);
         return fallback;
       }
     } catch (error) {
@@ -174,7 +181,106 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async refreshAllTasks(logger) {
-    const notificationService = this.getService(logger, 'notificationService', {
+    console.log('=== refreshAllTasks called ===');
+    
+    try {
+      console.log('Step 1: Getting notification service');
+      const notificationService = await this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      console.log('Step 1: SUCCESS - Got notification service');
+      
+      console.log('Step 2: Getting TaskService');
+      const taskService = await this.getService(logger, 'taskService', null);
+      console.log('Step 2: SUCCESS - Got TaskService:', !!taskService);
+      
+      if (!taskService) {
+        throw new Error('TaskService not available');
+      }
+
+      console.log('Step 3: Getting tasks from TaskService');
+      const activeTasks = await taskService.getActiveTasks();
+      const completedTasks = await taskService.getCompletedTasks();
+      console.log('Step 3: SUCCESS - Got tasks:', {
+        active: activeTasks.length,
+        completed: completedTasks.length
+      });
+      
+      console.log('Step 4: Updating UI with tasks');
+      this.activeTasks = activeTasks;
+      this.completedTasks = completedTasks;
+      
+      // Update UI with tasks
+      this.renderActiveTasks(logger);
+      this.renderCompletedTasks(logger);
+      
+      // Update task counts
+      this.updateTaskCounts(logger);
+      console.log('Step 4: SUCCESS - UI updated');
+      
+      return true;
+      console.log('Step 2: SUCCESS - Got API service:', !!apiService);
+      
+      if (!apiService) {
+        throw new Error('API service not available');
+      }
+      
+      console.log('Step 3: Calling getTasks');
+      const response = await apiService.getTasks();
+      console.log('Step 3: SUCCESS - Got response:', response);
+      console.log('Raw API response:', JSON.stringify(response, null, 2));
+      console.log('Response structure:', {
+        success: response?.success,
+        hasData: !!response?.data,
+        hasError: !!response?.error,
+        keys: Object.keys(response || {}),
+        tasksArray: response?.data?.tasks,
+        tasksLength: response?.data?.tasks?.length
+      });
+      
+      console.log('Step 4: Processing response');
+      if (response && response.success && response.data) {
+        const tasks = response.data.tasks || [];
+        console.log('Step 4: SUCCESS - Got tasks:', tasks.length);
+        
+        // Split into active and completed
+        const activeTasks = tasks.filter(task => task.status === 'running' || task.status === 'pending');
+        const completedTasks = tasks.filter(task => task.status === 'completed' || task.status === 'error');
+        
+        console.log('Step 5: Updating UI with tasks');
+        this.activeTasks = activeTasks;
+        this.completedTasks = completedTasks;
+        
+        // Update UI with tasks
+        this.renderActiveTasks(logger);
+        this.renderCompletedTasks(logger);
+        
+        // Update task counts
+        this.updateTaskCounts(logger);
+        console.log('Step 5: SUCCESS - UI updated');
+        
+        return true;
+      } else if (response && !response.success) {
+        // Handle API error response
+        throw new Error(`API Error: ${response.error || 'Unknown error'}`);
+      } else {
+        throw new Error('Invalid API response format');
+      }
+      
+    } catch (error) {
+      console.log('ERROR in refreshAllTasks:', error);
+      throw error;
+    }
+    // Debug: Test direct access to notificationService
+    try {
+      const directService = await container.getService('notificationService');
+      console.log('Direct service:', directService);
+      console.log('Has showNotification:', typeof directService.showNotification);
+    } catch (error) {
+      console.log('Error getting direct service:', error);
+    }
+    
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -194,51 +300,62 @@ const TasksPanel = {
     }
     
     try {
-      // Get tasks from background page
-      const backgroundPage = chrome.extension.getBackgroundPage();
+      // Get API service
+      const apiService = await this.getService(logger, 'apiService', null);
       
-      if (!backgroundPage || !backgroundPage.marvin) {
-        throw new Error('Background page or marvin object not available');
+      if (!apiService) {
+        throw new Error('API service not available');
       }
       
-      const tasks = await backgroundPage.marvin.getActiveTasks();
-      logger.debug(`Retrieved ${tasks.length} tasks from background`);
+      // Get tasks from API
+      logger.debug('Calling apiService.getTasks()');
+      const response = await apiService.getTasks();
+      logger.debug('API response:', response);
       
-      // Split into active and completed
-      this.activeTasks = tasks.filter(task => 
-        task.status === 'pending' || 
-        task.status === 'processing' || 
-        task.status === 'analyzing'
-      );
+      if (response && response.data) {
+        const tasks = response.data.tasks || [];
+        
+        // Split into active and completed
+        const activeTasks = tasks.filter(task => 
+          task.status === 'pending' || 
+          task.status === 'processing' || 
+          task.status === 'analyzing'
+        );
+        
+        const completedTasks = tasks.filter(task => 
+          task.status === 'complete' || 
+          task.status === 'error'
+        );
+        
+        // Update UI with tasks
+        this.displayActiveTasks(logger, activeTasks);
+        this.displayCompletedTasks(logger, completedTasks);
+        
+        logger.info(`Loaded ${activeTasks.length} active tasks and ${completedTasks.length} completed tasks`);
+        return true;
+      } else {
+        throw new Error('Invalid API response format');
+      }
       
-      this.completedTasks = tasks.filter(task => 
-        task.status === 'complete' || 
-        task.status === 'error'
-      );
-      
-      logger.debug(`Active tasks: ${this.activeTasks.length}, Completed tasks: ${this.completedTasks.length}`);
-      
-      // Update UI
-      this.renderActiveTasks(logger);
-      this.renderCompletedTasks(logger);
-      
-      // Update counts
-      this.updateTaskCounts(logger);
-      
-      return true;
     } catch (error) {
       logger.error('Error refreshing tasks:', error);
       
-      // Update UI with error state
+      // Use direct service access for error handling
+      try {
+        const errorNotificationService = await container.getService('notificationService');
+        errorNotificationService.showNotification('Error refreshing tasks: ' + error.message, 'error');
+      } catch (serviceError) {
+        console.error(`[error] Error refreshing tasks: ${error.message}`);
+      }
+      
+      // Show error state in UI
       if (activeTasksList) {
-        activeTasksList.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+        activeTasksList.innerHTML = '<div class="error-state">Error loading tasks</div>';
       }
-      
       if (completedTasksList) {
-        completedTasksList.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+        completedTasksList.innerHTML = '<div class="error-state">Error loading tasks</div>';
       }
       
-      notificationService.showNotification(`Error refreshing tasks: ${error.message}`, 'error');
       return false;
     }
   },
@@ -274,7 +391,7 @@ const TasksPanel = {
    * @returns {Promise<void>}
    */
   async refreshData(logger) {
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     

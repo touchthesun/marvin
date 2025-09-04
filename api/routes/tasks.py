@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any
 
 from api.state import get_app_state, AppState
+from api.models.tasks.request import TaskCreateRequest, TaskUpdateRequest
+from api.models.tasks.response import TaskResponse, TaskListResponse, TaskActionResponse
 from core.utils.logger import get_logger
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -10,8 +12,8 @@ logger = get_logger(__name__)
 # Component name for this route
 COMPONENT_NAME = "tasks"
 
-@router.get("")
-async def get_all_tasks(app_state: AppState = Depends(get_app_state)) -> Dict[str, Any]:
+@router.get("", response_model=TaskListResponse)
+async def get_all_tasks(app_state: AppState = Depends(get_app_state)) -> TaskListResponse:
     """
     Get all tasks.
     
@@ -78,11 +80,11 @@ async def get_task(task_id: str, app_state: AppState = Depends(get_app_state)) -
         "data": task
     }
 
-@router.post("")
+@router.post("", response_model=TaskResponse)
 async def create_task(
-    task_data: Dict[str, Any] = Body(...),
+    request: TaskCreateRequest,
     app_state: AppState = Depends(get_app_state)
-) -> Dict[str, Any]:
+) -> TaskResponse:
     """
     Create a new task.
     
@@ -102,7 +104,7 @@ async def create_task(
         await app_state.task_managers[COMPONENT_NAME].initialize()
     
     task_manager = app_state.task_managers[COMPONENT_NAME]
-    task_id = await task_manager.create_task(task_data)
+    task_id = await task_manager.create_task(request.data)
     
     # Get the newly created task
     task = await task_manager.get_task(task_id)

@@ -736,20 +736,35 @@ const KnowledgePanel = {
    * @returns {Promise<void>}
    */
   async loadKnowledgeData(logger) {
-    logger.debug('Loading knowledge data');
+    logger.debug('Loading knowledge data from API');
     
     try {
-      // Get storage service
-      const storageService = this.getService(logger, 'storageService', {
-        getData: async () => ({ pages: [], graphData: { nodes: [], edges: [] } })
-      });
+      // Get API service
+      const apiService = this.getService(logger, 'apiService', null);
       
-      // Load pages data
-      const data = await storageService.getData('pages');
-      this.currentData.pages = data || [];
-      
-      // Create graph data from pages
-      this.currentData.graphData = this.createGraphFromPages(logger, this.currentData.pages);
+      if (apiService) {
+        // Call graph overview API endpoint
+        const response = await apiService.getGraphOverview({ limit: 100 });
+        
+        if (response && response.data) {
+          // Map API response to expected format
+          this.currentData.pages = response.data.pages || [];
+          this.currentData.graphData = {
+            nodes: response.data.nodes || [],
+            edges: response.data.edges || []
+          };
+          
+          logger.debug('Knowledge data loaded from API successfully', { 
+            pagesCount: this.currentData.pages.length,
+            nodesCount: this.currentData.graphData.nodes.length,
+            edgesCount: this.currentData.graphData.edges.length
+          });
+        } else {
+          throw new Error('Invalid API response format');
+        }
+      } else {
+        throw new Error('API service not available');
+      }
       
       // Update display
       if (this.currentView === 'list') {
@@ -764,8 +779,28 @@ const KnowledgePanel = {
       logger.info(`Loaded ${this.currentData.pages.length} knowledge items`);
     } catch (error) {
       logger.error('Error loading knowledge data:', error);
+      
+      // Use fallback data if API fails
       this.currentData.pages = [];
-      this.currentData.graphData = { nodes: [], edges: [] };
+      this.currentData.graphData = { 
+        nodes: [
+          { id: 'node1', label: 'Sample Page', color: '#4285f4' },
+          { id: 'node2', label: 'Related Content', color: '#34a853' }
+        ], 
+        edges: [
+          { source: 'node1', target: 'node2' }
+        ]
+      };
+      
+      // Still update display with fallback data
+      if (this.currentView === 'list') {
+        this.displayKnowledgeItems(logger, this.currentData.pages);
+      } else {
+        const visualizationService = this.getService(logger, 'visualizationService', {
+          createKnowledgeGraph: () => logger.warn('Visualization service not available')
+        });
+        this.renderKnowledgeGraph(logger, visualizationService);
+      }
     }
   },
   
@@ -968,14 +1003,18 @@ const KnowledgePanel = {
     
     try {
       if (visualizationService && typeof visualizationService.createKnowledgeGraph === 'function') {
-        visualizationService.createKnowledgeGraph(graphContainer, this.currentData.graphData);
+        logger.debug('Using visualization service to create graph');
+        visualizationService.createKnowledgeGraph('knowledge-graph-container', this.currentData.graphData.nodes, this.currentData.graphData.edges);
       } else {
+        logger.debug('Visualization service not available, using fallback');
         // Fallback: simple text representation
         graphContainer.innerHTML = `
           <div class="graph-fallback">
             <h3>Knowledge Graph</h3>
             <p>${this.currentData.graphData.nodes.length} nodes, ${this.currentData.graphData.edges.length} edges</p>
-            <p>Visualization service not available</p>
+            <div class="simple-graph">
+              ${this.currentData.graphData.nodes.map(node => `<div class="node">${node.label || node.id}</div>`).join('')}
+            </div>
           </div>
         `;
       }

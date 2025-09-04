@@ -478,7 +478,9 @@ export class ApiService extends BaseService {
       // console.log(`🌐 Making fetch request to: ${this._baseURL}${formattedEndpoint}`);
       
       // Send request
-      const response = await fetch(`${this._baseURL}${formattedEndpoint}`, {
+      const fullUrl = `${this._baseURL}${formattedEndpoint}`;
+      console.log(`🌐 Making fetch request to: ${fullUrl}`);
+      const response = await fetch(fullUrl, {
         ...options,
         headers,
         signal: controller.signal
@@ -1158,6 +1160,22 @@ async getServiceStatus() {
     this._config = null;
     this._baseURL = null;
     this._apiKey = null;
+  }
+
+  /**
+   * Get system statistics
+   * @returns {Promise<Object>} Stats data
+   */
+  async getStats() {
+    return this.fetchAPI('/stats');
+  }
+
+  /**
+   * Get all tasks
+   * @returns {Promise<Object>} Tasks data
+   */
+  async getTasks() {
+    return this.fetchAPI('/api/v1/tasks');
   }
 }
 

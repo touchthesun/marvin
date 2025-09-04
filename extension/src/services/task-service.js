@@ -795,7 +795,7 @@ export class TaskService extends BaseService {
         }
         }
         
-        return Array.from(this._taskServiceActiveTasks.keys());
+        return Array.from(this._taskServiceActiveTasks.values());
     }
     
     /**
@@ -816,7 +816,7 @@ export class TaskService extends BaseService {
         }
         }
         
-        return Array.from(this._taskServiceCompletedTasks.keys());
+        return Array.from(this._taskServiceCompletedTasks.values());
     }
     
     /**
