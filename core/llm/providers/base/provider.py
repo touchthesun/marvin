@@ -48,6 +48,13 @@ class TokenUsage(BaseModel):
 
 class QueryResponse(BaseModel):
     """Response from LLM query"""
+    model_config = {
+        "protected_namespaces": (),
+        "json_encoders": {
+            datetime: lambda v: v.isoformat()
+        }
+    }
+    
     query_id: UUID
     provider_type: ProviderType
     model_name: str
@@ -64,11 +71,6 @@ class QueryResponse(BaseModel):
     # Additional data
     finish_reason: Optional[str] = None
     function_call_result: Optional[Dict[str, Any]] = None
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 class ProviderMetrics(BaseModel):
@@ -85,6 +87,8 @@ class ProviderMetrics(BaseModel):
 
 class ProviderStatusResponse(BaseModel):
     """Status response for provider health checks"""
+    model_config = {"protected_namespaces": ()}
+    
     provider_type: ProviderType
     status: ProviderStatus
     model_name: str

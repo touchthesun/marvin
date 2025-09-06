@@ -25,7 +25,7 @@ class StatsRequest(BaseModel):
     )
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "start_date": "2023-01-01T00:00:00",
                 "end_date": "2023-12-31T23:59:59",

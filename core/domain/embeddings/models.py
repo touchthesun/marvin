@@ -266,6 +266,12 @@ class PageEmbeddings(BaseModel):
 
 class EmbeddingRequestConfig(BaseModel):
     """Configuration for an embedding request"""
+    model_config = {
+        "protected_namespaces": (),
+        "validate_assignment": True,
+        "extra": "forbid"
+    }
+    
     provider_id: str = "ollama"  
     model_id: Optional[EmbeddingModel] = None 
     normalize: bool = True
@@ -275,8 +281,3 @@ class EmbeddingRequestConfig(BaseModel):
     chunk_size: int = 1000
     chunk_overlap: int = 200
     max_chunks: Optional[int] = None
-    
-    model_config = {
-        "validate_assignment": True,
-        "extra": "forbid",
-    }

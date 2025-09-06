@@ -1,11 +1,19 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Set
-from pydantic import Field
 from core.domain.content.models.page import BrowserContext, PageStatus
 
 class PageCreate(BaseModel):
     """Model for creating a single page."""
-    url: HttpUrl
+    url: str
+    
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v):
+        if not v or not isinstance(v, str):
+            raise ValueError('URL must be a non-empty string')
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError('URL must start with http:// or https://')
+        return v
     context: BrowserContext
     tab_id: Optional[str] = None
     window_id: Optional[str] = None

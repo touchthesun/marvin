@@ -155,6 +155,11 @@ class AppState:
                             self.logger.info("Embedding schema initialized successfully")
                         else:
                             self.logger.warning("Embedding schema initialization returned False")
+                    
+                    # Initialize semantic relationship type in separate transaction
+                    # This avoids mixing schema modifications with write operations
+                    await self.embedding_service.initialize_semantic_relationship_type()
+                    
                 except Exception as e:
                     self.logger.error(f"Failed to initialize embedding schema: {str(e)}", exc_info=True)
 

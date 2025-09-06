@@ -23,6 +23,11 @@ class ModelCapability(Enum):
 
 class ProviderConfig(BaseModel):
     """Base configuration for LLM providers"""
+    model_config = {
+        "protected_namespaces": (),
+        "use_enum_values": True
+    }
+    
     provider_type: ProviderType
     model_name: str
     capabilities: List[ModelCapability]
@@ -58,6 +63,3 @@ class ProviderConfig(BaseModel):
         if isinstance(data['provider_type'], ProviderType):
             data['provider_type'] = data['provider_type'].value
         return data
-
-    class Config:
-        use_enum_values = True
