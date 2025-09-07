@@ -99,7 +99,7 @@ async def create_task(
         if not hasattr(app_state, "task_managers"):
             app_state.task_managers = {}
         
-        from core.utils.task_manager import TaskManager
+        from api.task_manager import TaskManager
         app_state.task_managers[COMPONENT_NAME] = TaskManager(COMPONENT_NAME)
         await app_state.task_managers[COMPONENT_NAME].initialize()
     

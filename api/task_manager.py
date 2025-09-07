@@ -66,6 +66,7 @@ class TaskManager:
             "id": task_id,
             "status": "enqueued",
             "created_at": created_at,
+            "updated_at": created_at,
             "queued_at": datetime.now().isoformat(),
             "progress": 0.0,
             "message": f"{self.component_name} task enqueued",
@@ -89,6 +90,30 @@ class TaskManager:
         """
         return self.tasks.get(task_id)
     
+    async def update_task_status(self, task_id: str, status: str, progress: float = None, message: str = None) -> bool:
+        """
+        Update a task's status and optional progress/message.
+        
+        Args:
+            task_id: The task ID to update
+            status: New status (enqueued, running, completed, failed)
+            progress: Optional progress value (0.0 to 1.0)
+            message: Optional status message
+            
+        Returns:
+            True if task was found and updated, False otherwise
+        """
+        updates = {
+            "status": status,
+            "updated_at": time.time()
+        }
+        if progress is not None:
+            updates["progress"] = progress
+        if message is not None:
+            updates["message"] = message
+        
+        return await self.update_task(task_id, updates)
+
     async def update_task(self, task_id: str, updates: Dict[str, Any]) -> bool:
         """
         Update a task's state.

@@ -40,11 +40,16 @@ class APIClient {
     const url = `${this.baseURL}${endpoint}`;
     const cacheKey = `${options.method || 'GET'}:${url}`;
 
-    // Check cache first
-    const cached = this.getCachedResponse(cacheKey);
-    if (cached) {
-      console.log(`Serving cached response for ${endpoint}`);
-      return cached;
+    // Skip cache for tasks endpoint (needs fresh data)
+    const skipCache = endpoint === '/tasks' || endpoint.startsWith('/tasks/');
+    
+    // Check cache first (unless skipping)
+    if (!skipCache) {
+      const cached = this.getCachedResponse(cacheKey);
+      if (cached) {
+        console.log(`Serving cached response for ${endpoint}`);
+        return cached;
+      }
     }
 
     try {
@@ -85,8 +90,10 @@ class APIClient {
 
       const data = await response.json();
       
-      // Cache successful responses
-      this.cacheResponse(cacheKey, data);
+      // Cache successful responses (except tasks endpoint)
+      if (!skipCache) {
+        this.cacheResponse(cacheKey, data);
+      }
       
       // Mark server as available
       this.isServerAvailable = true;

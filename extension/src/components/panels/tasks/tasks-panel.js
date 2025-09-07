@@ -349,14 +349,21 @@ const TasksPanel = {
       const progress = task.progress || 0;
       const progressPercent = Math.round(progress * 100);
       
-      // Format time
-      const startTime = new Date(task.created_at || task.timestamp);
+      // Format time - handle Unix timestamp conversion
+      let startTime;
+      if (task.created_at) {
+        // If created_at is a Unix timestamp (seconds), convert to milliseconds
+        const timestamp = typeof task.created_at === 'number' ? task.created_at * 1000 : task.created_at;
+        startTime = new Date(timestamp);
+      } else {
+        startTime = new Date(task.timestamp);
+      }
       const timeAgo = this.formatTimeAgo(startTime);
       
       // Create task HTML
       taskElement.innerHTML = `
         <div class="task-header">
-          <div class="task-title">${this.truncateText(task.url || 'Unknown URL', 40)}</div>
+          <div class="task-title">${this.truncateText(task.data?.task_name || task.data?.url || task.url || 'Unknown Task', 40)}</div>
           <div class="task-actions">
             <button class="btn-icon cancel-task" title="Cancel Task">
               <i class="fas fa-times"></i>
@@ -458,13 +465,22 @@ const TasksPanel = {
         taskElement.classList.add('task-complete');
       }
       
-      // Format time
-      const completionTime = new Date(task.completed_at || task.timestamp);
+      // Format time - use updated_at for completed tasks, created_at as fallback
+      let completionTime;
+      if (task.updated_at) {
+        // updated_at is a Unix timestamp (seconds), convert to milliseconds
+        completionTime = new Date(task.updated_at * 1000);
+      } else if (task.created_at) {
+        // created_at is a Unix timestamp (seconds), convert to milliseconds  
+        completionTime = new Date(task.created_at * 1000);
+      } else {
+        completionTime = new Date(); // Fallback to now
+      }
       const timeAgo = this.formatTimeAgo(completionTime);
       
       taskElement.innerHTML = `
         <div class="task-header">
-          <div class="task-title">${this.truncateText(task.url || 'Unknown URL', 40)}</div>
+          <div class="task-title">${this.truncateText(task.data?.task_name || task.data?.url || task.url || 'Unknown Task', 40)}</div>
           <div class="task-actions">
             ${task.status === 'error' ? 
               `<button class="btn-icon retry-task" title="Retry Task">
