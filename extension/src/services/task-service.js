@@ -79,14 +79,15 @@ export class TaskService extends BaseService {
       ...options
     };
 
-    // Initialize state tracking
-    this._activeTasks = new WeakMap();
-    this._completedTasks = new WeakMap();
-    this._taskListeners = new WeakMap();
-    this._taskTimeouts = new WeakMap();
-    this._taskRetries = new WeakMap();
-    this._messagePorts = new WeakSet();
-    this._webSockets = new WeakSet();
+    // Initialize state tracking - Use Map instead of WeakMap for compatibility with BaseService
+    // Note: BaseService will create its own _activeTasks, so we'll use different names for TaskService-specific data
+    this._taskServiceActiveTasks = new Map();
+    this._taskServiceCompletedTasks = new Map();
+    this._taskListeners = new Map();
+    this._taskTimeouts = new Map();
+    this._taskRetries = new Map();
+    this._messagePorts = new Set();
+    this._webSockets = new Set();
     this._circuitBreaker = {
       failures: 0,
       lastFailure: 0,
@@ -265,8 +266,8 @@ export class TaskService extends BaseService {
     async _pollTasks() {
         try {
         // Only poll if we have active tasks
-        if (this._activeTasks.size > 0) {
-            this._logger.debug(`Polling for updates on ${this._activeTasks.size} active tasks`);
+        if (this._taskServiceActiveTasks.size > 0) {
+            this._logger.debug(`Polling for updates on ${this._taskServiceActiveTasks.size} active tasks`);
             await this._refreshTasks();
         }
         } catch (error) {
@@ -402,8 +403,8 @@ export class TaskService extends BaseService {
         );
         
         // Update task maps
-        this._activeTasks = new WeakMap(newActiveTasks.map(task => [task, Date.now()]));
-        this._completedTasks = new WeakMap(newCompletedTasks.map(task => [task, Date.now()]));
+        this._taskServiceActiveTasks = new Map(newActiveTasks.map(task => [task, Date.now()]));
+        this._taskServiceCompletedTasks = new Map(newCompletedTasks.map(task => [task, Date.now()]));
         
         // Show notifications for completed tasks
         if (this._notificationService) {
@@ -424,9 +425,9 @@ export class TaskService extends BaseService {
         
         // Notify listeners about changes
         if (statusChanges.completed.length > 0 || statusChanges.updated.length > 0) {
-        this._notifyTaskListeners({
-            activeTasks: Array.from(this._activeTasks.keys()),
-            completedTasks: Array.from(this._completedTasks.keys()),
+        this.notifyTaskListeners({
+            activeTasks: Array.from(this._taskServiceActiveTasks.keys()),
+            completedTasks: Array.from(this._taskServiceCompletedTasks.keys()),
             changes: statusChanges
         });
         }
@@ -493,6 +494,14 @@ export class TaskService extends BaseService {
           }
         }
     
+        // Validate input
+        if (!taskData || typeof taskData !== 'object') {
+          throw new TaskService._TaskError(
+            'Invalid task data: must be a non-null object',
+            TaskService._ERROR_CODES.INVALID_TASK_STATE
+          );
+        }
+    
         this._logger.info('Creating new task', taskData);
     
         try {
@@ -504,15 +513,15 @@ export class TaskService extends BaseService {
             
             if (result && result.id) {
               // Add to active tasks
-              this._activeTasks.set(result, Date.now());
+              this._taskServiceActiveTasks.set(result, Date.now());
               
               // Update stats
               this._stats.tasksCreated++;
               
               // Notify listeners
-              this._notifyTaskListeners({
-                activeTasks: Array.from(this._activeTasks.keys()),
-                completedTasks: Array.from(this._completedTasks.keys()),
+              this.notifyTaskListeners({
+                activeTasks: Array.from(this._taskServiceActiveTasks.keys()),
+                completedTasks: Array.from(this._taskServiceCompletedTasks.keys()),
                 changes: {
                   completed: [],
                   updated: [],
@@ -544,15 +553,15 @@ export class TaskService extends BaseService {
             
             if (response && response.success && response.data) {
               // Add to active tasks
-              this._activeTasks.set(response.data, Date.now());
+              this._taskServiceActiveTasks.set(response.data, Date.now());
               
               // Update stats
               this._stats.tasksCreated++;
               
               // Notify listeners
-              this._notifyTaskListeners({
-                activeTasks: Array.from(this._activeTasks.keys()),
-                completedTasks: Array.from(this._completedTasks.keys()),
+              this.notifyTaskListeners({
+                activeTasks: Array.from(this._taskServiceActiveTasks.keys()),
+                completedTasks: Array.from(this._taskServiceCompletedTasks.keys()),
                 changes: {
                   completed: [],
                   updated: [],
@@ -575,8 +584,12 @@ export class TaskService extends BaseService {
           if (error instanceof TaskService._TaskError) {
             throw error;
           }
+          // Preserve the original error message if it's descriptive
+          const errorMessage = error.message && error.message !== 'Failed to create task' 
+            ? error.message 
+            : 'Failed to create task';
           throw new TaskService._TaskError(
-            'Failed to create task',
+            errorMessage,
             TaskService._ERROR_CODES.API_ERROR,
             { originalError: error }
           );
@@ -589,24 +602,24 @@ export class TaskService extends BaseService {
      * @returns {Promise<boolean>} Whether cancellation was successful
      */
     async cancelTask(taskId) {
-        if (!this.initialized) {
+        if (!this._initialized) {
         try {
             const success = await this.initialize();
             if (!success) {
             throw new Error('Failed to initialize task service');
             }
         } catch (error) {
-            this.logger?.error('Error initializing task service:', error);
+            this._logger?.error('Error initializing task service:', error);
             throw error;
         }
         }
         
         if (!taskId) {
-        this.logger.warn('Attempted to cancel task with no ID');
+        this._logger.warn('Attempted to cancel task with no ID');
         return false;
         }
         
-        this.logger.info(`Cancelling task: ${taskId}`);
+        this._logger.info(`Cancelling task: ${taskId}`);
         
         try {
         // Try to use background page
@@ -617,35 +630,35 @@ export class TaskService extends BaseService {
             
             if (result) {
             // Refresh tasks to update lists
-            await this.refreshTasks();
+            await this._refreshTasks();
             
-            this.logger.debug(`Task ${taskId} cancelled successfully via background page`);
+            this._logger.debug(`Task ${taskId} cancelled successfully via background page`);
             return true;
             } else {
             throw new Error('Failed to cancel task via background page');
             }
         } else {
             // Fall back to API
-            if (!this.apiService) {
+            if (!this._apiService) {
             throw new Error('API service not available');
             }
             
-            const response = await this.apiService.fetchAPI(`/api/v1/tasks/${taskId}/cancel`, {
+            const response = await this._apiService.fetchAPI(`/api/v1/tasks/${taskId}/cancel`, {
             method: 'POST'
             });
             
             if (response && response.success) {
             // Refresh tasks to update lists
-            await this.refreshTasks();
+            await this._refreshTasks();
             
-            this.logger.debug(`Task ${taskId} cancelled successfully via API`);
+            this._logger.debug(`Task ${taskId} cancelled successfully via API`);
             return true;
             } else {
             throw new Error((response?.error?.message) || 'Unknown error cancelling task');
             }
         }
         } catch (error) {
-        this.logger.error(`Error cancelling task ${taskId}:`, error);
+        this._logger.error(`Error cancelling task ${taskId}:`, error);
         throw error;
         }
     }
@@ -656,24 +669,24 @@ export class TaskService extends BaseService {
      * @returns {Promise<boolean>} Whether retry was successful
      */
     async retryTask(taskId) {
-        if (!this.initialized) {
+        if (!this._initialized) {
         try {
             const success = await this.initialize();
             if (!success) {
             throw new Error('Failed to initialize task service');
             }
         } catch (error) {
-            this.logger?.error('Error initializing task service:', error);
+            this._logger?.error('Error initializing task service:', error);
             throw error;
         }
         }
         
         if (!taskId) {
-        this.logger.warn('Attempted to retry task with no ID');
+        this._logger.warn('Attempted to retry task with no ID');
         return false;
         }
         
-        this.logger.info(`Retrying task: ${taskId}`);
+        this._logger.info(`Retrying task: ${taskId}`);
         
         try {
         // Try to use background page
@@ -684,35 +697,35 @@ export class TaskService extends BaseService {
             
             if (result) {
             // Refresh tasks to update lists
-            await this.refreshTasks();
+            await this._refreshTasks();
             
-            this.logger.debug(`Task ${taskId} retried successfully via background page`);
+            this._logger.debug(`Task ${taskId} retried successfully via background page`);
             return true;
             } else {
             throw new Error('Failed to retry task via background page');
             }
         } else {
             // Fall back to API
-            if (!this.apiService) {
+            if (!this._apiService) {
             throw new Error('API service not available');
             }
             
-            const response = await this.apiService.fetchAPI(`/api/v1/tasks/${taskId}/retry`, {
+            const response = await this._apiService.fetchAPI(`/api/v1/tasks/${taskId}/retry`, {
             method: 'POST'
             });
             
             if (response && response.success) {
             // Refresh tasks to update lists
-            await this.refreshTasks();
+            await this._refreshTasks();
             
-            this.logger.debug(`Task ${taskId} retried successfully via API`);
+            this._logger.debug(`Task ${taskId} retried successfully via API`);
             return true;
             } else {
             throw new Error((response?.error?.message) || 'Unknown error retrying task');
             }
         }
         } catch (error) {
-        this.logger.error(`Error retrying task ${taskId}:`, error);
+        this._logger.error(`Error retrying task ${taskId}:`, error);
         throw error;
         }
     }
@@ -751,7 +764,7 @@ export class TaskService extends BaseService {
           );
         }
         
-        const task = [...this._activeTasks.keys(), ...this._completedTasks.keys()]
+        const task = [...this._taskServiceActiveTasks.keys(), ...this._taskServiceCompletedTasks.keys()]
           .find(task => task.id === taskId);
         
         if (!task) {
@@ -769,11 +782,11 @@ export class TaskService extends BaseService {
      * @returns {Promise<Array>} Array of active task objects
      */
     async getActiveTasks() {
-        if (!this.initialized) {
+        if (!this._initialized) {
         try {
             const success = await this.initialize();
             if (!success) {
-            this.logger?.warn('Task service failed to initialize');
+            this._logger?.warn('Task service failed to initialize');
             return [];
             }
         } catch (error) {
@@ -782,7 +795,7 @@ export class TaskService extends BaseService {
         }
         }
         
-        return [...this.activeTasks];
+        return Array.from(this._taskServiceActiveTasks.values());
     }
     
     /**
@@ -790,11 +803,11 @@ export class TaskService extends BaseService {
      * @returns {Promise<Array>} Array of completed task objects
      */
     async getCompletedTasks() {
-        if (!this.initialized) {
+        if (!this._initialized) {
         try {
             const success = await this.initialize();
             if (!success) {
-            this.logger?.warn('Task service failed to initialize');
+            this._logger?.warn('Task service failed to initialize');
             return [];
             }
         } catch (error) {
@@ -803,7 +816,7 @@ export class TaskService extends BaseService {
         }
         }
         
-        return [...this.completedTasks];
+        return Array.from(this._taskServiceCompletedTasks.values());
     }
     
     /**
@@ -812,11 +825,11 @@ export class TaskService extends BaseService {
      * @returns {Function} Function to remove the listener
      */
     async addTaskListener(listener) {
-        if (!this.initialized) {
+        if (!this._initialized) {
         try {
             const success = await this.initialize();
             if (!success) {
-            this.logger?.warn('Task service failed to initialize');
+            this._logger?.warn('Task service failed to initialize');
             return () => {}; // Return no-op function on failure
             }
         } catch (error) {
@@ -826,18 +839,18 @@ export class TaskService extends BaseService {
         }
         
         if (typeof listener !== 'function') {
-        this.logger.warn('Attempted to add non-function task listener');
+        this._logger.warn('Attempted to add non-function task listener');
         return () => {};
         }
         
-        this.taskListeners.push(listener);
+        this._taskListeners.push(listener);
         
-        this.logger.debug(`Task listener added, total listeners: ${this.taskListeners.length}`);
+        this._logger.debug(`Task listener added, total listeners: ${this._taskListeners.length}`);
         
         // Return function to remove the listener
         return () => {
-        this.taskListeners = this.taskListeners.filter(l => l !== listener);
-        this.logger.debug(`Task listener removed, remaining listeners: ${this.taskListeners.length}`);
+        this._taskListeners = this._taskListeners.filter(l => l !== listener);
+        this._logger.debug(`Task listener removed, remaining listeners: ${this._taskListeners.length}`);
         };
     }
   
@@ -847,18 +860,18 @@ export class TaskService extends BaseService {
      * @returns {void}
      */
     notifyTaskListeners(updateData) {
-        if (!this.taskListeners || this.taskListeners.length === 0) {
+        if (!this._taskListeners || this._taskListeners.length === 0) {
         return;
         }
         
-        this.logger.debug(`Notifying ${this.taskListeners.length} task listeners about updates`);
+        this._logger.debug(`Notifying ${this._taskListeners.length} task listeners about updates`);
         
         // Call each listener with update data
-        this.taskListeners.forEach(listener => {
+        this._taskListeners.forEach(listener => {
         try {
             listener(updateData);
         } catch (error) {
-            this.logger.error('Error in task listener:', error);
+            this._logger.error('Error in task listener:', error);
             // Continue notifying other listeners even if one fails
         }
         });
@@ -871,19 +884,19 @@ export class TaskService extends BaseService {
      * @returns {Promise<Object>} Task result
      */
     async createCaptureTask(captureData, progressCallback) {
-        if (!this.initialized) {
+        if (!this._initialized) {
         try {
             const success = await this.initialize();
             if (!success) {
             throw new Error('Failed to initialize task service');
             }
         } catch (error) {
-            this.logger?.error('Error initializing task service:', error);
+            this._logger?.error('Error initializing task service:', error);
             throw error;
         }
         }
         
-        this.logger.info('Creating capture task', captureData);
+        this._logger.info('Creating capture task', captureData);
         
         try {
         // Create task
@@ -899,15 +912,15 @@ export class TaskService extends BaseService {
         // Show notification
         let notificationId;
         
-        if (this.notificationService) {
-            notificationId = this.notificationService.showNotification(`Capturing ${captureData.url}...`, 'info', 0);
+        if (this._notificationService) {
+            notificationId = this._notificationService.showNotification(`Capturing ${captureData.url}...`, 'info', 0);
         }
         
         // Monitor task progress
         return await this.monitorTaskProgress(task.id, (progress, status) => {
             // Update notification
-            if (this.notificationService && notificationId) {
-            this.notificationService.updateNotificationProgress(`Capturing: ${status}`, progress * 100, notificationId);
+            if (this._notificationService && notificationId) {
+            this._notificationService.updateNotificationProgress(`Capturing: ${status}`, progress * 100, notificationId);
             }
             
             // Call progress callback if provided
@@ -916,7 +929,7 @@ export class TaskService extends BaseService {
             }
         });
         } catch (error) {
-        this.logger.error('Error creating capture task:', error);
+        this._logger.error('Error creating capture task:', error);
         throw error;
         }
     }
@@ -1173,15 +1186,15 @@ export class TaskService extends BaseService {
             }
 
             // Restore active tasks
-            this._activeTasks.clear();
+            this._taskServiceActiveTasks.clear();
             for (const [task, timestamp] of data.activeTasks) {
-                this._activeTasks.set(task, timestamp);
+                this._taskServiceActiveTasks.set(task, timestamp);
             }
 
             // Restore completed tasks
-            this._completedTasks.clear();
+            this._taskServiceCompletedTasks.clear();
             for (const [task, timestamp] of data.completedTasks) {
-                this._completedTasks.set(task, timestamp);
+                this._taskServiceCompletedTasks.set(task, timestamp);
             }
 
             // Restore stats
@@ -1208,8 +1221,8 @@ export class TaskService extends BaseService {
 
         try {
             const state = {
-                activeTasks: Array.from(this._activeTasks.entries()),
-                completedTasks: Array.from(this._completedTasks.entries()),
+                activeTasks: Array.from(this._taskServiceActiveTasks.entries()),
+                completedTasks: Array.from(this._taskServiceCompletedTasks.entries()),
                 stats: this._stats,
                 circuitBreaker: this._circuitBreaker
             };
@@ -1327,17 +1340,17 @@ export class TaskService extends BaseService {
         const maxAge = this._config.maxTaskAge;
     
         // Clean up completed tasks
-        for (const [task, timestamp] of this._completedTasks) {
+        for (const [task, timestamp] of this._taskServiceCompletedTasks) {
           if (now - timestamp > maxAge) {
-            this._completedTasks.delete(task);
+            this._taskServiceCompletedTasks.delete(task);
             this._logger.debug(`Cleaned up old completed task: ${task.id}`);
           }
         }
     
         // Clean up active tasks that have timed out
-        for (const [task, timestamp] of this._activeTasks) {
+        for (const [task, timestamp] of this._taskServiceActiveTasks) {
           if (now - timestamp > this._config.taskTimeout) {
-            this._activeTasks.delete(task);
+            this._taskServiceActiveTasks.delete(task);
             this._logger.warn(`Cleaned up timed out active task: ${task.id}`);
           }
         }
@@ -1480,11 +1493,11 @@ export class TaskService extends BaseService {
         this._stopStatePersistence();
         
         // Clean up task tracking
-        this._activeTasks = new WeakMap();
-        this._completedTasks = new WeakMap();
-        this._taskListeners = new WeakMap();
-        this._taskTimeouts = new WeakMap();
-        this._taskRetries = new WeakMap();
+        this._taskServiceActiveTasks = new Map();
+        this._taskServiceCompletedTasks = new Map();
+        this._taskListeners = new Map();
+        this._taskTimeouts = new Map();
+        this._taskRetries = new Map();
         
         // Clear circuit breaker
         this._circuitBreaker = {

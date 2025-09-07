@@ -26,7 +26,7 @@ const OverviewPanel = {
    * Initialize the overview panel
    * @returns {Promise<boolean>} Success state
    */
-  async initOverviewPanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'overview-panel',
@@ -116,31 +116,43 @@ const OverviewPanel = {
   },
   
   /**
-   * Load overview data from storage
+   * Load overview data from API
    * @param {LogManager} logger - Logger instance
    * @returns {Promise<void>}
    */
   async loadOverviewData(logger) {
-    logger.debug('Loading overview data');
+    logger.debug('Loading overview data from API');
     
     try {
-      // Get stats from storage
-      const data = await chrome.storage.local.get(['stats', 'captureHistory']);
+      // Get API service
+      const apiService = this.getService(logger, 'apiService', null);
       
-      // Update stats data
-      this.statsData = {
-        capturedCount: data.stats?.capturedCount || 0,
-        relationshipCount: data.stats?.relationshipCount || 0,
-        queryCount: data.stats?.queryCount || 0
-      };
+      if (apiService) {
+        // Call stats API endpoint
+        const response = await apiService.getStats();
+        
+        if (response && response.data) {
+          // Map API response to expected format
+          this.statsData = {
+            capturedCount: response.data.captures || 0,
+            relationshipCount: response.data.relationships || 0,
+            queryCount: response.data.queries || 0
+          };
+          
+          logger.debug('Overview data loaded from API successfully', { 
+            statsData: this.statsData
+          });
+        } else {
+          throw new Error('Invalid API response format');
+        }
+      } else {
+        throw new Error('API service not available');
+      }
       
-      // Get recent captures
+      // Get recent captures from storage as fallback
+      const data = await chrome.storage.local.get(['captureHistory']);
       this.recentCaptures = (data.captureHistory || []).slice(0, 5);
       
-      logger.debug('Overview data loaded successfully', { 
-        statsData: this.statsData, 
-        recentCapturesCount: this.recentCaptures.length 
-      });
     } catch (error) {
       logger.error('Error loading overview data:', error);
       
@@ -268,7 +280,7 @@ const OverviewPanel = {
     
     try {
       // Find preview container
-      const previewContainer = document.querySelector('.graph-placeholder');
+      const previewContainer = document.getElementById('knowledge-graph-preview');
       if (!previewContainer) {
         logger.warn('Knowledge preview container not found');
         return;
@@ -292,7 +304,7 @@ const OverviewPanel = {
       ];
       
       // Use visualization service to create the graph
-      visualizationService.createKnowledgeGraph(previewContainer.id, nodes, links);
+      visualizationService.createKnowledgeGraph('knowledge-graph-preview', nodes, links);
       logger.debug('Knowledge preview created successfully');
     } catch (error) {
       logger.error('Error creating knowledge preview:', error);
@@ -312,7 +324,7 @@ const OverviewPanel = {
       const refreshBtn = document.querySelector('.refresh-btn');
       if (refreshBtn) {
         const refreshBtnHandler = () => {
-          this.refreshOverviewData(logger, notificationService);
+          this.refreshOverviewData(logger);
         };
         
         refreshBtn.addEventListener('click', refreshBtnHandler);
@@ -372,8 +384,12 @@ const OverviewPanel = {
       if (exploreBtn) {
         const exploreBtnHandler = () => {
           // Navigate to knowledge panel
-          const navigation = this.getService(logger, 'navigation', {
-            navigateToPanel: () => {
+          try {
+            const navigation = container.getComponent('navigation');
+            if (navigation && navigation.navigateToPanel) {
+              navigation.navigateToPanel('knowledge');
+              logger.debug('Navigated to knowledge panel');
+            } else {
               // Fallback navigation
               const navItem = document.querySelector('.nav-item[data-panel="knowledge"]');
               if (navItem) {
@@ -383,11 +399,16 @@ const OverviewPanel = {
                 logger.warn('Knowledge panel nav item not found');
               }
             }
-          });
-          
-          if (navigation && navigation.navigateToPanel) {
-            navigation.navigateToPanel('knowledge');
-            logger.debug('Navigated to knowledge panel');
+          } catch (error) {
+            logger.warn('Navigation component not available:', error);
+            // Fallback navigation
+            const navItem = document.querySelector('.nav-item[data-panel="knowledge"]');
+            if (navItem) {
+              navItem.click();
+              logger.debug('Navigated to knowledge panel (fallback)');
+            } else {
+              logger.warn('Knowledge panel nav item not found');
+            }
           }
         };
         
@@ -414,13 +435,17 @@ const OverviewPanel = {
   /**
    * Refresh overview panel data
    * @param {LogManager} logger - Logger instance
-   * @param {Object} notificationService - Notification service
    * @returns {Promise<void>}
    */
-  async refreshOverviewData(logger, notificationService) {
+  async refreshOverviewData(logger) {
     logger.info('Refreshing overview data');
     
     try {
+      // Get fresh notification service with fallback
+      const notificationSvc = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.log(`[${type}] ${message}`)
+      });
+      
       // Show loading indicators
       const capturedCount = document.getElementById('captured-count');
       const relationshipCount = document.getElementById('relationship-count');
@@ -437,11 +462,14 @@ const OverviewPanel = {
       this.updateStatsDisplay(logger);
       this.updateRecentCapturesList(logger);
       
-      notificationService.showNotification('Overview data refreshed', 'success');
+      notificationSvc.showNotification('Overview data refreshed', 'success');
       logger.info('Overview data refreshed successfully');
     } catch (error) {
       logger.error('Error refreshing overview data:', error);
-      notificationService.showNotification('Error refreshing data: ' + error.message, 'error');
+      const notificationSvc = this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
+      notificationSvc.showNotification('Error refreshing data: ' + error.message, 'error');
     }
   },
   

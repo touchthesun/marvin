@@ -1,4 +1,4 @@
-// src/components/panels/capture/capture-panel.js
+// Update the imports in capture-panel.js
 import { LogManager } from '../../../utils/log-manager.js'; 
 import { container } from '../../../core/dependency-container.js';
 import { TabsCapture } from './tabs-capture.js';
@@ -26,7 +26,7 @@ const CapturePanel = {
    * Initialize the capture panel
    * @returns {Promise<boolean>} Success state
    */
-  async initCapturePanel() {
+  async initialize() {
     // Create logger directly 
     const logger = new LogManager({
       context: 'capture-panel',
@@ -38,6 +38,15 @@ const CapturePanel = {
     let notificationService;
     try {
       notificationService = container.getService('notificationService');
+      
+      // Ensure the service is properly initialized and has the method
+      if (!notificationService || typeof notificationService.showNotification !== 'function') {
+        logger.warn('NotificationService missing showNotification method, using fallback');
+        notificationService = {
+          showNotification: (message, type) => console.log(`[Notification ${type}]:`, message),
+          updateNotificationProgress: () => {}
+        };
+      }
     } catch (error) {
       logger.warn('NotificationService not available:', error);
       notificationService = {
@@ -57,7 +66,7 @@ const CapturePanel = {
       
       // Initialize capture components
       this._tabsCapture = TabsCapture;
-      this._bookmarksCapture = BookmarksCapture;
+      this._bookmarksCapture = BookmarksCapture;  
       this._historyCapture = HistoryCapture;
       
       // Set up tab loading
@@ -67,7 +76,7 @@ const CapturePanel = {
       this.setupCaptureSelectedButton(logger);
       
       // Load initial data based on active tab
-      this.loadInitialData(logger);
+      await this.loadInitialData(logger);
       
       this.initialized = true;
       logger.info('Capture panel initialized successfully');
@@ -92,9 +101,9 @@ const CapturePanel = {
       const historyTabBtn = document.querySelector('[data-tab="history"]');
       
       if (tabsTabBtn) {
-        const tabsClickHandler = () => {
+        const tabsClickHandler = async () => {
           logger.debug('Tabs tab button clicked');
-          this._tabsCapture.initTabsCapture();
+          await this.switchToTab(logger, 'tabs');
         };
         
         tabsTabBtn.addEventListener('click', tabsClickHandler);
@@ -110,9 +119,9 @@ const CapturePanel = {
       }
       
       if (bookmarksTabBtn) {
-        const bookmarksClickHandler = () => {
+        const bookmarksClickHandler = async () => {
           logger.debug('Bookmarks tab button clicked');
-          this._bookmarksCapture.initBookmarksCapture();
+          await this.switchToTab(logger, 'bookmarks');
         };
         
         bookmarksTabBtn.addEventListener('click', bookmarksClickHandler);
@@ -128,9 +137,9 @@ const CapturePanel = {
       }
       
       if (historyTabBtn) {
-        const historyClickHandler = () => {
+        const historyClickHandler = async () => {
           logger.debug('History tab button clicked');
-          this._historyCapture.initHistoryCapture();
+          await this.switchToTab(logger, 'history');
         };
         
         historyTabBtn.addEventListener('click', historyClickHandler);
@@ -200,7 +209,7 @@ const CapturePanel = {
    * Load initial data based on active tab
    * @param {LogManager} logger - Logger instance
    */
-  loadInitialData(logger) {
+  async loadInitialData(logger) {
     logger.debug('Loading initial data');
     
     try {
@@ -211,11 +220,11 @@ const CapturePanel = {
         logger.debug(`Active tab detected: ${tabType}`);
         
         if (tabType === 'tabs') {
-          this._tabsCapture.initTabsCapture();
+          await this._tabsCapture.initialize();
         } else if (tabType === 'bookmarks') {
-          this._bookmarksCapture.initBookmarksCapture();
+          await this._bookmarksCapture.initialize();
         } else if (tabType === 'history') {
-          this._historyCapture.initHistoryCapture();
+          await this._historyCapture.initialize();
         }
       } else {
         // Default to tabs tab if no active tab
@@ -244,7 +253,13 @@ const CapturePanel = {
    */
   getService(logger, serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      const service = container.getService(serviceName);
+      if (service && typeof service.showNotification === 'function') {
+        return service;
+      } else {
+        logger.warn(`${serviceName} not available or missing methods`);
+        return fallback;
+      }
     } catch (error) {
       logger.warn(`${serviceName} not available:`, error);
       return fallback;
@@ -476,6 +491,50 @@ async processCaptureItems(logger, selectedItems, type) {
     notificationService.showNotification(`Error capturing items: ${error.message}`, 'error');
   }
 },
+
+  /**
+   * Switch to a specific tab and initialize its component
+   * @param {LogManager} logger - Logger instance
+   * @param {string} tabType - Type of tab to switch to (tabs, bookmarks, history)
+   */
+  async switchToTab(logger, tabType) {
+    logger.debug(`Switching to ${tabType} tab`);
+    
+    try {
+      // Remove active class from all tab panes
+      document.querySelectorAll('.capture-tab-content .tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+      });
+      
+      // Add active class to target tab pane
+      const targetPane = document.getElementById(`${tabType}-content`);
+      if (targetPane) {
+        targetPane.classList.add('active');
+        
+        // Force re-initialization by resetting the component state
+        switch (tabType) {
+          case 'tabs':
+            this._tabsCapture.initialized = false;
+            await this._tabsCapture.initialize();
+            break;
+          case 'bookmarks':
+            this._bookmarksCapture.initialized = false;
+            await this._bookmarksCapture.initialize();
+            break;
+          case 'history':
+            this._historyCapture.initialized = false;
+            await this._historyCapture.initialize();
+            break;
+          default:
+            logger.warn(`Unknown tab type: ${tabType}`);
+        }
+      } else {
+        logger.error(`Tab pane not found for type: ${tabType}`);
+      }
+    } catch (error) {
+      logger.error(`Error switching to ${tabType} tab:`, error);
+    }
+  },
   
   /**
    * Improved background communication pattern with better error handling
@@ -558,13 +617,13 @@ async processCaptureItems(logger, selectedItems, type) {
   getContextForType(type) {
     switch (type) {
       case 'tabs':
-        return 'browser_tab';
+        return 'active_tab';
       case 'bookmarks':
-        return 'bookmark';
+        return 'bookmarked';
       case 'history':
         return 'history';
       default:
-        return 'unknown';
+        return 'background';
     }
   },
   

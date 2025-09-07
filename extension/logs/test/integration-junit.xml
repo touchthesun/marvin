@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="8" failures="0" errors="0" time="1.34">
+  <testsuite name="Phase 2: Component-Service Integration" errors="0" failures="0" skipped="0" timestamp="2025-09-02T00:49:14" time="0.917" tests="8">
+    <testcase classname="Phase 2: Component-Service Integration 2.1 Service Dependency Resolution" name="Components can access required services after container initialization" time="0.096">
+    </testcase>
+    <testcase classname="Phase 2: Component-Service Integration 2.1 Service Dependency Resolution" name="Services are properly instantiated and accessible" time="0.046">
+    </testcase>
+    <testcase classname="Phase 2: Component-Service Integration 2.2 Component Initialization with Services" name="Components can initialize successfully with available services" time="0.05">
+    </testcase>
+    <testcase classname="Phase 2: Component-Service Integration 2.2 Component Initialization with Services" name="Components handle service dependencies gracefully" time="0.04">
+    </testcase>
+    <testcase classname="Phase 2: Component-Service Integration 2.3 Event Handler Attachment" name="Panel components can attach event listeners" time="0.039">
+    </testcase>
+    <testcase classname="Phase 2: Component-Service Integration 2.3 Event Handler Attachment" name="Force-init buttons are functional" time="0.038">
+    </testcase>
+    <testcase classname="Phase 2: Component-Service Integration 2.4 End-to-End Component Functionality" name="Dashboard can initialize component system with services" time="0.057">
+    </testcase>
+    <testcase classname="Phase 2: Component-Service Integration 2.4 End-to-End Component Functionality" name="Component-service communication works" time="0.039">
+    </testcase>
+  </testsuite>
+</testsuites>

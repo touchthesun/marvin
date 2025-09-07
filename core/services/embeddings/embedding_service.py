@@ -533,11 +533,12 @@ class EmbeddingService(BaseService):
             
             # Schema creation queries
             schema_queries = [
-                # Page ID constraint (if not already exists)
-                """
-                CREATE CONSTRAINT embedding_page_id_unique IF NOT EXISTS
-                FOR (p:Page) REQUIRE p.id IS NOT NULL
-                """,
+                # Note: Property existence constraints require Neo4j Enterprise Edition
+                # For Community Edition, we'll skip constraints and rely on application-level validation
+                # """
+                # CREATE CONSTRAINT embedding_page_id_unique IF NOT EXISTS
+                # FOR (p:Page) REQUIRE p.id IS NOT NULL
+                # """,
                 
                 # Embedding indexes
                 """
@@ -571,8 +572,28 @@ class EmbeddingService(BaseService):
                     self.logger.warning(f"Schema query failed: {query[:50]}... Error: {str(e)}")
                     # Continue with other queries even if one fails
             
-            # Try to create SEMANTIC_SIMILAR relationship type
-            try:
+            # Note: SEMANTIC_SIMILAR relationship initialization moved to separate transaction
+            # to avoid mixing schema modifications with write operations
+            
+            self.logger.info("Successfully initialized embedding schema")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error initializing embedding schema: {str(e)}", exc_info=True)
+            return False
+    
+    async def initialize_semantic_relationship_type(self) -> bool:
+        """
+        Initialize SEMANTIC_SIMILAR relationship type in a separate transaction.
+        This must be done separately from schema modifications to avoid transaction conflicts.
+        
+        Returns:
+            bool: True if initialization was successful
+        """
+        try:
+            self.logger.info("Initializing SEMANTIC_SIMILAR relationship type")
+            
+            # Use a separate transaction for write operations
+            async with self.graph_service.graph_operations.transaction() as tx:
                 semantic_rel_query = """
                 MATCH (n:Page) WHERE n.id IS NOT NULL
                 WITH n LIMIT 1
@@ -582,13 +603,10 @@ class EmbeddingService(BaseService):
                 DELETE r
                 """
                 await self.graph_service.graph_operations.connection.execute_query(semantic_rel_query, {}, transaction=tx)
-            except Exception as e:
-                self.logger.warning(f"Could not initialize SEMANTIC_SIMILAR relationship: {str(e)}")
-            
-            self.logger.info("Successfully initialized embedding schema")
-            return True
+                self.logger.info("Successfully initialized SEMANTIC_SIMILAR relationship type")
+                return True
         except Exception as e:
-            self.logger.error(f"Error initializing embedding schema: {str(e)}", exc_info=True)
+            self.logger.warning(f"Could not initialize SEMANTIC_SIMILAR relationship: {str(e)}")
             return False
         
 

@@ -21,7 +21,7 @@ export default {
     '@testing-library/jest-dom'
   ],
   transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { configFile: './babel.test.config.js' }]
+    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { configFile: './babel.test.config.cjs' }]
   },
   collectCoverageFrom: [
     'src/**/*.{js,jsx,ts,tsx}',

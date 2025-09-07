@@ -104,7 +104,7 @@
           <div class="widget knowledge-preview">
             <h3>Knowledge Graph</h3>
             <div class="widget-content">
-              <div class="graph-placeholder">
+              <div class="graph-placeholder" id="knowledge-graph-preview">
                 <p>Knowledge graph visualization will appear here</p>
               </div>
             </div>
@@ -157,14 +157,49 @@
           
           <!-- Bookmarks Tab -->
           <div id="bookmarks-content" class="tab-pane">
-            <!-- Bookmarks content -->
-            <div class="loading-indicator">Loading bookmarks...</div>
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="bookmarks-search" class="search-input" placeholder="Search bookmarks...">
+              </div>
+              <div class="filter-container">
+                <select id="bookmarks-folder-filter" class="filter-select">
+                  <option value="all">All Folders</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-bookmarks" class="btn-text">Select All</button>
+                <button id="deselect-all-bookmarks" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="bookmarks-list">
+              <div class="loading-indicator">Loading bookmarks...</div>
+            </div>
           </div>
           
           <!-- History Tab -->
           <div id="history-content" class="tab-pane">
-            <!-- History content -->
-            <div class="loading-indicator">Loading history...</div>
+            <div class="list-controls">
+              <div class="search-container">
+                <input type="text" id="history-search" class="search-input" placeholder="Search history...">
+              </div>
+              <div class="filter-container">
+                <select id="history-time-filter" class="filter-select">
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="all">All Time</option>
+                </select>
+              </div>
+              <div class="selection-controls">
+                <button id="select-all-history" class="btn-text">Select All</button>
+                <button id="deselect-all-history" class="btn-text">Deselect All</button>
+              </div>
+            </div>
+            
+            <div class="item-list" id="history-list">
+              <div class="loading-indicator">Loading history...</div>
+            </div>
           </div>
         </div>
       </section>
@@ -177,7 +212,21 @@
             <button id="force-init-knowledge" class="btn-secondary">Reload Knowledge Data</button>
           </div>
         </header>
-        <div class="loading-indicator">Loading knowledge panel...</div>
+        
+        <div class="knowledge-content">
+          <div class="view-toggle">
+            <button class="toggle-btn active" data-view="list">List</button>
+            <button class="toggle-btn" data-view="graph">Graph</button>
+          </div>
+          
+          <div class="knowledge-list" style="display: block;">
+            <div class="loading-indicator">Loading knowledge items...</div>
+          </div>
+          
+          <div class="knowledge-graph" id="knowledge-graph-container" style="display: none;">
+            <div class="graph-container">Graph will render here</div>
+          </div>
+        </div>
       </section>
       
       <!-- Assistant Panel -->
@@ -196,10 +245,32 @@
         <header class="panel-header">
           <h2>Analysis Tasks</h2>
           <div class="panel-actions">
-            <button id="force-init-tasks" class="btn-secondary">Reload Analysis Data</button>
+            <button id="refreshBtn" class="btn-secondary">Refresh</button>
+            <button id="cancelAllBtn" class="btn-secondary">Cancel All</button>
           </div>
         </header>
-        <div class="loading-indicator">Loading tasks panel...</div>
+        <div class="tasks-content">
+          <div class="task-stats">
+            <span>Active: <span id="active-count">0</span></span>
+            <span>Completed: <span id="completed-count">0</span></span>
+            <button id="clearCompletedBtn" class="btn-secondary">Clear Completed</button>
+          </div>
+          <div class="tasks-sections">
+            <div class="active-tasks">
+              <h3>Active Tasks</h3>
+              <div class="tasks-list" id="active-tasks-list">
+                <div class="loading-indicator">Loading active tasks...</div>
+              </div>
+            </div>
+            <div class="completed-tasks">
+              <h3>Completed Tasks</h3>
+              <div class="tasks-list" id="completed-tasks-list">
+                <div class="loading-indicator">Loading completed tasks...</div>
+              </div>
+            </div>
+          </div>
+          <div id="task-details" style="display: none;"></div>
+        </div>
       </section>
       
       <!-- Settings Panel -->

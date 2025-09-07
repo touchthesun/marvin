@@ -85,7 +85,13 @@ export class BaseComponent {
 
   getService(serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      // Use the sync version for better test compatibility
+      const service = container.getServiceSync(serviceName);
+      if (!service) {
+        this.logger.warn(`Service not found: ${serviceName}`);
+        return fallback;
+      }
+      return service;
     } catch (error) {
       this.logger.warn(`${serviceName} not available:`, error);
       return fallback;

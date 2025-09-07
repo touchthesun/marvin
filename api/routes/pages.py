@@ -90,48 +90,65 @@ async def create_page(
         # Commit transaction
         await tx.commit()
         
-        # Convert to API response
-        page_data = create_page_data(result)
-        return PageResponse(
-            success=True,
-            data=page_data,
-            error=None,
-            metadata={"timestamp": datetime.now().isoformat()}
-        )
-    except Exception as e:
-        # Ensure rollback on any error
-        await tx.rollback()
-        logger.error(f"Error creating page: {str(e)}", exc_info=True)
-        raise
-
-
-@router.post("/", response_model=PageResponse)
-async def create_page(
-    page_request: PageCreate,  # Renamed from 'page' to 'page_request'
-    page_service: PageService = Depends(get_page_service),
-):
-    """Create a new page."""
-    tx = Transaction()
-    try:
-        # Log the incoming content
-        if hasattr(page_request, 'content') and page_request.content:
-            logger.info(f"API create_page received content: {len(page_request.content)} chars")
-        else:
-            logger.warning("API create_page no content received")
-        
-        # Create page within transaction
-        result = await page_service.get_or_create_page(
-            tx=tx,
-            url=str(page_request.url),
-            context=page_request.context,
-            tab_id=page_request.tab_id,
-            window_id=page_request.window_id,
-            bookmark_id=page_request.bookmark_id,
-            content=page_request.content  # Explicitly pass content 
-        )
-        
-        # Commit transaction
-        await tx.commit()
+        # Create task for page processing if page is newly discovered
+        if result.status.value == "discovered":
+            try:
+                # Use shared TaskManager from app state
+                from api.state import get_app_state
+                app_state = get_app_state()
+                
+                # Initialize task manager if not exists
+                if not hasattr(app_state, "task_managers"):
+                    app_state.task_managers = {}
+                
+                if "tasks" not in app_state.task_managers:
+                    from api.task_manager import TaskManager
+                    
+                    app_state.task_managers["tasks"] = TaskManager("tasks")
+                    await app_state.task_managers["tasks"].initialize()
+                    logger.info("TaskManager initialized")
+                
+                task_manager = app_state.task_managers["tasks"]
+                
+                task_data = {
+                    "page_id": str(result.id),
+                    "url": str(page.url),
+                    "processing_stage": "content_extraction",
+                    "task_name": "Page Capture Task",
+                    "page_count": 1
+                }
+                
+                task_id = await task_manager.create_task(task_data)
+                logger.info(f"Created task {task_id} for page {result.id}")
+                
+                # Process task immediately (no background processor needed)
+                try:
+                    import httpx
+                    async with httpx.AsyncClient() as client:
+                        pipeline_payload = {
+                            "url": str(page.url),
+                            "context": "active_tab"
+                        }
+                        
+                        # Call PipelineService directly
+                        pipeline_response = await client.post(
+                            "http://localhost:8000/api/v1/analysis/analyze",
+                            json=pipeline_payload,
+                            timeout=30.0
+                        )
+                        
+                        if pipeline_response.status_code == 200:
+                            await task_manager.update_task_status(task_id, "completed", progress=1.0)
+                            logger.info(f"Task {task_id} completed successfully")
+                        else:
+                            await task_manager.update_task_status(task_id, "failed", progress=0.0)
+                            logger.error(f"Task {task_id} failed: HTTP {pipeline_response.status_code}")
+                            
+                except Exception as process_error:
+                    await task_manager.update_task_status(task_id, "failed", progress=0.0)
+                    logger.error(f"Task {task_id} processing failed: {process_error}")
+            except Exception as task_error:
+                logger.error(f"Failed to create task for page {result.id}: {task_error}", exc_info=True)
         
         # Convert to API response
         page_data = create_page_data(result)

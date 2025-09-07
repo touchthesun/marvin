@@ -14,9 +14,9 @@ export class BaseService {
     this._dependencies = new Map();
     
     // Task state management
-    this._activeTasks = new WeakMap();
-    this._taskTimers = new WeakMap();
-    this._taskListeners = new WeakSet();
+    this._activeTasks = new Map();
+    this._taskTimers = new Map();
+    this._taskListeners = new Set();
     
     // Memory management
     this._maxTaskAge = options.maxTaskAge || 300000; // 5 minutes
@@ -63,9 +63,10 @@ export class BaseService {
   /**
    * Initialize the service
    * @throws {Error} If initialization fails
+   * @returns {Promise<boolean>} True if initialization succeeded
    */
   async initialize() {
-    if (this._initialized) return;
+    if (this._initialized) return true;
     
     try {
       this._memoryMonitor.start();
@@ -74,8 +75,9 @@ export class BaseService {
       // Set up error boundaries
       this._setupErrorBoundaries();
       
-      await this._performInitialization();
+      const result = await this._performInitialization();
       this._initialized = true;
+      return result !== false; // Return true unless explicitly false
     } catch (error) {
       await this.cleanup();
       throw error;
@@ -101,6 +103,9 @@ export class BaseService {
       await this._resourceTracker.cleanup();
       await this._cleanupTasks();
       await this._performCleanup();
+    } catch (error) {
+      this._logger?.error('Error during cleanup:', error);
+      // Continue with cleanup even if there are errors
     } finally {
       this._initialized = false;
       this._resetCircuitBreaker();
@@ -176,7 +181,7 @@ export class BaseService {
   async _cleanupTasks() {
     const now = Date.now();
     
-    // Clear old tasks
+    // Clear old tasks - Now we can iterate over the Map
     for (const [task, state] of this._activeTasks) {
       if (now - state.lastChecked > this._maxTaskAge) {
         this._activeTasks.delete(task);

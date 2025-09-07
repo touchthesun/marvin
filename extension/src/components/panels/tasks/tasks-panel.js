@@ -22,7 +22,7 @@ const TasksPanel = {
    * Initialize the tasks panel
    * @returns {Promise<boolean>} Success state
    */
-  async initTasksPanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'tasks-panel',
@@ -40,7 +40,7 @@ const TasksPanel = {
       }
       
       // Get dependencies with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
+      const notificationService = await this.getService(logger, 'notificationService', {
         showNotification: (message, type) => console.error(`[${type}] ${message}`)
       });
       
@@ -52,7 +52,13 @@ const TasksPanel = {
       this.setupTaskEventListeners(logger);
       
       // Initial load of tasks
-      await this.refreshAllTasks(logger);
+      try {
+        await this.refreshAllTasks(logger);
+      } catch (refreshError) {
+        logger.error('Error during initial task refresh:', refreshError);
+        // Don't fail initialization if task refresh fails
+        console.warn('Tasks panel initialized but initial data load failed:', refreshError.message);
+      }
       
       this.initialized = true;
       logger.info('Tasks panel initialized successfully');
@@ -61,11 +67,18 @@ const TasksPanel = {
       logger.error('Failed to initialize tasks panel:', error);
       
       // Get notification service with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
-        showNotification: (message, type) => console.error(`[${type}] ${message}`)
-      });
-      
-      notificationService.showNotification('Failed to initialize tasks panel', 'error');
+      let notificationService;
+      try {
+        notificationService = container.getService('notificationService');
+        if (notificationService && typeof notificationService.showNotification === 'function') {
+          notificationService.showNotification('Failed to initialize tasks panel', 'error');
+        } else {
+          console.error('Failed to initialize tasks panel');
+        }
+      } catch (serviceError) {
+        logger.warn('NotificationService not available:', serviceError);
+        console.error('Failed to initialize tasks panel');
+      }
       return false;
     }
   },
@@ -77,9 +90,16 @@ const TasksPanel = {
    * @param {Object} fallback - Fallback implementation if service not available
    * @returns {Object} Service instance or fallback
    */
-  getService(logger, serviceName, fallback) {
+  async getService(logger, serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      const service = await container.getService(serviceName);
+      if (service) {
+        logger.debug(`Successfully got ${serviceName}`);
+        return service;
+      } else {
+        logger.warn(`${serviceName} not available, using fallback`);
+        return fallback;
+      }
     } catch (error) {
       logger.warn(`${serviceName} not available:`, error);
       return fallback;
@@ -161,73 +181,72 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async refreshAllTasks(logger) {
-    const notificationService = this.getService(logger, 'notificationService', {
-      showNotification: (message, type) => console.error(`[${type}] ${message}`)
-    });
-    
-    logger.info('Refreshing all tasks');
-    
-    // Get task list containers
-    const activeTasksList = document.getElementById('active-tasks-list');
-    const completedTasksList = document.getElementById('completed-tasks-list');
-    
-    // Show loading state if containers exist
-    if (activeTasksList) {
-      activeTasksList.innerHTML = '<div class="loading">Loading active tasks...</div>';
-    }
-    
-    if (completedTasksList) {
-      completedTasksList.innerHTML = '<div class="loading">Loading completed tasks...</div>';
-    }
+    logger.info('Refreshing all tasks from backend');
     
     try {
-      // Get tasks from background page
-      const backgroundPage = chrome.extension.getBackgroundPage();
+      const notificationService = await this.getService(logger, 'notificationService', {
+        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+      });
       
-      if (!backgroundPage || !backgroundPage.marvin) {
-        throw new Error('Background page or marvin object not available');
+      // Get tasks from backend via background script
+      const response = await this.communicateWithBackground('getActiveTasks', {});
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get tasks from backend');
       }
       
-      const tasks = await backgroundPage.marvin.getActiveTasks();
-      logger.debug(`Retrieved ${tasks.length} tasks from background`);
+      const allTasks = response.tasks || [];
+      logger.debug(`Retrieved ${allTasks.length} tasks from backend`);
       
-      // Split into active and completed
-      this.activeTasks = tasks.filter(task => 
-        task.status === 'pending' || 
-        task.status === 'processing' || 
-        task.status === 'analyzing'
+      // Split into active and completed based on status
+      const activeTasks = allTasks.filter(task => 
+        task.status === 'enqueued' || 
+        task.status === 'running'
       );
       
-      this.completedTasks = tasks.filter(task => 
-        task.status === 'complete' || 
+      const completedTasks = allTasks.filter(task => 
+        task.status === 'completed' || 
         task.status === 'error'
       );
       
-      logger.debug(`Active tasks: ${this.activeTasks.length}, Completed tasks: ${this.completedTasks.length}`);
+      this.activeTasks = activeTasks;
+      this.completedTasks = completedTasks;
       
-      // Update UI
+      // Update UI with tasks
       this.renderActiveTasks(logger);
       this.renderCompletedTasks(logger);
       
-      // Update counts
+      // Update task counts
       this.updateTaskCounts(logger);
       
+      logger.info(`Loaded ${activeTasks.length} active and ${completedTasks.length} completed tasks`);
       return true;
+      
     } catch (error) {
       logger.error('Error refreshing tasks:', error);
-      
-      // Update UI with error state
-      if (activeTasksList) {
-        activeTasksList.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-      
-      if (completedTasksList) {
-        completedTasksList.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-      }
-      
-      notificationService.showNotification(`Error refreshing tasks: ${error.message}`, 'error');
-      return false;
+      throw error;
     }
+  },
+  
+  /**
+   * Communicate with background script
+   * @param {string} action - Action to perform
+   * @param {Object} data - Data to send
+   * @returns {Promise<Object>} Response from background script
+   */
+  async communicateWithBackground(action, data = {}) {
+    return new Promise((resolve, reject) => {
+      const message = { action, ...data };
+      
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        
+        resolve(response || {});
+      });
+    });
   },
   
   /**
@@ -261,7 +280,7 @@ const TasksPanel = {
    * @returns {Promise<void>}
    */
   async refreshData(logger) {
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -330,14 +349,21 @@ const TasksPanel = {
       const progress = task.progress || 0;
       const progressPercent = Math.round(progress * 100);
       
-      // Format time
-      const startTime = new Date(task.created_at || task.timestamp);
+      // Format time - handle Unix timestamp conversion
+      let startTime;
+      if (task.created_at) {
+        // If created_at is a Unix timestamp (seconds), convert to milliseconds
+        const timestamp = typeof task.created_at === 'number' ? task.created_at * 1000 : task.created_at;
+        startTime = new Date(timestamp);
+      } else {
+        startTime = new Date(task.timestamp);
+      }
       const timeAgo = this.formatTimeAgo(startTime);
       
       // Create task HTML
       taskElement.innerHTML = `
         <div class="task-header">
-          <div class="task-title">${this.truncateText(task.url || 'Unknown URL', 40)}</div>
+          <div class="task-title">${this.truncateText(task.data?.task_name || task.data?.url || task.url || 'Unknown Task', 40)}</div>
           <div class="task-actions">
             <button class="btn-icon cancel-task" title="Cancel Task">
               <i class="fas fa-times"></i>
@@ -439,13 +465,22 @@ const TasksPanel = {
         taskElement.classList.add('task-complete');
       }
       
-      // Format time
-      const completionTime = new Date(task.completed_at || task.timestamp);
+      // Format time - use updated_at for completed tasks, created_at as fallback
+      let completionTime;
+      if (task.updated_at) {
+        // updated_at is a Unix timestamp (seconds), convert to milliseconds
+        completionTime = new Date(task.updated_at * 1000);
+      } else if (task.created_at) {
+        // created_at is a Unix timestamp (seconds), convert to milliseconds  
+        completionTime = new Date(task.created_at * 1000);
+      } else {
+        completionTime = new Date(); // Fallback to now
+      }
       const timeAgo = this.formatTimeAgo(completionTime);
       
       taskElement.innerHTML = `
         <div class="task-header">
-          <div class="task-title">${this.truncateText(task.url || 'Unknown URL', 40)}</div>
+          <div class="task-title">${this.truncateText(task.data?.task_name || task.data?.url || task.url || 'Unknown Task', 40)}</div>
           <div class="task-actions">
             ${task.status === 'error' ? 
               `<button class="btn-icon retry-task" title="Retry Task">
@@ -575,7 +610,7 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async cancelTask(logger, taskId) {
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -588,29 +623,18 @@ const TasksPanel = {
     notificationService.showNotification(`Cancelling task...`, 'info');
     
     try {
-      const backgroundPage = chrome.extension.getBackgroundPage();
+      const response = await this.communicateWithBackground('cancelTask', { taskId });
       
-      if (!backgroundPage || !backgroundPage.marvin) {
-        throw new Error('Background page or marvin object not available');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to cancel task');
       }
       
-      const result = await backgroundPage.marvin.cancelTask(taskId);
+      // Refresh tasks to update UI
+      await this.refreshAllTasks(logger);
       
-      if (result) {
-        // Remove from active tasks
-        this.activeTasks = this.activeTasks.filter(task => task.id !== taskId);
-        this.renderActiveTasks(logger);
-        
-        // Update count
-        this.updateTaskCounts(logger);
-        
-        // Show notification
-        notificationService.showNotification('Task cancelled successfully', 'success');
-        logger.info(`Task ${taskId} cancelled successfully`);
-        return true;
-      } else {
-        throw new Error('Failed to cancel task');
-      }
+      notificationService.showNotification('Task cancelled successfully', 'success');
+      logger.info(`Task ${taskId} cancelled successfully`);
+      return true;
     } catch (error) {
       logger.error(`Error cancelling task ${taskId}:`, error);
       notificationService.showNotification(`Error cancelling task: ${error.message}`, 'error');
@@ -625,7 +649,7 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async retryTask(logger, taskId) {
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -638,32 +662,18 @@ const TasksPanel = {
     notificationService.showNotification(`Retrying task...`, 'info');
     
     try {
-      const backgroundPage = chrome.extension.getBackgroundPage();
+      const response = await this.communicateWithBackground('retryTask', { taskId });
       
-      if (!backgroundPage || !backgroundPage.marvin) {
-        throw new Error('Background page or marvin object not available');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to retry task');
       }
       
-      const result = await backgroundPage.marvin.retryTask(taskId);
+      // Refresh tasks to update UI
+      await this.refreshAllTasks(logger);
       
-      if (result) {
-        // Remove from completed tasks
-        this.completedTasks = this.completedTasks.filter(task => task.id !== taskId);
-        this.renderCompletedTasks(logger);
-        
-        // Update count
-        this.updateTaskCounts(logger);
-        
-        // Refresh active tasks to show the retried task
-        await this.refreshAllTasks(logger);
-        
-        // Show notification
-        notificationService.showNotification('Task retried successfully', 'success');
-        logger.info(`Task ${taskId} retried successfully`);
-        return true;
-      } else {
-        throw new Error('Failed to retry task');
-      }
+      notificationService.showNotification('Task retried successfully', 'success');
+      logger.info(`Task ${taskId} retried successfully`);
+      return true;
     } catch (error) {
       logger.error(`Error retrying task ${taskId}:`, error);
       notificationService.showNotification(`Error retrying task: ${error.message}`, 'error');
@@ -718,7 +728,7 @@ const TasksPanel = {
    * @returns {Promise<boolean>} Success state
    */
   async cancelAllTasks(logger) {
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -736,33 +746,21 @@ const TasksPanel = {
       return false;
     }
     
-    notificationService.showNotification(`Cancelling ${this.activeTasks.length} tasks...`, 'info', 0);
+    notificationService.showNotification(`Cancelling ${this.activeTasks.length} tasks...`, 'info');
     let successCount = 0;
     
     try {
-      const backgroundPage = chrome.extension.getBackgroundPage();
-      
-      if (!backgroundPage || !backgroundPage.marvin) {
-        throw new Error('Background page or marvin object not available');
-      }
-      
-      // Process tasks one by one with progress updates
+      // Process tasks one by one
       for (let i = 0; i < this.activeTasks.length; i++) {
         const task = this.activeTasks[i];
-        const progress = Math.round((i / this.activeTasks.length) * 100);
-        
-        notificationService.updateNotificationProgress(
-          `Cancelling tasks (${i+1}/${this.activeTasks.length})...`, 
-          progress
-        );
         
         try {
-          const result = await backgroundPage.marvin.cancelTask(task.id);
-          if (result) {
+          const response = await this.communicateWithBackground('cancelTask', { taskId: task.id });
+          if (response.success) {
             successCount++;
             logger.debug(`Successfully cancelled task ${task.id}`);
           } else {
-            logger.warn(`Failed to cancel task ${task.id}`);
+            logger.warn(`Failed to cancel task ${task.id}: ${response.error}`);
           }
         } catch (taskError) {
           logger.error(`Error cancelling task ${task.id}:`, taskError);

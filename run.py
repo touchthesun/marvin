@@ -101,11 +101,11 @@ if __name__ == "__main__":
     if not neo4j_ready:
         print("WARNING: Could not confirm Neo4j is running. The application may not function correctly.")
     
-    # Run the server
+    # Run the server with a fixed port to avoid dynamic port assignment
     uvicorn.run(
         "api.main:app",
         host=settings.HOST,
-        port=settings.PORT,
+        port=8000,  # Force port 8000 to avoid dynamic assignment
         reload=settings.RELOAD,
         log_level="debug" if settings.DEBUG else "info"
     )

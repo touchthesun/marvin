@@ -9,6 +9,8 @@ class ProviderType(str, Enum):
 
 class GenerationRequest(BaseModel):
     """Generic model for generation requests across providers"""
+    model_config = {"protected_namespaces": ()}
+    
     provider_id: str = Field(..., description="Provider identifier")
     model_id: str = Field(..., description="Model identifier")
     prompt: str = Field(..., description="Primary prompt/input text")

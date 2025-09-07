@@ -31,7 +31,7 @@ class StatsData(BaseModel):
     )
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "captures": 42,
                 "relationships": 128,

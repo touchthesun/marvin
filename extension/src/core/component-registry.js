@@ -79,16 +79,22 @@ export const ComponentRegistry = {
         throw new Error(`Component not found: ${name}`);
       }
 
-      // Generate initialization method name
-      const initMethodName = `init${this.capitalizeFirst(this.toCamelCase(name))}`;
-      
-      if (typeof component[initMethodName] === 'function') {
-        const result = await component[initMethodName]();
+      // Check for standard initialize method first, then fall back to name-specific method
+      if (typeof component.initialize === 'function') {
+        const result = await component.initialize();
         console.log(`ComponentRegistry: Initialized ${name} with result: ${result}`);
         return !!result;
       } else {
-        console.warn(`ComponentRegistry: ${name} missing ${initMethodName} method`);
-        return false;
+        // Fall back to name-specific method for legacy components
+        const initMethodName = `init${this.capitalizeFirst(this.toCamelCase(name))}`;
+        if (typeof component[initMethodName] === 'function') {
+          const result = await component[initMethodName]();
+          console.log(`ComponentRegistry: Initialized ${name} with result: ${result}`);
+          return !!result;
+        } else {
+          console.warn(`ComponentRegistry: ${name} missing initialize method`);
+          return false;
+        }
       }
     } catch (error) {
       console.error(`ComponentRegistry: Error initializing ${name}:`, error);
@@ -105,18 +111,37 @@ export const ComponentRegistry = {
     let allValid = true;
 
     container.components.forEach((component, name) => {
+      // Check if component is a class constructor or has initialize method
+      let hasStandardInit = false;
+      let hasNameSpecificInit = false;
+      
+      if (typeof component === 'function') {
+        // It's a class constructor, check if instances will have initialize method
+        const tempInstance = new component();
+        hasStandardInit = typeof tempInstance.initialize === 'function';
+        const initMethodName = `init${this.capitalizeFirst(this.toCamelCase(name))}`;
+        hasNameSpecificInit = typeof tempInstance[initMethodName] === 'function';
+      } else {
+        // It's an object, check directly
+        hasStandardInit = typeof component.initialize === 'function';
+        const initMethodName = `init${this.capitalizeFirst(this.toCamelCase(name))}`;
+        hasNameSpecificInit = typeof component[initMethodName] === 'function';
+      }
+      
+      const hasInitMethod = hasStandardInit || hasNameSpecificInit;
       const initMethodName = `init${this.capitalizeFirst(this.toCamelCase(name))}`;
-      const hasInitMethod = typeof component[initMethodName] === 'function';
       
       results[name] = {
         hasInitMethod,
+        hasStandardInit,
+        hasNameSpecificInit,
         initMethodName,
         type: typeof component
       };
       
       if (!hasInitMethod) {
         allValid = false;
-        console.warn(`ComponentRegistry: ${name} missing ${initMethodName} method`);
+        console.warn(`ComponentRegistry: ${name} missing initialize method`);
       }
     });
 

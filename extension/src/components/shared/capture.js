@@ -83,7 +83,20 @@ async function captureUrl(url, options = {}) {
     
     // Send message to background script with timeout handling
     const response = await Promise.race([
-      chrome.runtime.sendMessage(message),
+      new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            // Handle connection errors gracefully
+            if (chrome.runtime.lastError.message === 'Could not establish connection. Receiving end does not exist.') {
+              reject(new Error('Background service not available'));
+            } else {
+              reject(new Error(chrome.runtime.lastError.message));
+            }
+          } else {
+            resolve(response);
+          }
+        });
+      }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error(`Request timed out after ${timeout}ms`)), timeout)
       )
@@ -809,6 +822,8 @@ export {
   setupBatchCaptureButton,
   getCaptureHistory,
   clearCaptureHistory,
+  updateCaptureHistory,
+  monitorBatchProgress,
   isValidCaptureUrl,
   getDomainFromUrl,
   isUrlExcluded,

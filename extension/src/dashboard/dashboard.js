@@ -3,6 +3,7 @@ import { LogManager } from '../utils/log-manager.js';
 import { ensureContainerInitialized } from '../core/container-init.js';
 import { container } from '../core/dependency-container.js';
 import { ComponentRegistry } from '../core/component-registry.js';
+import { containerInitializer } from '../core/container-init.js';
 
 /**
  * Dashboard Component
@@ -27,6 +28,16 @@ const Dashboard = {
   async initDashboard() {
     let initResult = undefined;
     try {
+      console.log('[Dashboard] Starting dashboard initialization');
+      
+      // CRITICAL FIX: Initialize container system first
+      console.log('[Dashboard] Step 1: Initializing container system');
+      await containerInitializer.initialize({
+        context: 'dashboard',
+        isBackgroundScript: false
+      });
+      console.log('[Dashboard] Step 2: Container system initialized');
+
       // Create logger directly
       this._logger = new LogManager({
         context: 'dashboard',
@@ -61,14 +72,14 @@ const Dashboard = {
         this._componentSystem = null;
       }
   
-      // Initialize navigation component
+            // Initialize navigation component
       await this.initializeNavigationComponent();
-  
+
+      // Initialize all panel components
+      await this.initializePanelComponents();
+
       // Set up event handlers
       this.setupEventHandlers();
-  
-      // Add fallback navigation handlers
-      this.setupFallbackNavigation();
   
       // Create debug interface
       this.createDebugInterface();
@@ -109,7 +120,14 @@ const Dashboard = {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(message, response => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          // Check if this is the expected "Receiving end does not exist" error
+          if (chrome.runtime.lastError.message === 'Could not establish connection. Receiving end does not exist.') {
+            // This is expected in dashboard context, resolve with null instead of rejecting
+            this._logger.debug('Background script not available in dashboard context (expected)');
+            resolve(null);
+          } else {
+            reject(new Error(chrome.runtime.lastError.message));
+          }
         } else {
           resolve(response);
         }
@@ -154,6 +172,43 @@ const Dashboard = {
       console.error('Error in initializeNavigationComponent:', error);
       this._logger.error('Error initializing navigation component:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Initialize all panel components
+   * @returns {Promise<void>}
+   */
+  async initializePanelComponents() {
+    const panelComponents = [
+      'capture-panel',
+      'overview-panel', 
+      'knowledge-panel',
+      'settings-panel',
+      'tasks-panel',
+      'assistant-panel'
+    ];
+
+    for (const componentName of panelComponents) {
+      try {
+        this._logger.info(`Initializing ${componentName} component`);
+        
+        const component = container.getComponent(componentName);
+        if (!component) {
+          this._logger.warn(`${componentName} component not found in container`);
+          continue;
+        }
+        
+        if (component.initialize && typeof component.initialize === 'function') {
+          await component.initialize();
+          this._logger.info(`${componentName} component initialized successfully`);
+        } else {
+          this._logger.warn(`${componentName} component missing initialize method`);
+        }
+      } catch (error) {
+        this._logger.error(`Error initializing ${componentName} component:`, error);
+        // Continue with other components even if one fails
+      }
     }
   },
   
@@ -211,141 +266,7 @@ const Dashboard = {
     }
   },
   
-  /**
-   * Set up fallback navigation handlers
-   */
-  setupFallbackNavigation() {
-    this._logger.info('Setting up fallback navigation handlers');
-    try {
-      // Always attach fallback navigation as a backup
-      this._logger.debug('Attaching fallback navigation handlers (even if navigation component exists)');
 
-      // Optionally, only skip if navigation component explicitly handles nav
-      const navigation = container.getComponent('navigation');
-      if (navigation && navigation.initialized && navigation.hasOwnProperty('handlesNav')) {
-        this._logger.debug('Navigation already initialized and handles nav, skipping fallback setup');
-        return;
-      }
-
-      const navItems = document.querySelectorAll('.nav-item');
-      const contentPanels = document.querySelectorAll('.content-panel');
-
-      this._logger.debug(`Found ${navItems.length} nav items and ${contentPanels.length} panels for fallback navigation`);
-
-      navItems.forEach(item => {
-        const panelName = item.getAttribute('data-panel');
-        if (!panelName) {
-          this._logger.warn('Navigation item missing data-panel attribute');
-          return;
-        }
-
-        const clickHandler = async (event) => {
-          console.log('=== FALLBACK NAV CLICK HANDLER START ===');
-          console.log('Clicked nav item:', panelName);
-          console.log('Event target:', event.target);
-          console.log('Handler: navItems length:', navItems.length);
-          console.log('Handler: contentPanels length:', contentPanels.length);
-          
-          this._logger.info(`Fallback navigation: ${panelName} clicked`);
-          try {
-            // Log navItems and contentPanels references
-            console.log('Handler: navItems:', navItems);
-            navItems.forEach((navItem, idx) => {
-              console.log(`Handler: navItem[${idx}]`, navItem, navItem.className);
-            });
-            console.log('Handler: item (clicked):', item, item.className);
-        
-            console.log('Handler: contentPanels:', contentPanels);
-            contentPanels.forEach((panel, idx) => {
-              console.log(`Handler: panel[${idx}]`, panel, panel.id, panel.className);
-            });
-        
-            // Update active state
-            console.log('About to remove active from all nav items...');
-            navItems.forEach(navItem => {
-              console.log('Removing active from:', navItem, navItem.className);
-              navItem.classList.remove('active');
-            });
-            
-            console.log('About to add active to clicked item...');
-            console.log('Item before:', item, item.className);
-            item.classList.add('active');
-            console.log('Item after:', item, item.className);
-        
-            // Update panel visibility
-            console.log('About to update panels...');
-            contentPanels.forEach(panel => {
-              if (panel.id === `${panelName}-panel`) {
-                console.log('Activating panel:', panel.id, panel.className);
-                panel.classList.add('active');
-                this._logger.debug(`Panel ${panel.id} activated`);
-              } else {
-                console.log('Deactivating panel:', panel.id, panel.className);
-                panel.classList.remove('active');
-              }
-            });
-        
-            // Log after state
-            console.log('Handler: AFTER UPDATE');
-            navItems.forEach((navItem, idx) => {
-              console.log(`Handler: navItem[${idx}]`, navItem, navItem.className);
-            });
-            contentPanels.forEach((panel, idx) => {
-              console.log(`Handler: panel[${idx}]`, panel, panel.id, panel.className);
-            });
-
-            // Initialize panel
-            if (this._componentSystem && this._componentSystem.loadAndInitializePanel) {
-              try {
-                const fullPanelName = `${panelName}-panel`;
-                await this._componentSystem.loadAndInitializePanel(fullPanelName);
-              } catch (panelError) {
-                this._logger.warn(`Error initializing panel ${panelName}:`, panelError);
-              }
-            }
-            
-            // Load panel data from background script if in extension context
-            if (this._isExtensionContext()) {
-              try {
-                const response = await this._sendMessageToBackground({
-                  action: 'loadPanelData',
-                  panelName: panelName
-                });
-                
-                if (response && response.success) {
-                  this._logger.debug(`Panel data loaded for ${panelName}:`, response.data);
-                }
-              } catch (messageError) {
-                this._logger.warn(`Error loading panel data for ${panelName}:`, messageError);
-              }
-            }
-
-            // Store active panel
-            try {
-              await chrome.storage.local.set({ lastActivePanel: panelName });
-            } catch (storageError) {
-              this._logger.warn('Error saving last active panel:', storageError);
-            }
-          } catch (navError) {
-            console.error('Error in fallback navigation:', navError);
-            this._logger.error(`Error in fallback navigation to ${panelName}:`, navError);
-          }
-          console.log('=== FALLBACK NAV CLICK HANDLER END ===');
-        };
-
-        item.addEventListener('click', clickHandler);
-        this._eventListeners.push({
-          element: item,
-          type: 'click',
-          listener: clickHandler
-        });
-      });
-
-      this._logger.info('Fallback navigation handlers set up successfully');
-    } catch (error) {
-      this._logger.error('Error setting up fallback navigation handlers:', error);
-    }
-  },
   
   /**
    * Update debug output with component status

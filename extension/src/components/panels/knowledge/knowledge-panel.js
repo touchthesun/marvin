@@ -25,7 +25,7 @@ const KnowledgePanel = {
    * Initialize the knowledge panel
    * @returns {Promise<boolean>} Success state
    */
-  async initKnowledgePanel() {
+  async initialize() {
     // Create logger directly
     const logger = new LogManager({
       context: 'knowledge-panel',
@@ -34,30 +34,34 @@ const KnowledgePanel = {
     });
     
     logger.info('Initializing knowledge panel');
+    console.log('🔍 DEBUG: Knowledge Panel initialize() called');
     
     try {
       // Check if already initialized to prevent duplicate initialization
       if (this.initialized) {
         logger.debug('Knowledge panel already initialized');
+        console.log('🔍 DEBUG: Knowledge Panel already initialized, returning true');
         return true;
       }
+      
+      console.log('🔍 DEBUG: Knowledge Panel not initialized, proceeding with initialization');
       
       // Initialize the panel UI if needed
       this.ensurePanelUI(logger);
       
       // Initialize panel state
-      this.currentView = 'list'; // 'list' or 'graph'
+      this.currentView = 'graph'; // 'list' or 'graph' - default to graph for knowledge visualization
       this.currentData = { 
         pages: [], 
         graphData: { nodes: [], edges: [] } 
       };
       
       // Get dependencies with error handling
-      const ui = this.getService(logger, 'ui', {
+      const ui = container.utils.get('ui') || {
         initSplitView: () => logger.warn('UI utility not available for split view')
-      });
+      };
       
-      const visualizationService = this.getService(logger, 'visualizationService', {
+      const visualizationService = await this.getService(logger, 'visualizationService', {
         initialize: async () => logger.warn('Visualization service not available'),
         createKnowledgeGraph: () => logger.warn('Visualization service not available') && false
       });
@@ -84,11 +88,16 @@ const KnowledgePanel = {
       logger.error('Error initializing knowledge panel:', error);
       
       // Get notification service with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
-        showNotification: (message, type) => console.error(`[${type}] ${message}`)
-      });
-      
-      notificationService.showNotification('Failed to initialize knowledge panel', 'error');
+      try {
+        const notificationService = container.getService('notificationService');
+        if (notificationService && typeof notificationService.showNotification === 'function') {
+          notificationService.showNotification('Failed to initialize knowledge panel', 'error');
+        } else {
+          console.error('[ERROR] Failed to initialize knowledge panel');
+        }
+      } catch (error) {
+        console.error('[ERROR] Failed to initialize knowledge panel');
+      }
       
       const knowledgeContent = document.querySelector('.knowledge-content');
       if (knowledgeContent) {
@@ -105,12 +114,22 @@ const KnowledgePanel = {
    * @param {LogManager} logger - Logger instance
    * @param {string} serviceName - Name of the service to get
    * @param {Object} fallback - Fallback implementation if service not available
-   * @returns {Object} Service instance or fallback
+   * @returns {Promise<Object>} Service instance or fallback
    */
-  getService(logger, serviceName, fallback) {
+  async getService(logger, serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      console.log(`🔍 DEBUG: Getting service '${serviceName}' from container`);
+      console.log(`🔍 DEBUG: Container available:`, !!container);
+      console.log(`🔍 DEBUG: Container services:`, container.services ? Array.from(container.services.keys()) : 'no services map');
+      
+      const service = await container.getService(serviceName);
+      console.log(`🔍 DEBUG: Service '${serviceName}' retrieved:`, !!service);
+      console.log(`🔍 DEBUG: Service type:`, typeof service);
+      console.log(`🔍 DEBUG: Service initialized:`, service?.initialized);
+      
+      return service;
     } catch (error) {
+      console.error(`🔍 DEBUG: Error getting service '${serviceName}':`, error);
       logger.warn(`${serviceName} not available:`, error);
       return fallback;
     }
@@ -234,8 +253,8 @@ const KnowledgePanel = {
     
     try {
       // Create debounced search function
-      const debouncedSearchKnowledge = this.debounce((searchTerm) => {
-        this.searchKnowledge(logger, searchTerm);
+      const debouncedSearchKnowledge = this.debounce(async (searchTerm) => {
+        await this.searchKnowledge(logger, searchTerm);
       }, 300);
       
       // Knowledge panel search
@@ -322,9 +341,9 @@ const KnowledgePanel = {
    * @param {HTMLElement} detailsContent - Details content element
    * @param {Object} item - Knowledge item
    */
-  setupDetailActionHandlers(logger, detailsContent, item) {
+  async setupDetailActionHandlers(logger, detailsContent, item) {
     // Get notification service with error handling
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -362,8 +381,8 @@ const KnowledgePanel = {
       // Recapture button
       const recaptureBtn = detailsContent.querySelector('#recapture-page');
       if (recaptureBtn) {
-        const recaptureBtnHandler = () => {
-          this.recapturePage(logger, item, recaptureBtn);
+        const recaptureBtnHandler = async () => {
+          await this.recapturePage(logger, item, recaptureBtn);
         };
         
         recaptureBtn.addEventListener('click', recaptureBtnHandler);
@@ -379,8 +398,8 @@ const KnowledgePanel = {
       // Analyze button
       const analyzeBtn = detailsContent.querySelector('#analyze-page');
       if (analyzeBtn) {
-        const analyzeBtnHandler = () => {
-          this.analyzePage(logger, item, analyzeBtn);
+        const analyzeBtnHandler = async () => {
+          await this.analyzePage(logger, item, analyzeBtn);
         };
         
         analyzeBtn.addEventListener('click', analyzeBtnHandler);
@@ -426,14 +445,14 @@ const KnowledgePanel = {
    * Apply knowledge filters
    * @param {LogManager} logger - Logger instance
    */
-  applyKnowledgeFilters(logger) {
+  async applyKnowledgeFilters(logger) {
     // Get notification service with error handling
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
     // Get visualization service with error handling
-    const visualizationService = this.getService(logger, 'visualizationService', {
+    const visualizationService = await this.getService(logger, 'visualizationService', {
       createKnowledgeGraph: () => logger.warn('Visualization service not available') && false
     });
     
@@ -485,7 +504,7 @@ const KnowledgePanel = {
       } else {
         // Update graph with filtered data
         this.currentData.graphData = this.createGraphFromPages(logger, filteredPages);
-        this.renderKnowledgeGraph(logger, visualizationService);
+        await this.renderKnowledgeGraph(logger, visualizationService);
       }
       
       logger.debug(`Filters applied - showing ${filteredPages.length} of ${this.currentData.pages.length} items`);
@@ -503,12 +522,12 @@ const KnowledgePanel = {
    */
   async searchKnowledge(logger, searchTerm) {
     // Get notification service with error handling
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
     // Get visualization service with error handling
-    const visualizationService = this.getService(logger, 'visualizationService', {
+    const visualizationService = await this.getService(logger, 'visualizationService', {
       createKnowledgeGraph: () => logger.warn('Visualization service not available') && false
     });
     
@@ -542,7 +561,7 @@ const KnowledgePanel = {
       } else {
         // Update graph with search results
         this.currentData.graphData = this.createGraphFromPages(logger, searchResults);
-        this.renderKnowledgeGraph(logger, visualizationService);
+        await this.renderKnowledgeGraph(logger, visualizationService);
       }
       
       // Show notification if no results were found
@@ -564,11 +583,11 @@ const KnowledgePanel = {
    */
   async recapturePage(logger, item, button) {
     // Get services with error handling
-    const apiService = this.getService(logger, 'apiService', {
+    const apiService = await this.getService(logger, 'apiService', {
       fetchAPI: async () => ({ success: false, error: { message: 'API service not available' }})
     });
     
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -648,11 +667,11 @@ const KnowledgePanel = {
    */
   async analyzePage(logger, item, button) {
     // Get services with error handling
-    const apiService = this.getService(logger, 'apiService', {
+    const apiService = await this.getService(logger, 'apiService', {
       fetchAPI: async () => ({ success: false, error: { message: 'API service not available' }})
     });
     
-    const notificationService = this.getService(logger, 'notificationService', {
+    const notificationService = await this.getService(logger, 'notificationService', {
       showNotification: (message, type) => console.error(`[${type}] ${message}`)
     });
     
@@ -688,7 +707,7 @@ const KnowledgePanel = {
         const taskId = response.data.task_id;
         if (taskId) {
           logger.debug(`Monitoring analysis task: ${taskId}`);
-          this.checkAnalysisStatus(logger, taskId, button);
+          await this.checkAnalysisStatus(logger, taskId, button);
         } else {
           logger.warn('No task ID returned from analysis request');
           const timeoutId = setTimeout(() => {
@@ -725,6 +744,452 @@ const KnowledgePanel = {
     }
   },
   
+  /**
+   * Load knowledge data from storage
+   * @param {LogManager} logger - Logger instance
+   * @returns {Promise<void>}
+   */
+  async loadKnowledgeData(logger) {
+    logger.debug('Loading knowledge data from API');
+    console.log('🔍 DEBUG: loadKnowledgeData called');
+    
+    try {
+      // Get API service with enhanced error handling
+      console.log('🔍 DEBUG: Getting API service...');
+      const apiService = await this.getService(logger, 'apiService', null);
+      console.log('🔍 DEBUG: API service:', apiService ? 'found' : 'not found');
+      
+      if (apiService) {
+        console.log('🔍 DEBUG: API service methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(apiService)));
+        console.log('🔍 DEBUG: Has getGraphOverview?', typeof apiService.getGraphOverview === 'function');
+        console.log('🔍 DEBUG: API service initialized?', apiService.initialized);
+        
+        let response;
+        if (typeof apiService.getGraphOverview !== 'function') {
+          console.warn('🔍 DEBUG: getGraphOverview method not found, trying fetchAPI directly');
+          // Fallback: use fetchAPI directly
+          response = await apiService.fetchAPI('/api/v1/graph/overview', {
+            method: 'GET',
+            limit: 100
+          });
+          console.log('🔍 DEBUG: Direct fetchAPI response:', response);
+        } else {
+          console.log('🔍 DEBUG: Calling apiService.getGraphOverview...');
+          // Call graph overview API endpoint
+          response = await apiService.getGraphOverview({ limit: 100 });
+        }
+        console.log('🔍 DEBUG: API response:', response);
+        
+        if (response && response.success && response.data) {
+          // Map API response to expected format
+          // Note: API returns nested data structure: response.data.data.nodes
+          const apiData = response.data.data || response.data;
+          this.currentData.pages = apiData.pages || [];
+          this.currentData.graphData = {
+            nodes: apiData.nodes || [],
+            edges: apiData.edges || []
+          };
+          
+          console.log('🔍 DEBUG: Data loaded successfully:', {
+            pages: this.currentData.pages.length,
+            nodes: this.currentData.graphData.nodes.length,
+            edges: this.currentData.graphData.edges.length
+          });
+          
+          // Debug: Check what the nodes look like
+          if (this.currentData.graphData.nodes.length > 0) {
+            console.log('🔍 DEBUG: First node example:', this.currentData.graphData.nodes[0]);
+            console.log('🔍 DEBUG: Node structure:', Object.keys(this.currentData.graphData.nodes[0]));
+          }
+          
+          logger.debug('Knowledge data loaded from API successfully', { 
+            pagesCount: this.currentData.pages.length,
+            nodesCount: this.currentData.graphData.nodes.length,
+            edgesCount: this.currentData.graphData.edges.length
+          });
+        } else {
+          console.error('🔍 DEBUG: Invalid API response format:', response);
+          throw new Error(`Invalid API response format: ${JSON.stringify(response)}`);
+        }
+      } else {
+        console.error('🔍 DEBUG: API service not available');
+        throw new Error('API service not available - check container initialization');
+      }
+      
+      // Update display
+      console.log('🔍 DEBUG: Updating display, currentView:', this.currentView);
+      
+      // Show/hide appropriate containers
+      const listContainer = document.querySelector('.knowledge-list');
+      const graphContainer = document.querySelector('.knowledge-graph');
+      
+      if (this.currentView === 'list') {
+        if (listContainer) listContainer.style.display = 'block';
+        if (graphContainer) graphContainer.style.display = 'none';
+        
+        // Use nodes if pages are empty
+        const itemsToDisplay = this.currentData.pages.length > 0 ? this.currentData.pages : this.currentData.graphData.nodes;
+        console.log('🔍 DEBUG: Displaying items:', itemsToDisplay.length, 'items');
+        this.displayKnowledgeItems(logger, itemsToDisplay);
+      } else {
+        if (listContainer) listContainer.style.display = 'none';
+        if (graphContainer) graphContainer.style.display = 'block';
+        
+        const visualizationService = await this.getService(logger, 'visualizationService', {
+          createKnowledgeGraph: () => logger.warn('Visualization service not available')
+        });
+        await this.renderKnowledgeGraph(logger, visualizationService);
+      }
+      
+      logger.info(`Loaded ${this.currentData.pages.length} knowledge items`);
+    } catch (error) {
+      console.error('🔍 DEBUG: loadKnowledgeData error:', error);
+      logger.error('Failed to load knowledge data:', error);
+      logger.error('Error loading knowledge data:', error);
+      
+      // Use fallback data if API fails
+      this.currentData.pages = [];
+      this.currentData.graphData = { 
+        nodes: [
+          { id: 'node1', label: 'Sample Page', color: '#4285f4' },
+          { id: 'node2', label: 'Related Content', color: '#34a853' }
+        ], 
+        edges: [
+          { source: 'node1', target: 'node2' }
+        ]
+      };
+      
+      // Still update display with fallback data
+      if (this.currentView === 'list') {
+        this.displayKnowledgeItems(logger, this.currentData.pages);
+      } else {
+        const visualizationService = await this.getService(logger, 'visualizationService', {
+          createKnowledgeGraph: () => logger.warn('Visualization service not available')
+        });
+        await this.renderKnowledgeGraph(logger, visualizationService);
+      }
+    }
+  },
+  
+  /**
+   * Set up view toggle functionality
+   * @param {LogManager} logger - Logger instance
+   */
+  setupViewToggle(logger) {
+    logger.debug('Setting up view toggle');
+    
+    const viewToggle = document.querySelector('.view-toggle');
+    if (!viewToggle) {
+      logger.warn('View toggle not found');
+      return;
+    }
+    
+    const toggleButtons = viewToggle.querySelectorAll('.toggle-btn');
+    toggleButtons.forEach(button => {
+      const clickHandler = async () => {
+        const view = button.dataset.view;
+        await this.switchView(logger, view);
+      };
+      
+      button.addEventListener('click', clickHandler);
+      this._eventListeners.push({
+        element: button,
+        type: 'click',
+        listener: clickHandler
+      });
+    });
+  },
+  
+  /**
+   * Switch between list and graph views
+   * @param {LogManager} logger - Logger instance
+   * @param {string} view - View to switch to ('list' or 'graph')
+   */
+  async switchView(logger, view) {
+    logger.debug(`Switching to ${view} view`);
+    
+    this.currentView = view;
+    
+    // Update toggle buttons
+    const toggleButtons = document.querySelectorAll('.toggle-btn');
+    toggleButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === view);
+    });
+    
+    // Show/hide appropriate containers
+    const listContainer = document.querySelector('.knowledge-list');
+    const graphContainer = document.querySelector('.knowledge-graph');
+    
+    if (view === 'list') {
+      if (listContainer) listContainer.style.display = 'block';
+      if (graphContainer) graphContainer.style.display = 'none';
+      
+      // Use nodes if pages are empty
+      const itemsToDisplay = this.currentData.pages.length > 0 ? this.currentData.pages : this.currentData.graphData.nodes;
+      this.displayKnowledgeItems(logger, itemsToDisplay);
+    } else {
+      if (listContainer) listContainer.style.display = 'none';
+      if (graphContainer) graphContainer.style.display = 'block';
+      
+      const visualizationService = await this.getService(logger, 'visualizationService', {
+        createKnowledgeGraph: () => logger.warn('Visualization service not available')
+      });
+      await this.renderKnowledgeGraph(logger, visualizationService);
+    }
+  },
+  
+  /**
+   * Set up knowledge filters
+   * @param {LogManager} logger - Logger instance
+   */
+  setupKnowledgeFilters(logger) {
+    logger.debug('Setting up knowledge filters');
+    // Filter functionality can be added here
+  },
+  
+  /**
+   * Display knowledge items in list view
+   * @param {LogManager} logger - Logger instance
+   * @param {Array} items - Items to display
+   */
+  displayKnowledgeItems(logger, items) {
+    logger.debug(`Displaying ${items.length} knowledge items`);
+    
+    const knowledgeList = document.querySelector('.knowledge-list');
+    if (!knowledgeList) {
+      logger.warn('Knowledge list container not found');
+      return;
+    }
+    
+    knowledgeList.innerHTML = '';
+    
+    if (items.length === 0) {
+      knowledgeList.innerHTML = '<div class="empty-state">No knowledge items found</div>';
+      return;
+    }
+    
+    items.forEach(item => {
+      const itemElement = document.createElement('div');
+      itemElement.className = 'knowledge-item';
+      itemElement.dataset.id = item.id;
+      itemElement.innerHTML = `
+        <div class="item-header">
+          <h3 class="item-title">${item.title || 'Untitled'}</h3>
+          <div class="item-actions">
+            <button class="btn-icon recapture-btn" title="Recapture">🔄</button>
+            <button class="btn-icon analyze-btn" title="Analyze">🔍</button>
+          </div>
+        </div>
+        <div class="item-url">${item.url || ''}</div>
+        <div class="item-meta">
+          <span class="item-date">${item.captured_at ? new Date(item.captured_at).toLocaleDateString() : 'Unknown date'}</span>
+          <span class="item-keywords">${Object.keys(item.keywords || {}).join(', ')}</span>
+        </div>
+      `;
+      
+      knowledgeList.appendChild(itemElement);
+      this._domElements.push(itemElement);
+      
+      // Set up item action handlers
+      const recaptureBtn = itemElement.querySelector('.recapture-btn');
+      const analyzeBtn = itemElement.querySelector('.analyze-btn');
+      
+      if (recaptureBtn) {
+        const recaptureHandler = async () => await this.recapturePage(logger, item, recaptureBtn);
+        recaptureBtn.addEventListener('click', recaptureHandler);
+        this._eventListeners.push({
+          element: recaptureBtn,
+          type: 'click',
+          listener: recaptureHandler
+        });
+      }
+      
+      if (analyzeBtn) {
+        const analyzeHandler = async () => await this.analyzePage(logger, item, analyzeBtn);
+        analyzeBtn.addEventListener('click', analyzeHandler);
+        this._eventListeners.push({
+          element: analyzeBtn,
+          type: 'click',
+          listener: analyzeHandler
+        });
+      }
+    });
+  },
+  
+  /**
+   * Create graph data from pages
+   * @param {LogManager} logger - Logger instance
+   * @param {Array} pages - Pages to create graph from
+   * @returns {Object} Graph data with nodes and edges
+   */
+  createGraphFromPages(logger, pages) {
+    logger.debug(`Creating graph from ${pages.length} pages`);
+    
+    const nodes = [];
+    const edges = [];
+    
+    pages.forEach((page, index) => {
+      // Add page as node
+      nodes.push({
+        id: page.id || `page_${index}`,
+        label: page.title || 'Untitled',
+        type: 'page',
+        url: page.url,
+        data: page
+      });
+      
+      // Add keyword nodes and edges
+      if (page.keywords) {
+        Object.keys(page.keywords).forEach(keyword => {
+          const keywordId = `keyword_${keyword}`;
+          
+          // Add keyword node if not already present
+          if (!nodes.find(n => n.id === keywordId)) {
+            nodes.push({
+              id: keywordId,
+              label: keyword,
+              type: 'keyword'
+            });
+          }
+          
+          // Add edge from page to keyword
+          edges.push({
+            source: page.id || `page_${index}`,
+            target: keywordId,
+            type: 'has_keyword'
+          });
+        });
+      }
+    });
+    
+    return { nodes, edges };
+  },
+  
+  /**
+   * Render knowledge graph
+   * @param {LogManager} logger - Logger instance
+   * @param {Object} visualizationService - Visualization service
+   */
+  async renderKnowledgeGraph(logger, visualizationService) {
+    logger.debug('Rendering knowledge graph');
+    
+    const graphContainer = document.querySelector('.knowledge-graph');
+    if (!graphContainer) {
+      logger.warn('Knowledge graph container not found');
+      return;
+    }
+    
+    try {
+      if (visualizationService && typeof visualizationService.createKnowledgeGraph === 'function') {
+        logger.debug('Using visualization service to create graph');
+        console.log('🔍 DEBUG: Creating knowledge graph with:', {
+          nodes: this.currentData.graphData.nodes.length,
+          edges: this.currentData.graphData.edges.length
+        });
+        
+        const success = await visualizationService.createKnowledgeGraph('knowledge-graph-container', this.currentData.graphData.nodes, this.currentData.graphData.edges);
+        console.log('🔍 DEBUG: Graph creation result:', success);
+        
+        if (!success) {
+          logger.warn('Visualization service failed to create graph, using fallback');
+          this._renderFallbackGraph(graphContainer, logger);
+        }
+      } else {
+        logger.debug('Visualization service not available, using fallback');
+        this._renderFallbackGraph(graphContainer, logger);
+      }
+    } catch (error) {
+      logger.error('Error rendering knowledge graph:', error);
+      graphContainer.innerHTML = '<div class="error-state">Error rendering graph</div>';
+    }
+  },
+  
+  /**
+   * Render fallback graph when visualization service is not available
+   * @param {HTMLElement} graphContainer - Graph container element
+   * @param {LogManager} logger - Logger instance
+   */
+  _renderFallbackGraph(graphContainer, logger) {
+    logger.debug('Rendering fallback graph');
+    graphContainer.innerHTML = `
+      <div class="graph-fallback">
+        <h3>Knowledge Graph</h3>
+        <p>${this.currentData.graphData.nodes.length} nodes, ${this.currentData.graphData.edges.length} edges</p>
+        <div class="simple-graph">
+          ${this.currentData.graphData.nodes.map(node => `<div class="node">${node.label || node.id}</div>`).join('')}
+        </div>
+      </div>
+    `;
+  },
+  
+  /**
+   * Load related item details
+   * @param {LogManager} logger - Logger instance
+   * @param {string} targetId - ID of target item
+   */
+  loadRelatedItem(logger, targetId) {
+    logger.debug(`Loading related item: ${targetId}`);
+    
+    const item = this.currentData.pages.find(p => p.id === targetId);
+    if (!item) {
+      logger.warn(`Item not found: ${targetId}`);
+      return;
+    }
+    
+    // Show item details (implementation can be expanded)
+    logger.info(`Loaded details for: ${item.title}`);
+  },
+  
+  /**
+   * Check analysis status
+   * @param {LogManager} logger - Logger instance
+   * @param {string} taskId - Task ID to check
+   * @param {HTMLElement} button - Button element for UI updates
+   */
+  async checkAnalysisStatus(logger, taskId, button) {
+    logger.debug(`Checking analysis status for task: ${taskId}`);
+    
+    const apiService = await this.getService(logger, 'apiService', {
+      fetchAPI: async () => ({ success: false, error: { message: 'API service not available' }})
+    });
+    
+    const checkStatus = async () => {
+      try {
+        const response = await apiService.fetchAPI(`/analysis/status/${taskId}`);
+        
+        if (response.success) {
+          const status = response.data.status;
+          
+          if (status === 'completed') {
+            button.disabled = false;
+            button.textContent = 'Analysis Complete';
+            logger.info(`Analysis completed for task: ${taskId}`);
+            return;
+          } else if (status === 'failed') {
+            button.disabled = false;
+            button.textContent = 'Analysis Failed';
+            logger.error(`Analysis failed for task: ${taskId}`);
+            return;
+          }
+          
+          // Still processing, check again in 2 seconds
+          const timeoutId = setTimeout(() => checkStatus(), 2000);
+          this._timeouts.push(timeoutId);
+        } else {
+          button.disabled = false;
+          button.textContent = 'Check Status Failed';
+          logger.error(`Failed to check status for task: ${taskId}`);
+        }
+      } catch (error) {
+        logger.error(`Error checking analysis status: ${error.message}`);
+        button.disabled = false;
+        button.textContent = 'Status Check Error';
+      }
+    };
+    
+    checkStatus();
+  },
+
   /**
    * Debounce function to limit function call frequency
    * @param {Function} func - Function to debounce

@@ -8,6 +8,7 @@ export class ResourceTracker {
     this._timeouts = new Map();
     this._intervals = new Map();
     this._domRefs = new WeakSet();
+    this._domRefCount = 0; // Track count separately since WeakSet has no size
     this._memoryMonitor = null;
     this._operations = new Map();
   }
@@ -77,6 +78,7 @@ export class ResourceTracker {
      */
     trackDOMElement(element) {
       this._domRefs.add(element);
+      this._domRefCount++;
     }
 
     /**
@@ -175,6 +177,7 @@ export class ResourceTracker {
       this.clearAllTimers();
       
       this._domRefs = new WeakSet();
+      this._domRefCount = 0;
       this._operations.clear();
     }
 
@@ -190,7 +193,7 @@ export class ResourceTracker {
           .reduce((sum, handlers) => sum + handlers.size, 0),
         timeouts: this._timeouts.size,
         intervals: this._intervals.size,
-        domRefs: this._domRefs.size,
+        domRefs: this._domRefCount,
         operations: this._operations.size
       };
     }

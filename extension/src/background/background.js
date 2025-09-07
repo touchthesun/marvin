@@ -1,310 +1,541 @@
-// src/background/background.js
-import { LogManager } from '../utils/log-manager.js';
-import { ensureContainerInitialized } from '../core/container-init.js';
-import { container } from '../core/dependency-container.js';
-import { BackgroundService } from './background-service.js';
-
 /**
- * Background Script Component
- * Main service worker component for the Marvin extension
+ * Marvin Extension Background Script
+ *
+ * Chrome Extension background worker that handles communication with FastAPI server.
+ * Manages all message passing between content scripts, popup, and other extension components.
  */
-const BackgroundScript = {
-  // Resource tracking arrays
-  _eventListeners: [],
-  _timeouts: [],
-  _intervals: [],
-  
-  // Component state
-  initialized: false,
-  _logger: null,
-  _backgroundService: null,
-  
-  /**
-   * Initialize the background script
-   * @returns {Promise<boolean>} Success status
-   */
-  async initBackgroundScript() {
-    try {
-      // Create logger directly
-      this._logger = new LogManager({
-        context: 'background',
-        isBackgroundScript: true,
-        maxEntries: 2000
-      });
-      
-      this._logger.info('Starting background script initialization');
-      
-      // Check if already initialized
-      if (this.initialized) {
-        this._logger.debug('Background script already initialized, skipping');
-        return true;
-      }
-      
-      // Ensure container is initialized with progress monitoring
-      let initResult;
-      try {
-        initResult = await ensureContainerInitialized({
-          isBackgroundScript: true,
-          context: 'background'
-        });
-        
-        // Log initialization progress
-        if (initResult.progress) {
-          this._logger.debug('Container initialization progress:', {
-            phase: initResult.progress.phase,
-            progress: initResult.progress.progress
-          });
-        }
-        
-        this._logger.debug('Container initialization result:', initResult);
-      } catch (error) {
-        this._logger.error('Container initialization failed:', error);
-        // Attempt to clean up any partially initialized state
-        await this.cleanup();
-        throw error;
-      }
-      
-      // Create and initialize the background service
-      this._logger.info('Creating background service...');
-      this._backgroundService = new BackgroundService(container);
-      await this._backgroundService.initialize();
-      
-      // Create public API
-      this.createPublicAPI();
-      
-      // Register the background service with the container
-      container.registerService('backgroundService', () => this._backgroundService, {
-        phase: 'core', // Mark as core service since it's essential for background
-        lazy: false    // Initialize immediately
-      });
-      
-      // Set up service worker event listeners
-      this.setupServiceWorkerEvents();
-      
-      this.initialized = true;
-      this._logger.info('Background script initialization completed successfully');
-      return true;
-      
-    } catch (error) {
-      this._logger?.error('Error initializing background script:', error);
-      
-      // Create a basic logger for error reporting if container init failed
-      if (!this._logger) {
-        this._logger = new LogManager({
-          isBackgroundScript: true,
-          context: 'background-error',
-          maxEntries: 1000
-        });
-        this._logger.error('Container initialization failed:', error);
-      }
-      
-      // Ensure cleanup on failure
-      await this.cleanup();
-      return false;
-    }
-  },
-  
-  /**
-   * Set up service worker event listeners
-   */
-  setupServiceWorkerEvents() {
-    try {
-      // Add global error handler
-      const errorHandler = (event) => {
-        this._logger.error('Unhandled error in service worker:', event.error);
-      };
-      
-      // Add unhandled rejection handler
-      const rejectionHandler = (event) => {
-        this._logger.error('Unhandled promise rejection in service worker:', event.reason);
-      };
-      
-      // Add install handler
-      const installHandler = (event) => {
-        this._logger.info('Service worker installing...');
-        // Skip waiting to activate immediately
-        event.waitUntil(self.skipWaiting());
-      };
-      
-      // Add activate handler
-      const activateHandler = (event) => {
-        this._logger.info('Service worker activating...');
-        // Claim clients to ensure the service worker controls all pages
-        event.waitUntil(self.clients.claim());
-      };
-      
-      // Add fetch handler
-      const fetchHandler = (event) => {
-        this._logger.debug('Service worker fetch:', event.request.url);
-      };
-      
-      // Add message handler
-      const messageHandler = (event) => {
-        this._logger.debug('Service worker message received:', event.data);
-        if (this._backgroundService) {
-          this._backgroundService.handleMessage(event.data, event.source, event.ports[0]);
-        }
-      };
-      
-      // Add all event listeners
-      self.addEventListener('error', errorHandler);
-      self.addEventListener('unhandledrejection', rejectionHandler);
-      self.addEventListener('install', installHandler);
-      self.addEventListener('activate', activateHandler);
-      self.addEventListener('fetch', fetchHandler);
-      self.addEventListener('message', messageHandler);
-      
-      // Track listeners for cleanup
-      this._eventListeners.push(
-        { target: self, type: 'error', listener: errorHandler },
-        { target: self, type: 'unhandledrejection', listener: rejectionHandler },
-        { target: self, type: 'install', listener: installHandler },
-        { target: self, type: 'activate', listener: activateHandler },
-        { target: self, type: 'fetch', listener: fetchHandler },
-        { target: self, type: 'message', listener: messageHandler }
-      );
-      
-      this._logger.debug('Service worker event listeners set up successfully');
-    } catch (error) {
-      this._logger.error('Error setting up service worker events:', error);
-    }
-  },
-  
-  /**
-   * Create public API that delegates to the background service
-   */
-  createPublicAPI() {
-    try {
-      this._logger.info('Creating public API');
-      
-      // Use self instead of window for service worker context
-      self.marvin = {
-        // Delegate all methods to the background service
-        captureUrl: async (url, options) => {
-          try {
-            return await this._backgroundService.handleCaptureUrl({ url, options });
-          } catch (error) {
-            this._logger.error('Error in captureUrl API call:', error);
-            return { success: false, error: error.message };
-          }
-        },
-        
-        analyzeUrl: async (url, options) => {
-          try {
-            return await this._backgroundService.handleAnalyzeUrl({ url, options });
-          } catch (error) {
-            this._logger.error('Error in analyzeUrl API call:', error);
-            return { success: false, error: error.message };
-          }
-        },
-        
-        getActiveTasks: async () => {
-          try {
-            return await this._backgroundService.handleGetActiveTasks();
-          } catch (error) {
-            this._logger.error('Error in getActiveTasks API call:', error);
-            return { success: false, error: error.message };
-          }
-        },
-        
-        cancelTask: async (taskId) => {
-          try {
-            return await this._backgroundService.handleCancelTask({ taskId });
-          } catch (error) {
-            this._logger.error('Error in cancelTask API call:', error);
-            return { success: false, error: error.message };
-          }
-        },
-        
-        retryTask: async (taskId) => {
-          try {
-            return await this._backgroundService.handleRetryTask({ taskId });
-          } catch (error) {
-            this._logger.error('Error in retryTask API call:', error);
-            return { success: false, error: error.message };
-          }
-        },
-        
-        updateSettings: async (settings) => {
-          try {
-            return await this._backgroundService.handleUpdateSettings({ settings });
-          } catch (error) {
-            this._logger.error('Error in updateSettings API call:', error);
-            return { success: false, error: error.message };
-          }
-        },
-        
-        // Add convenience methods
-        ping: async () => {
-          try {
-            return await this._backgroundService.handlePing();
-          } catch (error) {
-            this._logger.error('Error in ping API call:', error);
-            return { success: false, error: error.message };
-          }
-        },
-        
-        getComponentStatus: async () => {
-          try {
-            return await this._backgroundService.handleGetComponentStatus();
-          } catch (error) {
-            this._logger.error('Error in getComponentStatus API call:', error);
-            return { success: false, error: error.message };
-          }
-        }
-      };
-      
-      this._logger.info('Public API created successfully');
-    } catch (error) {
-      this._logger.error('Error creating public API:', error);
-    }
-  },
-  
-  /**
-   * Clean up background script resources
-   */
-  cleanup() {
-    this._logger?.info('Cleaning up background script resources');
-    
-    // Clear all timeouts
-    this._timeouts.forEach(id => clearTimeout(id));
-    this._timeouts = [];
-    
-    // Clear all intervals
-    this._intervals.forEach(id => clearInterval(id));
-    this._intervals = [];
-    
-    // Remove all event listeners
-    this._eventListeners.forEach(({target, type, listener}) => {
-      try {
-        if (target && typeof target.removeEventListener === 'function') {
-          target.removeEventListener(type, listener);
-        }
-      } catch (error) {
-        this._logger?.warn('Error removing event listener:', error);
-      }
-    });
-    this._eventListeners = [];
-    
-    // Clean up background service
-    if (this._backgroundService) {
-      try {
-        this._backgroundService.cleanup();
-      } catch (error) {
-        this._logger?.warn('Error cleaning up background service:', error);
-      }
-      this._backgroundService = null;
-    }
-    
-    this.initialized = false;
-    this._logger?.debug('Background script cleanup completed');
-  }
-};
 
-// Initialize the background script
-BackgroundScript.initBackgroundScript().catch(error => {
-  console.error('Fatal error initializing background script:', error);
+import { apiClient } from './api-client.js';
+import { containerInitializer } from '../core/container-init.js';
+import AuthManager from './auth-manager.js';
+
+// Initialize container system when background script loads
+let containerInitialized = false;
+const authManager = new AuthManager();
+
+async function initializeBackgroundContainer() {
+  if (containerInitialized) return;
+  
+  try {
+    console.log('Background: Initializing container system');
+    await containerInitializer.initialize({
+      context: 'background',
+      isBackgroundScript: true
+    });
+    containerInitialized = true;
+    console.log('Background: Container system initialized successfully');
+    
+    // Initialize auth manager
+    await authManager.initialize();
+    console.log('Background: Auth manager initialized');
+  } catch (error) {
+    console.error('Background: Failed to initialize container system:', error);
+  }
+}
+
+// Initialize container on script load
+initializeBackgroundContainer();
+
+// Service worker lifecycle events
+self.addEventListener('install', (event) => {
+  console.log('Marvin extension installing...');
+  event.waitUntil(self.skipWaiting());
 });
 
-// Export for testing
-export { BackgroundScript };
+self.addEventListener('activate', (event) => {
+  console.log('Marvin extension activating...');
+  event.waitUntil(self.clients.claim());
+});
+
+// Main message handler - handles all communication
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Validate input
+  if (!message || typeof message !== 'object') {
+    console.warn('Background received invalid message:', message);
+    sendResponse({ success: false, error: 'Invalid message format' });
+    return true;
+  }
+
+  console.log('Background received message:', message.action, 'from:', sender);
+
+  try {
+    switch (message.action) {
+      // Core functionality
+      case 'ping':
+        sendResponse({ success: true, timestamp: Date.now() });
+        break;
+        
+      case 'marvin_log_entry':
+        handleLogEntry(message, sendResponse);
+        break;
+        
+      case 'reinitialize':
+        handleReinitialize(message, sendResponse);
+        break;
+        
+      // Content script actions
+      case 'contentScriptLoaded':
+        handleContentScriptLoaded(message, sendResponse);
+        break;
+        
+      case 'pageVisible':
+        handlePageVisible(message, sendResponse);
+        break;
+        
+      case 'pageHidden':
+        handlePageHidden(message, sendResponse);
+        break;
+        
+      case 'contentScriptPing':
+        handleContentScriptPing(message, sendResponse);
+        break;
+        
+      // Capture actions
+      case 'captureUrl':
+        handleCaptureUrl(message, sendResponse);
+        break;
+        
+      case 'captureBatch':
+        handleCaptureBatch(message, sendResponse);
+        break;
+        
+      case 'captureTabs':
+        handleCaptureTabs(message, sendResponse);
+        break;
+        
+      case 'getTabs':
+        handleGetTabs(message, sendResponse);
+        break;
+        
+      case 'getBatchStatus':
+        handleGetBatchStatus(message, sendResponse);
+        break;
+        
+      // Analysis actions
+      case 'analyzeUrl':
+        handleAnalyzeUrl(message, sendResponse);
+        break;
+        
+      // Task management
+      case 'getActiveTasks':
+        handleGetActiveTasks(message, sendResponse);
+        break;
+        
+      case 'cancelTask':
+        handleCancelTask(message, sendResponse);
+        break;
+        
+      case 'retryTask':
+        handleRetryTask(message, sendResponse);
+        break;
+        
+      // Settings actions
+      case 'updateSettings':
+        handleUpdateSettings(message, sendResponse);
+        break;
+        
+      case 'updateApiConfig':
+        handleUpdateApiConfig(message, sendResponse);
+        break;
+        
+      case 'updateSyncSettings':
+        handleUpdateSyncSettings(message, sendResponse);
+        break;
+        
+      case 'updateAnalysisSettings':
+        handleUpdateAnalysisSettings(message, sendResponse);
+        break;
+        
+      // Auth actions
+      case 'login':
+        handleLogin(message, sendResponse);
+        break;
+        
+      case 'logout':
+        handleLogout(message, sendResponse);
+        break;
+        
+      case 'checkAuthStatus':
+        handleCheckAuthStatus(message, sendResponse);
+        break;
+        
+      // Panel actions
+      case 'loadPanelData':
+        handleLoadPanelData(message, sendResponse);
+        break;
+        
+      // System actions
+      case 'clearLocalData':
+        handleClearLocalData(message, sendResponse);
+        break;
+        
+      case 'dataImported':
+        handleDataImported(message, sendResponse);
+        break;
+        
+      // Network actions
+      case 'networkStatusChange':
+        handleNetworkStatusChange(message, sendResponse);
+        break;
+        
+      // API actions
+      case 'apiRequest':
+        handleApiRequest(message, sendResponse);
+        break;
+        
+      // Diagnostic actions
+      case 'testComponentSystem':
+        handleTestComponentSystem(message, sendResponse);
+        break;
+        
+      case 'getMessageStatistics':
+        handleGetMessageStatistics(message, sendResponse);
+        break;
+        
+      case 'resetMessageStatistics':
+        handleResetMessageStatistics(message, sendResponse);
+        break;
+        
+      default:
+        console.warn('Unknown action:', message.action);
+        sendResponse({ success: false, error: 'Unknown action' });
+    }
+  } catch (error) {
+    console.error('Error handling message:', message.action, error);
+    sendResponse({ success: false, error: error.message });
+  }
+  
+  return true; // Keep message port open for async responses
+});
+
+// Chrome extension lifecycle events
+chrome.runtime.onInstalled.addListener((details) => {
+  console.log('Marvin extension installed/updated:', details.reason);
+  
+  if (details.reason === 'install') {
+    // Handle first-time installation
+    console.log('First time installation');
+  } else if (details.reason === 'update') {
+    // Handle extension update
+    console.log('Extension updated from', details.previousVersion);
+  }
+});
+
+// Tab events
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    console.log('Tab updated:', tabId, tab.url);
+  }
+});
+
+chrome.tabs.onCreated.addListener((tab) => {
+  console.log('Tab created:', tab.id, tab.url);
+});
+
+// ========== MESSAGE HANDLERS ==========
+
+// Core functionality handlers
+function handleLogEntry(message, sendResponse) {
+  console.log('Log entry received:', message.entry);
+  sendResponse({ success: true, timestamp: Date.now() });
+}
+
+function handleReinitialize(message, sendResponse) {
+  console.log('Reinitializing background script');
+  sendResponse({ success: true });
+}
+
+// Content script handlers
+function handleContentScriptLoaded(message, sendResponse) {
+  console.log('Content script loaded:', message.url);
+  sendResponse({ success: true });
+}
+
+function handlePageVisible(message, sendResponse) {
+  console.log('Page became visible:', message.url);
+  sendResponse({ success: true });
+}
+
+function handlePageHidden(message, sendResponse) {
+  console.log('Page hidden:', message.url);
+  sendResponse({ success: true });
+}
+
+function handleContentScriptPing(message, sendResponse) {
+  console.log('Content script ping received');
+  sendResponse({ success: true, timestamp: Date.now() });
+}
+
+// Capture handlers
+async function handleCaptureUrl(message, sendResponse) {
+  console.log('Capture URL requested:', message.url);
+  
+  try {
+    const result = await apiClient.captureUrl(message.url, message.options || {});
+    sendResponse({ success: true, data: result });
+  } catch (error) {
+    console.error('Failed to capture URL:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+async function handleCaptureBatch(message, sendResponse) {
+  console.log('Capture batch requested:', message.urls);
+  
+  try {
+    const result = await apiClient.captureBatch(message.urls, message.options || {});
+    sendResponse({ success: true, result });
+  } catch (error) {
+    console.error('Failed to capture batch:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+async function handleCaptureTabs(message, sendResponse) {
+  console.log('Capture tabs requested');
+  
+  try {
+    // Get all tabs and capture them
+    const tabs = await chrome.tabs.query({});
+    const urls = tabs.map(tab => tab.url).filter(url => url && url.startsWith('http'));
+    const result = await apiClient.captureBatch(urls, message.options || {});
+    sendResponse({ success: true, result });
+  } catch (error) {
+    console.error('Failed to capture tabs:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+async function handleGetTabs(message, sendResponse) {
+  console.log('Get tabs requested');
+  
+  try {
+    // Get all windows with tabs
+    const windows = await chrome.windows.getAll({ populate: true });
+    console.log(`Background: Got ${windows.length} windows with tabs`);
+    
+    sendResponse({ 
+      success: true, 
+      windows: windows
+    });
+  } catch (error) {
+    console.error('Failed to get tabs:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message
+    });
+  }
+}
+
+async function handleGetBatchStatus(message, sendResponse) {
+  console.log('Get batch status requested:', message.batchId);
+  
+  try {
+    const result = await apiClient.getBatchStatus(message.batchId);
+    sendResponse({ success: true, result });
+  } catch (error) {
+    console.error('Failed to get batch status:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+// Analysis handlers
+function handleAnalyzeUrl(message, sendResponse) {
+  console.log('Analyze URL requested:', message.url);
+  // TODO: Implement analysis logic
+  sendResponse({ success: true, message: 'Analyze URL handler - not yet implemented' });
+}
+
+// Task management handlers
+async function handleGetActiveTasks(message, sendResponse) {
+  console.log('Get active tasks requested');
+  
+  try {
+    const response = await apiClient.getActiveTasks();
+    // The API returns { success: true, data: { tasks: [...] } }
+    const tasks = response.data?.tasks || [];
+    sendResponse({ success: true, tasks });
+  } catch (error) {
+    console.error('Failed to get active tasks:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+async function handleCancelTask(message, sendResponse) {
+  console.log('Cancel task requested:', message.taskId);
+  
+  try {
+    const result = await apiClient.cancelTask(message.taskId);
+    sendResponse({ success: true, result });
+  } catch (error) {
+    console.error('Failed to cancel task:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+async function handleRetryTask(message, sendResponse) {
+  console.log('Retry task requested:', message.taskId);
+  
+  try {
+    const result = await apiClient.retryTask(message.taskId);
+    sendResponse({ success: true, result });
+  } catch (error) {
+    console.error('Failed to retry task:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+// Settings handlers
+function handleUpdateSettings(message, sendResponse) {
+  console.log('Update settings requested:', message.settings);
+  // TODO: Implement settings update logic
+  sendResponse({ success: true, message: 'Update settings handler - not yet implemented' });
+}
+
+function handleUpdateApiConfig(message, sendResponse) {
+  console.log('Update API config requested:', message.config);
+  // TODO: Implement API config update logic
+  sendResponse({ success: true, message: 'Update API config handler - not yet implemented' });
+}
+
+function handleUpdateSyncSettings(message, sendResponse) {
+  console.log('Update sync settings requested:', message.settings);
+  // TODO: Implement sync settings update logic
+  sendResponse({ success: true, message: 'Update sync settings handler - not yet implemented' });
+}
+
+function handleUpdateAnalysisSettings(message, sendResponse) {
+  console.log('Update analysis settings requested:', message.settings);
+  // TODO: Implement analysis settings update logic
+  sendResponse({ success: true, message: 'Update analysis settings handler - not yet implemented' });
+}
+
+// Auth handlers
+async function handleLogin(message, sendResponse) {
+  console.log('Login requested:', message.username);
+  try {
+    const success = await authManager.login(message.username, message.password);
+    sendResponse({ success, authenticated: success });
+  } catch (error) {
+    console.error('Login error:', error);
+    sendResponse({ success: false, authenticated: false, error: error.message });
+  }
+}
+
+async function handleLogout(message, sendResponse) {
+  console.log('Logout requested');
+  try {
+    await authManager.clearToken();
+    sendResponse({ success: true, authenticated: false });
+  } catch (error) {
+    console.error('Logout error:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleCheckAuthStatus(message, sendResponse) {
+  console.log('Check auth status requested');
+  try {
+    const token = await authManager.getToken();
+    const authenticated = !!token;
+    sendResponse({ success: true, authenticated });
+  } catch (error) {
+    console.error('Auth status check error:', error);
+    sendResponse({ success: false, authenticated: false, error: error.message });
+  }
+}
+
+// Panel handlers
+async function handleLoadPanelData(message, sendResponse) {
+  console.log('Load panel data requested:', message.panelName);
+  
+  try {
+    const response = await apiClient.getKnowledgeData(message.panelName, message.options || {});
+    // The API returns { success: true, data: {...} }
+    const data = response.data || {};
+    sendResponse({ success: true, data });
+  } catch (error) {
+    console.error('Failed to load panel data:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      serverAvailable: apiClient.isAvailable()
+    });
+  }
+}
+
+// System handlers
+function handleClearLocalData(message, sendResponse) {
+  console.log('Clear local data requested');
+  // TODO: Implement local data clearing logic
+  sendResponse({ success: true, message: 'Clear local data handler - not yet implemented' });
+}
+
+function handleDataImported(message, sendResponse) {
+  console.log('Data imported notification:', message.data);
+  // TODO: Implement data import handling logic
+  sendResponse({ success: true, message: 'Data imported handler - not yet implemented' });
+}
+
+// Network handlers
+function handleNetworkStatusChange(message, sendResponse) {
+  console.log('Network status changed:', message.isOnline);
+  // TODO: Implement network status change logic
+  sendResponse({ success: true, message: 'Network status change handler - not yet implemented' });
+}
+
+// API handlers
+function handleApiRequest(message, sendResponse) {
+  console.log('API request:', message.endpoint);
+  // TODO: Implement API request logic
+  sendResponse({ success: true, message: 'API request handler - not yet implemented' });
+}
+
+// Diagnostic handlers
+function handleTestComponentSystem(message, sendResponse) {
+  console.log('Test component system requested');
+  // TODO: Implement component system testing logic
+  sendResponse({ success: true, message: 'Test component system handler - not yet implemented' });
+}
+
+function handleGetMessageStatistics(message, sendResponse) {
+  console.log('Get message statistics requested');
+  // TODO: Implement message statistics logic
+  sendResponse({ success: true, statistics: {}, message: 'Get message statistics handler - not yet implemented' });
+}
+
+function handleResetMessageStatistics(message, sendResponse) {
+  console.log('Reset message statistics requested');
+  // TODO: Implement message statistics reset logic
+  sendResponse({ success: true, message: 'Reset message statistics handler - not yet implemented' });
+}
+
+console.log('Marvin background script loaded successfully');

@@ -1,55 +1,17 @@
-import { createChromeMock } from '../__mocks__/chrome-api';
+// tests/helpers/setup-environment.js
+import { createMockSystem } from '../utils/mock-system.js';
 
-// Set up global objects needed for tests
-global.chrome = createChromeMock();
+// Create a global mock system for all tests
+const mockSystem = createMockSystem();
 
-// Additional setup that runs before each test
-beforeEach(() => {
-  // Reset mocks before each test
-  jest.clearAllMocks();
+// Make it available globally
+global.mockSystem = mockSystem;
+
+// Set up test environment
+beforeEach(async () => {
+  await mockSystem.reset();
 });
 
-// Mock the parts of the browser environment not provided by jsdom
-global.self = global;
-
-// Create mock for console to capture logs in tests if needed
-const originalConsole = { ...console };
-global.capturedConsoleLogs = {
-  log: [],
-  warn: [],
-  error: [],
-  debug: [],
-};
-
-// Optional: Replace console methods to capture logs
-if (process.env.CAPTURE_CONSOLE_LOGS === 'true') {
-  console.log = jest.fn((...args) => {
-    global.capturedConsoleLogs.log.push(args);
-    originalConsole.log(...args);
-  });
-  
-  console.warn = jest.fn((...args) => {
-    global.capturedConsoleLogs.warn.push(args);
-    originalConsole.warn(...args);
-  });
-  
-  console.error = jest.fn((...args) => {
-    global.capturedConsoleLogs.error.push(args);
-    originalConsole.error(...args);
-  });
-  
-  console.debug = jest.fn((...args) => {
-    global.capturedConsoleLogs.debug.push(args);
-    originalConsole.debug(...args);
-  });
-}
-
-// Function to reset captured console logs
-global.resetCapturedConsole = () => {
-  global.capturedConsoleLogs = {
-    log: [],
-    warn: [],
-    error: [],
-    debug: [],
-  };
-};
+afterEach(async () => {
+  await mockSystem.reset();
+});

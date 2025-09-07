@@ -45,7 +45,7 @@ export class StatusService extends BaseService {
     };
 
     // Status state
-    this._isOnline = navigator.onLine;
+    this._isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     this._apiStatus = 'unknown';
     this._lastApiCheck = 0;
     this._checkIntervalId = null;
@@ -232,9 +232,11 @@ export class StatusService extends BaseService {
       // Update initial status
       this._updateNetworkStatus();
       
-      // Add event listeners for online/offline events
-      this._resourceTracker.trackEventListener(window, 'online', this._handleOnlineEvent.bind(this));
-      this._resourceTracker.trackEventListener(window, 'offline', this._handleOfflineEvent.bind(this));
+      // Add event listeners for online/offline events (only if window exists)
+      if (typeof window !== 'undefined') {
+        this._resourceTracker.trackEventListener(window, 'online', this._handleOnlineEvent.bind(this));
+        this._resourceTracker.trackEventListener(window, 'offline', this._handleOfflineEvent.bind(this));
+      }
       
       // Set up periodic API status check
       await this._setupApiStatusCheck();
@@ -262,7 +264,7 @@ export class StatusService extends BaseService {
     this._updateNetworkStatus();
     
     // Check API status when coming back online
-    this._checkApiStatus().catch(error => {
+    this._checkApiStatus(false).catch(error => {
       this._logger.error('Error checking API status after coming online:', error);
     });
     
@@ -358,30 +360,33 @@ export class StatusService extends BaseService {
    */
   _updateNetworkStatus() {
     try {
-      const statusDot = document.querySelector('.status-dot');
-      const statusText = document.querySelector('.status-text');
-      
-      if (statusDot && statusText) {
-        // Track DOM elements for cleanup
-        this._resourceTracker.trackDOMElement(statusDot);
-        this._resourceTracker.trackDOMElement(statusText);
+      // Only update DOM if we're in a context with document
+      if (typeof document !== 'undefined') {
+        const statusDot = document.querySelector('.status-dot');
+        const statusText = document.querySelector('.status-text');
         
-        // Store references for later cleanup
-        this._statusElements.set('networkDot', statusDot);
-        this._statusElements.set('networkText', statusText);
-        
-        // Update UI
-        if (this._isOnline) {
-          statusDot.classList.add('online');
-          statusDot.classList.remove('offline');
-          statusText.textContent = 'Online';
+        if (statusDot && statusText) {
+          // Track DOM elements for cleanup
+          this._resourceTracker.trackDOMElement(statusDot);
+          this._resourceTracker.trackDOMElement(statusText);
+          
+          // Store references for later cleanup
+          this._statusElements.set('networkDot', statusDot);
+          this._statusElements.set('networkText', statusText);
+          
+          // Update UI
+          if (this._isOnline) {
+            statusDot.classList.add('online');
+            statusDot.classList.remove('offline');
+            statusText.textContent = 'Online';
+          } else {
+            statusDot.classList.remove('online');
+            statusDot.classList.add('offline');
+            statusText.textContent = 'Offline';
+          }
         } else {
-          statusDot.classList.remove('online');
-          statusDot.classList.add('offline');
-          statusText.textContent = 'Offline';
+          this._logger.debug('Status indicators not found for update');
         }
-      } else {
-        this._logger.debug('Status indicators not found for update');
       }
       
       // Send status to background script
@@ -399,20 +404,19 @@ export class StatusService extends BaseService {
    */
   _sendNetworkStatusToBackground() {
     try {
-      const port = chrome.runtime.connect();
-      this._resourceTracker.trackMessagePort(port);
-      
-      port.postMessage({ 
-        action: 'networkStatusChange', 
-        isOnline: this._isOnline 
-      });
-      
-      port.onDisconnect.addListener(() => {
-        this._logger.debug('Background connection closed');
-      });
+      // Only try to connect if chrome.runtime is available and we're not in background context
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ 
+          action: 'networkStatusChange', 
+          isOnline: this._isOnline 
+        }).catch(error => {
+          // Ignore connection errors - background script may not be ready
+          this._logger?.debug('Background connection failed (normal):', error.message);
+        });
+      }
     } catch (error) {
       // This is normal if background script is not ready or in MV3 inactive state
-      this._logger.debug('Error sending network status to background:', error);
+      this._logger?.debug('Error sending network status to background:', error);
     }
   }
   
@@ -424,7 +428,7 @@ export class StatusService extends BaseService {
   async _setupApiStatusCheck() {
     try {
       // Initial check
-      await this._checkApiStatus();
+      await this._checkApiStatus(false);
       
       // Clear any existing interval
       if (this._checkIntervalId) {
@@ -447,12 +451,16 @@ export class StatusService extends BaseService {
   
   /**
    * Check API server status
+   * @param {boolean} force - Force check even if throttled
    * @returns {Promise<string>} API status
    * @private
    */
-  async _checkApiStatus() {
+  async _checkApiStatus(force = false) {
+    // Debug: Log the force parameter and current state
+    this._logger?.debug(`_checkApiStatus called with force=${force}, navigator.onLine=${navigator.onLine}, _lastApiCheck=${this._lastApiCheck}`);
+    
     // Skip check if offline
-    if (!navigator.onLine) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
       this._apiStatus = 'offline';
       this._trackApiStatusChange('offline', 'Network is offline');
       this._updateApiStatusIndicator();
@@ -466,13 +474,17 @@ export class StatusService extends BaseService {
       return this._apiStatus;
     }
     
-    // Throttle checks
+    // Throttle checks (unless forced)
     const now = Date.now();
-    if (now - this._lastApiCheck < 10000) { // No more than once per 10 seconds
+    const timeSinceLastCheck = now - this._lastApiCheck;
+    this._logger?.debug(`Throttle check: force=${force}, timeSinceLastCheck=${timeSinceLastCheck}ms, threshold=10000ms`);
+    
+    if (!force && timeSinceLastCheck < 10000) { // No more than once per 10 seconds
       this._logger.debug('Skipping API check due to throttling');
       return this._apiStatus;
     }
     
+    this._logger?.debug('Proceeding with API check');
     this._lastApiCheck = now;
     this._stats.apiChecks++;
     
@@ -590,7 +602,7 @@ export class StatusService extends BaseService {
    */
   async _handleApiCheckInterval() {
     try {
-      await this._checkApiStatus();
+      await this._checkApiStatus(false);
     } catch (error) {
       this._logger.error('Error in API check interval:', error);
     }
@@ -602,47 +614,50 @@ export class StatusService extends BaseService {
    */
   _updateApiStatusIndicator() {
     try {
-      const apiStatusDot = document.querySelector('.api-status-dot');
-      const apiStatusText = document.querySelector('.api-status-text');
-      
-      if (apiStatusDot && apiStatusText) {
-        // Track DOM elements for cleanup
-        this._resourceTracker.trackDOMElement(apiStatusDot);
-        this._resourceTracker.trackDOMElement(apiStatusText);
+      // Only update DOM if we're in a context with document
+      if (typeof document !== 'undefined') {
+        const apiStatusDot = document.querySelector('.api-status-dot');
+        const apiStatusText = document.querySelector('.api-status-text');
         
-        // Store references for later cleanup
-        this._statusElements.set('apiDot', apiStatusDot);
-        this._statusElements.set('apiText', apiStatusText);
-        
-        // Remove all status classes
-        apiStatusDot.classList.remove('online', 'offline', 'error', 'checking', 'unknown');
-        
-        // Update based on current status
-        switch (this._apiStatus) {
-          case 'online':
-            apiStatusDot.classList.add('online');
-            apiStatusText.textContent = 'API Online';
-            break;
-          case 'offline':
-            apiStatusDot.classList.add('offline');
-            apiStatusText.textContent = 'API Offline';
-            break;
-          case 'error':
-            apiStatusDot.classList.add('error');
-            apiStatusText.textContent = 'API Error';
-            break;
-          case 'checking':
-            apiStatusDot.classList.add('checking');
-            apiStatusText.textContent = 'Checking API...';
-            break;
-          default:
-            apiStatusDot.classList.add('unknown');
-            apiStatusText.textContent = 'API Status Unknown';
+        if (apiStatusDot && apiStatusText) {
+          // Track DOM elements for cleanup
+          this._resourceTracker.trackDOMElement(apiStatusDot);
+          this._resourceTracker.trackDOMElement(apiStatusText);
+          
+          // Store references for later cleanup
+          this._statusElements.set('apiDot', apiStatusDot);
+          this._statusElements.set('apiText', apiStatusText);
+          
+          // Remove all status classes
+          apiStatusDot.classList.remove('online', 'offline', 'error', 'checking', 'unknown');
+          
+          // Update based on current status
+          switch (this._apiStatus) {
+            case 'online':
+              apiStatusDot.classList.add('online');
+              apiStatusText.textContent = 'API Online';
+              break;
+            case 'offline':
+              apiStatusDot.classList.add('offline');
+              apiStatusText.textContent = 'API Offline';
+              break;
+            case 'error':
+              apiStatusDot.classList.add('error');
+              apiStatusText.textContent = 'API Error';
+              break;
+            case 'checking':
+              apiStatusDot.classList.add('checking');
+              apiStatusText.textContent = 'Checking API...';
+              break;
+            default:
+              apiStatusDot.classList.add('unknown');
+              apiStatusText.textContent = 'API Status Unknown';
+          }
+          
+          this._logger.debug(`API status indicator updated to: ${this._apiStatus}`);
+        } else {
+          this._logger.debug('API status indicators not found');
         }
-        
-        this._logger.debug(`API status indicator updated to: ${this._apiStatus}`);
-      } else {
-        this._logger.debug('API status indicators not found');
       }
     } catch (error) {
       this._logger.error('Error updating API status indicator:', error);
@@ -660,7 +675,7 @@ export class StatusService extends BaseService {
       } catch (error) {
         this._logger?.error('Failed to initialize service during getNetworkStatus:', error);
         // Fall back to navigator.onLine if initialization fails
-        return navigator.onLine;
+        return typeof navigator !== 'undefined' ? navigator.onLine : true;
       }
     }
     return this._isOnline;
@@ -696,9 +711,11 @@ export class StatusService extends BaseService {
       }
     }
     
-    // Reset last check time to force a check
+    // Reset last check time to force a check and bypass throttling
     this._lastApiCheck = 0;
-    return this._checkApiStatus();
+    
+    // Call _checkApiStatus with force flag to bypass throttling
+    return this._checkApiStatus(true);
   }
   
   /**
@@ -802,9 +819,11 @@ export class StatusService extends BaseService {
       this._checkIntervalId = null;
     }
 
-    // Remove event listeners
-    window.removeEventListener('online', this._handleOnlineEvent);
-    window.removeEventListener('offline', this._handleOfflineEvent);
+    // Remove event listeners (only if window exists)
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', this._handleOnlineEvent);
+      window.removeEventListener('offline', this._handleOfflineEvent);
+    }
 
     // Clear status elements
     this._statusElements.clear();
@@ -823,7 +842,7 @@ export class StatusService extends BaseService {
     this._storageService = null;
 
     // Reset state
-    this._isOnline = navigator.onLine;
+    this._isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     this._apiStatus = 'unknown';
     this._lastApiCheck = 0;
   }

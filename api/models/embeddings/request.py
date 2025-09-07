@@ -4,6 +4,8 @@ from typing import Optional, List, Dict, Any
 
 class GenerateEmbeddingRequest(BaseModel):
     """Request model for generating embeddings."""
+    model_config = {"protected_namespaces": ()}
+    
     text: str = Field(..., description="Text to embed")
     provider_id: str = Field(..., description="Embedding provider ID")
     model_id: Optional[str] = Field(None, description="Specific model to use (provider-dependent)")
@@ -11,6 +13,8 @@ class GenerateEmbeddingRequest(BaseModel):
     
 class BatchEmbeddingRequest(BaseModel):
     """Request model for batch embedding generation."""
+    model_config = {"protected_namespaces": ()}
+    
     texts: List[str] = Field(..., description="List of texts to embed")
     provider_id: str = Field(..., description="Embedding provider ID")
     model_id: Optional[str] = Field(None, description="Specific model to use (provider-dependent)")
@@ -18,6 +22,8 @@ class BatchEmbeddingRequest(BaseModel):
 
 class PageEmbeddingRequest(BaseModel):
     """Request model for generating embeddings for a page."""
+    model_config = {"protected_namespaces": ()}
+    
     provider_id: str = Field(..., description="Embedding provider ID")
     model_id: Optional[str] = Field(None, description="Specific model to use (provider-dependent)")
     include_metadata: bool = Field(True, description="Generate embedding for page metadata")
@@ -28,6 +34,8 @@ class PageEmbeddingRequest(BaseModel):
     
 class SearchEmbeddingRequest(BaseModel):
     """Request model for similarity search using embeddings."""
+    model_config = {"protected_namespaces": ()}
+    
     query: str = Field(..., description="Query text or embedding vector")
     search_mode: str = Field("pages", description="Search mode: 'pages', 'chunks', or 'hybrid'")
     embedding_type: str = Field("metadata", description="Type of embedding to search against")

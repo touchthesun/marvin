@@ -1,3 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="0" failures="0" errors="0" time="0.723">
+<testsuites name="jest tests" tests="5" failures="0" errors="0" time="1.115">
+  <testsuite name="Capture to Task Data Flow Investigation" errors="0" failures="0" skipped="4" timestamp="2025-09-04T07:18:04" time="0.663" tests="5">
+    <testcase classname="Capture to Task Data Flow Investigation" name="1. TaskService initial state" time="0.002">
+    </testcase>
+    <testcase classname="Capture to Task Data Flow Investigation" name="2. TaskService createTask method" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Capture to Task Data Flow Investigation" name="3. Capture Panel task creation flow" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Capture to Task Data Flow Investigation" name="4. Background script task handling" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="Capture to Task Data Flow Investigation" name="5. Message passing for task creation" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
 </testsuites>

@@ -10,6 +10,8 @@ class AgentTaskType(str, Enum):
 
 class AgentRequest(BaseModel):
     """Request model for agent tasks with provider flexibility"""
+    model_config = {"protected_namespaces": ()}
+    
     query: str = Field(..., description="Query or task description")
     task_type: AgentTaskType = Field(AgentTaskType.QUERY, description="Type of task")
     relevant_urls: Optional[List[str]] = Field(None, description="Relevant URLs to include")

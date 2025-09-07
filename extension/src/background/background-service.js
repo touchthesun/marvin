@@ -422,7 +422,7 @@ export class BackgroundService {
       requestId: message.requestId
     });
   }
-  
+
   /**
    * Handle check auth status request
    */

@@ -1,19 +1,8 @@
 // extension/tests/utils/mock-system.js
 import { jest } from '@jest/globals';
 
-// Create a mock logger that will be used by LogManager
-const mockLogger = {
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  cleanup: jest.fn().mockResolvedValue(true)
-};
-
-// Mock LogManager at module level
-jest.mock('../../src/utils/log-manager.js', () => ({
-  LogManager: jest.fn().mockImplementation(() => mockLogger)
-}));
+// REMOVED: Mock LogManager - we want to use the real LogManager
+// This will expose real issues that need fixing
 
 export const createMockSystem = () => {
   // Track cleanup order for services
@@ -78,7 +67,7 @@ export const createMockSystem = () => {
     }
   };
 
-  // Create the container with Jest mocks
+  // Create a simple mock container for now (avoid circular dependency)
   const container = {
     utils: new Map(),
     services: new Map(),
@@ -103,7 +92,8 @@ export const createMockSystem = () => {
       return ComponentClass;
     },
     
-    getService: function(name) {
+    // Make getService a Jest mock
+    getService: jest.fn().mockImplementation(function(name) {
       if (!this.services.has(name)) {
         throw new Error(`Service not found: ${name}`);
       }
@@ -113,62 +103,48 @@ export const createMockSystem = () => {
         this.serviceInstances.set(name, instance);
       }
       return this.serviceInstances.get(name);
-    },
+    }),
     
-reset() {
-  return (async () => {
-    // Call cleanup on service instances in reverse order
-    const serviceInstances = Array.from(this.serviceInstances.entries());
-    for (let i = serviceInstances.length - 1; i >= 0; i--) {
-      const [name, instance] = serviceInstances[i];
-      if (instance && typeof instance.cleanup === 'function') {
-        try {
-          await instance.cleanup();
-        } catch (error) {
-          // Use logger instead of console.error
-          if (this.utils.has('LogManager')) {
-            this.utils.get('LogManager').error(`Error cleaning up service ${name}:`, error);
+    // Add the sync version for testing
+    getServiceSync: jest.fn().mockImplementation(function(name) {
+      if (!this.services.has(name)) {
+        return null;
+      }
+      if (!this.serviceInstances.has(name)) {
+        const ServiceClass = this.services.get(name);
+        const instance = new ServiceClass();
+        this.serviceInstances.set(name, instance);
+      }
+      return this.serviceInstances.get(name);
+    }),
+    
+    async reset() {
+      // Call cleanup on service instances in reverse order
+      const serviceInstances = Array.from(this.serviceInstances.entries());
+      for (let i = serviceInstances.length - 1; i >= 0; i--) {
+        const [name, instance] = serviceInstances[i];
+        if (instance && typeof instance.cleanup === 'function') {
+          try {
+            await instance.cleanup();
+          } catch (error) {
+            console.error(`Error cleaning up service ${name}:`, error);
           }
         }
       }
+      
+      // Clear all maps
+      this.utils.clear();
+      this.services.clear();
+      this.components.clear();
+      this.serviceInstances.clear();
+      this.componentInstances.clear();
+      this.serviceMetadata.clear();
+      
+      // Reset Jest mocks
+      if (this.getService.mockReset) this.getService.mockReset();
+      if (this.getServiceSync.mockReset) this.getServiceSync.mockReset();
     }
-    
-    // Call cleanup on component instances
-    const componentInstances = Array.from(this.componentInstances.entries());
-    for (let i = componentInstances.length - 1; i >= 0; i--) {
-      const [name, instance] = componentInstances[i];
-      if (instance && typeof instance.cleanup === 'function') {
-        try {
-          await instance.cleanup();
-        } catch (error) {
-          console.error(`Error cleaning up component ${name}:`, error);
-        }
-      }
-    }
-    
-    // Reset all Jest mocks
-    Object.values(this).forEach(value => {
-      if (typeof value === 'object' && value !== null) {
-        Object.values(value).forEach(fn => {
-          if (typeof fn === 'function' && fn.mockReset) {
-            fn.mockReset();
-          }
-        });
-      }
-    });
-    
-    // Register LogManager BEFORE clearing maps
-    this.registerUtil('LogManager', mockLogger);
-    
-    // Then clear all maps
-    this.utils.clear();
-    this.services.clear();
-    this.components.clear();
-    this.serviceInstances.clear();
-    this.componentInstances.clear();
-    this.serviceMetadata.clear();
-  })();
-}}
+  };
 
   // Register all expected services in the container
   Object.entries(services).forEach(([name, ServiceClass]) => {
@@ -179,9 +155,10 @@ reset() {
   Object.entries(components).forEach(([name, ComponentClass]) => {
     container.registerComponent(name, ComponentClass);
   });
+
   // Create the complete mock system
   const mockSystem = {
-    logger: mockLogger,
+    // REMOVED: mockLogger - we're using real LogManager now
     memoryMonitor: {
       start: jest.fn(),
       stop: jest.fn(),
@@ -216,9 +193,8 @@ reset() {
     services,
     components,
     container,
-    cleanupOrder, // Expose cleanup order for testing
+    cleanupOrder,
     async reset() {
-      // Reset the container first
       await this.container.reset();
       
       // Reset all Jest mocks
@@ -234,10 +210,8 @@ reset() {
       
       // Clear cleanup order
       cleanupOrder.length = 0;
-      
-      // Re-register LogManager after reset
-      container.registerUtil('LogManager', mockLogger);
-    }}
+    }
+  };
 
   return mockSystem;
 };

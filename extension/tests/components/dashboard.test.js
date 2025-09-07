@@ -144,13 +144,13 @@ jest.mock('../../src/core/dependency-container.js', () => {
   
   describe('Dashboard Component', () => {
     describe('Basic Structure', () => {
-      test('Dashboard exists and has required methods', () => {
-        expect(Dashboard).toBeDefined();
-        expect(typeof Dashboard.initDashboard).toBe('function');
-        expect(typeof Dashboard.cleanup).toBe('function');
+  test('Dashboard exists and has required methods', () => {
+    expect(Dashboard).toBeDefined();
+    expect(typeof Dashboard.initDashboard).toBe('function');
+    expect(typeof Dashboard.cleanup).toBe('function');
         expect(typeof Dashboard.setupEventHandlers).toBe('function');
         expect(typeof Dashboard.setupFallbackNavigation).toBe('function');
-      });
+  });
   
       test('Dashboard starts with correct initial state', () => {
         expect(Dashboard.initialized).toBe(false);
@@ -571,4 +571,4 @@ describe('Overview Panel', () => {
       });
     });
   });
-});
+  });

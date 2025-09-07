@@ -20,6 +20,7 @@ from core.llm.factory.factory import LLMProviderFactory
 from core.llm.providers.config.config_manager import ProviderConfigManager
 from core.services.embeddings.embedding_service import EmbeddingService
 from core.services.content.pipeline_service import PipelineService
+from api.task_processor import TaskProcessor
 from core.domain.content.pipeline import (
     DefaultStateManager,
     DefaultComponentCoordinator,
@@ -33,6 +34,8 @@ class AppState:
     def __init__(self):
         self.pipeline_service: Optional[PipelineService] = None
         self.graph_service: Optional[GraphService] = None
+        self.task_managers = {}
+        self.task_processor: Optional[TaskProcessor] = None
         self.db_connection: Optional[DatabaseConnection] = None
         self.schema_manager: Optional[SchemaManager] = None
         self.embedding_factory: Optional[EmbeddingProviderFactory] = None
@@ -155,6 +158,11 @@ class AppState:
                             self.logger.info("Embedding schema initialized successfully")
                         else:
                             self.logger.warning("Embedding schema initialization returned False")
+                    
+                    # Initialize semantic relationship type in separate transaction
+                    # This avoids mixing schema modifications with write operations
+                    await self.embedding_service.initialize_semantic_relationship_type()
+                    
                 except Exception as e:
                     self.logger.error(f"Failed to initialize embedding schema: {str(e)}", exc_info=True)
 

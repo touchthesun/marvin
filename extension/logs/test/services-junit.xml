@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="3" failures="0" errors="0" time="0.867">
+  <testsuite name="Server Connection" errors="0" failures="0" skipped="0" timestamp="2025-08-11T05:51:19" time="0.511" tests="3">
+    <testcase classname="Server Connection Health Check" name="should be able to reach the real FastAPI server health endpoint" time="0.007">
+    </testcase>
+    <testcase classname="Server Connection Health Check" name="should handle server not running gracefully" time="0.011">
+    </testcase>
+    <testcase classname="Server Connection Real Server Test" name="should actually connect to running server" time="0.002">
+    </testcase>
+  </testsuite>
+</testsuites>
