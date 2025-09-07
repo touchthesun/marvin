@@ -54,27 +54,39 @@ export class ApiService extends BaseService {
   }
   
   /**
+   * Get the initialization status
+   * @returns {boolean} Whether the service is initialized
+   */
+  get initialized() {
+    return this._initialized;
+  }
+  
+  /**
    * Initialize the API service
    * @returns {Promise<boolean>} Success state
    */
   async _performInitialization() {
     try {
-      // Create logger for background script context
+      // Create logger - detect context automatically
       this._logger = new LogManager({
         context: 'api-service',
-        isBackgroundScript: true,
+        isBackgroundScript: typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getBackgroundPage,
         maxEntries: 1000
       });
       
-      this._logger.info('Initializing API service in background script context');
+      this._logger.info('Initializing API service');
       
       // Load configuration from storage
       await this._loadConfiguration();
       
-      // Initialize message handlers for background script communication
-      await this._initializeMessageHandlers();
+      // Initialize message handlers only if in background script context
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getBackgroundPage) {
+        await this._initializeMessageHandlers();
+        this._logger.info('API service initialized successfully in background script context');
+      } else {
+        this._logger.info('API service initialized successfully in dashboard context');
+      }
       
-      this._logger.info('API service initialized successfully in background script');
       return true;
     } catch (error) {
       this._logger?.error('Error initializing API service:', error);
@@ -571,12 +583,12 @@ export class ApiService extends BaseService {
     this._stats.averageResponseTime = this._stats.totalResponseTime / this._stats.totalRequests;
   }
   
-/**
- * Send a message to background script
- * @param {object} message - Message to send
- * @returns {Promise<object>} Response from background script
- */
-async sendMessageToBackground(message) {
+  /**
+   * Send a message to background script
+   * @param {object} message - Message to send
+   * @returns {Promise<object>} Response from background script
+   */
+  async sendMessageToBackground(message) {
   if (!this._initialized) {
     try {
       await this.initialize();
@@ -791,11 +803,11 @@ async sendMessageToBackground(message) {
   // extension/src/services/api-service.js
 // Add message passing interface for background script
 
-/**
- * Initialize message handlers for background script communication
- * @private
- */
-async _initializeMessageHandlers() {
+  /**
+   * Initialize message handlers for background script communication
+   * @private
+   */
+  async _initializeMessageHandlers() {
   try {
     // Check if Chrome runtime APIs are available
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
@@ -833,13 +845,13 @@ async _initializeMessageHandlers() {
   }
 }
 
-/**
- * Handle API requests from UI components
- * @param {object} message - The message containing the API request
- * @param {function} sendResponse - Function to send response back
- * @private
- */
-async _handleApiRequest(message, sendResponse) {
+  /**
+   * Handle API requests from UI components
+   * @param {object} message - The message containing the API request
+   * @param {function} sendResponse - Function to send response back
+   * @private
+   */
+  async _handleApiRequest(message, sendResponse) {
   const startTime = Date.now();
   const { endpoint, options = {}, requestId } = message;
   
@@ -943,12 +955,12 @@ _classifyError(error) {
   return 'API_ERROR';
 }
 
-/**
- * Handle status requests from UI components
- * @param {function} sendResponse - Function to send response back
- * @private
- */
-async _handleStatusRequest(sendResponse) {
+  /**
+   * Handle status requests from UI components
+   * @param {function} sendResponse - Function to send response back
+   * @private
+   */
+  async _handleStatusRequest(sendResponse) {
   try {
     const status = this.getStatus();
     const stats = this.getStatistics();
@@ -973,13 +985,13 @@ async _handleStatusRequest(sendResponse) {
   }
 }
 
-/**
- * Handle configuration update requests
- * @param {object} message - The message containing config updates
- * @param {function} sendResponse - Function to send response back
- * @private
- */
-async _handleConfigUpdate(message, sendResponse) {
+  /**
+   * Handle configuration update requests
+   * @param {object} message - The message containing config updates
+   * @param {function} sendResponse - Function to send response back
+   * @private
+   */
+  async _handleConfigUpdate(message, sendResponse) {
   try {
     const { config } = message;
     
@@ -1016,12 +1028,12 @@ async _handleConfigUpdate(message, sendResponse) {
 }
 
   /**
- * Send API request from UI component (for backward compatibility)
- * @param {string} endpoint - API endpoint
- * @param {object} options - Request options
- * @returns {Promise<object>} Response data
- */
-async sendApiRequest(endpoint, options = {}) {
+   * Send API request from UI component (for backward compatibility)
+   * @param {string} endpoint - API endpoint
+   * @param {object} options - Request options
+   * @returns {Promise<object>} Response data
+   */
+  async sendApiRequest(endpoint, options = {}) {
   if (!this._initialized) {
     try {
       await this.initialize();
@@ -1053,11 +1065,11 @@ async sendApiRequest(endpoint, options = {}) {
   });
 }
 
-/**
- * Get service status from UI component
- * @returns {Promise<object>} Service status
- */
-async getServiceStatus() {
+  /**
+   * Get service status from UI component
+   * @returns {Promise<object>} Service status
+   */
+  async getServiceStatus() {
   if (!this._initialized) {
     try {
       await this.initialize();
@@ -1176,6 +1188,40 @@ async getServiceStatus() {
    */
   async getTasks() {
     return this.fetchAPI('/api/v1/tasks');
+  }
+
+  /**
+   * Get graph overview data for Knowledge Panel
+   * @param {object} options - Request options
+   * @returns {Promise<object>} Graph overview response
+   */
+  async getGraphOverview(options = {}) {
+    console.log('🔍 DEBUG: getGraphOverview called with options:', options);
+    try {
+      console.log('🔍 DEBUG: Calling fetchAPI...');
+      const response = await this.fetchAPI('/api/v1/graph/overview', {
+        method: 'GET',
+        ...options
+      });
+      
+      console.log('🔍 DEBUG: fetchAPI response:', response);
+      
+      if (response.success) {
+        console.log('🔍 DEBUG: Success! Returning response');
+        return response;
+      } else {
+        console.error('🔍 DEBUG: API response not successful:', response);
+        throw new Error(response.error || 'Failed to fetch graph overview');
+      }
+    } catch (error) {
+      console.error('🔍 DEBUG: getGraphOverview error:', error);
+      console.error('Error fetching graph overview:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: { nodes: [], edges: [], pages: [] }
+      };
+    }
   }
 }
 
