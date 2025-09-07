@@ -56,7 +56,7 @@
     "jest-watch-typeahead": "^2.2.2",
     "lru-cache": "^11.1.0",
     "mini-css-extract-plugin": "^2.9.2",
-    "msw": "^0.49.3",
+    "msw": "^2.11.1",
     "style-loader": "^4.0.0",
     "typescript": "^5.8.3",
     "webpack": "^5.99.9",
