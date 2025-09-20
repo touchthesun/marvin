@@ -7,6 +7,36 @@ import { LogManager } from '../utils/log-manager.js';
  */
 export class NotificationService extends BaseService {
   /**
+   * Static method to safely show notifications when service might not be available
+   * This provides a fallback mechanism for components that can't access the service
+   * @param {string} message - Message to display
+   * @param {string} type - Type of notification (success, error, info, warning)
+   * @param {Object} serviceInstance - Optional service instance to use
+   * @returns {Promise<HTMLElement|null>} Notification element or null
+   */
+  static async safeShowNotification(message, type = 'success', serviceInstance = null) {
+    try {
+      // If a service instance is provided, use it
+      if (serviceInstance && typeof serviceInstance.showNotification === 'function') {
+        return await serviceInstance.showNotification(message, type);
+      }
+      
+      // Otherwise, fall back to console logging
+      const logMethod = type === 'error' ? 'error' : 
+                       type === 'warning' ? 'warn' : 
+                       type === 'success' ? 'log' : 'info';
+      
+      const prefix = `[Notification ${type.toUpperCase()}]`;
+      console[logMethod](`${prefix} ${message}`);
+      
+      return null;
+    } catch (error) {
+      console.error('[NotificationService] Safe notification failed:', error);
+      console.error(`[NotificationService] Original message: [${type.toUpperCase()}] ${message}`);
+      return null;
+    }
+  }
+  /**
    * Default configuration values
    * @private
    */
@@ -253,65 +283,73 @@ export class NotificationService extends BaseService {
    * @returns {Promise<HTMLElement|null>} Notification element or null
    */
   async showNotification(message, type = 'success', progress = null, options = {}) {
-    if (!this._initialized) {
-      try {
-        await this.initialize();
-      } catch (error) {
-        this._logger?.error('Failed to initialize notification service:', error);
+    // Enhanced error handling with fallback mechanisms
+    try {
+      // Validate inputs first
+      if (!message || typeof message !== 'string') {
+        console.warn('[NotificationService] Invalid message provided:', message);
+        message = 'Notification';
+      }
+
+      // Validate notification type
+      const validTypes = ['success', 'error', 'info', 'warning'];
+      if (!validTypes.includes(type)) {
+        console.warn(`[NotificationService] Invalid notification type: ${type}, defaulting to 'info'`);
+        type = 'info';
+      }
+
+      // Validate progress value if provided
+      if (progress !== null) {
+        if (typeof progress !== 'number' || progress < 0 || progress > 100) {
+          console.warn(`[NotificationService] Invalid progress value: ${progress}, clamping to valid range`);
+          progress = Math.max(0, Math.min(100, Number(progress) || 0));
+        }
+      }
+
+      // Try to initialize if not already initialized
+      if (!this._initialized) {
+        try {
+          await this.initialize();
+        } catch (initError) {
+          console.error('[NotificationService] Failed to initialize:', initError);
+          // Fallback to console logging
+          this._fallbackNotification(message, type);
+          return null;
+        }
+      }
+
+      // Check circuit breaker
+      if (this._isCircuitBreakerOpen()) {
+        console.warn('[NotificationService] Circuit breaker open, notification suppressed');
+        this._fallbackNotification(message, type);
         return null;
       }
-    }
-
-    // Check circuit breaker
-    if (this._isCircuitBreakerOpen()) {
-      this._logger?.warn('Circuit breaker open, notification suppressed');
-      return null;
-    }
-    
-    // Track notification creation
-    this._stats.created++;
-    if (this._stats.byType[type] !== undefined) {
-      this._stats.byType[type]++;
-    }
-    
-    // Add to history with limited size
-    this._trackNotificationHistory(message, type, progress);
-    
-    this._logger?.debug(`Showing ${type} notification: ${message}${progress !== null ? ` (progress: ${progress}%)` : ''}`);
-
-    // Early return in service worker context
-    if (this._isServiceWorkerContext) {
-      return null;
-    }
-    
-    if (!message) {
-      this._logger.warn('Attempted to show notification with empty message');
-      message = 'Notification';
-    }
-    
-    // Validate notification type
-    const validTypes = ['success', 'error', 'info', 'warning'];
-    if (!validTypes.includes(type)) {
-      this._logger.warn(`Invalid notification type: ${type}, defaulting to 'info'`);
-      type = 'info';
-    }
-    
-    // Validate progress value if provided
-    if (progress !== null) {
-      if (typeof progress !== 'number' || progress < 0 || progress > 100) {
-        this._logger.warn(`Invalid progress value: ${progress}, clamping to valid range`);
-        progress = Math.max(0, Math.min(100, Number(progress) || 0));
+      
+      // Track notification creation
+      this._stats.created++;
+      if (this._stats.byType[type] !== undefined) {
+        this._stats.byType[type]++;
       }
-    }
-    
-    // Merge options with defaults
-    const config = { ...this._config, ...options };
-    
-    try {
+      
+      // Add to history with limited size
+      this._trackNotificationHistory(message, type, progress);
+      
+      this._logger?.debug(`Showing ${type} notification: ${message}${progress !== null ? ` (progress: ${progress}%)` : ''}`);
+
+      // Early return in service worker context
+      if (this._isServiceWorkerContext) {
+        this._fallbackNotification(message, type);
+        return null;
+      }
+      
+      // Merge options with defaults
+      const config = { ...this._config, ...options };
+      
       // Ensure notification container exists
       const container = await this._ensureNotificationContainer();
       if (!container) {
-        this._logger.error('Failed to create notification container');
+        console.error('[NotificationService] Failed to create notification container');
+        this._fallbackNotification(message, type);
         return null;
       }
       
@@ -323,9 +361,52 @@ export class NotificationService extends BaseService {
       // Manage standard notifications
       return this._createStandardNotification(message, type, config);
     } catch (error) {
-      this._logger.error('Error showing notification:', error);
+      console.error('[NotificationService] Error showing notification:', error);
+      this._fallbackNotification(message, type);
       this._recordFailure('notification-creation');
       return null;
+    }
+  }
+
+  /**
+   * Fallback notification method when the main notification system fails
+   * @param {string} message - Notification message
+   * @param {string} type - Notification type
+   * @private
+   */
+  _fallbackNotification(message, type) {
+    try {
+      // Use console logging as fallback
+      const logMethod = type === 'error' ? 'error' : 
+                       type === 'warning' ? 'warn' : 
+                       type === 'success' ? 'log' : 'info';
+      
+      const prefix = `[Notification ${type.toUpperCase()}]`;
+      console[logMethod](`${prefix} ${message}`);
+      
+      // Also try to show a simple alert for critical errors (only in browser context)
+      if (type === 'error' && typeof window !== 'undefined' && window.alert && typeof window.alert === 'function') {
+        // Only show alert for critical errors and not in service worker context
+        if (!this._isServiceWorkerContext && message.length < 100) {
+          try {
+            // Check if we're in a test environment (JSDOM) by looking for test-specific properties
+            const isTestEnvironment = typeof jest !== 'undefined' || 
+                                    typeof window.navigator === 'undefined' || 
+                                    window.navigator.userAgent.includes('jsdom');
+            
+            if (!isTestEnvironment) {
+              window.alert(`Error: ${message}`);
+            }
+          } catch (alertError) {
+            // Ignore alert errors (e.g., in headless environments or JSDOM)
+            console.debug('[NotificationService] Alert failed:', alertError);
+          }
+        }
+      }
+    } catch (fallbackError) {
+      // Last resort - just log to console
+      console.error('[NotificationService] Fallback notification failed:', fallbackError);
+      console.error(`[NotificationService] Original message: [${type.toUpperCase()}] ${message}`);
     }
   }
 

@@ -30,9 +30,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">31.66% </span>
+                <span class="strong">20% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>19/60</span>
+                <span class='fraction'>12/60</span>
             </div>
         
             
@@ -446,32 +446,32 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
@@ -704,10 +704,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -727,8 +727,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -832,17 +832,17 @@ export class BaseService {
     this._taskListeners = new Set();
     
     // Memory management
-    this._maxTaskAge = options.maxTaskAge || 300000; // 5 minutes
-    this._maxActiveTasks = options.maxActiveTasks || 100;
-    this._maxRetryAttempts = options.maxRetryAttempts || 5;
-    this._retryBackoffBase = options.retryBackoffBase || 1000;
-    this._retryBackoffMax = options.retryBackoffMax || 60000;
+    this._maxTaskAge = options.maxTaskAge || <span class="branch-1 cbranch-no" title="branch not covered" >300000;</span> // 5 minutes
+    this._maxActiveTasks = options.maxActiveTasks || <span class="branch-1 cbranch-no" title="branch not covered" >100;</span>
+    this._maxRetryAttempts = options.maxRetryAttempts || <span class="branch-1 cbranch-no" title="branch not covered" >5;</span>
+    this._retryBackoffBase = options.retryBackoffBase || <span class="branch-1 cbranch-no" title="branch not covered" >1000;</span>
+    this._retryBackoffMax = options.retryBackoffMax || <span class="branch-1 cbranch-no" title="branch not covered" >60000;</span>
     
     // Circuit breaker
     this._failureCount = 0;
     this._lastFailureTime = 0;
-    this._circuitBreakerThreshold = options.circuitBreakerThreshold || 5;
-    this._circuitBreakerTimeout = options.circuitBreakerTimeout || 60000; // 1 minute
+    this._circuitBreakerThreshold = options.circuitBreakerThreshold || <span class="branch-1 cbranch-no" title="branch not covered" >5;</span>
+    this._circuitBreakerTimeout = options.circuitBreakerTimeout || <span class="branch-1 cbranch-no" title="branch not covered" >60000;</span> // 1 minute
     
     // Error boundaries
     this._errorBoundaries = new Map();
@@ -1192,7 +1192,7 @@ export class BaseService {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-04T07:18:05.952Z
+                at 2025-09-20T03:01:39.691Z
             </div>
         <script src="../prettify.js"></script>
         <script>

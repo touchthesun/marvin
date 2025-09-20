@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">17.3% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/52</span>
+                <span class='fraction'>0/52</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">25% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>3/12</span>
+                <span class='fraction'>0/12</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">16% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>8/50</span>
+                <span class='fraction'>0/50</span>
             </div>
         
             
@@ -246,13 +246,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -261,15 +261,15 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -413,13 +413,13 @@ import { AssistantPanel } from '../components/panels/assistant/assistant-panel.j
  * ComponentRegistry - Central component registration
  * Handles registration of all UI components with the dependency container
  */
-export const ComponentRegistry = {
+export const ComponentRegistry = <span class="cstat-no" title="statement not covered" >{</span>
   /**
    * Register all components with the dependency container
    * @returns {Object} ComponentRegistry instance for chaining
    */
-  registerAll() {
-    const componentDefinitions = [
+<span class="fstat-no" title="function not covered" >  re</span>gisterAll() {
+    const componentDefinitions = <span class="cstat-no" title="statement not covered" >[</span>
       { name: 'navigation', implementation: Navigation },
       { name: 'overview-panel', implementation: OverviewPanel },
       { name: 'capture-panel', implementation: CapturePanel },
@@ -428,15 +428,15 @@ export const ComponentRegistry = {
       { name: 'tasks-panel', implementation: TasksPanel },
       { name: 'assistant-panel', implementation: AssistantPanel }
     ];
-    console.log('ComponentRegistry: Component definitions:', componentDefinitions.map(c =&gt; c.name));
+<span class="cstat-no" title="statement not covered" >    console.log('ComponentRegistry: Component definitions:', componentDefinitions.map(<span class="fstat-no" title="function not covered" >c </span>=&gt; <span class="cstat-no" title="statement not covered" >c.name)</span>);</span>
 &nbsp;
-    componentDefinitions.forEach(({ name, implementation }) =&gt; {
-      console.log(`ComponentRegistry: Registering ${name} with implementation:`, implementation);
-      container.registerComponent(name, implementation);
+<span class="cstat-no" title="statement not covered" >    componentDefinitions.forEach(<span class="fstat-no" title="function not covered" >({</span> name, implementation }) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >      console.log(`ComponentRegistry: Registering ${name} with implementation:`, implementation);</span>
+<span class="cstat-no" title="statement not covered" >      container.registerComponent(name, implementation);</span>
     });
 &nbsp;
-    console.log(`ComponentRegistry: Registration complete. Container now has:`, Array.from(container.components.keys()));
-    return this;
+<span class="cstat-no" title="statement not covered" >    console.log(`ComponentRegistry: Registration complete. Container now has:`, Array.from(container.components.keys()));</span>
+<span class="cstat-no" title="statement not covered" >    return this;</span>
   },
 &nbsp;
   /**
@@ -571,7 +571,7 @@ export const ComponentRegistry = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-04T07:18:05.952Z
+                at 2025-09-20T03:01:39.691Z
             </div>
         <script src="../prettify.js"></script>
         <script>

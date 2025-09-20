@@ -35,9 +35,22 @@ const SettingsPanel = {
         return true;
       }
       
+      // Ensure the panel UI exists
+      this.ensurePanelUI(logger);
+      
       // Get dependencies with error handling
       const notificationService = this.getService(logger, 'notificationService', {
-        showNotification: (message, type) => console.error(`[${type}] ${message}`)
+        showNotification: async (message, type) => {
+          // Enhanced fallback that uses the static safe method
+          try {
+            const { NotificationService } = await import('../../../services/notification-service.js');
+            await NotificationService.safeShowNotification(message, type);
+          } catch (importError) {
+            // Last resort fallback
+            const logMethod = type === 'error' ? 'error' : type === 'warning' ? 'warn' : 'info';
+            console[logMethod](`[Notification ${type.toUpperCase()}] ${message}`);
+          }
+        }
       });
       
       const ui = container.utils.get('ui') || {
@@ -75,9 +88,11 @@ const SettingsPanel = {
       try {
         const notificationService = container.getService('notificationService');
         if (notificationService && typeof notificationService.showNotification === 'function') {
-          notificationService.showNotification('Failed to initialize settings panel', 'error');
+          await notificationService.showNotification('Failed to initialize settings panel', 'error');
         } else {
-          console.error('[ERROR] Failed to initialize settings panel');
+          // Use the static safe method as fallback
+          const { NotificationService } = await import('../../../services/notification-service.js');
+          await NotificationService.safeShowNotification('Failed to initialize settings panel', 'error');
         }
       } catch (error) {
         console.error('[ERROR] Failed to initialize settings panel');
@@ -132,6 +147,135 @@ const SettingsPanel = {
     } catch (error) {
       logger.warn(`${serviceName} not available:`, error);
       return fallback;
+    }
+  },
+  
+  /**
+   * Ensure the settings panel UI elements exist
+   * Creates the HTML content dynamically if it doesn't exist
+   * @param {LogManager} logger - Logger instance
+   */
+  ensurePanelUI(logger) {
+    logger.debug('Ensuring settings panel UI elements exist');
+    
+    const panel = document.getElementById('settings-panel');
+    if (!panel) {
+      logger.error('Settings panel element not found');
+      throw new Error('Settings panel element not found');
+    }
+    
+    // Check if content already exists
+    let contentElement = panel.querySelector('.settings-container');
+    if (!contentElement) {
+      logger.debug('Creating settings panel content');
+      
+      // Remove loading indicator
+      const loadingIndicator = panel.querySelector('.loading-indicator');
+      if (loadingIndicator) {
+        loadingIndicator.remove();
+      }
+      
+      // Create main content container
+      contentElement = document.createElement('div');
+      contentElement.className = 'settings-container';
+      contentElement.innerHTML = `
+        <div class="settings-content">
+          <!-- API Configuration Section -->
+          <section class="settings-section">
+            <h3>API Configuration</h3>
+            <form id="api-config-form">
+              <div class="form-group">
+                <label for="api-url">API URL</label>
+                <input type="url" id="api-url" name="apiUrl" placeholder="http://localhost:8000">
+                <p class="setting-description">The base URL for Marvin's API server</p>
+              </div>
+              <div class="form-group">
+                <label for="api-key">API Key (Optional)</label>
+                <input type="password" id="api-key" name="apiKey" placeholder="Enter API key if required">
+                <p class="setting-description">API key for authentication (if required)</p>
+              </div>
+              <div class="form-actions">
+                <button type="button" id="test-api-btn" class="btn-secondary">Test Connection</button>
+                <button type="submit" class="btn-primary">Save API Settings</button>
+                <div id="api-status" class="api-status"></div>
+              </div>
+            </form>
+          </section>
+          
+          <!-- Capture Settings Section -->
+          <section class="settings-section">
+            <h3>Capture Settings</h3>
+            <form id="capture-settings-form">
+              <div class="form-group checkbox">
+                <input type="checkbox" id="auto-capture" name="automaticCapture">
+                <label for="auto-capture">Enable automatic page capture</label>
+                <p class="setting-description">When enabled, Marvin will capture pages you visit without manual action</p>
+              </div>
+              
+              <div class="form-group">
+                <label for="min-time">Minimum time on page before capture (seconds)</label>
+                <input type="number" id="min-time" name="minTimeOnPage" min="1" max="300" value="10">
+                <p class="setting-description">Wait this many seconds after page load before auto-capturing</p>
+              </div>
+              
+              <div class="form-group">
+                <label for="excluded-domains">Excluded Domains (one per line)</label>
+                <textarea id="excluded-domains" name="excludedDomains" rows="4" placeholder="example.com&#10;social-media.com"></textarea>
+                <p class="setting-description">Domains to exclude from automatic capture</p>
+              </div>
+              
+              <div class="form-group">
+                <label for="included-domains">Only Include These Domains (one per line, leave empty for all)</label>
+                <textarea id="included-domains" name="includedDomains" rows="4" placeholder="research-site.com&#10;academic-journal.com"></textarea>
+                <p class="setting-description">If specified, only these domains will be captured</p>
+              </div>
+              
+              <button type="submit" class="btn-primary">Save Capture Settings</button>
+            </form>
+          </section>
+          
+          <!-- Analysis Settings Section -->
+          <section class="settings-section">
+            <h3>Analysis Settings</h3>
+            <form id="analysis-settings-form">
+              <div class="form-group checkbox">
+                <input type="checkbox" id="auto-analyze" name="autoAnalyze">
+                <label for="auto-analyze">Enable automatic analysis</label>
+                <p class="setting-description">When enabled, captured pages will be automatically analyzed for insights</p>
+              </div>
+              
+              <button type="submit" class="btn-primary">Save Analysis Settings</button>
+            </form>
+          </section>
+          
+          <!-- Data Management Section -->
+          <section class="settings-section">
+            <h3>Data Management</h3>
+            <div class="form-actions">
+              <button id="export-data-btn" class="btn-secondary">Export Data</button>
+              <button id="import-data-btn" class="btn-secondary">Import Data</button>
+              <button id="clear-data-btn" class="btn-danger">Clear All Data</button>
+            </div>
+            <p class="setting-description">Manage your captured data and settings</p>
+          </section>
+          
+          <!-- Status Section -->
+          <section class="settings-section">
+            <h3>Status</h3>
+            <div class="status-indicators">
+              <div class="status-item">
+                <span class="status-dot"></span>
+                <span class="status-text">Checking connection...</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      `;
+      
+      panel.appendChild(contentElement);
+      logger.info('Settings panel content created successfully');
+    } else {
+      logger.debug('Settings panel content already exists');
     }
   },
   
@@ -577,7 +721,38 @@ const SettingsPanel = {
       // Set up API test button
       const testApiBtn = document.getElementById('test-api-btn');
       if (testApiBtn) {
-        const testApiHandler = () => this.testApiConnection(logger, notificationService);
+        const testApiHandler = async () => {
+          // Get the actual notification service or use fallback
+          let actualNotificationService = notificationService;
+          try {
+            const realService = container.getService('notificationService');
+            if (realService && typeof realService.showNotification === 'function') {
+              actualNotificationService = realService;
+            } else {
+              // Use the static safe method as fallback
+              const { NotificationService } = await import('../../../services/notification-service.js');
+              actualNotificationService = {
+                showNotification: async (message, type) => {
+                  await NotificationService.safeShowNotification(message, type, realService);
+                }
+              };
+            }
+          } catch (error) {
+            logger.debug('Could not get real notification service, using fallback');
+            // Use the static safe method as fallback
+            try {
+              const { NotificationService } = await import('../../../services/notification-service.js');
+              actualNotificationService = {
+                showNotification: async (message, type) => {
+                  await NotificationService.safeShowNotification(message, type);
+                }
+              };
+            } catch (importError) {
+              logger.error('Could not import NotificationService:', importError);
+            }
+          }
+          await this.testApiConnection(logger, actualNotificationService);
+        };
         testApiBtn.addEventListener('click', testApiHandler);
         
         // Track this listener for cleanup
@@ -678,6 +853,7 @@ const SettingsPanel = {
         
         apiStatusEl.textContent = 'Connected successfully!';
         apiStatusEl.className = 'status-success';
+        
         notificationService.showNotification('API connection successful', 'success');
       } else {
         const errorText = await response.text();
@@ -690,6 +866,7 @@ const SettingsPanel = {
       
       apiStatusEl.textContent = `Connection failed: ${error.message}`;
       apiStatusEl.className = 'status-error';
+      
       notificationService.showNotification(`API connection failed: ${error.message}`, 'error');
     } finally {
       // Reset button state

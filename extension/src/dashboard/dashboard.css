@@ -877,6 +877,28 @@ body {
 /* Settings Panel */
 .settings-container {
   max-width: 800px;
+  padding: 20px;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-section {
+  background-color: var(--card-background);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.settings-section h3 {
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: var(--primary-color);
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 8px;
 }
 
 .settings-group {
@@ -901,26 +923,132 @@ body {
 .form-group {
   display: flex;
   flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.form-group.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-group.checkbox input[type="checkbox"] {
+  margin: 0;
 }
 
 .form-group label {
   margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--text-color);
 }
 
 .form-group input[type="text"],
 .form-group input[type="url"],
 .form-group input[type="number"],
+.form-group input[type="password"],
 .form-group textarea {
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.setting-description {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 4px;
+  font-style: italic;
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.api-status {
   margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--border-radius);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.api-status.status-checking {
+  background-color: #f0f8ff;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-light);
+}
+
+.api-status.status-success {
+  background-color: #f0fff4;
+  color: var(--success-color);
+  border: 1px solid #27ae60;
+}
+
+.api-status.status-error {
+  background-color: #fff5f5;
+  color: var(--error-color);
+  border: 1px solid #e74c3c;
+}
+
+.status-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--text-light);
+  transition: background-color 0.2s ease;
+}
+
+.status-dot.online {
+  background-color: var(--success-color);
+}
+
+.status-text {
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.btn-danger {
+  background-color: var(--error-color);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
 }
 
 .help-text {

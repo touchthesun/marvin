@@ -1,19 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="5" failures="0" errors="0" time="1.115">
-  <testsuite name="Capture to Task Data Flow Investigation" errors="0" failures="0" skipped="4" timestamp="2025-09-04T07:18:04" time="0.663" tests="5">
-    <testcase classname="Capture to Task Data Flow Investigation" name="1. TaskService initial state" time="0.002">
+<testsuites name="jest tests" tests="12" failures="0" errors="0" time="1.026">
+  <testsuite name="Notification Service Robustness" errors="0" failures="0" skipped="0" timestamp="2025-09-20T03:01:37" time="0.672" tests="12">
+    <testcase classname="Notification Service Robustness" name="should handle invalid message inputs gracefully" time="0.015">
     </testcase>
-    <testcase classname="Capture to Task Data Flow Investigation" name="2. TaskService createTask method" time="0">
-      <skipped/>
+    <testcase classname="Notification Service Robustness" name="should handle invalid notification types gracefully" time="0.002">
     </testcase>
-    <testcase classname="Capture to Task Data Flow Investigation" name="3. Capture Panel task creation flow" time="0">
-      <skipped/>
+    <testcase classname="Notification Service Robustness" name="should handle invalid progress values gracefully" time="0.003">
     </testcase>
-    <testcase classname="Capture to Task Data Flow Investigation" name="4. Background script task handling" time="0">
-      <skipped/>
+    <testcase classname="Notification Service Robustness" name="should provide fallback notifications when service fails to initialize" time="0">
     </testcase>
-    <testcase classname="Capture to Task Data Flow Investigation" name="5. Message passing for task creation" time="0">
-      <skipped/>
+    <testcase classname="Notification Service Robustness" name="should provide fallback notifications when container creation fails" time="0.001">
+    </testcase>
+    <testcase classname="Notification Service Robustness" name="should handle service worker context gracefully" time="0">
+    </testcase>
+    <testcase classname="Notification Service Robustness" name="should handle circuit breaker open state gracefully" time="0.001">
+    </testcase>
+    <testcase classname="Notification Service Robustness" name="should handle unexpected errors gracefully" time="0">
+    </testcase>
+    <testcase classname="Notification Service Robustness" name="static safeShowNotification should work without service instance" time="0">
+    </testcase>
+    <testcase classname="Notification Service Robustness" name="static safeShowNotification should work with service instance" time="0.001">
+    </testcase>
+    <testcase classname="Notification Service Robustness" name="static safeShowNotification should handle service errors gracefully" time="0">
+    </testcase>
+    <testcase classname="Notification Service Robustness" name="fallback notification should log messages correctly" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>
