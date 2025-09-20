@@ -291,10 +291,10 @@ class RelationshipManager:
         sentences = [sent.text.strip() for sent in doc.sents]
         
         # Iterate through all unique pairs of keywords
-        for i in range(len(keywords)):
-            for j in range(i + 1, len(keywords)):
-                source_kw = keywords[i]
-                target_kw = keywords[j]
+        for i in range(len(doc_keywords)):
+            for j in range(i + 1, len(doc_keywords)):
+                source_kw = doc_keywords[i]
+                target_kw = doc_keywords[j]
                 
                 source_text = source_kw.get('canonical_text', str(source_kw))
                 target_text = target_kw.get('canonical_text', str(target_kw))
@@ -309,8 +309,11 @@ class RelationshipManager:
                         source_pos = sent.lower().index(source_text.lower())
                         target_pos = sent.lower().index(target_text.lower())
                         
-                        # Calculate proximity score
-                        proximity = 1.0 / (abs(source_pos - target_pos) + 1)
+                        # Calculate proximity score with better scaling
+                        distance = abs(source_pos - target_pos)
+                        # Use a more reasonable proximity calculation
+                        # Closer keywords get higher scores, but not as extreme
+                        proximity = max(0.1, 1.0 - (distance / 100.0))
                         
                         matching_sentences.append({
                             'sentence': sent,

@@ -19,7 +19,7 @@ class ContentProcessorConfig:
     min_keyword_score: float = 0.3
     max_variants: int = 5
     enable_stemming: bool = True
-    relationship_confidence_threshold: float = 0.5
+    relationship_confidence_threshold: float = 0.1  # Lower threshold to allow more relationships
     # Content extraction settings
     extract_content: bool = True  # Enable/disable content extraction
     content_extraction_timeout: float = 2.0  # Seconds before timing out

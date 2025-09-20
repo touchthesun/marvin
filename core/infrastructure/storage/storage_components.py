@@ -75,6 +75,12 @@ class Neo4jStorageComponent(PipelineComponent):
             if hasattr(page, 'keywords') and page.keywords:
                 await self._store_keywords(page, page_id)
             
+            # If relationships were detected, store them too
+            if (hasattr(page.metadata, 'custom_metadata') and 
+                'relationships' in page.metadata.custom_metadata and 
+                page.metadata.custom_metadata['relationships']):
+                await self._store_relationships(page, page_id)
+            
         except Exception as e:
             self.logger.error(f"Error storing page in Neo4j: {str(e)}", exc_info=True)
             raise
@@ -116,6 +122,61 @@ class Neo4jStorageComponent(PipelineComponent):
                 # Continue with other keywords even if one fails
         
         self.logger.info(f"Finished storing {len(page.keywords)} keywords for page: {page.url}")
+    
+    async def _store_relationships(self, page: Page, page_id: str) -> None:
+        """Store keyword relationships in Neo4j.
+        
+        Args:
+            page: The page containing relationships in metadata
+            page_id: String ID of the page for Neo4j
+        """
+        relationships = page.metadata.custom_metadata.get('relationships', [])
+        if not relationships:
+            return
+            
+        self.logger.info(f"Storing {len(relationships)} relationships for page: {page.url}")
+        
+        for rel in relationships:
+            try:
+                # Get source and target keyword IDs
+                source_id = rel.get('source_id')
+                target_id = rel.get('target_id')
+                rel_type = rel.get('type')
+                properties = rel.get('properties', {})
+                
+                if not all([source_id, target_id, rel_type]):
+                    self.logger.warning(f"Skipping incomplete relationship: {rel}")
+                    continue
+                
+                # Create relationship between keywords
+                query = """
+                MATCH (k1:Keyword {id: $source_id}), (k2:Keyword {id: $target_id})
+                MERGE (k1)-[r:RELATED_TO]->(k2)
+                SET r.type = $rel_type,
+                    r.confidence = $confidence,
+                    r.evidence_count = $evidence_count,
+                    r.created_at = $created_at,
+                    r.updated_at = $updated_at
+                """
+                
+                params = {
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "rel_type": rel_type,
+                    "confidence": properties.get('confidence', 0.0),
+                    "evidence_count": properties.get('evidence_count', 0),
+                    "created_at": properties.get('created_at', ''),
+                    "updated_at": properties.get('updated_at', '')
+                }
+                
+                await self.db_connection.execute_query(query, params)
+                self.logger.debug(f"Stored relationship: {source_id} -> {target_id} ({rel_type})")
+                
+            except Exception as e:
+                self.logger.error(f"Error storing relationship {rel}: {str(e)}")
+                # Continue with other relationships even if one fails
+        
+        self.logger.info(f"Finished storing {len(relationships)} relationships for page: {page.url}")
     
     async def validate(self, page: Page) -> bool:
         """Validate that this component can process the page."""

@@ -13,12 +13,15 @@ class KeywordType(str, Enum):
     CUSTOM = "custom"
 
 class RelationType(Enum):
-    """Types of relationships between pages."""
+    """Types of relationships between pages and keywords."""
     LINKS_TO = "links_to"         # Direct link
     SIMILAR_TO = "similar_to"     # Content similarity
     PRECEDES = "precedes"         # Temporal relationship
     REFERENCES = "references"     # Citation/reference
     PART_OF = "part_of"          # Hierarchical relationship
+    RELATED = "related"           # General relatedness
+    SYNONYM = "synonym"           # Synonym relationship
+    HIERARCHICAL = "hierarchical" # Hierarchical relationship
 
 class BrowserContext(Enum):
     """Represents the browser context of a page."""

@@ -121,7 +121,7 @@ class KeywordProcessor:
                 
                 # Calculate normalized score
                 score = self._calculate_score(keywords)
-                if score < self.config.min_keyword_score:
+                if score < self.config.min_score:
                     continue
                 
                 # Create identifier with canonical form
@@ -508,7 +508,6 @@ class ContentProcessor(PipelineComponent):
             relationships = self.relationship_manager.prepare_neo4j_relationships(
                 min_confidence=self.config.relationship_confidence_threshold
             )
-            relationships = []
             # Process relationships
             for kw in keywords:
                 self.relationship_manager.register_keyword(kw.id, kw.keyword_type)
