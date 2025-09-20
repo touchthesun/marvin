@@ -1179,7 +1179,7 @@ _classifyError(error) {
    * @returns {Promise<Object>} Stats data
    */
   async getStats() {
-    return this.fetchAPI('/stats');
+    return this.fetchAPI('/api/v1/stats/');
   }
 
   /**

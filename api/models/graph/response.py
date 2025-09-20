@@ -7,8 +7,8 @@ from api.models.common import APIResponse
 class GraphNode(BaseModel):
     """Representation of a node in the graph."""
     id: UUID
-    url: str
-    domain: str
+    url: Optional[str] = None
+    domain: Optional[str] = None
     title: Optional[str] = None
     last_active: Optional[datetime] = None
     metadata: Dict[str, Any] = {}

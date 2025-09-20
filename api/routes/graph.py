@@ -203,16 +203,20 @@ async def get_graph_overview(
         
         # Execute transaction for consistency
         async with graph_service.graph_operations.transaction() as tx:
-            # Get nodes with a reasonable limit
+            # Get nodes with a reasonable limit (including all node types that have relationships)
             nodes_query = f"""
-            MATCH (p:Page)
+            MATCH (n)
+            WHERE (n:Page) OR (n)-[]-() OR ()-[]->(n)
             RETURN 
-                p,
-                id(p) as node_id,
-                p.url as url,
-                p.domain as domain,
-                p.title as title,
-                p.last_active as last_active
+                n,
+                elementId(n) as node_id,
+                labels(n) as labels,
+                n.url as url,
+                n.domain as domain,
+                n.title as title,
+                n.last_active as last_active,
+                n.text as text,
+                n.name as name
             LIMIT {limit}
             """
             
@@ -234,22 +238,42 @@ async def get_graph_overview(
                 generated_uuid = uuid4()
                 id_mapping[node_id] = generated_uuid
                 
+                # Extract appropriate label based on node type
+                labels = item.get("labels", [])
+                if "Page" in labels:
+                    label = item.get("title") or item.get("url", "Untitled Page")
+                elif "Task" in labels:
+                    label = item.get("name") or "Task"
+                elif "URL" in labels:
+                    label = item.get("url", "URL")
+                elif "Chunk" in labels:
+                    label = item.get("text", "Chunk")[:50] + "..." if item.get("text") and len(item.get("text", "")) > 50 else (item.get("text") or "Chunk")
+                else:
+                    label = labels[0] if labels else "Node"
+                
                 nodes.append(GraphNode(
                     id=generated_uuid,
-                    url=item["url"],
-                    domain=item.get("domain", get_domain_from_url(item["url"])),
-                    title=item.get("title"),
+                    url=item.get("url"),
+                    domain=item.get("domain", get_domain_from_url(item["url"]) if item.get("url") else None),
+                    title=label,
                     last_active=item.get("last_active"),
-                    metadata={"neo4j_id": str(node_id)}
+                    metadata={
+                        "neo4j_id": str(node_id),
+                        "labels": labels,
+                        "original_data": {
+                            "text": item.get("text"),
+                            "name": item.get("name")
+                        }
+                    }
                 ))
             
-            # Get edges between these nodes
+            # Get edges between these nodes (including all relationship types)
             edges_query = f"""
-            MATCH (p1:Page)-[r]->(p2:Page)
-            WHERE elementId(p1) IN $node_ids AND elementId(p2) IN $node_ids
+            MATCH (n1)-[r]->(n2)
+            WHERE elementId(n1) IN $node_ids AND elementId(n2) IN $node_ids
             RETURN 
-                elementId(p1) as source_id,
-                elementId(p2) as target_id,
+                elementId(n1) as source_id,
+                elementId(n2) as target_id,
                 type(r) as rel_type,
                 r.score as score,
                 properties(r) as properties

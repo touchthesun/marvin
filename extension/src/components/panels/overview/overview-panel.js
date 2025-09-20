@@ -44,11 +44,11 @@ const OverviewPanel = {
       }
       
       // Get dependencies with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
+      const notificationService = await this.getService(logger, 'notificationService', {
         showNotification: (message, type) => console.error(`[${type}] ${message}`)
       });
       
-      const visualizationService = this.getService(logger, 'visualizationService', {
+      const visualizationService = await this.getService(logger, 'visualizationService', {
         initialize: async () => logger.warn('Visualization service not available'),
         createKnowledgeGraph: () => logger.warn('Visualization service not available') && false
       });
@@ -90,7 +90,7 @@ const OverviewPanel = {
       logger.error('Error initializing overview panel:', error);
       
       // Get notification service with error handling
-      const notificationService = this.getService(logger, 'notificationService', {
+      const notificationService = await this.getService(logger, 'notificationService', {
         showNotification: (message, type) => console.error(`[${type}] ${message}`)
       });
       
@@ -106,9 +106,9 @@ const OverviewPanel = {
    * @param {Object} fallback - Fallback implementation if service not available
    * @returns {Object} Service instance or fallback
    */
-  getService(logger, serviceName, fallback) {
+  async getService(logger, serviceName, fallback) {
     try {
-      return container.getService(serviceName);
+      return await container.getService(serviceName);
     } catch (error) {
       logger.warn(`${serviceName} not available:`, error);
       return fallback;
@@ -125,7 +125,7 @@ const OverviewPanel = {
     
     try {
       // Get API service
-      const apiService = this.getService(logger, 'apiService', null);
+      const apiService = await this.getService(logger, 'apiService', null);
       
       if (apiService) {
         // Call stats API endpoint
@@ -355,9 +355,9 @@ const OverviewPanel = {
       // Set up view all captures button
       const viewAllBtn = document.getElementById('view-all-captures');
       if (viewAllBtn) {
-        const viewAllBtnHandler = () => {
+        const viewAllBtnHandler = async () => {
           // Navigate to capture panel
-          const navigation = this.getService(logger, 'navigation', {
+          const navigation = await this.getService(logger, 'navigation', {
             navigateToPanel: () => {
               // Fallback navigation
               const navItem = document.querySelector('.nav-item[data-panel="capture"]');
@@ -453,7 +453,7 @@ const OverviewPanel = {
     
     try {
       // Get fresh notification service with fallback
-      const notificationSvc = this.getService(logger, 'notificationService', {
+      const notificationSvc = await this.getService(logger, 'notificationService', {
         showNotification: (message, type) => console.log(`[${type}] ${message}`)
       });
       
@@ -477,7 +477,7 @@ const OverviewPanel = {
       logger.info('Overview data refreshed successfully');
     } catch (error) {
       logger.error('Error refreshing overview data:', error);
-      const notificationSvc = this.getService(logger, 'notificationService', {
+      const notificationSvc = await this.getService(logger, 'notificationService', {
         showNotification: (message, type) => console.error(`[${type}] ${message}`)
       });
       notificationSvc.showNotification('Error refreshing data: ' + error.message, 'error');
