@@ -203,10 +203,16 @@ async def get_graph_overview(
         
         # Execute transaction for consistency
         async with graph_service.graph_operations.transaction() as tx:
-            # Get nodes with a reasonable limit (including all node types that have relationships)
+            # Get nodes with a reasonable limit (excluding Task nodes which are ephemeral)
+            # Include Page nodes even if they don't have relationships yet
             nodes_query = f"""
             MATCH (n)
-            WHERE (n:Page) OR (n)-[]-() OR ()-[]->(n)
+            WHERE (n:Page OR n:URL OR n:Keyword OR n:Concept) 
+            AND NOT (n:Task)
+            AND (
+                (n:Page) OR 
+                ((n)-[]-() OR ()-[]->(n))
+            )
             RETURN 
                 n,
                 elementId(n) as node_id,

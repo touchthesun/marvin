@@ -161,13 +161,15 @@ async def manage_page_service(
     finally:
         await service.cleanup()
 
-async def get_pipeline_service(
-    config: PipelineConfig = Depends(get_pipeline_config),
-    db_connection: DatabaseConnection = Depends(get_app_db_connection)
-) -> AsyncGenerator[PipelineService, None]:  # Changed return type
-    """Provide PipelineService with lifecycle management."""
-    async with manage_pipeline_service(config=config, db_connection=db_connection) as service:
-        yield service  # Now this matches the return type
+async def get_pipeline_service() -> PipelineService:
+    """Provide PipelineService from app state (singleton)."""
+    app_state = get_app_state()
+    if not app_state.pipeline_service:
+        raise HTTPException(
+            status_code=503, 
+            detail="Pipeline service not initialized"
+        )
+    return app_state.pipeline_service
 
 # Compound service provider
 class ServiceContext:

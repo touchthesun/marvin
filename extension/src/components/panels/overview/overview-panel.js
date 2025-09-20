@@ -133,10 +133,12 @@ const OverviewPanel = {
         
         if (response && response.data) {
           // Map API response to expected format
+          // The API response has data nested: response.data.data.captures
+          const apiData = response.data.data || response.data;
           this.statsData = {
-            capturedCount: response.data.captures || 0,
-            relationshipCount: response.data.relationships || 0,
-            queryCount: response.data.queries || 0
+            capturedCount: apiData.captures || 0,
+            relationshipCount: apiData.relationships || 0,
+            queryCount: apiData.queries || 0
           };
           
           logger.debug('Overview data loaded from API successfully', { 

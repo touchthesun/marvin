@@ -76,7 +76,7 @@ class KeywordProcessor:
         """Initialize with required dependencies.
         
         Args:
-            config: Processing configuration
+            config: Keyword processing configuration
             normalizer: Text normalization service
             variant_manager: Variant handling service
         """
@@ -279,8 +279,14 @@ class ContentProcessor(PipelineComponent):
         self.html_processor = HTMLProcessor(self.text_cleaner)
         
         # Initialize or use provided components
+        # Create ProcessorConfig from ContentProcessorConfig for KeywordProcessor
+        keyword_config = ProcessorConfig(
+            min_score=config.min_keyword_score,
+            max_variants=config.max_variants,
+            enable_stemming=config.enable_stemming
+        )
         self.keyword_processor = keyword_processor or KeywordProcessor(
-            config=config,
+            config=keyword_config,
             normalizer=normalizer or KeywordNormalizer(),
             variant_manager=VariantManager(),
             validator=validator or KeywordValidator(nlp=nlp)
@@ -405,7 +411,7 @@ class ContentProcessor(PipelineComponent):
             start_time = datetime.now()
             
             # Get the raw HTML content from somewhere (source depends on how it's supplied)
-            raw_html = page.raw_html  # This would come from browser extension
+            raw_html = page.content  # Use the content attribute from the Page model
             
             # Skip content extraction if disabled or page is too complex
             if not self.config.extract_content or self.html_processor.is_too_complex(
