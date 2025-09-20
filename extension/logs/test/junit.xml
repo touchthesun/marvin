@@ -1,29 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="12" failures="0" errors="0" time="1.026">
-  <testsuite name="Notification Service Robustness" errors="0" failures="0" skipped="0" timestamp="2025-09-20T03:01:37" time="0.672" tests="12">
-    <testcase classname="Notification Service Robustness" name="should handle invalid message inputs gracefully" time="0.015">
+<testsuites name="jest tests" tests="3" failures="0" errors="0" time="1.081">
+  <testsuite name="VisualizationService Constructor Fix" errors="0" failures="0" skipped="0" timestamp="2025-09-20T06:40:43" time="0.726" tests="3">
+    <testcase classname="VisualizationService Constructor Fix" name="should accept options parameter and pass container to BaseService" time="0.001">
     </testcase>
-    <testcase classname="Notification Service Robustness" name="should handle invalid notification types gracefully" time="0.002">
+    <testcase classname="VisualizationService Constructor Fix" name="should work with empty options" time="0">
     </testcase>
-    <testcase classname="Notification Service Robustness" name="should handle invalid progress values gracefully" time="0.003">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="should provide fallback notifications when service fails to initialize" time="0">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="should provide fallback notifications when container creation fails" time="0.001">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="should handle service worker context gracefully" time="0">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="should handle circuit breaker open state gracefully" time="0.001">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="should handle unexpected errors gracefully" time="0">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="static safeShowNotification should work without service instance" time="0">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="static safeShowNotification should work with service instance" time="0.001">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="static safeShowNotification should handle service errors gracefully" time="0">
-    </testcase>
-    <testcase classname="Notification Service Robustness" name="fallback notification should log messages correctly" time="0.001">
+    <testcase classname="VisualizationService Constructor Fix" name="should initialize successfully with container" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

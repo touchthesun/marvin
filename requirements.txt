@@ -28,6 +28,7 @@ pandas
 matplotlib
 plotly
 psutil
+neo4j-viz
 
 # Web scraping and parsing
 beautifulsoup4

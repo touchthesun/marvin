@@ -7,6 +7,7 @@ from api.state import app_state, get_app_state, AppState
 from api.routes.pages import router as pages_router
 from api.routes.analysis import router as analysis_router 
 from api.routes.graph import router as graph_router
+from api.routes.neo4j_viz import router as neo4j_viz_router
 from api.routes.auth import router as auth_router
 from api.routes.llm import router as llm_router
 from api.routes.agent import router as agent_router
@@ -89,6 +90,7 @@ def create_application() -> FastAPI:
     app.include_router(pages_router, prefix=prefix)
     app.include_router(analysis_router, prefix=prefix)
     app.include_router(graph_router, prefix=prefix)
+    app.include_router(neo4j_viz_router, prefix=prefix)
     app.include_router(auth_router, prefix=prefix)
     app.include_router(llm_router, prefix=prefix)
     app.include_router(agent_router, prefix=prefix)

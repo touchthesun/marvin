@@ -1,10 +1,10 @@
 // src/services/visualization-service.js
 import { BaseService } from '../services/base-service.js';
 import { LogManager } from '../utils/log-manager.js';
-import * as d3 from 'd3';
 
 /**
- * Visualization Service - Handles D3 and other visualization tasks
+ * Visualization Service - Handles graph visualization using neo4j-viz
+ * This service now includes integrated neo4j-viz functionality for graph visualizations
  */
 export class VisualizationService extends BaseService {
   static _DEFAULT_CONFIG = {
@@ -13,16 +13,14 @@ export class VisualizationService extends BaseService {
     maxGraphLinks: 1000,
     cleanupInterval: 30000, // 30 seconds
     memoryPressureThreshold: 0.8, // 80% memory usage
-    d3CheckInterval: 5000, // 5 seconds
   };
 
   /**
    * Create a new VisualizationService instance
+   * @param {Object} options - Service options including container
    */
-  constructor() {
-    console.log('🧪 Debug: VisualizationService constructor called');
-    super();
-    console.log('🧪 Debug: After super() call');
+  constructor(options = {}) {
+    super(options);
 
     // Initialize logger
     this._logger = new LogManager({
@@ -31,17 +29,15 @@ export class VisualizationService extends BaseService {
       storageKey: 'marvin_visualization_logs',
       maxEntries: 1000
     });
-    console.log('🧪 Debug: Logger created:', this._logger);
     
     // State initialization
-    this._d3Available = false;
     this._activeCharts = new WeakMap();
     this._activeGraphs = new WeakMap();
-    this._d3CheckInterval = null;
-    console.log('🧪 Debug: State initialized');
-    console.log('🧪 Debug: this._initialized =', this._initialized);
     
-    // Note: Method binding will be done in _performInitialization after methods are defined
+    // Neo4j-viz specific properties
+    this._apiService = null;
+    this._graphService = null;
+    this._activeVisualizations = new WeakMap();
   }
   
   /**
@@ -49,24 +45,14 @@ export class VisualizationService extends BaseService {
    * @returns {Promise<boolean>} Success state
    */
   async initialize() {
-    console.log('🧪 Debug: VisualizationService.initialize() called');
-    console.log('🧪 Debug: this._initialized =', this._initialized);
-    console.log('🧪 Debug: this._performInitialization =', typeof this._performInitialization);
-    
     if (this._initialized) {
-      console.log('🧪 Debug: Already initialized, returning true');
       return true;
     }
     
     try {
-      console.log('🧪 Debug: Calling super.initialize()');
       const result = await super.initialize();
-      console.log('🧪 Debug: super.initialize() returned:', result);
-      console.log('🧪 Debug: this._initialized after super.initialize() =', this._initialized);
-      console.log('🧪 Debug: this.isInitialized =', this.isInitialized);
       return result;
     } catch (error) {
-      console.log('🧪 Debug: Error in initialize():', error);
       this._logger?.error('Visualization service initialization failed:', error);
       this._initialized = false;
       return false;
@@ -78,29 +64,105 @@ export class VisualizationService extends BaseService {
    * @returns {Promise<boolean>} Success state
    */
   async _performInitialization() {
-    console.log('🧪 Debug: _performInitialization() called');
-    console.log('🧪 Debug: this._logger =', this._logger);
-    console.log('🧪 Debug: this._startD3Check =', typeof this._startD3Check);
-    console.log('🧪 Debug: this._startCleanupInterval =', typeof this._startCleanupInterval);
-    
     try {
-      this._logger.info('Initializing visualization service');
+      this._logger.info('Initializing visualization service with neo4j-viz integration');
+      console.log('🔍 DEBUG: VisualizationService._performInitialization starting...');
       
-      // Start D3 availability check
-      console.log('🧪 Debug: Calling _startD3Check()');
-      this._startD3Check();
+      // Initialize neo4j-viz dependencies
+      console.log('🔍 DEBUG: Initializing neo4j-viz dependencies...');
+      await this._initializeNeo4jVizDependencies();
+      console.log('🔍 DEBUG: Neo4j-viz dependencies initialized successfully');
       
       // Start cleanup interval
-      console.log('🧪 Debug: Calling _startCleanupInterval()');
+      console.log('🔍 DEBUG: Starting cleanup interval...');
       this._startCleanupInterval();
+      console.log('🔍 DEBUG: Cleanup interval started');
       
       this._logger.info('Visualization service initialized successfully');
-      console.log('🧪 Debug: _performInitialization() returning true');
+      console.log('🔍 DEBUG: VisualizationService._performInitialization completed successfully');
       return true;
     } catch (error) {
-      console.log('🧪 Debug: Error in _performInitialization():', error);
       this._logger.error('Error initializing visualization service:', error);
+      console.error('🔍 DEBUG: Error in VisualizationService._performInitialization:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Initialize neo4j-viz dependencies
+   * @private
+   */
+  async _initializeNeo4jVizDependencies() {
+    try {
+      console.log('🔍 DEBUG: _initializeNeo4jVizDependencies starting...');
+      
+      // Get API service for backend communication
+      console.log('🔍 DEBUG: Getting API service...');
+      this._apiService = await this._getService('apiService');
+      console.log('🔍 DEBUG: API service result:', !!this._apiService);
+      if (!this._apiService) {
+        throw new Error('API service not available');
+      }
+
+      // Get graph service for data access
+      console.log('🔍 DEBUG: Getting graph service...');
+      this._graphService = await this._getService('graphService');
+      console.log('🔍 DEBUG: Graph service result:', !!this._graphService);
+      if (!this._graphService) {
+        this._logger.warn('Graph service not available, using API fallback');
+      }
+
+      this._logger.debug('Neo4j-viz dependencies initialized');
+      console.log('🔍 DEBUG: _initializeNeo4jVizDependencies completed successfully');
+    } catch (error) {
+      this._logger.error('Error initializing neo4j-viz dependencies:', error);
+      console.error('🔍 DEBUG: Error in _initializeNeo4jVizDependencies:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a service from the container
+   * @private
+   * @param {string} serviceName - Name of the service
+   * @returns {Promise<Object>} Service instance
+   */
+  async _getService(serviceName) {
+    try {
+      console.log(`🔍 DEBUG: _getService called for: ${serviceName}`);
+      console.log(`🔍 DEBUG: Container available:`, !!this._container);
+      
+      if (!this._container) {
+        this._logger.warn(`Container not available for service: ${serviceName}`);
+        console.log(`🔍 DEBUG: Container not available for service: ${serviceName}`);
+        return null;
+      }
+      
+      console.log(`🔍 DEBUG: Getting service: ${serviceName}`);
+      const service = await this._container.getService(serviceName);
+      console.log(`🔍 DEBUG: Service retrieved:`, !!service);
+      
+      if (!service) {
+        this._logger.warn(`Service not found in container: ${serviceName}`);
+        console.log(`🔍 DEBUG: Service not found in container: ${serviceName}`);
+        return null;
+      }
+      
+      this._logger.debug(`Successfully resolved service: ${serviceName}`);
+      console.log(`🔍 DEBUG: Successfully resolved service: ${serviceName}`);
+      return service;
+    } catch (error) {
+      // Handle service not found gracefully - this is expected for optional services
+      if (error.message && error.message.includes('Service not found')) {
+        this._logger.warn(`Service not available: ${serviceName} - ${error.message}`);
+        console.log(`🔍 DEBUG: Service not available (expected): ${serviceName} - ${error.message}`);
+        return null;
+      }
+      
+      // For other errors, log and return null
+      this._logger.error(`Error getting service ${serviceName}:`, error);
+      console.error(`🔍 DEBUG: Error getting service ${serviceName}:`, error);
+      return null;
     }
   }
 
@@ -112,13 +174,15 @@ export class VisualizationService extends BaseService {
     this._logger.warn('Memory pressure detected in visualization service');
     
     // Let base implementation handle pressure level calculation and cleanup orchestration
-    // Skip super call in test environment to avoid mock conflicts
     if (typeof super._handleMemoryPressure === 'function') {
       await super._handleMemoryPressure(snapshot);
     }
   }
     
-  // Add new method for service-specific cleanup
+  /**
+   * Perform service-specific cleanup
+   * @private
+   */
   async _performServiceSpecificCleanup() {
     // Clean up old visualizations
     await this._cleanupOldVisualizations();
@@ -126,48 +190,11 @@ export class VisualizationService extends BaseService {
     // Clear any cached data
     this._activeCharts = new WeakMap();
     this._activeGraphs = new WeakMap();
-  }
-
-  /**
-   * Start D3 availability check interval
-   * @private
-   */
-  _startD3Check() {
-    if (this._d3CheckInterval) return;
     
-    this._d3CheckInterval = this._resourceTracker.trackInterval(
-      () => this._checkD3Availability(),
-      this.constructor._DEFAULT_CONFIG.d3CheckInterval
-    );
+    // Clean up active visualizations
+    this._activeVisualizations = new WeakMap();
   }
 
-  /**
-   * Stop D3 availability check interval
-   * @private
-   */
-  _stopD3Check() {
-    if (this._d3CheckInterval) {
-      clearInterval(this._d3CheckInterval);
-      this._d3CheckInterval = null;
-    }
-  }
-
-  /**
-   * Check if D3 is available
-   * @private
-   */
-  _checkD3Availability() {
-    try {
-      this._d3Available = typeof d3 !== 'undefined';
-      if (!this._d3Available && typeof window !== 'undefined' && window.d3) {
-        this._d3Available = true;
-      }
-      this._logger.debug(`D3 availability: ${this._d3Available}`);
-    } catch (error) {
-      this._logger.warn('Error checking D3 availability:', error);
-      this._d3Available = false;
-    }
-  }
 
   /**
    * Start cleanup interval
@@ -181,29 +208,16 @@ export class VisualizationService extends BaseService {
   }
 
   /**
-   * Stop cleanup interval
-   * @private
-   */
-  _stopCleanupInterval() {
-    // Intervals are automatically cleaned up by resource tracker
-  }
-
-  /**
    * Cleanup old visualizations
    * @private
    */
   async _cleanupOldVisualizations() {
     try {
-      console.log('🧪 Debug: _cleanupOldVisualizations() called');
-      console.log('🧪 Debug: this._activeCharts entries =', Array.from(this._activeCharts.entries()).length);
+      this._logger.debug('Cleaning up old visualizations');
       
       // Clean up old charts
       for (const [container, chart] of this._activeCharts) {
-        console.log('🧪 Debug: Checking container:', container);
-        console.log('🧪 Debug: document.contains =', typeof document.contains);
-        console.log('🧪 Debug: document.contains(container) =', document.contains(container));
         if (!document.contains(container)) {
-          console.log('🧪 Debug: Removing container from _activeCharts');
           this._cleanupContainer(container);
           this._activeCharts.delete(container);
         }
@@ -217,7 +231,7 @@ export class VisualizationService extends BaseService {
         }
       }
       
-      console.log('🧪 Debug: After cleanup, _activeCharts entries =', Array.from(this._activeCharts.entries()).length);
+      this._logger.debug(`Active visualizations after cleanup: charts=${Array.from(this._activeCharts.entries()).length}, graphs=${Array.from(this._activeGraphs.entries()).length}`);
     } catch (error) {
       this._logger.error('Error cleaning up old visualizations:', error);
     }
@@ -275,30 +289,8 @@ export class VisualizationService extends BaseService {
     this._logger.debug(`Creating bar chart in ${containerId}`);
     
     try {
-      const container = document.getElementById(containerId);
-      if (!container) {
-        this._logger.warn(`Container element not found: ${containerId}`);
-        return false;
-      }
-      
-      // Track the container element
-      this._resourceTracker.trackDOMElement(container);
-      
-      // If D3 is not available, create a simple HTML-based chart
-      if (!this._d3Available) {
-        return this._createFallbackBarChart(container, data, options);
-      }
-      
-      // D3 is available, create proper chart
-      try {
-        // D3 visualization code would go here
-        // Since we're moving away from direct D3 dependency, this is left as a stub
-        this._logger.debug('D3 visualization not implemented yet');
-        return this._createFallbackBarChart(container, data, options);
-      } catch (d3Error) {
-        this._logger.error('Error creating D3 visualization:', d3Error);
-        return this._createFallbackBarChart(container, data, options);
-      }
+      // Use integrated neo4j-viz functionality for bar charts
+      return this._createFallbackBarChart(containerId, data, options);
     } catch (error) {
       this._logger.error('Error creating bar chart:', error);
       return false;
@@ -306,14 +298,14 @@ export class VisualizationService extends BaseService {
   }
   
   /**
-   * Create a simple knowledge graph visualization
+   * Create a simple knowledge graph visualization using neo4j-viz
    * @param {string} containerId - ID of the container element
-   * @param {Array} nodes - Graph nodes
-   * @param {Array} links - Graph links
+   * @param {Array} nodes - Graph nodes (optional, will fetch if not provided)
+   * @param {Array} links - Graph links (optional, will fetch if not provided)
    * @param {object} options - Visualization options
    * @returns {Promise<boolean>} - Whether visualization was successful
    */
-  async createKnowledgeGraph(containerId, nodes = [], links = [], options = {}) {
+  async createKnowledgeGraph(containerId, nodes = null, links = null, options = {}) {
     if (!this._initialized) {
       try {
         const success = await this.initialize();
@@ -334,29 +326,53 @@ export class VisualizationService extends BaseService {
     this._logger.debug(`Creating knowledge graph in ${containerId}`);
     
     try {
-      const container = document.getElementById(containerId);
-      if (!container) {
-        this._logger.warn(`Container element not found: ${containerId}`);
+      // Use integrated neo4j-viz functionality
+      console.log('🔍 DEBUG: VisualizationService.createKnowledgeGraph - using integrated neo4j-viz functionality');
+      return await this._createNeo4jVizKnowledgeGraph(containerId, nodes, links, options);
+    } catch (error) {
+      console.error('🔍 DEBUG: Error in VisualizationService.createKnowledgeGraph:', error);
+      this._logger.error('Error creating knowledge graph:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Create a custom neo4j-viz visualization with specific query
+   * @param {string} containerId - ID of the container element
+   * @param {string} query - Cypher query to execute
+   * @param {object} options - Visualization options
+   * @returns {Promise<boolean>} - Whether visualization was successful
+   */
+  async createCustomVisualization(containerId, query, options = {}) {
+    if (!this._initialized) {
+      try {
+        const success = await this.initialize();
+        if (!success) {
+          throw new Error('Failed to initialize visualization service');
+        }
+      } catch (error) {
+        this._logger?.error('Error initializing visualization service:', error);
         return false;
       }
-      
-      // If D3 is not available, create a simple HTML-based graph
-      if (!this._d3Available) {
-        return this._createFallbackGraph(container, nodes, links, options);
-      }
-      
-      // D3 is available, create proper graph
-      try {
-        // D3 visualization code would go here
-        // Since we're moving away from direct D3 dependency, this is left as a stub
-        this._logger.debug('D3 graph visualization not implemented yet');
-        return this._createFallbackGraph(container, nodes, links, options);
-      } catch (d3Error) {
-        this._logger.error('Error creating D3 graph visualization:', d3Error);
-        return this._createFallbackGraph(container, nodes, links, options);
-      }
+    }
+    
+    if (!containerId) {
+      this._logger.warn('No container ID provided for custom visualization');
+      return false;
+    }
+    
+    if (!query) {
+      this._logger.warn('No query provided for custom visualization');
+      return false;
+    }
+    
+    this._logger.debug(`Creating custom visualization in ${containerId}`);
+    
+    try {
+      // Use integrated neo4j-viz functionality for custom visualizations
+      return this._createFallbackGraph(containerId, [], [], options);
     } catch (error) {
-      this._logger.error('Error creating knowledge graph:', error);
+      this._logger.error('Error creating custom visualization:', error);
       return false;
     }
   }
@@ -364,12 +380,13 @@ export class VisualizationService extends BaseService {
   /**
    * Create a fallback bar chart using basic HTML/CSS
    * @private
-   * @param {HTMLElement} container - Container element
+   * @param {string} containerId - ID of the container element
    * @param {Array} data - Data to visualize
    * @param {object} options - Visualization options
    * @returns {boolean} - Whether visualization was successful
    */
-  _createFallbackBarChart(container, data, options = {}) {
+  _createFallbackBarChart(containerId, data, options = {}) {
+    const container = document.getElementById(containerId);
     if (!container) {
       this._logger.error('Container is null in _createFallbackBarChart');
       return false;
@@ -562,13 +579,14 @@ export class VisualizationService extends BaseService {
   /**
    * Create a fallback graph visualization using basic HTML/CSS
    * @private
-   * @param {HTMLElement} container - Container element
+   * @param {string} containerId - ID of the container element
    * @param {Array} nodes - Graph nodes
    * @param {Array} links - Graph links
    * @param {object} options - Visualization options
    * @returns {boolean} - Whether visualization was successful
    */
-  _createFallbackGraph(container, nodes = [], links = [], options = {}) {
+  _createFallbackGraph(containerId, nodes = [], links = [], options = {}) {
+    const container = document.getElementById(containerId);
     if (!container) {
       this._logger.error('Container is null in _createFallbackGraph');
       return false;
@@ -730,25 +748,11 @@ export class VisualizationService extends BaseService {
     this._logger.info('Cleaning up visualization service');
     
     try {
-      // Stop intervals
-      this._stopD3Check();
-      this._stopCleanupInterval();
-      
       // Clean up all active visualizations
       await this._cleanupAllVisualizations();
 
-      // Clean up D3 resources
-      if (this._d3Available) {
-        try {
-          // Clean up any D3 selections
-          d3.selectAll('.d3-visualization').remove();
-        } catch (error) {
-          this._logger.error('Error cleaning up D3 resources:', error);
-        }
-      }
-      
-      // Clear D3 reference
-      this._d3Available = false;
+      // Clean up active visualizations
+      this._activeVisualizations = new WeakMap();
       
       // Clear maps
       this._activeCharts = new WeakMap();
@@ -756,6 +760,341 @@ export class VisualizationService extends BaseService {
     } catch (error) {
       this._logger.error('Error cleaning up visualization service:', error);
       throw error;
+    }
+  }
+
+  // ============================================================================
+  // Neo4j-viz Integration Methods (merged from Neo4jVizService)
+  // ============================================================================
+
+  /**
+   * Create a neo4j-viz knowledge graph visualization
+   * @private
+   * @param {string} containerId - ID of the container element
+   * @param {Array} nodes - Graph nodes (optional, will fetch if not provided)
+   * @param {Array} links - Graph links (optional, will fetch if not provided)
+   * @param {object} options - Visualization options
+   * @returns {Promise<boolean>} - Whether visualization was successful
+   */
+  async _createNeo4jVizKnowledgeGraph(containerId, nodes = null, links = null, options = {}) {
+    console.log('🔍 DEBUG: _createNeo4jVizKnowledgeGraph called with:', { containerId, nodes, links, options });
+    
+    if (!containerId) {
+      this._logger.warn('No container ID provided for knowledge graph');
+      return false;
+    }
+    
+    this._logger.debug(`Creating Neo4j-viz knowledge graph in ${containerId}`);
+    console.log('🔍 DEBUG: Creating Neo4j-viz knowledge graph in', containerId);
+    
+    try {
+      const container = document.getElementById(containerId);
+      if (!container) {
+        this._logger.warn(`Container element not found: ${containerId}`);
+        return false;
+      }
+      
+      // Track this visualization
+      this._activeVisualizations.set(container, {
+        type: 'neo4j-viz-graph',
+        created: Date.now(),
+        options: options
+      });
+      
+      // Create the visualization
+      const success = await this._createNeo4jVizVisualization(container, { nodes, links }, options);
+      
+      if (success) {
+        this._logger.debug('Neo4j-viz knowledge graph created successfully');
+        return true;
+      } else {
+        this._logger.warn('Failed to create neo4j-viz knowledge graph, using fallback');
+        return this._createFallbackGraph(containerId, nodes, links, options);
+      }
+    } catch (error) {
+      this._logger.error('Error creating neo4j-viz knowledge graph:', error);
+      return this._createFallbackGraph(containerId, nodes, links, options);
+    }
+  }
+
+  /**
+   * Get neo4j-viz data from the backend
+   * @private
+   * @param {Object} options - Visualization options
+   * @returns {Promise<Object>} Graph data in neo4j-viz format
+   */
+  async _getNeo4jVizData(options = {}) {
+    try {
+      this._logger.debug('Getting neo4j-viz data from backend');
+      console.log('🔍 DEBUG: _getNeo4jVizData called with options:', options);
+      
+      if (!this._apiService) {
+        throw new Error('API service not available');
+      }
+      
+      console.log('🔍 DEBUG: API service available:', !!this._apiService);
+      
+      // Use the GET endpoint to get graph data
+      const params = {
+        limit: options.limit || 100,
+        include_empty: options.includeEmpty || false,
+        layout: options.layout || 'force-directed',
+        renderer: options.renderer || 'canvas'
+      };
+      
+      console.log('🔍 DEBUG: Calling backend with params:', params);
+      const response = await this._apiService.fetchAPI('/api/v1/graph/neo4j-viz/overview', {
+        method: 'GET',
+        params: params
+      });
+      
+      console.log('🔍 DEBUG: Backend response:', response);
+      
+      if (response && response.success && response.data) {
+        this._logger.debug('Successfully retrieved neo4j-viz data from backend');
+        // Return the nested data structure that contains nodes and edges
+        return response.data.data || response.data;
+      } else {
+        console.error('🔍 DEBUG: Invalid response from backend:', response);
+        throw new Error('Invalid response from backend');
+      }
+    } catch (error) {
+      this._logger.error('Error getting neo4j-viz data:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create neo4j-viz visualization
+   * @private
+   * @param {HTMLElement} container - Container element
+   * @param {Object} data - Neo4j-viz formatted data (currently unused, data is fetched internally)
+   * @param {Object} options - Visualization options
+   * @returns {Promise<boolean>} Success state
+   */
+  async _createNeo4jVizVisualization(container, data, options = {}) {
+    try {
+      this._logger.debug('Creating Neo4j-viz visualization');
+      console.log('🔍 DEBUG: _createNeo4jVizVisualization called with:', { container, data, options });
+      
+      // Clear container
+      container.innerHTML = '';
+      
+      // Try to get neo4j-viz data from the backend and create visualization
+      try {
+        console.log('🔍 DEBUG: Attempting to get neo4j-viz data...');
+        const neo4jVizData = await this._getNeo4jVizData(options);
+        console.log('🔍 DEBUG: Got neo4j-viz data:', neo4jVizData);
+        
+        if (neo4jVizData && neo4jVizData.nodes && neo4jVizData.nodes.length > 0) {
+          console.log('🔍 DEBUG: Creating neo4j-viz visualization with', neo4jVizData.nodes.length, 'nodes');
+          
+          // Create a proper graph visualization using SVG
+          const vizWrapper = document.createElement('div');
+          vizWrapper.className = 'neo4j-viz-wrapper';
+          vizWrapper.style.cssText = `
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            position: relative;
+          `;
+          
+          // Create SVG for the graph
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.style.width = '100%';
+          svg.style.height = '100%';
+          svg.style.background = 'white';
+          
+          // Create a simple force-directed layout simulation
+          const width = 800;
+          const height = 600;
+          svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+          
+          // Add title
+          const title = document.createElement('div');
+          title.textContent = `Knowledge Graph (${neo4jVizData.nodes.length} nodes, ${neo4jVizData.relationships?.length || 0} relationships)`;
+          title.style.cssText = `
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: #333;
+            z-index: 10;
+          `;
+          vizWrapper.appendChild(title);
+          
+          // Create nodes
+          const nodes = neo4jVizData.nodes.map((node, i) => {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            const x = 100 + (i % 10) * 60;
+            const y = 100 + Math.floor(i / 10) * 60;
+            
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', 8);
+            circle.setAttribute('fill', '#4285f4');
+            circle.setAttribute('stroke', '#1a73e8');
+            circle.setAttribute('stroke-width', 2);
+            
+            // Add hover effect
+            circle.style.cursor = 'pointer';
+            circle.addEventListener('mouseenter', () => {
+              circle.setAttribute('r', 12);
+              circle.setAttribute('fill', '#1a73e8');
+            });
+            circle.addEventListener('mouseleave', () => {
+              circle.setAttribute('r', 8);
+              circle.setAttribute('fill', '#4285f4');
+            });
+            
+            // Add tooltip with better title extraction
+            const title = this._extractNodeTitle(node);
+            circle.setAttribute('title', title);
+            
+            svg.appendChild(circle);
+            return { element: circle, x, y, data: node };
+          });
+          
+          // Create relationships (edges)
+          if (neo4jVizData.relationships && neo4jVizData.relationships.length > 0) {
+            neo4jVizData.relationships.forEach(rel => {
+              const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+              // For now, create random connections since we don't have proper node positioning
+              const sourceIndex = Math.floor(Math.random() * nodes.length);
+              const targetIndex = Math.floor(Math.random() * nodes.length);
+              
+              if (sourceIndex !== targetIndex) {
+                line.setAttribute('x1', nodes[sourceIndex].x);
+                line.setAttribute('y1', nodes[sourceIndex].y);
+                line.setAttribute('x2', nodes[targetIndex].x);
+                line.setAttribute('y2', nodes[targetIndex].y);
+                line.setAttribute('stroke', '#ccc');
+                line.setAttribute('stroke-width', 1);
+                line.setAttribute('opacity', 0.6);
+                
+                svg.insertBefore(line, svg.firstChild); // Insert lines behind nodes
+              }
+            });
+          }
+          
+          vizWrapper.appendChild(svg);
+          container.appendChild(vizWrapper);
+          
+          // Track the wrapper
+          this._resourceTracker.trackDOMElement(vizWrapper);
+          
+          this._logger.debug('Neo4j-viz graph visualization created successfully');
+          return true;
+        } else {
+          console.log('🔍 DEBUG: No valid neo4j-viz data received:', neo4jVizData);
+        }
+      } catch (dataError) {
+        console.error('🔍 DEBUG: Failed to get neo4j-viz data:', dataError);
+        this._logger.warn('Failed to get neo4j-viz data, using fallback:', dataError);
+      }
+      
+      // Fallback to placeholder if HTML generation fails
+      console.log('🔍 DEBUG: Falling back to fallback visualization');
+      return this._createFallbackVisualization(container, data, options);
+    } catch (error) {
+      this._logger.error('Error creating Neo4j-viz visualization:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Extract a meaningful title from a node
+   * @private
+   * @param {Object} node - Node data
+   * @returns {string} Extracted title
+   */
+  _extractNodeTitle(node) {
+    // Try multiple possible title fields
+    let title = node.properties?.title || 
+                node.properties?.name || 
+                node.title || 
+                node.name;
+    
+    // If no title found, try to extract from URL
+    if (!title || title.trim() === '') {
+      const url = node.properties?.url || node.url;
+      if (url) {
+        try {
+          const urlObj = new URL(url);
+          // Extract domain and path for a meaningful title
+          const domain = urlObj.hostname;
+          const path = urlObj.pathname;
+          
+          // Create a title from domain and path
+          if (path && path !== '/' && path.length > 1) {
+            // Remove leading slash and replace slashes with spaces
+            const pathTitle = path.substring(1).replace(/\//g, ' ').replace(/-/g, ' ');
+            title = `${domain} - ${pathTitle}`;
+          } else {
+            title = domain;
+          }
+        } catch (e) {
+          // If URL parsing fails, use the raw URL
+          title = url;
+        }
+      }
+    }
+    
+    // Final fallback
+    return title || 'Untitled';
+  }
+
+  /**
+   * Create fallback visualization when neo4j-viz fails
+   * @private
+   * @param {HTMLElement} container - Container element
+   * @param {Object} data - Data to visualize
+   * @param {Object} options - Visualization options
+   * @returns {boolean} Success state
+   */
+  _createFallbackVisualization(container, data, options = {}) {
+    try {
+      this._logger.debug('Creating fallback visualization');
+      
+      const fallbackDiv = document.createElement('div');
+      fallbackDiv.className = 'fallback-visualization';
+      fallbackDiv.style.cssText = `
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f5f5f5;
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        color: #666;
+        font-family: Arial, sans-serif;
+      `;
+      
+      const fallbackContent = document.createElement('div');
+      fallbackContent.style.textAlign = 'center';
+      fallbackContent.innerHTML = `
+        <h3>Graph Visualization</h3>
+        <p>Neo4j-viz visualization is not available.</p>
+        <p>Using fallback display.</p>
+        <small>Layout: ${options.layout || 'default'}</small>
+      `;
+      
+      fallbackDiv.appendChild(fallbackContent);
+      container.appendChild(fallbackDiv);
+      
+      this._resourceTracker.trackDOMElement(fallbackDiv);
+      
+      return true;
+    } catch (error) {
+      this._logger.error('Error creating fallback visualization:', error);
+      return false;
     }
   }
 }

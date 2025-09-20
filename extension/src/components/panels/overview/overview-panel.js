@@ -303,8 +303,19 @@ const OverviewPanel = {
         { source: 'node5', target: 'node4' }
       ];
       
-      // Use visualization service to create the graph
-      visualizationService.createKnowledgeGraph('knowledge-graph-preview', nodes, links);
+      // Use visualization service to create the graph with enhanced options
+      const previewOptions = {
+        layout: 'force-directed',
+        renderer: 'canvas',
+        width: '100%',
+        height: '300px',
+        nodeCaption: 'label',
+        colorProperty: 'color',
+        showTooltips: true,
+        initialZoom: 0.8
+      };
+      
+      visualizationService.createKnowledgeGraph('knowledge-graph-preview', nodes, links, previewOptions);
       logger.debug('Knowledge preview created successfully');
     } catch (error) {
       logger.error('Error creating knowledge preview:', error);

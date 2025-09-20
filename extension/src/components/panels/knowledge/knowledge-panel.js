@@ -127,6 +127,17 @@ const KnowledgePanel = {
       console.log(`🔍 DEBUG: Service type:`, typeof service);
       console.log(`🔍 DEBUG: Service initialized:`, service?.initialized);
       
+      // Initialize the service if it's not already initialized
+      if (service && typeof service.initialize === 'function' && !service.initialized) {
+        console.log(`🔍 DEBUG: Initializing service '${serviceName}'...`);
+        try {
+          const initResult = await service.initialize();
+          console.log(`🔍 DEBUG: Service '${serviceName}' initialization result:`, initResult);
+        } catch (initError) {
+          console.error(`🔍 DEBUG: Error initializing service '${serviceName}':`, initError);
+        }
+      }
+      
       return service;
     } catch (error) {
       console.error(`🔍 DEBUG: Error getting service '${serviceName}':`, error);
@@ -169,6 +180,9 @@ const KnowledgePanel = {
               </button>
               <button class="toggle-btn" data-view="graph">
                 <span class="icon">🕸️</span> Graph View
+              </button>
+              <button class="toggle-btn" data-view="custom">
+                <span class="icon">🎨</span> Custom Viz
               </button>
             </div>
           </div>
@@ -901,9 +915,9 @@ const KnowledgePanel = {
   },
   
   /**
-   * Switch between list and graph views
+   * Switch between list, graph, and custom visualization views
    * @param {LogManager} logger - Logger instance
-   * @param {string} view - View to switch to ('list' or 'graph')
+   * @param {string} view - View to switch to ('list', 'graph', or 'custom')
    */
   async switchView(logger, view) {
     logger.debug(`Switching to ${view} view`);
@@ -927,7 +941,7 @@ const KnowledgePanel = {
       // Use nodes if pages are empty
       const itemsToDisplay = this.currentData.pages.length > 0 ? this.currentData.pages : this.currentData.graphData.nodes;
       this.displayKnowledgeItems(logger, itemsToDisplay);
-    } else {
+    } else if (view === 'graph') {
       if (listContainer) listContainer.style.display = 'none';
       if (graphContainer) graphContainer.style.display = 'block';
       
@@ -935,6 +949,26 @@ const KnowledgePanel = {
         createKnowledgeGraph: () => logger.warn('Visualization service not available')
       });
       await this.renderKnowledgeGraph(logger, visualizationService);
+    } else if (view === 'custom') {
+      if (listContainer) listContainer.style.display = 'none';
+      if (graphContainer) graphContainer.style.display = 'block';
+      
+      // Create a custom visualization with a sophisticated query
+      const customQuery = `
+        MATCH (p:Page)
+        OPTIONAL MATCH (p)-[r]->(q:Page)
+        RETURN p, r, q
+        LIMIT 100
+      `;
+      
+      await this.createCustomVisualization(logger, customQuery, {
+        layout: 'hierarchical',
+        renderer: 'webgl',
+        nodeCaption: 'title',
+        colorProperty: 'domain',
+        showTooltips: true,
+        initialZoom: 0.6
+      });
     }
   },
   
@@ -974,7 +1008,7 @@ const KnowledgePanel = {
       itemElement.dataset.id = item.id;
       itemElement.innerHTML = `
         <div class="item-header">
-          <h3 class="item-title">${item.title || 'Untitled'}</h3>
+          <h3 class="item-title">${this._extractItemTitle(item)}</h3>
           <div class="item-actions">
             <button class="btn-icon recapture-btn" title="Recapture">🔄</button>
             <button class="btn-icon analyze-btn" title="Analyze">🔍</button>
@@ -1066,6 +1100,45 @@ const KnowledgePanel = {
   },
   
   /**
+   * Extract a meaningful title from a knowledge item
+   * @private
+   * @param {Object} item - Knowledge item data
+   * @returns {string} Extracted title
+   */
+  _extractItemTitle(item) {
+    // Try multiple possible title fields
+    let title = item.title || item.name;
+    
+    // If no title found, try to extract from URL
+    if (!title || title.trim() === '') {
+      const url = item.url;
+      if (url) {
+        try {
+          const urlObj = new URL(url);
+          // Extract domain and path for a meaningful title
+          const domain = urlObj.hostname;
+          const path = urlObj.pathname;
+          
+          // Create a title from domain and path
+          if (path && path !== '/' && path.length > 1) {
+            // Remove leading slash and replace slashes with spaces
+            const pathTitle = path.substring(1).replace(/\//g, ' ').replace(/-/g, ' ');
+            title = `${domain} - ${pathTitle}`;
+          } else {
+            title = domain;
+          }
+        } catch (e) {
+          // If URL parsing fails, use the raw URL
+          title = url;
+        }
+      }
+    }
+    
+    // Final fallback
+    return title || 'Untitled';
+  },
+
+  /**
    * Render knowledge graph
    * @param {LogManager} logger - Logger instance
    * @param {Object} visualizationService - Visualization service
@@ -1084,10 +1157,29 @@ const KnowledgePanel = {
         logger.debug('Using visualization service to create graph');
         console.log('🔍 DEBUG: Creating knowledge graph with:', {
           nodes: this.currentData.graphData.nodes.length,
-          edges: this.currentData.graphData.edges.length
+          edges: this.currentData.graphData.edges.length,
+          sampleNode: this.currentData.graphData.nodes[0],
+          sampleEdge: this.currentData.graphData.edges[0]
         });
         
-        const success = await visualizationService.createKnowledgeGraph('knowledge-graph-container', this.currentData.graphData.nodes, this.currentData.graphData.edges);
+        // Enhanced visualization options for neo4j-viz
+        const visualizationOptions = {
+          layout: 'force-directed',
+          renderer: 'canvas',
+          width: '100%',
+          height: '600px',
+          nodeCaption: 'label',
+          colorProperty: 'type',
+          showTooltips: true,
+          initialZoom: 0.8
+        };
+        
+        const success = await visualizationService.createKnowledgeGraph(
+          'graph-container', 
+          this.currentData.graphData.nodes, 
+          this.currentData.graphData.edges,
+          visualizationOptions
+        );
         console.log('🔍 DEBUG: Graph creation result:', success);
         
         if (!success) {
@@ -1104,6 +1196,58 @@ const KnowledgePanel = {
     }
   },
   
+  /**
+   * Create a custom neo4j-viz visualization with specific query
+   * @param {LogManager} logger - Logger instance
+   * @param {string} query - Cypher query to execute
+   * @param {Object} options - Visualization options
+   * @returns {Promise<boolean>} Success state
+   */
+  async createCustomVisualization(logger, query, options = {}) {
+    logger.debug('Creating custom visualization with query');
+    
+    try {
+      const visualizationService = await this.getService(logger, 'visualizationService', {
+        createCustomVisualization: () => logger.warn('Visualization service not available') && false
+      });
+      
+      if (visualizationService && typeof visualizationService.createCustomVisualization === 'function') {
+        const defaultOptions = {
+          layout: 'force-directed',
+          renderer: 'canvas',
+          width: '100%',
+          height: '600px',
+          nodeCaption: 'title',
+          colorProperty: 'domain',
+          showTooltips: true,
+          initialZoom: 0.8
+        };
+        
+        const success = await visualizationService.createCustomVisualization(
+          'graph-container',
+          query,
+          { ...defaultOptions, ...options }
+        );
+        
+        if (success) {
+          logger.info('Custom visualization created successfully');
+        } else {
+          logger.warn('Custom visualization failed, falling back to standard graph');
+          await this.renderKnowledgeGraph(logger, visualizationService);
+        }
+        
+        return success;
+      } else {
+        logger.warn('Custom visualization not available, using standard graph');
+        await this.renderKnowledgeGraph(logger, visualizationService);
+        return false;
+      }
+    } catch (error) {
+      logger.error('Error creating custom visualization:', error);
+      return false;
+    }
+  },
+
   /**
    * Render fallback graph when visualization service is not available
    * @param {HTMLElement} graphContainer - Graph container element
