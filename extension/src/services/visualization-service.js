@@ -843,7 +843,7 @@ export class VisualizationService extends BaseService {
       };
       
       console.log('🔍 DEBUG: Calling backend with params:', params);
-      const response = await this._apiService.fetchAPI('/api/v1/graph/neo4j-viz/overview', {
+      const response = await this._apiService.fetchAPI('/api/v1/graph/overview', {
         method: 'GET',
         params: params
       });
@@ -853,7 +853,18 @@ export class VisualizationService extends BaseService {
       if (response && response.success && response.data) {
         this._logger.debug('Successfully retrieved neo4j-viz data from backend');
         // Return the nested data structure that contains nodes and edges
-        return response.data.data || response.data;
+        const data = response.data.data || response.data;
+        
+        // Transform edges to use 'source' and 'target' instead of 'source_id' and 'target_id'
+        if (data.edges) {
+          data.edges = data.edges.map(edge => ({
+            ...edge,
+            source: edge.source_id,
+            target: edge.target_id
+          }));
+        }
+        
+        return data;
       } else {
         console.error('🔍 DEBUG: Invalid response from backend:', response);
         throw new Error('Invalid response from backend');
@@ -913,27 +924,66 @@ export class VisualizationService extends BaseService {
           const height = 600;
           svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
           
-          // Add title
-          const title = document.createElement('div');
-          title.textContent = `Knowledge Graph (${neo4jVizData.nodes.length} nodes, ${neo4jVizData.relationships?.length || 0} relationships)`;
-          title.style.cssText = `
+          // Add title and controls
+          const header = document.createElement('div');
+          header.style.cssText = `
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(255,255,255,0.9);
-            padding: 5px 10px;
-            border-radius: 3px;
+            right: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 10px;
+            border-radius: 5px;
             font-size: 12px;
             color: #333;
             z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           `;
-          vizWrapper.appendChild(title);
           
-          // Create nodes
+          const title = document.createElement('div');
+          title.textContent = `Knowledge Graph (${neo4jVizData.nodes.length} nodes, ${neo4jVizData.edges?.length || 0} relationships)`;
+          title.style.fontWeight = 'bold';
+          
+          const controls = document.createElement('div');
+          controls.style.display = 'flex';
+          controls.style.gap = '10px';
+          controls.style.alignItems = 'center';
+          
+          // Detail level selector
+          const detailLabel = document.createElement('label');
+          detailLabel.textContent = 'Detail:';
+          detailLabel.style.fontSize = '11px';
+          
+          const detailSelect = document.createElement('select');
+          detailSelect.innerHTML = `
+            <option value="minimal">Minimal</option>
+            <option value="standard" selected>Standard</option>
+            <option value="detailed">Detailed</option>
+          `;
+          detailSelect.style.fontSize = '11px';
+          detailSelect.style.padding = '2px 5px';
+          
+          // Add event listener for detail level changes
+          detailSelect.addEventListener('change', (e) => {
+            this._updateDetailLevel(nodes, e.target.value);
+          });
+          
+          controls.appendChild(detailLabel);
+          controls.appendChild(detailSelect);
+          
+          header.appendChild(title);
+          header.appendChild(controls);
+          vizWrapper.appendChild(header);
+          
+          // Create nodes with initial random positions
           const nodes = neo4jVizData.nodes.map((node, i) => {
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            const x = 100 + (i % 10) * 60;
-            const y = 100 + Math.floor(i / 10) * 60;
+            // Start with random positions within the viewport
+            const x = Math.random() * (width - 100) + 50;
+            const y = Math.random() * (height - 100) + 50;
             
             circle.setAttribute('cx', x);
             circle.setAttribute('cy', y);
@@ -944,44 +994,109 @@ export class VisualizationService extends BaseService {
             
             // Add hover effect
             circle.style.cursor = 'pointer';
+            const originalRadius = 8;
+            const hoverRadius = 12;
+            
             circle.addEventListener('mouseenter', () => {
-              circle.setAttribute('r', 12);
-              circle.setAttribute('fill', '#1a73e8');
+              circle.setAttribute('r', hoverRadius);
+              // Darken the color on hover
+              const hoverColor = this._getNodeColor(node);
+              circle.setAttribute('fill', hoverColor.stroke);
             });
             circle.addEventListener('mouseleave', () => {
-              circle.setAttribute('r', 8);
-              circle.setAttribute('fill', '#4285f4');
+              circle.setAttribute('r', originalRadius);
+              const normalColor = this._getNodeColor(node);
+              circle.setAttribute('fill', normalColor.fill);
             });
+            
+            // Add click handler for detailed information
+            circle.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this._showNodeDetails(node, e);
+            });
+            
+            // Style node based on type
+            const nodeColor = this._getNodeColor(node);
+            circle.setAttribute('fill', nodeColor.fill);
+            circle.setAttribute('stroke', nodeColor.stroke);
             
             // Add tooltip with better title extraction
             const title = this._extractNodeTitle(node);
             circle.setAttribute('title', title);
             
             svg.appendChild(circle);
-            return { element: circle, x, y, data: node };
+            
+            // Add text label for the node
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            const label = this._getNodeLabel(node, 'standard');
+            text.textContent = label;
+            text.setAttribute('x', x);
+            text.setAttribute('y', y + 4);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('font-size', '10px');
+            text.setAttribute('font-family', 'Arial, sans-serif');
+            text.setAttribute('fill', '#333');
+            text.setAttribute('pointer-events', 'none');
+            text.setAttribute('class', 'node-label');
+            
+            svg.appendChild(text);
+            
+            return { element: circle, textElement: text, x, y, data: node };
           });
           
-          // Create relationships (edges)
-          if (neo4jVizData.relationships && neo4jVizData.relationships.length > 0) {
-            neo4jVizData.relationships.forEach(rel => {
-              const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-              // For now, create random connections since we don't have proper node positioning
-              const sourceIndex = Math.floor(Math.random() * nodes.length);
-              const targetIndex = Math.floor(Math.random() * nodes.length);
+          // Create relationships (edges) - render them behind nodes
+          if (neo4jVizData.edges && neo4jVizData.edges.length > 0) {
+            neo4jVizData.edges.forEach(edge => {
+              // Find source and target nodes by ID
+              const sourceNode = nodes.find(n => n.data.id === edge.source_id);
+              const targetNode = nodes.find(n => n.data.id === edge.target_id);
               
-              if (sourceIndex !== targetIndex) {
-                line.setAttribute('x1', nodes[sourceIndex].x);
-                line.setAttribute('y1', nodes[sourceIndex].y);
-                line.setAttribute('x2', nodes[targetIndex].x);
-                line.setAttribute('y2', nodes[targetIndex].y);
-                line.setAttribute('stroke', '#ccc');
-                line.setAttribute('stroke-width', 1);
-                line.setAttribute('opacity', 0.6);
+              if (sourceNode && targetNode) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', sourceNode.x);
+                line.setAttribute('y1', sourceNode.y);
+                line.setAttribute('x2', targetNode.x);
+                line.setAttribute('y2', targetNode.y);
                 
-                svg.insertBefore(line, svg.firstChild); // Insert lines behind nodes
+                // Style based on relationship type
+                const strokeColor = this._getRelationshipColor(edge.type);
+                const strokeWidth = Math.max(1, edge.strength * 3);
+                
+                line.setAttribute('stroke', strokeColor);
+                line.setAttribute('stroke-width', strokeWidth);
+                line.setAttribute('opacity', 0.7);
+                
+                // Add relationship type as title
+                line.setAttribute('title', `${edge.type} (strength: ${edge.strength})`);
+                
+                // Add relationship type label
+                const edgeLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                const midX = (sourceNode.x + targetNode.x) / 2;
+                const midY = (sourceNode.y + targetNode.y) / 2;
+                
+                edgeLabel.textContent = edge.type.replace('_', ' ');
+                edgeLabel.setAttribute('x', midX);
+                edgeLabel.setAttribute('y', midY - 5);
+                edgeLabel.setAttribute('text-anchor', 'middle');
+                edgeLabel.setAttribute('font-size', '8px');
+                edgeLabel.setAttribute('font-family', 'Arial, sans-serif');
+                edgeLabel.setAttribute('fill', strokeColor);
+                edgeLabel.setAttribute('pointer-events', 'none');
+                edgeLabel.setAttribute('class', 'edge-label');
+                
+                // Store references for animation
+                edge.lineElement = line;
+                edge.labelElement = edgeLabel;
+                
+                // Insert before nodes so edges appear behind
+                svg.insertBefore(line, svg.firstChild);
+                svg.insertBefore(edgeLabel, svg.firstChild);
               }
             });
           }
+          
+          // Apply force-directed layout
+          this._applyForceDirectedLayout(nodes, neo4jVizData.edges, width, height);
           
           vizWrapper.appendChild(svg);
           container.appendChild(vizWrapper);
@@ -1009,12 +1124,63 @@ export class VisualizationService extends BaseService {
   }
 
   /**
+   * Get node label based on detail level
+   * @private
+   * @param {Object} node - Node data
+   * @param {string} detailLevel - Detail level: 'minimal', 'standard', 'detailed'
+   * @returns {string} Node label
+   */
+  _getNodeLabel(node, detailLevel = 'standard') {
+    const labels = node.metadata?.labels || [];
+    const nodeType = labels.length > 0 ? labels[0] : 'Unknown';
+    
+    switch (detailLevel) {
+      case 'minimal':
+        return nodeType.charAt(0); // Just first letter of type
+      case 'standard':
+        // Show domain for pages/URLs, truncated title for others
+        if (nodeType === 'Page' || nodeType === 'URL') {
+          const domain = node.domain || this._extractDomain(node.url);
+          return domain ? domain.replace('www.', '') : nodeType;
+        } else {
+          const title = node.title || node.name || 'Untitled';
+          return title.length > 15 ? title.substring(0, 15) + '...' : title;
+        }
+      case 'detailed':
+        // Show full title with type
+        const title = node.title || node.name || 'Untitled';
+        return `${nodeType}: ${title.length > 20 ? title.substring(0, 20) + '...' : title}`;
+      default:
+        return nodeType;
+    }
+  }
+
+  /**
+   * Extract domain from URL
+   * @private
+   * @param {string} url - URL string
+   * @returns {string} Domain or empty string
+   */
+  _extractDomain(url) {
+    if (!url) return '';
+    try {
+      return new URL(url).hostname.replace('www.', '');
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /**
    * Extract a meaningful title from a node
    * @private
    * @param {Object} node - Node data
    * @returns {string} Extracted title
    */
   _extractNodeTitle(node) {
+    // Get node type from labels
+    const labels = node.metadata?.labels || [];
+    const nodeType = labels.length > 0 ? labels[0] : 'Unknown';
+    
     // Try multiple possible title fields
     let title = node.properties?.title || 
                 node.properties?.name || 
@@ -1046,8 +1212,9 @@ export class VisualizationService extends BaseService {
       }
     }
     
-    // Final fallback
-    return title || 'Untitled';
+    // Final fallback and format with node type
+    const finalTitle = title || 'Untitled';
+    return `${nodeType}: ${finalTitle}`;
   }
 
   /**
@@ -1096,5 +1263,300 @@ export class VisualizationService extends BaseService {
       this._logger.error('Error creating fallback visualization:', error);
       return false;
     }
+  }
+
+  /**
+   * Get node color based on node type
+   * @private
+   * @param {Object} node - Node data
+   * @returns {Object} Color object with fill and stroke
+   */
+  _getNodeColor(node) {
+    const labels = node.metadata?.labels || [];
+    
+    if (labels.includes('Page')) {
+      return { fill: '#4285f4', stroke: '#1a73e8' }; // Blue for pages
+    } else if (labels.includes('URL')) {
+      return { fill: '#34a853', stroke: '#137333' }; // Green for URLs
+    } else if (labels.includes('Keyword')) {
+      return { fill: '#fbbc04', stroke: '#f9ab00' }; // Yellow for keywords
+    } else if (labels.includes('Concept')) {
+      return { fill: '#ea4335', stroke: '#d33b2c' }; // Red for concepts
+    } else {
+      return { fill: '#9aa0a6', stroke: '#5f6368' }; // Gray for unknown
+    }
+  }
+
+  /**
+   * Get relationship color based on relationship type
+   * @private
+   * @param {string} type - Relationship type
+   * @returns {string} Color hex code
+   */
+  _getRelationshipColor(type) {
+    switch (type) {
+      case 'HAS_KEYWORD':
+        return '#fbbc04'; // Yellow
+      case 'RELATED_TO':
+        return '#34a853'; // Green
+      case 'SIMILAR_TO':
+        return '#4285f4'; // Blue
+      case 'CONTAINS':
+        return '#ea4335'; // Red
+      case 'PART_OF':
+        return '#9c27b0'; // Purple
+      default:
+        return '#9aa0a6'; // Gray
+    }
+  }
+
+  /**
+   * Apply force-directed layout to nodes
+   * @private
+   * @param {Array} nodes - Array of node objects with x, y, data, and element properties
+   * @param {Array} edges - Array of edge objects with source_id, target_id, and strength
+   * @param {number} width - Canvas width
+   * @param {number} height - Canvas height
+   */
+  _applyForceDirectedLayout(nodes, edges, width, height) {
+    const iterations = 100;
+    const coolingFactor = 0.95;
+    let temperature = 100;
+    
+    // Force constants
+    const repulsionStrength = 1000;
+    const attractionStrength = 0.1;
+    const centerForce = 0.01;
+    
+    // Create a map for quick node lookup
+    const nodeMap = new Map();
+    nodes.forEach(node => {
+      nodeMap.set(node.data.id, node);
+      // Initialize velocity
+      node.vx = 0;
+      node.vy = 0;
+    });
+    
+    // Animation loop
+    const animate = () => {
+      // Apply repulsion forces between all nodes
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const node1 = nodes[i];
+          const node2 = nodes[j];
+          
+          const dx = node1.x - node2.x;
+          const dy = node1.y - node2.y;
+          const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          // Repulsion force (inversely proportional to distance)
+          const force = repulsionStrength / (distance * distance);
+          const fx = (dx / distance) * force;
+          const fy = (dy / distance) * force;
+          
+          node1.vx += fx;
+          node1.vy += fy;
+          node2.vx -= fx;
+          node2.vy -= fy;
+        }
+      }
+      
+      // Apply attraction forces between connected nodes
+      edges.forEach(edge => {
+        const sourceNode = nodeMap.get(edge.source_id);
+        const targetNode = nodeMap.get(edge.target_id);
+        
+        if (sourceNode && targetNode) {
+          const dx = targetNode.x - sourceNode.x;
+          const dy = targetNode.y - sourceNode.y;
+          const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          // Attraction force (proportional to distance and relationship strength)
+          const force = attractionStrength * distance * edge.strength;
+          const fx = (dx / distance) * force;
+          const fy = (dy / distance) * force;
+          
+          sourceNode.vx += fx;
+          sourceNode.vy += fy;
+          targetNode.vx -= fx;
+          targetNode.vy -= fy;
+        }
+      });
+      
+      // Apply center force to keep nodes in viewport
+      const centerX = width / 2;
+      const centerY = height / 2;
+      
+      nodes.forEach(node => {
+        const dx = centerX - node.x;
+        const dy = centerY - node.y;
+        
+        node.vx += dx * centerForce;
+        node.vy += dy * centerForce;
+      });
+      
+      // Update positions with cooling
+      nodes.forEach(node => {
+        // Apply velocity with temperature cooling
+        node.vx *= temperature / 100;
+        node.vy *= temperature / 100;
+        
+        node.x += node.vx;
+        node.y += node.vy;
+        
+        // Keep nodes within bounds
+        node.x = Math.max(20, Math.min(width - 20, node.x));
+        node.y = Math.max(20, Math.min(height - 20, node.y));
+        
+        // Update SVG element position
+        node.element.setAttribute('cx', node.x);
+        node.element.setAttribute('cy', node.y);
+        
+        // Update text label position
+        if (node.textElement) {
+          node.textElement.setAttribute('x', node.x);
+          node.textElement.setAttribute('y', node.y + 4);
+        }
+        
+        // Reset velocity for next iteration
+        node.vx *= 0.8;
+        node.vy *= 0.8;
+      });
+      
+      // Update edge positions
+      edges.forEach(edge => {
+        const sourceNode = nodeMap.get(edge.source_id);
+        const targetNode = nodeMap.get(edge.target_id);
+        
+        if (sourceNode && targetNode && edge.lineElement) {
+          edge.lineElement.setAttribute('x1', sourceNode.x);
+          edge.lineElement.setAttribute('y1', sourceNode.y);
+          edge.lineElement.setAttribute('x2', targetNode.x);
+          edge.lineElement.setAttribute('y2', targetNode.y);
+          
+          // Update edge label position
+          if (edge.labelElement) {
+            const midX = (sourceNode.x + targetNode.x) / 2;
+            const midY = (sourceNode.y + targetNode.y) / 2;
+            edge.labelElement.setAttribute('x', midX);
+            edge.labelElement.setAttribute('y', midY - 5);
+          }
+        }
+      });
+      
+      // Cool down and continue
+      temperature *= coolingFactor;
+      
+      if (temperature > 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    // Start animation
+    requestAnimationFrame(animate);
+  }
+
+  /**
+   * Update detail level for all nodes
+   * @private
+   * @param {Array} nodes - Array of node objects
+   * @param {string} detailLevel - New detail level
+   */
+  _updateDetailLevel(nodes, detailLevel) {
+    nodes.forEach(node => {
+      if (node.textElement) {
+        const newLabel = this._getNodeLabel(node.data, detailLevel);
+        node.textElement.textContent = newLabel;
+        
+        // Adjust font size based on detail level
+        switch (detailLevel) {
+          case 'minimal':
+            node.textElement.setAttribute('font-size', '12px');
+            break;
+          case 'standard':
+            node.textElement.setAttribute('font-size', '10px');
+            break;
+          case 'detailed':
+            node.textElement.setAttribute('font-size', '9px');
+            break;
+        }
+      }
+    });
+  }
+
+  /**
+   * Show detailed information for a node
+   * @private
+   * @param {Object} node - Node data
+   * @param {Event} event - Click event
+   */
+  _showNodeDetails(node, event) {
+    // Remove any existing detail panel
+    const existingPanel = document.querySelector('.node-detail-panel');
+    if (existingPanel) {
+      existingPanel.remove();
+    }
+    
+    // Create detail panel
+    const panel = document.createElement('div');
+    panel.className = 'node-detail-panel';
+    panel.style.cssText = `
+      position: absolute;
+      top: ${event.clientY - 10}px;
+      left: ${event.clientX + 10}px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 15px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      z-index: 1000;
+      max-width: 300px;
+      font-size: 12px;
+      line-height: 1.4;
+    `;
+    
+    const labels = node.metadata?.labels || [];
+    const nodeType = labels.length > 0 ? labels[0] : 'Unknown';
+    
+    panel.innerHTML = `
+      <div style="font-weight: bold; margin-bottom: 8px; color: #333;">
+        ${nodeType} Node Details
+      </div>
+      <div style="margin-bottom: 5px;">
+        <strong>Title:</strong> ${node.title || 'N/A'}
+      </div>
+      <div style="margin-bottom: 5px;">
+        <strong>URL:</strong> ${node.url ? `<a href="${node.url}" target="_blank" style="color: #4285f4;">${node.url}</a>` : 'N/A'}
+      </div>
+      <div style="margin-bottom: 5px;">
+        <strong>Domain:</strong> ${node.domain || 'N/A'}
+      </div>
+      <div style="margin-bottom: 5px;">
+        <strong>Last Active:</strong> ${node.last_active || 'N/A'}
+      </div>
+      <div style="margin-bottom: 5px;">
+        <strong>Labels:</strong> ${labels.join(', ')}
+      </div>
+      <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee;">
+        <button onclick="this.parentElement.parentElement.remove()" style="
+          background: #f5f5f5;
+          border: 1px solid #ccc;
+          padding: 4px 8px;
+          border-radius: 3px;
+          cursor: pointer;
+          font-size: 11px;
+        ">Close</button>
+      </div>
+    `;
+    
+    // Add to document
+    document.body.appendChild(panel);
+    
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+      if (panel.parentElement) {
+        panel.remove();
+      }
+    }, 10000);
   }
 }

@@ -66,8 +66,14 @@ async def get_stats(
         )
         captures = captures_result[0]["count"] if captures_result else 0
         
-        # Get relationship count - no date filtering for now
-        relationships_query = "MATCH ()-[r]->() RETURN count(r) as count"
+        # Get relationship count - only count relationships between meaningful nodes
+        relationships_query = """
+        MATCH (n1)-[r]->(n2) 
+        WHERE (n1:Page OR n1:URL OR n1:Keyword OR n1:Concept) 
+        AND (n2:Page OR n2:URL OR n2:Keyword OR n2:Concept)
+        AND NOT (n1:Task OR n2:Task)
+        RETURN count(r) as count
+        """
         relationships_result = await db_connection.execute_query(
             relationships_query,
             transaction=tx
